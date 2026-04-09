@@ -1,22 +1,5 @@
 import { NextRequest } from "next/server";
-
-// Store active connections by user/job ID
-const connections = new Map<string, Set<ReadableStreamDefaultController>>();
-
-// Helper to send event to all connections for a specific job
-export function broadcastToJob(jobId: string, event: { type: string; data: unknown }) {
-  const jobConnections = connections.get(jobId);
-  if (jobConnections) {
-    const message = `data: ${JSON.stringify(event)}\n\n`;
-    jobConnections.forEach((controller) => {
-      try {
-        controller.enqueue(new TextEncoder().encode(message));
-      } catch (error) {
-        console.error("Error sending SSE:", error);
-      }
-    });
-  }
-}
+import { broadcastToJob, getConnections } from "@/lib/sse-broadcast";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -25,6 +8,8 @@ export async function GET(request: NextRequest) {
   if (!jobId) {
     return new Response("Missing jobId parameter", { status: 400 });
   }
+
+  const connections = getConnections();
 
   const stream = new ReadableStream({
     start(controller) {

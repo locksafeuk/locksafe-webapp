@@ -1226,6 +1226,24 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
   type __Unused = __Check
 }
 
+// Validate ../../src/app/api/agents/business-intelligence/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/agents/business-intelligence">> = Specific
+  const handler = {} as typeof import("../../src/app/api/agents/business-intelligence/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/api/agents/decisions/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/agents/decisions">> = Specific
+  const handler = {} as typeof import("../../src/app/api/agents/decisions/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
 // Validate ../../src/app/api/agents/goals/[goalId]/route.ts
 {
   type __IsExpected<Specific extends RouteHandlerConfig<"/api/agents/goals/[goalId]">> = Specific
@@ -1248,6 +1266,24 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
 {
   type __IsExpected<Specific extends RouteHandlerConfig<"/api/agents/heartbeat">> = Specific
   const handler = {} as typeof import("../../src/app/api/agents/heartbeat/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/api/agents/messages/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/agents/messages">> = Specific
+  const handler = {} as typeof import("../../src/app/api/agents/messages/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/api/agents/orchestrator/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/agents/orchestrator">> = Specific
+  const handler = {} as typeof import("../../src/app/api/agents/orchestrator/route.js")
   type __Check = __IsExpected<typeof handler>
   // @ts-ignore
   type __Unused = __Check
