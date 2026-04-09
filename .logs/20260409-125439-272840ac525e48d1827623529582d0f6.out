@@ -1,0 +1,17 @@
+Environment variables loaded from .env
+Prisma schema loaded from prisma/schema.prisma
+
+✔ Installed the @prisma/client and prisma packages in your project
+
+✔ Generated Prisma Client (v5.22.0) to ./node_modules/@prisma/client in 280ms
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+Tip: Want real-time updates to your database without manual polling? Discover how with Pulse: https://pris.ly/tip-0-pulse
+
+▲ Next.js 16.1.1 (Turbopack)
+- Environments: .env
+- Experiments (use with caution):
+  ? outputFileTracingRoot (invalid experimental key)
+
+  Creating an optimized production build ...
