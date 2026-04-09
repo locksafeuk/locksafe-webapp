@@ -1,0 +1,1 @@
+/home/ubuntu/locksafe-webapp/tailwind.config.ts

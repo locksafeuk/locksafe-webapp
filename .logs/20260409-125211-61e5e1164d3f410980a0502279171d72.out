@@ -1,0 +1,38 @@
+Unlinked Node Modules
+➤ YN0000: · Yarn 4.13.0
+➤ YN0000: ┌ Resolution step
+➤ YN0085: │ + @biomejs/biome@npm:1.9.4, @playwright/test@npm:1.59.1, @prisma/client@npm:5.22.0, @radix-ui/react-accordion@npm:1.2.12, and 555 more.
+➤ YN0085: │ - @aws-crypto/crc32@npm:5.2.0, @aws-crypto/crc32c@npm:5.2.0, @aws-crypto/sha1-browser@npm:5.2.0, @aws-crypto/sha256-browser@npm:5.2.0, and 759 more.
+➤ YN0000: └ Completed in 3s 931ms
+➤ YN0000: ┌ Post-resolution validation
+➤ YN0002: │ nextjs-shadcn@workspace:. doesn't provide @testing-library/dom (p286d35), requested by @testing-library/react and other dependencies.
+➤ YN0086: │ Some peer dependencies are incorrectly met by your project; run yarn explain peer-requirements <hash> for details, where <hash> is the six-letter p-prefixed code.
+➤ YN0086: │ Some peer dependencies are incorrectly met by dependencies; run yarn explain peer-requirements for details.
+➤ YN0000: └ Completed
+➤ YN0000: ┌ Fetch step
+➤ YN0013: │ 245 packages were added to the project (+ 673.95 MiB).
+➤ YN0000: └ Completed in 6s 790ms
+➤ YN0000: ┌ Link step
+➤ YN0007: │ @biomejs/biome@npm:1.9.4 must be built because it never has been before or the last one failed
+➤ YN0007: │ @prisma/engines@npm:5.22.0 must be built because it never has been before or the last one failed
+➤ YN0007: │ sharp@npm:0.34.5 must be built because it never has been before or the last one failed
+➤ YN0007: │ core-js@npm:3.49.0 must be built because it never has been before or the last one failed
+➤ YN0007: │ @sentry/cli@npm:2.58.5 must be built because it never has been before or the last one failed
+➤ YN0007: │ unrs-resolver@npm:1.11.1 must be built because it never has been before or the last one failed
+➤ YN0007: │ prisma@npm:5.22.0 must be built because it never has been before or the last one failed
+➤ YN0007: │ @prisma/client@npm:5.22.0 [384e1] must be built because it never has been before or the last one failed
+➤ YN0007: │ nextjs-shadcn@workspace:. must be built because it never has been before or the last one failed
+➤ YN0000: └ Completed in 56s 431ms
+➤ YN0000: · Done with warnings in 1m 8s
+Environment variables loaded from .env
+Prisma schema loaded from prisma/schema.prisma
+
+✔ Generated Prisma Client (v5.22.0) to ./../../../../opt/hostedapp/node/root/app/node_modules/@prisma/client in 265ms
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+Tip: Want to turn off tips and other hints? https://pris.ly/tip-4-nohints
+
+Deleting node modules at /home/ubuntu/locksafe-webapp/node_modules
+Deleting node modules at /home/ubuntu/locksafe-webapp/.next/node_modules
+Deleting node modules at /home/ubuntu/locksafe-webapp/.next/dev/node_modules

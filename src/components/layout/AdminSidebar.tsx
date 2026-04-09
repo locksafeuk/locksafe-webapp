@@ -21,6 +21,7 @@ import {
   Share2,
   Mail,
   Bot,
+  Phone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -37,6 +38,7 @@ interface AdminSidebarProps {
 
 const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/admin/voice-receptionist", label: "Voice AI", icon: Phone },
   { href: "/admin/agents", label: "AI Agents", icon: Bot },
   { href: "/admin/jobs", label: "Jobs", icon: Briefcase },
   { href: "/admin/locksmiths", label: "Locksmiths", icon: Users },

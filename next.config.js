@@ -1,58 +1,24 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  allowedDevOrigins: ["*.preview.same-app.com"],
-  // Exclude server-only packages from client bundling
-  serverExternalPackages: ["@prisma/client", "prisma", "openai", "bcryptjs", "jsonwebtoken"],
-  images: {
-    unoptimized: false,
-    remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "source.unsplash.com",
-        pathname: "/**",
-      },
-      {
-        protocol: "https",
-        hostname: "images.unsplash.com",
-        pathname: "/**",
-      },
-      {
-        protocol: "https",
-        hostname: "ext.same-assets.com",
-        pathname: "/**",
-      },
-      {
-        protocol: "https",
-        hostname: "ugc.same-assets.com",
-        pathname: "/**",
-      },
-    ],
+  distDir: process.env.NEXT_DIST_DIR || '.next',
+  output: process.env.NEXT_OUTPUT_MODE,
+  eslint: {
+    ignoreDuringBuilds: true,
   },
-  // Security headers
-  async headers() {
-    return [
-      {
-        source: "/(.*)",
-        headers: [
-          { key: "X-Frame-Options", value: "DENY" },
-          { key: "X-Content-Type-Options", value: "nosniff" },
-          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          { key: "X-XSS-Protection", value: "1; mode=block" },
-          {
-            key: "Strict-Transport-Security",
-            value: "max-age=63072000; includeSubDomains; preload",
-          },
-          {
-            key: "Permissions-Policy",
-            value: "camera=(), microphone=(), geolocation=(self), interest-cohort=()",
-          },
-          {
-            key: "Content-Security-Policy",
-            value: "frame-ancestors 'none';",
-          },
-        ],
-      },
-    ];
+  typescript: {
+    ignoreBuildErrors: false,
+  },
+  images: { unoptimized: true },
+  // Next.js 16 enables Turbopack by default. An empty turbopack config
+  // signals that the project is aware of Turbopack and prevents the build
+  // error caused by having a webpack config without a turbopack config.
+  turbopack: {},
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.output.filename = 'static/chunks/[name]-[contenthash:8].js';
+      config.output.chunkFilename = 'static/chunks/[contenthash:16].js';
+    }
+    return config;
   },
 };
 

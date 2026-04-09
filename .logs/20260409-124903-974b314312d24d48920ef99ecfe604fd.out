@@ -1,0 +1,12 @@
+Internal Error: nextjs-shadcn@workspace:.: This package doesn't seem to be present in your lockfile; run "yarn install" to update the lockfile
+    at DT.getCandidates (/opt/hostedapp/cache/xdg/node/corepack/v1/yarn/4.13.0/yarn.js:204:4607)
+    at em.getCandidates (/opt/hostedapp/cache/xdg/node/corepack/v1/yarn/4.13.0/yarn.js:141:1311)
+    at /opt/hostedapp/cache/xdg/node/corepack/v1/yarn/4.13.0/yarn.js:209:8420
+    at YE (/opt/hostedapp/cache/xdg/node/corepack/v1/yarn/4.13.0/yarn.js:140:45054)
+    at it (/opt/hostedapp/cache/xdg/node/corepack/v1/yarn/4.13.0/yarn.js:209:8400)
+    at async Promise.allSettled (index 0)
+    at async Lu (/opt/hostedapp/cache/xdg/node/corepack/v1/yarn/4.13.0/yarn.js:140:44382)
+    at async /opt/hostedapp/cache/xdg/node/corepack/v1/yarn/4.13.0/yarn.js:209:9166
+    at async ki.startProgressPromise (/opt/hostedapp/cache/xdg/node/corepack/v1/yarn/4.13.0/yarn.js:140:130111)
+    at async e.resolveEverything (/opt/hostedapp/cache/xdg/node/corepack/v1/yarn/4.13.0/yarn.js:209:7138)
+exit_code=1

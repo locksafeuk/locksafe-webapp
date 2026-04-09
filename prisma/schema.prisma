@@ -1544,6 +1544,187 @@ model CompanyGoal {
   updatedAt       DateTime @updatedAt
 }
 
+// ==========================================
+// VOICE AI RECEPTIONIST SYSTEM (Retell AI)
+// ==========================================
+
+// Voice call records from Retell AI
+model VoiceCall {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Retell AI identifiers
+  retellCallId    String   @unique  // Retell's call_id
+  agentId         String?            // Retell agent ID used
+
+  // Caller info
+  callerPhone     String?            // Caller's phone number
+  callerName      String?            // Extracted from conversation
+  callerPostcode  String?            // Extracted postcode
+
+  // Call metadata
+  callType        String   @default("inbound")  // inbound, outbound, web
+  callStatus      String   @default("in_progress") // in_progress, completed, failed, transferred
+  startedAt       DateTime @default(now())
+  endedAt         DateTime?
+  durationSeconds Int?
+
+  // Classification
+  callCategory    String?  // emergency, appointment, inquiry, complaint, spam
+  urgencyLevel    String?  // critical, high, medium, low
+  problemType     String?  // lockout, broken_lock, security_upgrade, rekeying, consultation
+  propertyType    String?  // residential, commercial, automotive
+
+  // Outcome
+  outcome         String?  // job_created, appointment_booked, info_provided, escalated, abandoned
+  outcomeDetails  Json?    // Details about the outcome
+
+  // Linked entities
+  jobId           String?  @db.ObjectId  // Created job (if any)
+  customerId      String?  @db.ObjectId  // Linked customer (if identified)
+  locksmithId     String?  @db.ObjectId  // Dispatched locksmith (if any)
+  bookingDate     DateTime?              // For appointment bookings
+
+  // Sentiment & quality
+  sentimentScore  Float?   // -1 to 1 (negative to positive)
+  sentimentLabel  String?  // positive, neutral, negative
+  customerSatisfaction Int? // 1-5 post-call survey
+
+  // Transcript
+  transcript      Json?    // Full transcript array [{role, content, timestamp}]
+  summary         String?  // AI-generated call summary
+
+  // Recording
+  recordingUrl    String?
+  recordingDuration Int?
+
+  // Call analysis from Retell
+  callAnalysis    Json?    // Full analysis object from Retell
+
+  // Revenue attribution
+  estimatedRevenue Float?  // Estimated revenue from this call
+  actualRevenue    Float?  // Actual revenue (after job completion)
+
+  // Deduplication
+  dedupeKey       String?  @unique  // For webhook deduplication
+
+  // Human escalation
+  wasEscalated    Boolean  @default(false)
+  escalationReason String?
+  escalatedTo     String?  // Phone number or name of human agent
+
+  // Flags
+  flaggedForReview Boolean @default(false)
+  reviewNotes     String?
+  isTestCall      Boolean  @default(false)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([callerPhone])
+  @@index([callCategory])
+  @@index([callStatus])
+  @@index([startedAt])
+  @@index([outcome])
+}
+
+// Voice agent configuration and prompts
+model VoiceAgentConfig {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  name            String   @unique  // Config name/version
+  isActive        Boolean  @default(false)
+
+  // Retell AI config
+  retellAgentId   String?  // Retell agent ID
+  retellLlmId     String?  // Retell LLM ID
+
+  // Voice settings
+  voiceId         String?  // TTS voice ID
+  language        String   @default("en-GB")
+  speakingRate    Float    @default(1.0)
+
+  // Prompts
+  systemPrompt    String   // Main agent prompt
+  greetingMessage String?  // Initial greeting
+  fallbackMessage String?  // When agent can't understand
+
+  // Behavior
+  maxCallDuration Int      @default(600) // Max seconds (10 min default)
+  silenceTimeout  Int      @default(10)  // Seconds of silence before prompting
+  enableRecording Boolean  @default(true)
+
+  // Business hours
+  businessHoursStart String @default("00:00") // 24/7 by default
+  businessHoursEnd   String @default("23:59")
+  afterHoursMessage  String?
+
+  // Feature toggles
+  enableDispatch     Boolean @default(true)
+  enableBooking      Boolean @default(true)
+  enableFAQ          Boolean @default(true)
+  enableEscalation   Boolean @default(true)
+
+  // Status
+  isPaused        Boolean  @default(false)
+  pauseReason     String?
+
+  // Blocked numbers
+  blockedNumbers  String[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Daily/hourly call analytics snapshots
+model CallAnalyticsSnapshot {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Time period
+  periodType      String   // hourly, daily, weekly, monthly
+  periodStart     DateTime
+  periodEnd       DateTime
+
+  // Volume metrics
+  totalCalls      Int      @default(0)
+  emergencyCalls  Int      @default(0)
+  appointmentCalls Int     @default(0)
+  inquiryCalls    Int      @default(0)
+  spamCalls       Int      @default(0)
+
+  // Duration metrics
+  avgDurationSeconds Float @default(0)
+  maxDurationSeconds Int   @default(0)
+  minDurationSeconds Int   @default(0)
+
+  // Outcome metrics
+  jobsCreated     Int      @default(0)
+  appointmentsBooked Int   @default(0)
+  escalations     Int      @default(0)
+  abandonedCalls  Int      @default(0)
+
+  // Conversion metrics
+  callToJobRate   Float    @default(0)  // Percentage
+  callToBookingRate Float  @default(0)
+
+  // Sentiment
+  avgSentimentScore Float  @default(0)
+  negativeSentimentCount Int @default(0)
+
+  // Revenue
+  estimatedRevenue Float   @default(0)
+  actualRevenue    Float   @default(0)
+
+  // Performance
+  avgResponseTime  Float   @default(0)  // Seconds to first dispatch
+  avgTimeToDispatch Float  @default(0)
+
+  createdAt       DateTime @default(now())
+
+  @@unique([periodType, periodStart])
+  @@index([periodType])
+  @@index([periodStart])
+}
+
 // Agent governance - pending approvals
 model AgentApproval {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
