@@ -576,7 +576,7 @@ export async function getQuoteAssistance(
   problemType: string,
   difficulty: string = "medium"
 ): Promise<QuoteAssistanceResult> {
-  // UK locksmith market rates (2024/2025 averages)
+  // UK locksmith market rates (2026/2027 averages)
   const labourRates: Record<string, Record<string, number>> = {
     easy: { cylinder: 35, mortice: 45, multipoint: 55, car: 50 },
     medium: { cylinder: 55, mortice: 75, multipoint: 95, car: 85 },

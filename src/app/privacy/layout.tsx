@@ -57,7 +57,7 @@ const webPageStructuredData = {
   mainEntity: {
     "@type": "Article",
     headline: `${SITE_NAME} Privacy Policy`,
-    datePublished: "2024-01-01",
+    datePublished: "2026-01-01",
     dateModified: "2026-02-23",
     author: {
       "@type": "Organization",

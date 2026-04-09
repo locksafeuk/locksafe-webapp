@@ -94,7 +94,7 @@ const organizationSchema = {
   logo: `${SITE_URL}/favicon.svg`,
   description:
     "LockSafe is the UK's first anti-fraud locksmith platform. We connect customers with verified, insured locksmiths while providing complete transparency through GPS tracking, digital documentation, and automatic refund protection.",
-  foundingDate: "2024",
+  foundingDate: "2026",
   areaServed: {
     "@type": "Country",
     name: "United Kingdom",

@@ -137,7 +137,7 @@ This is often the safest and quickest solution, especially in emergencies.
 
 ### What Does a Locksmith Lockout Cost in the UK?
 
-In 2024, typical lockout prices in the UK are:
+In 2026, typical lockout prices in the UK are:
 
 | Service | Typical Price Range |
 |---------|-------------------|
@@ -169,7 +169,7 @@ With LockSafe, locksmiths provide their estimated arrival time when they apply f
     author: authors.james,
     category: "emergency-locksmith",
     tags: ["locked out", "emergency locksmith", "house lockout", "lost keys", "UK locksmith"],
-    publishedAt: "2024-12-15",
+    publishedAt: "2026-03-15",
     updatedAt: "2025-02-20",
     readTime: 8,
     featured: true,
@@ -196,7 +196,7 @@ With LockSafe, locksmiths provide their estimated arrival time when they apply f
         answer: "If you're locked out at night: 1) Check all entry points and for spare keys, 2) Call a 24-hour emergency locksmith service, 3) Wait in a safe, well-lit area or ask a neighbour if you can wait inside, 4) Have ID ready to prove your residence. Expect to pay higher rates for out-of-hours calls.",
       },
     ],
-    relatedPosts: ["how-to-choose-right-locksmith", "euro-cylinder-lock-guide", "home-security-checklist-2024"],
+    relatedPosts: ["how-to-choose-right-locksmith", "euro-cylinder-lock-guide", "home-security-checklist-2026"],
   },
   {
     slug: "how-to-choose-right-locksmith",
@@ -288,7 +288,7 @@ LockSafe was built specifically to solve these industry problems:
     author: authors.sarah,
     category: "tips-advice",
     tags: ["locksmith scams", "how to choose locksmith", "verified locksmith", "trusted locksmith UK"],
-    publishedAt: "2024-11-28",
+    publishedAt: "2026-02-28",
     updatedAt: "2025-02-18",
     readTime: 7,
     featured: true,
@@ -434,7 +434,7 @@ To replace your cylinder, you need three measurements:
     author: authors.mike,
     category: "lock-guides",
     tags: ["euro cylinder", "anti-snap locks", "door security", "lock replacement", "home security UK"],
-    publishedAt: "2024-10-22",
+    publishedAt: "2026-01-22",
     updatedAt: "2025-02-10",
     readTime: 10,
     featured: true,
@@ -457,16 +457,16 @@ To replace your cylinder, you need three measurements:
         answer: "Yes, replacing a euro cylinder is a straightforward DIY job if you're comfortable with basic tools. You'll need to: measure your existing cylinder accurately, remove the screw on the door edge, pull out the old cylinder, insert the new one, and replace the screw. However, if you're unsure, a locksmith can do it in 15-30 minutes.",
       },
     ],
-    relatedPosts: ["home-security-checklist-2024", "locked-out-of-house-what-to-do", "smart-locks-vs-traditional"],
+    relatedPosts: ["home-security-checklist-2026", "locked-out-of-house-what-to-do", "smart-locks-vs-traditional"],
   },
   {
-    slug: "home-security-checklist-2024",
-    title: "Home Security Checklist 2024: Complete Guide to Protecting Your UK Home",
-    metaTitle: "Home Security Checklist UK 2024 | Complete Protection Guide",
-    metaDescription: "Use our comprehensive home security checklist to protect your UK home in 2024. Expert tips on locks, alarms, lighting, and security systems to deter burglars.",
+    slug: "home-security-checklist-2026",
+    title: "Home Security Checklist 2026: Complete Guide to Protecting Your UK Home",
+    metaTitle: "Home Security Checklist UK 2026 | Complete Protection Guide",
+    metaDescription: "Use our comprehensive home security checklist to protect your UK home in 2026. Expert tips on locks, alarms, lighting, and security systems to deter burglars.",
     excerpt: "A comprehensive home security checklist covering everything from locks and lighting to smart security systems. Protect your home with this expert guide.",
     content: `
-## Home Security Checklist: Protect Your UK Home in 2024
+## Home Security Checklist: Protect Your UK Home in 2026
 
 Home security doesn't have to be complicated or expensive. This comprehensive checklist covers **every aspect of home protection**, from basic measures to advanced security systems.
 
@@ -618,7 +618,7 @@ The good news? Most burglaries are preventable with proper security measures.
     author: authors.mike,
     category: "home-security",
     tags: ["home security", "burglary prevention", "security checklist", "protect home UK", "burglar alarm"],
-    publishedAt: "2024-09-15",
+    publishedAt: "2025-12-15",
     updatedAt: "2025-02-01",
     readTime: 12,
     featured: false,
@@ -641,8 +641,8 @@ The good news? Most burglaries are preventable with proper security measures.
   },
   {
     slug: "smart-locks-vs-traditional",
-    title: "Smart Locks vs Traditional Locks: Which is Best for UK Homes in 2024?",
-    metaTitle: "Smart Locks vs Traditional Locks UK | 2024 Comparison Guide",
+    title: "Smart Locks vs Traditional Locks: Which is Best for UK Homes in 2026?",
+    metaTitle: "Smart Locks vs Traditional Locks UK | 2026 Comparison Guide",
     metaDescription: "Should you get a smart lock or stick with traditional locks? Compare security, convenience, cost, and reliability to make the right choice for your UK home.",
     excerpt: "Smart locks are increasingly popular, but are they more secure than traditional locks? We compare the pros, cons, and best options for UK homes.",
     content: `
@@ -752,7 +752,7 @@ Traditional mechanical locks have advantages that shouldn't be overlooked:
 
 ---
 
-## Best Smart Locks for UK Homes 2024
+## Best Smart Locks for UK Homes 2026
 
 ### 1. Yale Conexis L2
 - Works with Yale app + Alexa/Google
@@ -796,7 +796,7 @@ Consider a smart lock with a high-security mechanical backup, or add smart featu
     author: authors.sarah,
     category: "lock-guides",
     tags: ["smart locks", "traditional locks", "keyless entry", "home automation", "Yale smart lock"],
-    publishedAt: "2024-08-10",
+    publishedAt: "2025-11-10",
     updatedAt: "2025-01-25",
     readTime: 9,
     featured: false,
@@ -815,7 +815,7 @@ Consider a smart lock with a high-security mechanical backup, or add smart featu
         answer: "While rare, smart locks can potentially be hacked, especially cheaper models or those using older Bluetooth protocols. Choose locks from reputable brands with regular security updates, strong encryption (AES-256), and no known vulnerabilities. The risk is generally low with quality products.",
       },
     ],
-    relatedPosts: ["euro-cylinder-lock-guide", "home-security-checklist-2024", "commercial-door-lock-systems"],
+    relatedPosts: ["euro-cylinder-lock-guide", "home-security-checklist-2026", "commercial-door-lock-systems"],
   },
   {
     slug: "24-hour-locksmith-services",
@@ -982,7 +982,7 @@ At LockSafe, we've built our platform to solve the problems with traditional eme
     author: authors.james,
     category: "emergency-locksmith",
     tags: ["24 hour locksmith", "emergency locksmith", "night locksmith", "locksmith costs UK", "emergency lockout"],
-    publishedAt: "2024-07-20",
+    publishedAt: "2025-10-20",
     updatedAt: "2025-02-15",
     readTime: 8,
     featured: false,
@@ -1001,7 +1001,7 @@ At LockSafe, we've built our platform to solve the problems with traditional eme
         answer: "Yes, 24-hour locksmiths operate around the clock, including nights, weekends, and bank holidays. They handle emergencies like lockouts, broken locks, and post-burglary security at any hour. Expect to pay premium rates for unsocial hours (typically 30-50% more than daytime rates).",
       },
     ],
-    relatedPosts: ["locked-out-of-house-what-to-do", "how-to-choose-right-locksmith", "home-security-checklist-2024"],
+    relatedPosts: ["locked-out-of-house-what-to-do", "how-to-choose-right-locksmith", "home-security-checklist-2026"],
   },
   {
     slug: "commercial-door-lock-systems",
@@ -1178,7 +1178,7 @@ Commercial locksmith projects require:
     author: authors.sarah,
     category: "commercial-security",
     tags: ["commercial locks", "access control", "business security", "master key system", "office security"],
-    publishedAt: "2024-06-15",
+    publishedAt: "2025-09-15",
     updatedAt: "2025-01-30",
     readTime: 11,
     featured: false,
@@ -1197,7 +1197,7 @@ Commercial locksmith projects require:
         answer: "A master key system allows one key to open multiple locks, while each lock also has its own unique key. This is useful for businesses where managers need access to all areas but staff have restricted access. They cost £150-300 per door to implement and provide convenient, hierarchical access control.",
       },
     ],
-    relatedPosts: ["smart-locks-vs-traditional", "home-security-checklist-2024", "24-hour-locksmith-services"],
+    relatedPosts: ["smart-locks-vs-traditional", "home-security-checklist-2026", "24-hour-locksmith-services"],
   },
 ];
 
