@@ -1,11 +1,15 @@
 import { PrismaClient, JobStatus, PhotoType } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
-// Simple hash function for demo purposes (in production, use bcrypt)
+// Secure password hashing using bcrypt
+function hashPassword(password: string): string {
+  return bcrypt.hashSync(password, 10);
+}
+
+// Legacy simple hash - kept for reference only, DO NOT USE
 function simpleHash(password: string): string {
-  // This creates a simple reversible encoding - NOT FOR PRODUCTION
-  // In production, you would use: await bcrypt.hash(password, 10)
   return Buffer.from(`hashed:${password}`).toString("base64");
 }
 
@@ -66,7 +70,7 @@ async function main() {
   const admin = await prisma.admin.create({
     data: {
       email: "admin@locksafe.co.uk",
-      passwordHash: simpleHash("demo123"),
+      passwordHash: hashPassword("demo123"),
       name: "Admin User",
       role: "super_admin",
       isActive: true,
@@ -76,7 +80,7 @@ async function main() {
   await prisma.admin.create({
     data: {
       email: "support@locksafe.co.uk",
-      passwordHash: simpleHash("demo123"),
+      passwordHash: hashPassword("demo123"),
       name: "Support Team",
       role: "admin",
       isActive: true,
@@ -91,6 +95,21 @@ async function main() {
   console.log("🔧 Creating locksmiths...");
 
   const locksmithsData = [
+    {
+      name: "Andrei Miosif",
+      companyName: "LockSafe UK",
+      email: "amiosif@icloud",
+      phone: "+447377555299",
+      rating: 4.8,
+      totalJobs: 0,
+      totalEarnings: 0,
+      isVerified: true,
+      yearsExperience: 5,
+      coverageAreas: ["London", "Greater London", "SW1", "W1", "WD4"],
+      services: ["lockout", "broken", "key-stuck", "security-upgrade"],
+      stripeConnectOnboarded: false,
+      stripeConnectVerified: false,
+    },
     {
       name: "Mike Thompson",
       companyName: "Thompson Locks Ltd",
@@ -218,7 +237,7 @@ async function main() {
       prisma.locksmith.create({
         data: {
           ...data,
-          passwordHash: simpleHash("demo123"),
+          passwordHash: hashPassword("demo123"),
           isActive: true,
         },
       })
