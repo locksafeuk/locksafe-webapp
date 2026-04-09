@@ -43,8 +43,8 @@ next-env.d.ts
 /src/generated/prisma
 
 # Core dump files
-core.*
-core
+/core.*
+/core
 *.core
 # .env
 .env*.local
