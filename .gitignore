@@ -49,3 +49,7 @@ next-env.d.ts
 *.core
 # .env
 .env*.local
+# Build artifacts
+.build/
+.logs/
+nextjs_space/
