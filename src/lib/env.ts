@@ -28,6 +28,9 @@ const envSchema = z.object({
   // Resend (email)
   RESEND_API_KEY: z.string().optional(),
 
+  // Retell AI Voice Agent
+  RETELL_API_KEY: z.string().startsWith("key_").optional(),
+
   // Sentry
   NEXT_PUBLIC_SENTRY_DSN: z.string().url().optional(),
   SENTRY_AUTH_TOKEN: z.string().optional(),
