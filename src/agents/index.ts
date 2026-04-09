@@ -17,10 +17,51 @@ import { initializeCMOAgent, runCMOHeartbeat, getCMOStatus, CMO_AGENT_CONFIG } f
 import { initializeCTOAgent, runCTOHeartbeat, getCTOStatus, CTO_AGENT_CONFIG } from "@/agents/cto/agent";
 import { initializeCopywriterAgent, runCopywriterHeartbeat, getCopywriterStatus, COPYWRITER_AGENT_CONFIG } from "@/agents/cmo/subagents/copywriter/agent";
 import { initializeAdsSpecialistAgent, runAdsSpecialistHeartbeat, getAdsSpecialistStatus, ADS_SPECIALIST_AGENT_CONFIG } from "@/agents/cmo/subagents/ads-specialist/agent";
-import { runAllHeartbeats, getAgentStatusSummary, executeHeartbeat, delegateTask, initializeAgentState, getAgentsDueForHeartbeat } from "@/agents/core/orchestrator";
+
+// Core orchestrator
+import {
+  runAllHeartbeats, getAgentStatusSummary, executeHeartbeat, delegateTask,
+  initializeAgentState, getAgentsDueForHeartbeat,
+  syncAgentStateWithDB, syncAllAgentsFromDB,
+  setAgentDependencies, setAgentPriority,
+  pauseAgent, resumeAgent, coordinateTask, completeTask,
+  getAgentStates,
+} from "@/agents/core/orchestrator";
+
+// Skill parser
 import { parseSkillsFile, parseSkillsContent, generateSystemPrompt, validateSkills } from "@/agents/core/skill-parser";
-import { storeMemory, getRelevantMemories, getMemoriesByCategory, updateMemoryImportance, promoteToLongTerm, storeDecision, storePattern, storeTaskContext, cleanupExpiredMemories, getMemoryStats, searchMemories } from "@/agents/core/memory";
+
+// Enhanced memory system
+import {
+  storeMemory, getRelevantMemories, getMemoriesByCategory, updateMemoryImportance,
+  promoteToLongTerm, storeDecision, storePattern, storeTaskContext,
+  cleanupExpiredMemories, getMemoryStats, searchMemories,
+  shareInsightAcrossAgents, queryAccessibleMemories, getCrossAgentInsights,
+  getGlobalMemoryStats,
+} from "@/agents/core/memory";
+
+// Budget
 import { getBudgetStatus, checkBudget, recordCost, estimateCost, resetBudget, resetAllBudgets, getAllBudgetStatus, updateBudget, getTotalCost } from "@/agents/core/budget";
+
+// Inter-Agent Message Bus
+import {
+  sendMessage, getMessages, getSentMessages, acknowledgeMessage,
+  subscribeToMessages, shareInsight, requestDecision as requestDecisionMsg,
+  respondToDecision, sendStatusUpdate, broadcastMessage,
+  getAllMessages, getConversationThread, getMessageBusStats,
+  cleanupExpiredMessages,
+} from "@/agents/core/message-bus";
+
+// Shared Decision Engine
+import {
+  proposeDecision, castVote, getPendingDecisions, getProposedDecisions,
+  getAllDecisions, getDecision, getDecisionStats, expireOverdueDecisions,
+} from "@/agents/core/decision-engine";
+
+// Business Intelligence
+import {
+  generateBIReport, getBusinessHealthSnapshot,
+} from "@/agents/core/business-intelligence";
 
 // Re-export types separately (types don't cause bundling issues)
 export type {
@@ -54,6 +95,43 @@ export type {
   TaskCreateRequest,
 } from "@/agents/core/types";
 
+// Re-export message bus types
+export type {
+  MessageType,
+  MessagePriority,
+  MessageStatus,
+  AgentMessage,
+  MessageFilter,
+  MessageBusStats,
+} from "@/agents/core/message-bus";
+
+// Re-export decision engine types
+export type {
+  DecisionStatus,
+  DecisionScope,
+  VoteChoice,
+  DecisionProposal,
+  DecisionVote,
+  DecisionOutcome,
+} from "@/agents/core/decision-engine";
+
+// Re-export memory types
+export type {
+  MemoryScope,
+  StrategicCategory,
+  SharedMemoryEntry,
+  MemoryQuery,
+  CrossAgentInsight,
+} from "@/agents/core/memory";
+
+// Re-export BI types
+export type {
+  BusinessHealthScore,
+  CrossFunctionalKPI,
+  AgentPerformanceReport,
+  BusinessIntelligenceReport,
+} from "@/agents/core/business-intelligence";
+
 // Re-export functions
 export {
   // Agent initialization
@@ -84,19 +162,28 @@ export {
   CTO_AGENT_CONFIG,
   COPYWRITER_AGENT_CONFIG,
   ADS_SPECIALIST_AGENT_CONFIG,
-  // Orchestrator
+  // Orchestrator (enhanced)
   runAllHeartbeats,
   getAgentStatusSummary,
   executeHeartbeat,
   delegateTask,
   initializeAgentState,
   getAgentsDueForHeartbeat,
+  syncAgentStateWithDB,
+  syncAllAgentsFromDB,
+  setAgentDependencies,
+  setAgentPriority,
+  pauseAgent,
+  resumeAgent,
+  coordinateTask,
+  completeTask,
+  getAgentStates,
   // Skill parser
   parseSkillsFile,
   parseSkillsContent,
   generateSystemPrompt,
   validateSkills,
-  // Memory
+  // Memory (enhanced)
   storeMemory,
   getRelevantMemories,
   getMemoriesByCategory,
@@ -108,6 +195,10 @@ export {
   cleanupExpiredMemories,
   getMemoryStats,
   searchMemories,
+  shareInsightAcrossAgents,
+  queryAccessibleMemories,
+  getCrossAgentInsights,
+  getGlobalMemoryStats,
   // Budget
   getBudgetStatus,
   checkBudget,
@@ -118,6 +209,33 @@ export {
   getAllBudgetStatus,
   updateBudget,
   getTotalCost,
+  // Message Bus
+  sendMessage,
+  getMessages,
+  getSentMessages,
+  acknowledgeMessage,
+  subscribeToMessages,
+  shareInsight,
+  requestDecisionMsg,
+  respondToDecision,
+  sendStatusUpdate,
+  broadcastMessage,
+  getAllMessages,
+  getConversationThread,
+  getMessageBusStats,
+  cleanupExpiredMessages,
+  // Decision Engine
+  proposeDecision,
+  castVote,
+  getPendingDecisions,
+  getProposedDecisions,
+  getAllDecisions,
+  getDecision,
+  getDecisionStats,
+  expireOverdueDecisions,
+  // Business Intelligence
+  generateBIReport,
+  getBusinessHealthSnapshot,
   // Tools
   initializeTools,
 };
@@ -129,6 +247,7 @@ export {
 export async function initializeAgentSystem(): Promise<void> {
   console.log("========================================");
   console.log("  LockSafe AI Agent Operating System");
+  console.log("  v2.0 - Enhanced Orchestration");
   console.log("========================================");
 
   // Check if agents are enabled
@@ -143,6 +262,10 @@ export async function initializeAgentSystem(): Promise<void> {
   console.log("\n[Init] Registering agent tools...");
   initializeTools();
 
+  // Sync agents from database
+  console.log("\n[Init] Syncing agents from database...");
+  await syncAllAgentsFromDB();
+
   // Initialize agents (CEO first, then executives, then subagents)
   console.log("\n[Init] Initializing agents...");
   await initializeCEOAgent();
@@ -154,6 +277,27 @@ export async function initializeAgentSystem(): Promise<void> {
   console.log("\n[Init] Initializing subagents...");
   await initializeCopywriterAgent();
   await initializeAdsSpecialistAgent();
+
+  // Set agent dependencies and priorities
+  console.log("\n[Init] Configuring agent dependencies...");
+  setAgentPriority('ceo', 10);
+  setAgentPriority('cto', 8);
+  setAgentPriority('coo', 7);
+  setAgentPriority('cmo', 6);
+  setAgentPriority('copywriter', 3);
+  setAgentPriority('ads-specialist', 3);
+
+  setAgentDependencies('cmo', ['ceo']);
+  setAgentDependencies('coo', ['ceo']);
+  setAgentDependencies('copywriter', ['cmo']);
+  setAgentDependencies('ads-specialist', ['cmo']);
+
+  // Subscribe CEO to all executive status updates
+  subscribeToMessages('ceo', (msg) => {
+    if (msg.type === 'STATUS_UPDATE' || msg.type === 'INSIGHT_SHARE') {
+      console.log(`[CEO Inbox] ${msg.fromAgentId}: ${msg.subject}`);
+    }
+  });
 
   // Get status
   const status = await getAgentStatusSummary();
@@ -199,6 +343,12 @@ export async function runAgentHeartbeats(): Promise<{
     };
   }
 
+  // Expire overdue decisions before heartbeat
+  await expireOverdueDecisions();
+
+  // Cleanup expired messages
+  await cleanupExpiredMessages();
+
   const results = await runAllHeartbeats();
 
   return {
@@ -218,7 +368,7 @@ export async function runAgentHeartbeats(): Promise<{
 }
 
 /**
- * Get system health status
+ * Get system health status (enhanced with BI)
  */
 export async function getAgentSystemHealth(): Promise<{
   healthy: boolean;
@@ -230,8 +380,10 @@ export async function getAgentSystemHealth(): Promise<{
   }>;
   totalBudgetUsed: number;
   totalBudgetRemaining: number;
+  businessHealth: Awaited<ReturnType<typeof getBusinessHealthSnapshot>>;
 }> {
   const summary = await getAgentStatusSummary();
+  const businessHealth = await getBusinessHealthSnapshot();
 
   const totalBudgetUsed = summary.agents.reduce((sum, a) => sum + a.budgetUsed, 0);
   const totalBudgetTotal = summary.agents.reduce((sum, a) => sum + a.budgetTotal, 0);
@@ -257,5 +409,6 @@ export async function getAgentSystemHealth(): Promise<{
     agents: agentHealth,
     totalBudgetUsed,
     totalBudgetRemaining: totalBudgetTotal - totalBudgetUsed,
+    businessHealth,
   };
 }
