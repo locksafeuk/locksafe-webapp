@@ -53,3 +53,4 @@ next-env.d.ts
 .build/
 .logs/
 nextjs_space/
+backups/

@@ -15,12 +15,13 @@
     "format": "bunx biome format --write",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "db:seed": "bun prisma/seed.ts",
-    "db:reset": "prisma db push --force-reset && bun prisma/seed.ts",
+    "db:seed": "npx ts-node --compiler-options '{\"module\":\"CommonJS\",\"strict\":false}' prisma/seed-production.ts",
+    "db:seed-dev": "FORCE_SEED=true bun prisma/seed.ts",
+    "db:reset": "echo '⚠️ DISABLED - Use db:seed-dev with FORCE_SEED=true for dev reset'",
     "postinstall": "prisma generate"
   },
   "prisma": {
-    "seed": "bun prisma/seed.ts"
+    "seed": "npx ts-node --compiler-options {\"module\":\"CommonJS\",\"strict\":false} prisma/seed-production.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

@@ -1,6 +1,24 @@
 import { PrismaClient, JobStatus, PhotoType } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
+// ⚠️ SAFETY GUARD: Prevent running destructive seed on production
+const dbUrl = process.env.DATABASE_URL || "";
+if (
+  dbUrl.includes("mongodb+srv://") ||
+  process.env.NODE_ENV === "production" ||
+  process.env.VERCEL === "1"
+) {
+  console.error("❌ DANGER: Cannot run destructive seed.ts on production database!");
+  console.error("   This script uses deleteMany() and will WIPE ALL DATA.");
+  console.error("");
+  console.error("   For production, use: npx ts-node prisma/seed-production.ts");
+  console.error("   To force (DANGEROUS): set FORCE_SEED=true environment variable");
+  if (process.env.FORCE_SEED !== "true") {
+    process.exit(1);
+  }
+  console.warn("⚠️  FORCE_SEED=true detected. Proceeding with destructive seed...");
+}
+
 const prisma = new PrismaClient();
 
 // Secure password hashing using bcrypt
