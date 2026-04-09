@@ -48,4 +48,3 @@ core
 *.core
 # .env
 .env*.local
-.github/
