@@ -30,6 +30,8 @@ const envSchema = z.object({
 
   // Retell AI Voice Agent
   RETELL_API_KEY: z.string().startsWith("key_").optional(),
+  RETELL_AGENT_ID: z.string().startsWith("agent_").optional(),
+  RETELL_PHONE_NUMBER: z.string().startsWith("+").optional(),
 
   // Sentry
   NEXT_PUBLIC_SENTRY_DSN: z.string().url().optional(),
