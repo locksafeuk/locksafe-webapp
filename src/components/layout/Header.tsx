@@ -9,10 +9,10 @@ import { Menu, Phone, ArrowRight, LogIn, User, LogOut, ChevronDown, AlertCircle 
 import { useAuth } from "@/components/auth/AuthContext";
 
 const navItems = [
-  { label: "How It Works", href: "#how-it-works" },
-  { label: "Services", href: "#services" },
-  { label: "Pricing", href: "#pricing" },
-  { label: "FAQ", href: "#faq" },
+  { label: "How It Works", href: "/how-it-works" },
+  { label: "Services", href: "/services" },
+  { label: "Pricing", href: "/pricing" },
+  { label: "For Locksmiths", href: "/for-locksmiths" },
   { label: "Blog", href: "/blog" },
 ];
 

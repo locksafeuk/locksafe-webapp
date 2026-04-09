@@ -6,17 +6,17 @@ import { Facebook, Instagram, Linkedin, Twitter, Mail, Phone, MapPin } from "luc
 const footerLinks = {
   company: [
     { label: "About Us", href: "/about" },
-    { label: "How It Works", href: "#how-it-works" },
-    { label: "Services", href: "#services" },
-    { label: "Pricing", href: "#pricing" },
-    { label: "Careers", href: "/careers" },
+    { label: "How It Works", href: "/how-it-works" },
+    { label: "Services", href: "/services" },
+    { label: "Pricing", href: "/pricing" },
+    { label: "Contact", href: "/contact" },
   ],
   resources: [
     { label: "Security Checklist", href: "/security-checklist" },
     { label: "Blog", href: "/blog" },
     { label: "Help Centre", href: "/help" },
-    { label: "FAQ", href: "#faq" },
-    { label: "For Locksmiths", href: "/locksmith-signup" },
+    { label: "For Locksmiths", href: "/for-locksmiths" },
+    { label: "Locksmith Sign Up", href: "/locksmith-signup" },
   ],
   legal: [
     { label: "Terms & Conditions", href: "/terms" },
