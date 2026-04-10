@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     const signatureHeader = request.headers.get("x-retell-signature");
 
     // Verify Retell signature (skip in development)
-    const verification = verifyRetellSignature(rawBody, signatureHeader);
+    const verification = await verifyRetellSignature(rawBody, signatureHeader);
     if (!verification.valid && process.env.NODE_ENV === "production") {
       console.error(`[Retell check-user] Auth failed: ${verification.error}`);
       return NextResponse.json(

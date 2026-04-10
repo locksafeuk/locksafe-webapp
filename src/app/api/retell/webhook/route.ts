@@ -9,7 +9,9 @@ export async function POST(request: NextRequest) {
     const rawBody = await request.text();
     const signatureHeader = request.headers.get("x-retell-signature");
 
-    const verification = verifyRetellSignature(rawBody, signatureHeader);
+    console.log("[Retell Webhook] Incoming request. Signature present:", !!signatureHeader);
+
+    const verification = await verifyRetellSignature(rawBody, signatureHeader);
     if (!verification.valid) {
       console.warn(`[Retell Webhook] Signature verification failed: ${verification.error}`);
       if (process.env.NODE_ENV === "production") {
@@ -18,6 +20,8 @@ export async function POST(request: NextRequest) {
           { status: 401 }
         );
       }
+      // In non-production, log but continue processing
+      console.log("[Retell Webhook] Non-production: continuing despite failed signature");
     }
 
     let event: any;

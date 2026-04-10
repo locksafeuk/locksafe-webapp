@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     const rawBody = await request.text();
     const signatureHeader = request.headers.get("x-retell-signature");
 
-    const verification = verifyRetellSignature(rawBody, signatureHeader);
+    const verification = await verifyRetellSignature(rawBody, signatureHeader);
     if (!verification.valid && process.env.NODE_ENV === "production") {
       return NextResponse.json(
         { success: false, error: "Unauthorized" },
