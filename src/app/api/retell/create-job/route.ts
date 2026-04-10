@@ -1,9 +1,10 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { verifyRetellSignature } from "@/lib/retell-auth";
+import { createEmergencyJob, type EmergencyJobInput } from "@/lib/job-service";
 import prisma from "@/lib/db";
 import { notifyNewJob } from "@/lib/telegram";
-import { verifyRetellSignature } from "@/lib/retell-auth";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -16,63 +17,14 @@ export async function OPTIONS() {
   return new NextResponse(null, { status: 200, headers: CORS_HEADERS });
 }
 
-// Generate unique job number
-function generateJobNumber(): string {
-  const date = new Date();
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const random = Math.floor(Math.random() * 10000)
-    .toString()
-    .padStart(4, "0");
-  return `LS-${year}${month}-${random}`;
-}
-
-// Generate unique continue token
-function generateContinueToken(): string {
-  const chars =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let token = "";
-  for (let i = 0; i < 32; i++) {
-    token += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return token;
-}
-
-// Geocode postcode to coordinates
-async function geocodePostcode(
-  postcode: string
-): Promise<{ lat: number; lng: number } | null> {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000); // 5s timeout
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
-        postcode
-      )},UK&format=json&limit=1`,
-      {
-        headers: { "User-Agent": "LockSafe-UK/1.0" },
-        signal: controller.signal,
-      }
-    );
-    clearTimeout(timeout);
-    const data = await response.json();
-    if (data && data.length > 0) {
-      return {
-        lat: Number.parseFloat(data[0].lat),
-        lng: Number.parseFloat(data[0].lon),
-      };
-    }
-    return null;
-  } catch (error) {
-    console.error("[Retell create-job] Geocoding error:", error);
-    return null;
-  }
-}
-
 /**
- * Retell AI Custom Tool: Create phone-initiated job
+ * Retell AI Custom Tool: Create emergency job and notify locksmiths
  *
- * Creates a partial job that the customer completes via web.
+ * NEW WORKFLOW:
+ * 1. Uses createEmergencyJob from job-service
+ * 2. Automatically finds and notifies nearby locksmiths
+ * 3. Sends customer SMS confirmation
+ * 4. Returns job reference and notification status for Sarah to relay
  *
  * IMPORTANT: Returns 200 even on logical errors so Retell doesn't retry.
  */
@@ -110,18 +62,22 @@ export async function POST(request: NextRequest) {
     // Extract Retell call context
     retellCallId = body.call?.call_id || body.retell_call_id;
     const args = body.args || body;
+    retellCallId = retellCallId || args.retell_call_id;
 
     const {
       customer_id,
+      customer_phone,
+      customer_name,
+      customer_email,
       postcode,
       address,
+      exact_location,
       service_type,
       property_type,
       urgency,
       description,
+      emergency_details,
     } = args;
-    // Accept retell_call_id from args too (for backward compat)
-    retellCallId = retellCallId || args.retell_call_id;
 
     console.log("[Retell create-job] Request:", {
       retellCallId: retellCallId || "N/A",
@@ -131,65 +87,52 @@ export async function POST(request: NextRequest) {
       urgency: urgency || "[missing]",
     });
 
-    if (!customer_id) {
+    // Validate required fields
+    if (!postcode) {
       return NextResponse.json(
         {
           success: false,
-          error: "Customer ID is required",
+          error: "Postcode is required",
           message:
-            "I need to create your account first before registering the job.",
+            "I need your postcode to find locksmiths near you. Could you please tell me your postcode?",
         },
         { status: 200, headers: CORS_HEADERS }
       );
     }
 
-    // Verify customer exists (catch invalid ID format gracefully)
-    let customer;
-    try {
-      customer = await prisma.customer.findUnique({
-        where: { id: customer_id },
-      });
-    } catch (findErr: any) {
-      console.error(
-        `[Retell create-job] Invalid customer_id "${customer_id}":`,
-        findErr?.message
-      );
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Invalid customer ID format",
-          message:
-            "There was an issue with your account. Let me try creating it again.",
-        },
-        { status: 200, headers: CORS_HEADERS }
-      );
-    }
+    // If we have a customer_id, look up their details
+    let customerPhone = customer_phone;
+    let customerName = customer_name || "Phone Customer";
+    let customerEmail = customer_email;
 
-    if (!customer) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Customer not found",
-          message:
-            "I couldn't find your account. Let me create one for you first.",
-        },
-        { status: 200, headers: CORS_HEADERS }
-      );
-    }
-
-    // Generate tokens
-    const jobNumber = generateJobNumber();
-    const continueToken = generateContinueToken();
-
-    // Geocode postcode (non-blocking-ish, with timeout)
-    let latitude: number | null = null;
-    let longitude: number | null = null;
-    if (postcode) {
-      const coords = await geocodePostcode(postcode);
-      if (coords) {
-        latitude = coords.lat;
-        longitude = coords.lng;
+    if (customer_id && (!customerPhone || !customerName)) {
+      try {
+        const customer = await prisma.customer.findUnique({
+          where: { id: customer_id },
+          select: { name: true, phone: true, email: true },
+        });
+        if (customer) {
+          customerPhone = customerPhone || customer.phone;
+          customerName = customer_name || customer.name;
+          customerEmail = customerEmail || customer.email || undefined;
+        }
+      } catch (err: any) {
+        console.warn(
+          `[Retell create-job] Could not look up customer ${customer_id}: ${err?.message}`
+        );
       }
+    }
+
+    if (!customerPhone) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Customer phone is required",
+          message:
+            "I need your phone number to register the job. Could you confirm your phone number?",
+        },
+        { status: 200, headers: CORS_HEADERS }
+      );
     }
 
     // Map service type to problem type
@@ -206,55 +149,43 @@ export async function POST(request: NextRequest) {
     };
 
     const problemType =
-      problemTypeMap[service_type?.toLowerCase()] || "lockout";
+      problemTypeMap[service_type?.toLowerCase()] || service_type || "lockout";
 
-    // Determine pricing based on urgency
-    const isEmergency =
-      urgency === "immediate" ||
-      urgency === "emergency" ||
-      service_type?.toLowerCase().includes("lockout") ||
-      service_type?.toLowerCase().includes("burglary");
-    const assessmentFee = isEmergency ? 89.0 : 65.0;
+    // Build emergency job input
+    const jobInput: EmergencyJobInput = {
+      customerPhone,
+      customerName,
+      customerEmail,
+      postcode: postcode.toUpperCase(),
+      address: address || postcode,
+      exactLocation: exact_location,
+      problemType,
+      propertyType: property_type || "house",
+      emergencyDetails: emergency_details || description,
+      description:
+        description ||
+        `Phone request: ${service_type || "Emergency locksmith"}`,
+      createdVia: "retell_ai",
+      retellCallId: retellCallId || undefined,
+    };
 
-    // Create the job
-    const job = await prisma.job.create({
-      data: {
-        jobNumber,
-        customerId: customer_id,
-        status: "PHONE_INITIATED",
-        createdVia: "phone",
-        blandCallId: retellCallId || null, // Re-using blandCallId field for Retell call ID
-        continueToken,
-        problemType,
-        propertyType: property_type || "house",
-        postcode: postcode?.toUpperCase() || "",
-        address: address || "",
-        description:
-          description ||
-          `Phone request: ${service_type || "Emergency locksmith"}`,
-        assessmentFee,
-        latitude,
-        longitude,
-        phoneCollectedData: {
-          service_type: service_type || null,
-          property_type: property_type || null,
-          urgency: urgency || null,
-          postcode: postcode || null,
-          address: address || null,
-          description: description || null,
-          collected_at: new Date().toISOString(),
-          retell_call_id: retellCallId || null,
-          source: "retell_ai",
+    // Use the new emergency job service
+    const result = await createEmergencyJob(jobInput);
+
+    if (!result.success || !result.job) {
+      console.error(
+        `[Retell create-job] Job creation failed: ${result.error}`
+      );
+      return NextResponse.json(
+        {
+          success: false,
+          error: result.error || "Failed to create job",
+          message:
+            "I had a technical issue registering your request. Let me try again.",
         },
-      },
-    });
-
-    // Generate continue URL
-    const baseUrl =
-      process.env.NEXT_PUBLIC_BASE_URL ||
-      process.env.NEXT_PUBLIC_SITE_URL ||
-      "https://locksafe.uk";
-    const continueUrl = `${baseUrl}/continue-request/${continueToken}`;
+        { status: 200, headers: CORS_HEADERS }
+      );
+    }
 
     // Link to VoiceCall record if exists
     if (retellCallId) {
@@ -262,8 +193,8 @@ export async function POST(request: NextRequest) {
         .update({
           where: { retellCallId },
           data: {
-            jobId: job.id,
-            customerId: customer.id,
+            jobId: result.job.id,
+            customerId: result.customer?.id,
             outcome: "job_created",
           },
         })
@@ -276,36 +207,49 @@ export async function POST(request: NextRequest) {
 
     // Send Telegram notification (non-blocking)
     notifyNewJob({
-      jobNumber: job.jobNumber,
-      jobId: job.id,
-      customerName: customer.name,
-      customerPhone: customer.phone,
-      problemType: job.problemType,
-      propertyType: job.propertyType,
-      postcode: job.postcode || "Not provided",
-      address: job.address || "Not provided",
-      description: job.description,
+      jobNumber: result.job.jobNumber,
+      jobId: result.job.id,
+      customerName: result.customer?.name || customerName,
+      customerPhone,
+      problemType,
+      propertyType: property_type || "house",
+      postcode: postcode?.toUpperCase() || "Not provided",
+      address: address || "Not provided",
+      description:
+        description || `Phone request: ${service_type || "Emergency locksmith"}`,
       isUrgent:
         urgency === "immediate" ||
-        service_type?.toLowerCase().includes("lockout"),
+        service_type?.toLowerCase()?.includes("lockout"),
     }).catch((err) =>
       console.error("Failed to send Telegram notification:", err)
     );
 
+    // Build response message for Sarah
+    const notifiedCount = result.notifications?.notifiedCount || 0;
+    let notificationStatus: string;
+    if (notifiedCount > 0) {
+      notificationStatus = `${notifiedCount} nearby locksmith${notifiedCount > 1 ? "s have" : " has"} been notified and will respond shortly.`;
+    } else {
+      notificationStatus =
+        "We're working on finding available locksmiths in your area.";
+    }
+
+    const elapsed = Date.now() - startTime;
     console.log(
-      `[Retell create-job] Created phone-initiated job: ${jobNumber} (Call: ${retellCallId}, ${Date.now() - startTime}ms)`
+      `[Retell create-job] Created emergency job: ${result.job.jobNumber} | Notified: ${notifiedCount} locksmiths (${elapsed}ms)`
     );
 
     return NextResponse.json(
       {
         success: true,
-        job_id: job.id,
-        job_number: jobNumber,
-        continue_url: continueUrl,
-        continue_token: continueToken,
-        assessment_fee: assessmentFee,
-        is_emergency: isEmergency,
-        message: `I've registered your ${isEmergency ? "emergency" : "scheduled"} request. Your reference number is ${jobNumber}. The assessment fee will be £${assessmentFee}.`,
+        job_id: result.job.id,
+        job_number: result.job.jobNumber,
+        job_status: result.job.status,
+        customer_id: result.customer?.id,
+        customer_is_new: result.customer?.isNew || false,
+        locksmiths_notified: notifiedCount,
+        notification_status: notificationStatus,
+        message: `Job created successfully. Your reference number is ${result.job.jobNumber}. ${notificationStatus} You'll receive a text message when a locksmith applies for your job.`,
       },
       { status: 200, headers: CORS_HEADERS }
     );

@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { sendPhoneRequestContinuationEmail } from "@/lib/email";
 import { verifyRetellSignature } from "@/lib/retell-auth";
+import { sendSMS } from "@/lib/sms";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -17,9 +18,11 @@ export async function OPTIONS() {
 }
 
 /**
- * Retell AI Custom Tool: Send notification with continue link
+ * Retell AI Custom Tool: Send notification with continue link or payment link
  *
- * Sends SMS and/or email to customer with link to complete their request.
+ * Supports two notification types:
+ * 1. "continue" (default) - Sends SMS/email with link to complete request
+ * 2. "payment" - Sends SMS with payment link (handled by job-service workflow)
  *
  * IMPORTANT: Returns 200 even on logical errors so Retell doesn't retry.
  */
@@ -66,20 +69,23 @@ export async function POST(request: NextRequest) {
       customer_name,
       job_number,
       continue_url,
+      notification_type, // "continue" or "payment"
+      payment_url, // For payment link notifications
     } = args;
 
     console.log("[Retell send-notification] Request:", {
       retellCallId: retellCallId || "N/A",
       job_id: job_id || "[missing]",
       customer_id: customer_id || "[missing]",
+      notification_type: notification_type || "continue",
     });
 
-    if (!job_id || !customer_id) {
+    if (!job_id && !customer_id) {
       return NextResponse.json(
         {
           success: false,
-          error: "Job ID and Customer ID are required",
-          message: "I need the job details to send you the notification.",
+          error: "Job ID or Customer ID is required",
+          message: "I need some details to send you the notification.",
         },
         { status: 200, headers: CORS_HEADERS }
       );
@@ -91,7 +97,7 @@ export async function POST(request: NextRequest) {
       process.env.NEXT_PUBLIC_SITE_URL ||
       "https://locksafe.uk";
     let jobDetails = { jobNumber: job_number, continueUrl: continue_url };
-    if (!job_number || !continue_url) {
+    if (job_id && (!job_number || !continue_url)) {
       try {
         const job = await prisma.job.findUnique({
           where: { id: job_id },
@@ -116,7 +122,7 @@ export async function POST(request: NextRequest) {
       phone: customer_phone,
       email: customer_email,
     };
-    if (!customer_name || (!customer_phone && !customer_email)) {
+    if (customer_id && (!customer_name || (!customer_phone && !customer_email))) {
       try {
         const customer = await prisma.customer.findUnique({
           where: { id: customer_id },
@@ -137,6 +143,7 @@ export async function POST(request: NextRequest) {
     }
 
     const notifications: string[] = [];
+    const type = notification_type || "continue";
 
     // Normalize phone for SMS
     let phoneForSms = customerDetails.phone;
@@ -156,51 +163,31 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Send SMS via Twilio
     const isValidPhone =
       phoneForSms &&
       phoneForSms !== "Unknown" &&
       phoneForSms.match(/^\+\d{10,15}$/);
-    if (isValidPhone && process.env.TWILIO_ACCOUNT_SID) {
+
+    // Send SMS based on notification type
+    if (isValidPhone) {
       try {
-        const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
-        const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
-        const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+        let smsMessage: string;
 
-        if (twilioAccountSid && twilioAuthToken && twilioPhoneNumber) {
-          const smsMessage = `LockSafe UK: Your emergency request ${jobDetails.jobNumber || "has been"} registered. Complete your request here: ${jobDetails.continueUrl || baseUrl}`;
-
-          const response = await fetch(
-            `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/x-www-form-urlencoded",
-                Authorization: `Basic ${Buffer.from(
-                  `${twilioAccountSid}:${twilioAuthToken}`
-                ).toString("base64")}`,
-              },
-              body: new URLSearchParams({
-                To: phoneForSms!,
-                From: twilioPhoneNumber,
-                Body: smsMessage,
-              }),
-            }
-          );
-
-          if (response.ok) {
-            notifications.push("sms");
-            console.log(
-              `[Retell send-notification] SMS sent to ${phoneForSms}`
-            );
-          } else {
-            const errBody = await response.text();
-            console.error(
-              `[Retell send-notification] Twilio SMS failed (${response.status}):`,
-              errBody
-            );
-          }
+        if (type === "payment" && payment_url) {
+          // Payment link SMS
+          smsMessage = `LockSafe UK: A locksmith has applied for your job ${jobDetails.jobNumber || ""}. Pay the call-out fee to confirm: ${payment_url}`;
+        } else {
+          // Standard continue link SMS
+          smsMessage = `LockSafe UK: Your emergency request ${jobDetails.jobNumber || "has been"} registered. ${jobDetails.continueUrl ? `Complete your request: ${jobDetails.continueUrl}` : `Visit ${baseUrl} to manage your request.`}`;
         }
+
+        await sendSMS(phoneForSms!, smsMessage, {
+          logContext: `Retell notification (${type}): ${jobDetails.jobNumber || "N/A"}`,
+        });
+        notifications.push("sms");
+        console.log(
+          `[Retell send-notification] SMS sent to ${phoneForSms} (type: ${type})`
+        );
       } catch (smsError) {
         console.error("[Retell send-notification] SMS error:", smsError);
       }
@@ -210,8 +197,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Send email
-    if (customerDetails.email) {
+    // Send email (only for continue-type notifications)
+    if (type === "continue" && customerDetails.email) {
       try {
         await sendPhoneRequestContinuationEmail(customerDetails.email, {
           customerName: customerDetails.name,
@@ -225,21 +212,21 @@ export async function POST(request: NextRequest) {
       } catch (emailError) {
         console.error("[Retell send-notification] Email error:", emailError);
       }
-    } else {
-      console.log(
-        "[Retell send-notification] Skipping email - no email address"
-      );
     }
 
-    const notificationsSent = notifications.length > 0;
-    // Build a human-readable message
+    // Build a human-readable message for Sarah
     let notificationMessage: string;
     if (notifications.length === 2) {
       notificationMessage =
         "I've sent you a text message and an email with a link to complete your request.";
     } else if (notifications.includes("sms")) {
-      notificationMessage =
-        "I've sent you a text message with a link to complete your request.";
+      if (type === "payment") {
+        notificationMessage =
+          "I've sent you a text message with the payment link.";
+      } else {
+        notificationMessage =
+          "I've sent you a text message with a link to complete your request.";
+      }
     } else if (notifications.includes("email")) {
       notificationMessage =
         "I've sent you an email with a link to complete your request.";
@@ -249,7 +236,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(
-      `[Retell send-notification] Notifications sent: ${notifications.join(", ") || "none"} (${Date.now() - startTime}ms)`
+      `[Retell send-notification] Notifications sent: ${notifications.join(", ") || "none"} (type: ${type}, ${Date.now() - startTime}ms)`
     );
 
     return NextResponse.json(
@@ -258,6 +245,7 @@ export async function POST(request: NextRequest) {
         notifications_sent: notifications,
         sms_sent: notifications.includes("sms"),
         email_sent: notifications.includes("email"),
+        notification_type: type,
         job_number: jobDetails.jobNumber,
         continue_url: jobDetails.continueUrl,
         message: notificationMessage,

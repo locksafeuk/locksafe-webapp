@@ -23,6 +23,9 @@ export async function OPTIONS() {
  * Called during phone call via Retell custom function to
  * check/create customer account in the LockSafe system.
  *
+ * Returns onboarding status (passwordSet, locationConfirmed) so
+ * Sarah knows whether the customer needs to complete onboarding after payment.
+ *
  * Retell sends: { name, args: { phone, email, full_name, ... }, call: { call_id, ... } }
  * OR with "args only" payload: { phone, email, full_name, ... }
  *
@@ -78,53 +81,25 @@ export async function POST(request: NextRequest) {
       name: full_name || caller_name || "[missing]",
     });
 
-    // Email is REQUIRED - primary identifier for customer accounts
-    if (!email) {
-      return NextResponse.json(
-        {
-          success: false,
-          exists: false,
-          error: "Email is required to check for existing account",
-          message:
-            "I'll need your email address to check for an existing account.",
-        },
-        { status: 200, headers: CORS_HEADERS }
-      );
-    }
+    // Try to find by phone first (since caller_phone_number is always available)
+    let customer: any = null;
 
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const normalizedEmail = email.toLowerCase().trim();
-    if (!emailRegex.test(normalizedEmail)) {
-      return NextResponse.json(
-        {
-          success: false,
-          exists: false,
-          error: "Invalid email format",
-          message:
-            "That email address doesn't look quite right. Could you spell it out for me?",
-        },
-        { status: 200, headers: CORS_HEADERS }
-      );
-    }
+    if (phone_number) {
+      // Normalize phone for lookup
+      let normalizedPhone = phone_number.replace(/[\s\-]/g, "");
+      if (normalizedPhone.startsWith("0044")) {
+        normalizedPhone = "+" + normalizedPhone.substring(2);
+      } else if (
+        normalizedPhone.startsWith("44") &&
+        !normalizedPhone.startsWith("+")
+      ) {
+        normalizedPhone = "+" + normalizedPhone;
+      } else if (normalizedPhone.startsWith("0")) {
+        normalizedPhone = "+44" + normalizedPhone.substring(1);
+      } else if (!normalizedPhone.startsWith("+")) {
+        normalizedPhone = "+44" + normalizedPhone;
+      }
 
-    // Check by email first
-    let customer = await prisma.customer.findUnique({
-      where: { email: normalizedEmail },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        emailVerified: true,
-      },
-    });
-
-    // Fallback: check by phone
-    if (!customer && phone_number) {
-      const normalizedPhone = phone_number
-        .replace(/\s+/g, "")
-        .replace(/^0/, "+44");
       customer = await prisma.customer.findFirst({
         where: {
           phone: {
@@ -141,8 +116,32 @@ export async function POST(request: NextRequest) {
           email: true,
           phone: true,
           emailVerified: true,
+          onboardingCompleted: true,
+          passwordSet: true,
+          locationConfirmed: true,
         },
       });
+    }
+
+    // Fallback: check by email
+    if (!customer && email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const normalizedEmail = email.toLowerCase().trim();
+      if (emailRegex.test(normalizedEmail)) {
+        customer = await prisma.customer.findUnique({
+          where: { email: normalizedEmail },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            emailVerified: true,
+            onboardingCompleted: true,
+            passwordSet: true,
+            locationConfirmed: true,
+          },
+        });
+      }
     }
 
     if (customer) {
@@ -161,6 +160,7 @@ export async function POST(request: NextRequest) {
               "QUOTE_ACCEPTED",
               "IN_PROGRESS",
               "PENDING_CUSTOMER_CONFIRMATION",
+              "PHONE_INITIATED",
             ],
           },
         },
@@ -182,6 +182,11 @@ export async function POST(request: NextRequest) {
           email_verified: customer.emailVerified,
           has_active_jobs: activeJobs > 0,
           active_job_count: activeJobs,
+          // Onboarding status
+          onboarding_completed: customer.onboardingCompleted,
+          password_set: customer.passwordSet,
+          location_confirmed: customer.locationConfirmed,
+          needs_onboarding: !customer.onboardingCompleted,
           message: `Welcome back, ${customer.name}! I can see you already have an account with us.`,
         },
         { status: 200, headers: CORS_HEADERS }
@@ -217,19 +222,35 @@ export async function POST(request: NextRequest) {
       normalizedPhone = "Unknown";
     }
 
+    // Normalize email if provided
+    const normalizedEmail = email ? email.toLowerCase().trim() : undefined;
+
+    const createData: any = {
+      name: customerName,
+      phone: normalizedPhone,
+      createdVia: "phone",
+      // Onboarding flags start as false - customer completes after payment
+      onboardingCompleted: false,
+      passwordSet: false,
+      locationConfirmed: false,
+    };
+
+    // Only set email if provided and valid
+    if (normalizedEmail) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (emailRegex.test(normalizedEmail)) {
+        createData.email = normalizedEmail;
+      }
+    }
+
     const newCustomer = await prisma.customer.create({
-      data: {
-        name: customerName,
-        phone: normalizedPhone,
-        email: normalizedEmail,
-        createdVia: "phone",
-      },
+      data: createData,
     });
 
     // Send Telegram notification (non-blocking)
     notifyNewCustomer({
       name: customerName,
-      email: normalizedEmail,
+      email: normalizedEmail || "Not provided",
       phone: normalizedPhone,
     }).catch((err) =>
       console.error("Failed to send Telegram notification:", err)
@@ -248,7 +269,12 @@ export async function POST(request: NextRequest) {
         customer_name: newCustomer.name,
         customer_email: newCustomer.email,
         customer_phone: newCustomer.phone,
-        message: `Perfect! I've created your account, ${customerName}. Now let me help you with your emergency.`,
+        // New customers need onboarding
+        onboarding_completed: false,
+        password_set: false,
+        location_confirmed: false,
+        needs_onboarding: true,
+        message: `I've created your account, ${customerName}. Now let me help you with your emergency.`,
       },
       { status: 200, headers: CORS_HEADERS }
     );
@@ -267,9 +293,9 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           exists: false,
-          error: "Account may already exist with that email",
+          error: "Account may already exist",
           message:
-            "It looks like an account was just created with that email. Let me check again.",
+            "It looks like an account was just created. Let me check again.",
         },
         { status: 200, headers: CORS_HEADERS }
       );
@@ -279,7 +305,7 @@ export async function POST(request: NextRequest) {
       {
         success: false,
         exists: false,
-        error: "Failed to check/create user",
+        error: "Failed to check customer account",
         message: "I had a small technical issue. Let me try again.",
       },
       { status: 200, headers: CORS_HEADERS }

@@ -22,6 +22,9 @@ export async function OPTIONS() {
  * Use check-user for: "Look up this customer, create if not found"
  * Use create-user for: "Create this customer account with these details"
  *
+ * Sets onboarding flags to false initially - customer completes onboarding
+ * after payment via the web portal.
+ *
  * IMPORTANT: Returns 200 even on logical errors so Retell doesn't retry.
  */
 export async function POST(request: NextRequest) {
@@ -71,40 +74,40 @@ export async function POST(request: NextRequest) {
       email: email ? "[provided]" : "[missing]",
     });
 
-    if (!full_name || !email) {
-      const missingFields: string[] = [];
-      if (!full_name) missingFields.push("full name");
-      if (!email) missingFields.push("email address");
+    if (!full_name) {
       return NextResponse.json(
         {
           success: false,
-          error: `Missing required fields: ${missingFields.join(", ")}`,
+          error: "Full name is required",
           missing_fields: {
-            full_name: !full_name,
+            full_name: true,
             email: !email,
             phone: !phone_number,
           },
-          message: `I need your ${missingFields.join(" and ")} to create your account.`,
+          message: "I need your full name to create your account.",
         },
         { status: 200, headers: CORS_HEADERS }
       );
     }
 
-    // Validate email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Please provide a valid email address",
-          message:
-            "That email address doesn't look quite right. Could you spell it out for me?",
-        },
-        { status: 200, headers: CORS_HEADERS }
-      );
+    // Normalize email if provided
+    let normalizedEmail: string | undefined;
+    if (email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const trimmedEmail = email.toLowerCase().trim();
+      normalizedEmail = trimmedEmail;
+      if (!emailRegex.test(trimmedEmail)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Invalid email address",
+            message:
+              "That email address doesn't look quite right. Could you spell it out for me?",
+          },
+          { status: 200, headers: CORS_HEADERS }
+        );
+      }
     }
-
-    const normalizedEmail = email.toLowerCase().trim();
 
     // Normalize phone to E.164 for UK
     let normalizedPhone = phone_number
@@ -128,12 +131,10 @@ export async function POST(request: NextRequest) {
       normalizedPhone = "Unknown";
     }
 
-    // Check if already exists by email (primary) or phone (fallback)
-    let customer = await prisma.customer.findUnique({
-      where: { email: normalizedEmail },
-    });
+    // Check if already exists by phone (primary) or email (fallback)
+    let customer: any = null;
 
-    if (!customer && normalizedPhone !== "Unknown") {
+    if (normalizedPhone !== "Unknown") {
       customer = await prisma.customer.findFirst({
         where: {
           phone: {
@@ -144,6 +145,12 @@ export async function POST(request: NextRequest) {
             ].filter(Boolean),
           },
         },
+      });
+    }
+
+    if (!customer && normalizedEmail) {
+      customer = await prisma.customer.findUnique({
+        where: { email: normalizedEmail },
       });
     }
 
@@ -168,26 +175,34 @@ export async function POST(request: NextRequest) {
           customer_email: customer.email,
           customer_phone: customer.phone,
           is_new: false,
+          onboarding_completed: customer.onboardingCompleted || false,
+          password_set: customer.passwordSet || false,
+          location_confirmed: customer.locationConfirmed || false,
+          needs_onboarding: !(customer.onboardingCompleted),
           message: `I found your existing account, ${customer.name}. Let me continue with your request.`,
         },
         { status: 200, headers: CORS_HEADERS }
       );
     }
 
-    // Create new customer
+    // Create new customer with onboarding flags set to false
     customer = await prisma.customer.create({
       data: {
         name: full_name,
         phone: normalizedPhone,
-        email: normalizedEmail,
+        email: normalizedEmail || null,
         createdVia: "phone",
+        // Onboarding flags - all false initially
+        onboardingCompleted: false,
+        passwordSet: false,
+        locationConfirmed: false,
       },
     });
 
     // Telegram notification (non-blocking)
     notifyNewCustomer({
       name: full_name,
-      email: normalizedEmail,
+      email: normalizedEmail || "Not provided",
       phone: normalizedPhone,
     }).catch((err) =>
       console.error("Failed to send Telegram notification:", err)
@@ -205,7 +220,11 @@ export async function POST(request: NextRequest) {
         customer_email: customer.email,
         customer_phone: customer.phone,
         is_new: true,
-        message: `Perfect! I've created your account, ${full_name}. Now let me help you with your emergency.`,
+        onboarding_completed: false,
+        password_set: false,
+        location_confirmed: false,
+        needs_onboarding: true,
+        message: `I've created your account, ${full_name}. Now let me help you with your emergency.`,
       },
       { status: 200, headers: CORS_HEADERS }
     );
@@ -222,9 +241,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: "An account with that email already exists",
+          error: "An account already exists with those details",
           message:
-            "It looks like an account already exists with that email. Let me look it up for you.",
+            "It looks like an account already exists. Let me look it up for you.",
         },
         { status: 200, headers: CORS_HEADERS }
       );
@@ -233,7 +252,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: "Failed to create user account",
+        error: "Failed to create account",
         message:
           "I had a small technical issue creating your account. Let me try again.",
       },
