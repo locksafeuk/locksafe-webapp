@@ -16,6 +16,7 @@ import { sendSMS } from "@/lib/sms";
  *   customerId: string,
  *   jobId: string,
  *   password: string,
+ *   email: string, (required - collected during onboarding since not asked on phone)
  *   locationConfirmed: boolean,
  *   address?: string, (updated address if changed)
  *   postcode?: string (updated postcode if changed)
@@ -24,7 +25,7 @@ import { sendSMS } from "@/lib/sms";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { customerId, jobId, password, locationConfirmed, address, postcode } = body;
+    const { customerId, jobId, password, email, locationConfirmed, address, postcode } = body;
 
     // Validate required fields
     if (!customerId) {
@@ -37,6 +38,34 @@ export async function POST(request: NextRequest) {
     if (!password || typeof password !== "string" || password.length < 8) {
       return NextResponse.json(
         { success: false, error: "Password must be at least 8 characters" },
+        { status: 400 }
+      );
+    }
+
+    // Validate email - required during onboarding (not collected on phone)
+    if (!email || typeof email !== "string") {
+      return NextResponse.json(
+        { success: false, error: "Email address is required" },
+        { status: 400 }
+      );
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const normalizedEmail = email.toLowerCase().trim();
+    if (!emailRegex.test(normalizedEmail)) {
+      return NextResponse.json(
+        { success: false, error: "Invalid email address format" },
+        { status: 400 }
+      );
+    }
+
+    // Check if email is already taken by another customer
+    const existingEmailCustomer = await prisma.customer.findUnique({
+      where: { email: normalizedEmail },
+    });
+    if (existingEmailCustomer && existingEmailCustomer.id !== customerId) {
+      return NextResponse.json(
+        { success: false, error: "This email address is already associated with another account" },
         { status: 400 }
       );
     }
@@ -64,10 +93,11 @@ export async function POST(request: NextRequest) {
     // Hash password
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // Update customer
+    // Update customer - set email collected during onboarding
     const updatedCustomer = await prisma.customer.update({
       where: { id: customerId },
       data: {
+        email: normalizedEmail,
         passwordHash,
         passwordSet: true,
         locationConfirmed: locationConfirmed ?? true,

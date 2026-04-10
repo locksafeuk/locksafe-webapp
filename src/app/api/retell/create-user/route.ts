@@ -65,13 +65,14 @@ export async function POST(request: NextRequest) {
 
     // Retell sends "phone" but legacy code used "phone_number" - accept both
     const phone_number = args.phone || args.phone_number;
+    // Email is now optional - collected during web onboarding instead of phone call
     const { full_name, email, postcode } = args;
 
     console.log("[Retell create-user] Request:", {
       retellCallId: retellCallId || "N/A",
       name: full_name || "[missing]",
       phone: phone_number ? "[provided]" : "[missing]",
-      email: email ? "[provided]" : "[missing]",
+      email: email ? "[provided]" : "[not collected - will get during onboarding]",
     });
 
     if (!full_name) {
@@ -81,7 +82,6 @@ export async function POST(request: NextRequest) {
           error: "Full name is required",
           missing_fields: {
             full_name: true,
-            email: !email,
             phone: !phone_number,
           },
           message: "I need your full name to create your account.",
