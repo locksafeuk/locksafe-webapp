@@ -634,6 +634,120 @@ export async function updatePayoutSchedule(
   return account;
 }
 
+// ===========================
+// STRIPE CHECKOUT SESSION
+// ===========================
+
+/**
+ * Create a Stripe Checkout Session for call-out fee payment
+ * This creates a hosted payment page - perfect for SMS-based payment links
+ */
+export async function createCheckoutSession(params: {
+  amount: number; // in pounds
+  jobId: string;
+  customerId: string;
+  locksmithId: string;
+  applicationId: string;
+  customerEmail?: string | null;
+  customerName?: string;
+  locksmithName?: string;
+  jobNumber?: string;
+  locksmithStripeAccountId?: string | null;
+  paymentType?: "assessment_fee" | "callout" | "work_quote";
+  successUrl?: string;
+  cancelUrl?: string;
+}): Promise<Stripe.Checkout.Session> {
+  const {
+    amount,
+    jobId,
+    customerId,
+    locksmithId,
+    applicationId,
+    customerEmail,
+    customerName,
+    locksmithName,
+    jobNumber,
+    locksmithStripeAccountId,
+    paymentType = "callout",
+    successUrl,
+    cancelUrl,
+  } = params;
+
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://locksafe.uk";
+  const amountInPence = formatAmountForStripe(amount);
+  const commissionRate = paymentType === "work_quote" ? WORK_QUOTE_COMMISSION : ASSESSMENT_FEE_COMMISSION;
+  const platformFee = locksmithStripeAccountId
+    ? Math.round(amountInPence * commissionRate)
+    : 0;
+
+  const sessionParams: Stripe.Checkout.SessionCreateParams = {
+    mode: "payment",
+    currency: "gbp",
+    line_items: [
+      {
+        price_data: {
+          currency: "gbp",
+          unit_amount: amountInPence,
+          product_data: {
+            name: `LockSafe ${paymentType === "callout" ? "Call-Out Fee" : "Assessment Fee"}`,
+            description: locksmithName
+              ? `${locksmithName} - Job ${jobNumber || jobId}`
+              : `Job ${jobNumber || jobId}`,
+          },
+        },
+        quantity: 1,
+      },
+    ],
+    success_url: successUrl || `${siteUrl}/customer/onboard?session_id={CHECKOUT_SESSION_ID}&job=${jobId}`,
+    cancel_url: cancelUrl || `${siteUrl}/customer/job/${jobId}?payment=cancelled`,
+    metadata: {
+      jobId,
+      customerId,
+      locksmithId,
+      applicationId,
+      type: paymentType,
+      platformFee: platformFee.toString(),
+      locksmithShare: (amountInPence - platformFee).toString(),
+    },
+    // Save customer details for future use
+    customer_creation: "always",
+    // Pre-fill email if available
+    ...(customerEmail ? { customer_email: customerEmail } : {}),
+    // Set up for Connect transfer
+    ...(locksmithStripeAccountId
+      ? {
+          payment_intent_data: {
+            transfer_data: {
+              destination: locksmithStripeAccountId,
+            },
+            application_fee_amount: platformFee,
+            metadata: {
+              jobId,
+              customerId,
+              locksmithId,
+              applicationId,
+              type: paymentType,
+            },
+          },
+        }
+      : {}),
+    // Expire after 30 minutes
+    expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
+  };
+
+  const session = await stripe.checkout.sessions.create(sessionParams);
+  return session;
+}
+
+/**
+ * Retrieve a Checkout Session with line items
+ */
+export async function getCheckoutSession(sessionId: string): Promise<Stripe.Checkout.Session> {
+  return stripe.checkout.sessions.retrieve(sessionId, {
+    expand: ["payment_intent", "line_items"],
+  });
+}
+
 // Verify webhook signature
 export function verifyWebhookSignature(
   payload: string | Buffer,

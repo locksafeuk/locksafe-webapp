@@ -50,6 +50,8 @@ model Customer {
   // Onboarding & Terms
   termsAcceptedAt        DateTime?  // When customer accepted T&C
   onboardingCompleted    Boolean    @default(false)
+  passwordSet            Boolean    @default(false) // Whether customer has set a password
+  locationConfirmed      Boolean    @default(false) // Whether customer confirmed their location
 
   // WhatsApp support integration
   whatsappChatId         String?    // WhatsApp chat ID for support
@@ -161,7 +163,9 @@ model LocksmithApplication {
   locksmith     Locksmith @relation(fields: [locksmithId], references: [id])
 
   assessmentFee Float     // Fee the locksmith is charging
+  callOutFee    Float?    // Call-out fee for emergency workflow
   eta           Int       // Minutes until arrival
+  estimatedETA  String?   // Human-readable ETA (e.g., "15 minutes")
   message       String?   // Optional message to customer
 
   status        String    @default("pending") // pending, accepted, rejected
@@ -180,10 +184,18 @@ model Job {
   status           JobStatus @default(PENDING)
 
   // Source tracking (phone/web/app)
-  createdVia       String    @default("web") // web, phone, app
+  createdVia       String    @default("web") // web, phone, app, retell_ai
   blandCallId      String?   // Bland.ai call ID for phone-initiated jobs
+  retellCallId     String?   // Retell AI call ID for voice-initiated jobs
   phoneCollectedData Json?   // Data collected during phone call
   continueToken    String?   @unique // Token for continuing phone-initiated request
+
+  // Emergency workflow tracking
+  isEmergency          Boolean   @default(false) // Whether this is an emergency request
+  emergencyDetails     String?   // Details of the emergency
+  exactLocation        String?   // Exact location description (e.g., "blue door, flat 3")
+  notifiedLocksmithIds String[]  // IDs of locksmiths who were notified
+  notifiedAt           DateTime? // When locksmiths were notified
 
   // Customer info
   customerId       String    @db.ObjectId
@@ -329,10 +341,22 @@ model Payment {
   jobId           String    @db.ObjectId
   job             Job       @relation(fields: [jobId], references: [id])
 
-  type            String    // assessment, quote, tip
+  customerId      String?   @db.ObjectId  // Customer who made the payment
+
+  type            String    // assessment, quote, tip, callout
   amount          Float
   status          String    @default("pending") // pending, succeeded, failed, refunded
-  stripePaymentId String?   // Stripe payment intent ID
+
+  // Stripe integration
+  stripePaymentId       String?   // Stripe payment intent ID
+  stripeCheckoutId      String?   // Stripe Checkout Session ID
+  stripePaymentIntentId String?   // Payment Intent from completed checkout
+
+  // Payment link for SMS-based checkout flow
+  paymentUrl            String?   // Short URL sent to customer via SMS
+  paymentUrlExpiresAt   DateTime? // When the payment link expires
+
+  paidAt          DateTime?
 
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt

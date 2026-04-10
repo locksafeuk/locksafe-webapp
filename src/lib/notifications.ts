@@ -12,6 +12,7 @@ export type NotificationType =
   | "job_update"
   | "payment"
   | "locksmith_applied"
+  | "job_confirmed"
   | "quote_received"
   | "work_completed"
   | "locksmith_arrived"
