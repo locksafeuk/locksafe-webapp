@@ -20,11 +20,12 @@ export async function OPTIONS() {
 /**
  * Retell AI Custom Tool: Create emergency job and notify locksmiths
  *
- * NEW WORKFLOW:
- * 1. Uses createEmergencyJob from job-service
- * 2. Automatically finds and notifies nearby locksmiths
- * 3. Sends customer SMS confirmation
- * 4. Returns job reference and notification status for Sarah to relay
+ * WORKFLOW (no customerId required):
+ * 1. Extract customer info from args OR Retell call context (caller_phone_number)
+ * 2. createEmergencyJob handles find-or-create customer by phone
+ * 3. Automatically finds and notifies nearby locksmiths
+ * 4. Sends customer SMS confirmation
+ * 5. Returns job reference and notification status for Sarah to relay
  *
  * IMPORTANT: Returns 200 even on logical errors so Retell doesn't retry.
  */
@@ -59,10 +60,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Extract Retell call context
+    // ─── Extract Retell call context ───
     retellCallId = body.call?.call_id || body.retell_call_id;
     const args = body.args || body;
     retellCallId = retellCallId || args.retell_call_id;
+
+    // Retell provides caller_phone_number in the call object
+    const callerPhoneFromRetell =
+      body.call?.from_number ||
+      body.call?.caller_phone_number ||
+      args.caller_phone_number;
 
     const {
       customer_id,
@@ -81,13 +88,16 @@ export async function POST(request: NextRequest) {
 
     console.log("[Retell create-job] Request:", {
       retellCallId: retellCallId || "N/A",
-      customer_id: customer_id || "[missing]",
+      customer_id: customer_id || "[none]",
+      customer_phone: customer_phone || "[none]",
+      callerPhoneFromRetell: callerPhoneFromRetell || "[none]",
+      customer_name: customer_name || "[none]",
       postcode: postcode || "[missing]",
       service_type: service_type || "[missing]",
       urgency: urgency || "[missing]",
     });
 
-    // Validate required fields
+    // ─── Validate required fields ───
     if (!postcode) {
       return NextResponse.json(
         {
@@ -100,25 +110,52 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // If we have a customer_id, look up their details
-    let customerPhone = customer_phone;
+    // ─── Resolve customer details ───
+    // Priority: explicit args > Retell call context > customer_id lookup
+    let customerPhone = customer_phone || callerPhoneFromRetell;
     let customerName = customer_name || "Phone Customer";
     let customerEmail = customer_email;
 
-    if (customer_id && (!customerPhone || !customerName)) {
+    // If we have a customer_id, try to enrich missing fields from DB
+    if (customer_id) {
       try {
-        const customer = await prisma.customer.findUnique({
+        const existingCustomer = await prisma.customer.findUnique({
           where: { id: customer_id },
           select: { name: true, phone: true, email: true },
         });
-        if (customer) {
-          customerPhone = customerPhone || customer.phone;
-          customerName = customer_name || customer.name;
-          customerEmail = customerEmail || customer.email || undefined;
+        if (existingCustomer) {
+          customerPhone = customerPhone || existingCustomer.phone;
+          customerName =
+            customer_name || existingCustomer.name || customerName;
+          customerEmail = customerEmail || existingCustomer.email || undefined;
+          console.log(
+            `[Retell create-job] Enriched from customer_id ${customer_id}: phone=${customerPhone}`
+          );
         }
       } catch (err: any) {
         console.warn(
           `[Retell create-job] Could not look up customer ${customer_id}: ${err?.message}`
+        );
+        // Non-fatal — continue with what we have
+      }
+    }
+
+    // If still no phone, try to find from VoiceCall record
+    if (!customerPhone && retellCallId) {
+      try {
+        const voiceCall = await prisma.voiceCall.findUnique({
+          where: { retellCallId },
+          select: { callerPhone: true, customerId: true },
+        });
+        if (voiceCall?.callerPhone) {
+          customerPhone = voiceCall.callerPhone;
+          console.log(
+            `[Retell create-job] Got phone from VoiceCall: ${customerPhone}`
+          );
+        }
+      } catch (err: any) {
+        console.warn(
+          `[Retell create-job] Could not look up VoiceCall: ${err?.message}`
         );
       }
     }
@@ -135,7 +172,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Map service type to problem type
+    // ─── Map service type to problem type ───
     const problemTypeMap: Record<string, string> = {
       locked_out: "lockout",
       lockout: "lockout",
@@ -151,7 +188,8 @@ export async function POST(request: NextRequest) {
     const problemType =
       problemTypeMap[service_type?.toLowerCase()] || service_type || "lockout";
 
-    // Build emergency job input
+    // ─── Build emergency job input ───
+    // createEmergencyJob handles find-or-create customer internally
     const jobInput: EmergencyJobInput = {
       customerPhone,
       customerName,
@@ -169,7 +207,7 @@ export async function POST(request: NextRequest) {
       retellCallId: retellCallId || undefined,
     };
 
-    // Use the new emergency job service
+    // ─── Create the job ───
     const result = await createEmergencyJob(jobInput);
 
     if (!result.success || !result.job) {
@@ -187,9 +225,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Link to VoiceCall record if exists
+    // ─── Link to VoiceCall record (non-blocking) ───
     if (retellCallId) {
-      await prisma.voiceCall
+      prisma.voiceCall
         .update({
           where: { retellCallId },
           data: {
@@ -205,7 +243,7 @@ export async function POST(request: NextRequest) {
         );
     }
 
-    // Send Telegram notification (non-blocking)
+    // ─── Send Telegram notification (non-blocking) ───
     notifyNewJob({
       jobNumber: result.job.jobNumber,
       jobId: result.job.id,
@@ -216,7 +254,8 @@ export async function POST(request: NextRequest) {
       postcode: postcode?.toUpperCase() || "Not provided",
       address: address || "Not provided",
       description:
-        description || `Phone request: ${service_type || "Emergency locksmith"}`,
+        description ||
+        `Phone request: ${service_type || "Emergency locksmith"}`,
       isUrgent:
         urgency === "immediate" ||
         service_type?.toLowerCase()?.includes("lockout"),
@@ -224,7 +263,7 @@ export async function POST(request: NextRequest) {
       console.error("Failed to send Telegram notification:", err)
     );
 
-    // Build response message for Sarah
+    // ─── Build response for Sarah ───
     const notifiedCount = result.notifications?.notifiedCount || 0;
     let notificationStatus: string;
     if (notifiedCount > 0) {
@@ -236,7 +275,7 @@ export async function POST(request: NextRequest) {
 
     const elapsed = Date.now() - startTime;
     console.log(
-      `[Retell create-job] Created emergency job: ${result.job.jobNumber} | Notified: ${notifiedCount} locksmiths (${elapsed}ms)`
+      `[Retell create-job] ✅ Created emergency job: ${result.job.jobNumber} | Customer: ${result.customer?.name} (${result.customer?.isNew ? "NEW" : "existing"}) | Notified: ${notifiedCount} locksmiths (${elapsed}ms)`
     );
 
     return NextResponse.json(
@@ -246,6 +285,7 @@ export async function POST(request: NextRequest) {
         job_number: result.job.jobNumber,
         job_status: result.job.status,
         customer_id: result.customer?.id,
+        customer_name: result.customer?.name,
         customer_is_new: result.customer?.isNew || false,
         locksmiths_notified: notifiedCount,
         notification_status: notificationStatus,
