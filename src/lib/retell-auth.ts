@@ -24,10 +24,12 @@ export async function verifyRetellSignature(
   signatureHeader: string | null
 ): Promise<VerificationResult> {
   // Read API key at call time (not module load) so env is always fresh
-  const apiKey = process.env.RETELL_API_KEY || "";
+  // For webhook signature verification, use the dedicated webhook secret key.
+  // Falls back to RETELL_API_KEY if RETELL_WEBHOOK_SECRET is not set.
+  const apiKey = process.env.RETELL_WEBHOOK_SECRET || process.env.RETELL_API_KEY || "";
 
   if (!apiKey) {
-    console.error("[Retell Auth] Missing RETELL_API_KEY environment variable");
+    console.error("[Retell Auth] Missing RETELL_WEBHOOK_SECRET / RETELL_API_KEY environment variable");
     return { valid: false, error: "Server configuration error: missing API key" };
   }
 
