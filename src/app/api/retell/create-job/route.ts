@@ -171,6 +171,16 @@ export async function POST(request: NextRequest) {
 
     const problemType = problemTypeMap[service_type?.toLowerCase()] || "lockout";
 
+    // Determine pricing based on urgency
+    // Emergency (immediate) jobs: £89 base price
+    // Scheduled jobs: £65 base price
+    const isEmergency =
+      urgency === "immediate" ||
+      urgency === "emergency" ||
+      service_type?.toLowerCase().includes("lockout") ||
+      service_type?.toLowerCase().includes("burglary");
+    const assessmentFee = isEmergency ? 89.0 : 65.0;
+
     // Create the job
     const job = await prisma.job.create({
       data: {
@@ -186,7 +196,7 @@ export async function POST(request: NextRequest) {
         address: address || "",
         description:
           description || `Phone request: ${service_type || "Emergency locksmith"}`,
-        assessmentFee: 29.0,
+        assessmentFee,
         latitude,
         longitude,
         phoneCollectedData: {
@@ -250,7 +260,9 @@ export async function POST(request: NextRequest) {
         job_number: jobNumber,
         continue_url: continueUrl,
         continue_token: continueToken,
-        message: `I've registered your emergency request. Your reference number is ${jobNumber}.`,
+        assessment_fee: assessmentFee,
+        is_emergency: isEmergency,
+        message: `I've registered your ${isEmergency ? "emergency" : "scheduled"} request. Your reference number is ${jobNumber}. The assessment fee will be £${assessmentFee}.`,
       },
       { headers: CORS_HEADERS }
     );

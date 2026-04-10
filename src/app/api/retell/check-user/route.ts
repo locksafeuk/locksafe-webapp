@@ -44,7 +44,9 @@ export async function POST(request: NextRequest) {
 
     // Retell sends tool call args - may be nested under "args" or at top level
     const args = body.args || body;
-    const { phone_number, email, full_name, caller_name, postcode } = args;
+    // Retell sends "phone" but legacy code used "phone_number" - accept both
+    const phone_number = args.phone || args.phone_number;
+    const { email, full_name, caller_name, postcode } = args;
 
     console.log("[Retell check-user] Request:", {
       email: email ? "[provided]" : "[missing]",
