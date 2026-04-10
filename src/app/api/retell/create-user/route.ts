@@ -19,15 +19,15 @@ export async function OPTIONS() {
 /**
  * Retell AI Custom Tool: Create new user account (explicit creation)
  *
- * NOTE: The check-user endpoint also auto-creates customers if they don't exist.
- * This endpoint is kept for explicit user creation when the AI agent
- * has already collected all required details and wants to create the account
- * without checking first.
- *
  * Use check-user for: "Look up this customer, create if not found"
  * Use create-user for: "Create this customer account with these details"
+ *
+ * IMPORTANT: Returns 200 even on logical errors so Retell doesn't retry.
  */
 export async function POST(request: NextRequest) {
+  const startTime = Date.now();
+  let retellCallId: string | undefined;
+
   try {
     const rawBody = await request.text();
     const signatureHeader = request.headers.get("x-retell-signature");
@@ -41,14 +41,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = JSON.parse(rawBody);
+    let body: any;
+    try {
+      body = JSON.parse(rawBody);
+    } catch (parseErr) {
+      console.error("[Retell create-user] Invalid JSON body:", parseErr);
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Invalid request body",
+          message: "I had a technical issue. Let me try again.",
+        },
+        { status: 200, headers: CORS_HEADERS }
+      );
+    }
+
+    // Extract Retell call context
+    retellCallId = body.call?.call_id || body.retell_call_id;
     const args = body.args || body;
 
     // Retell sends "phone" but legacy code used "phone_number" - accept both
     const phone_number = args.phone || args.phone_number;
-    const { full_name, email, postcode, retell_call_id } = args;
+    const { full_name, email, postcode } = args;
 
     console.log("[Retell create-user] Request:", {
+      retellCallId: retellCallId || "N/A",
       name: full_name || "[missing]",
       phone: phone_number ? "[provided]" : "[missing]",
       email: email ? "[provided]" : "[missing]",
@@ -69,7 +86,7 @@ export async function POST(request: NextRequest) {
           },
           message: `I need your ${missingFields.join(" and ")} to create your account.`,
         },
-        { headers: CORS_HEADERS }
+        { status: 200, headers: CORS_HEADERS }
       );
     }
 
@@ -80,9 +97,10 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: "Please provide a valid email address",
-          message: "That email address doesn't look quite right. Could you spell it out for me?",
+          message:
+            "That email address doesn't look quite right. Could you spell it out for me?",
         },
-        { headers: CORS_HEADERS }
+        { status: 200, headers: CORS_HEADERS }
       );
     }
 
@@ -95,7 +113,10 @@ export async function POST(request: NextRequest) {
     if (normalizedPhone) {
       if (normalizedPhone.startsWith("0044")) {
         normalizedPhone = "+" + normalizedPhone.substring(2);
-      } else if (normalizedPhone.startsWith("44") && !normalizedPhone.startsWith("+")) {
+      } else if (
+        normalizedPhone.startsWith("44") &&
+        !normalizedPhone.startsWith("+")
+      ) {
         normalizedPhone = "+" + normalizedPhone;
       } else if (normalizedPhone.startsWith("0")) {
         normalizedPhone = "+44" + normalizedPhone.substring(1);
@@ -116,7 +137,11 @@ export async function POST(request: NextRequest) {
       customer = await prisma.customer.findFirst({
         where: {
           phone: {
-            in: [normalizedPhone, phone_number, phone_number?.replace(/\s+/g, "")].filter(Boolean),
+            in: [
+              normalizedPhone,
+              phone_number,
+              phone_number?.replace(/\s+/g, ""),
+            ].filter(Boolean),
           },
         },
       });
@@ -132,7 +157,9 @@ export async function POST(request: NextRequest) {
         customer.name = full_name;
       }
 
-      console.log(`[Retell create-user] Found existing customer: ${customer.id}`);
+      console.log(
+        `[Retell create-user] Found existing customer: ${customer.id} (${Date.now() - startTime}ms)`
+      );
       return NextResponse.json(
         {
           success: true,
@@ -143,7 +170,7 @@ export async function POST(request: NextRequest) {
           is_new: false,
           message: `I found your existing account, ${customer.name}. Let me continue with your request.`,
         },
-        { headers: CORS_HEADERS }
+        { status: 200, headers: CORS_HEADERS }
       );
     }
 
@@ -162,9 +189,13 @@ export async function POST(request: NextRequest) {
       name: full_name,
       email: normalizedEmail,
       phone: normalizedPhone,
-    }).catch((err) => console.error("Failed to send Telegram notification:", err));
+    }).catch((err) =>
+      console.error("Failed to send Telegram notification:", err)
+    );
 
-    console.log(`[Retell create-user] Created new customer: ${customer.id} (Call: ${retell_call_id})`);
+    console.log(
+      `[Retell create-user] Created new customer: ${customer.id} (Call: ${retellCallId}, ${Date.now() - startTime}ms)`
+    );
 
     return NextResponse.json(
       {
@@ -176,17 +207,37 @@ export async function POST(request: NextRequest) {
         is_new: true,
         message: `Perfect! I've created your account, ${full_name}. Now let me help you with your emergency.`,
       },
-      { headers: CORS_HEADERS }
+      { status: 200, headers: CORS_HEADERS }
     );
-  } catch (error) {
-    console.error("[Retell create-user] Error:", error);
+  } catch (error: any) {
+    console.error("[Retell create-user] Error:", {
+      message: error?.message,
+      code: error?.code,
+      retellCallId,
+      elapsed: `${Date.now() - startTime}ms`,
+    });
+
+    // Handle Prisma unique constraint violation
+    if (error?.code === "P2002") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "An account with that email already exists",
+          message:
+            "It looks like an account already exists with that email. Let me look it up for you.",
+        },
+        { status: 200, headers: CORS_HEADERS }
+      );
+    }
+
     return NextResponse.json(
       {
         success: false,
         error: "Failed to create user account",
-        message: "I had a small technical issue creating your account. Let me try again.",
+        message:
+          "I had a small technical issue creating your account. Let me try again.",
       },
-      { status: 500, headers: CORS_HEADERS }
+      { status: 200, headers: CORS_HEADERS }
     );
   }
 }

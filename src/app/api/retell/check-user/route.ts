@@ -19,12 +19,19 @@ export async function OPTIONS() {
 
 /**
  * Retell AI Custom Tool: Check if user exists, create if not
- * Ported from Bland.ai check-user endpoint
  *
  * Called during phone call via Retell custom function to
  * check/create customer account in the LockSafe system.
+ *
+ * Retell sends: { name, args: { phone, email, full_name, ... }, call: { call_id, ... } }
+ * OR with "args only" payload: { phone, email, full_name, ... }
+ *
+ * IMPORTANT: Returns 200 even on logical errors so Retell doesn't retry.
  */
 export async function POST(request: NextRequest) {
+  const startTime = Date.now();
+  let retellCallId: string | undefined;
+
   try {
     // Get raw body for signature verification
     const rawBody = await request.text();
@@ -40,7 +47,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = JSON.parse(rawBody);
+    let body: any;
+    try {
+      body = JSON.parse(rawBody);
+    } catch (parseErr) {
+      console.error("[Retell check-user] Invalid JSON body:", parseErr);
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Invalid request body",
+          message: "I had a technical issue. Let me try again.",
+        },
+        { status: 200, headers: CORS_HEADERS }
+      );
+    }
+
+    // Extract Retell call context for logging
+    retellCallId = body.call?.call_id || body.retell_call_id;
 
     // Retell sends tool call args - may be nested under "args" or at top level
     const args = body.args || body;
@@ -49,6 +72,7 @@ export async function POST(request: NextRequest) {
     const { email, full_name, caller_name, postcode } = args;
 
     console.log("[Retell check-user] Request:", {
+      retellCallId: retellCallId || "N/A",
       email: email ? "[provided]" : "[missing]",
       phone: phone_number ? "[provided]" : "[missing]",
       name: full_name || caller_name || "[missing]",
@@ -61,13 +85,28 @@ export async function POST(request: NextRequest) {
           success: false,
           exists: false,
           error: "Email is required to check for existing account",
-          message: "I'll need your email address to check for an existing account.",
+          message:
+            "I'll need your email address to check for an existing account.",
         },
-        { headers: CORS_HEADERS }
+        { status: 200, headers: CORS_HEADERS }
       );
     }
 
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const normalizedEmail = email.toLowerCase().trim();
+    if (!emailRegex.test(normalizedEmail)) {
+      return NextResponse.json(
+        {
+          success: false,
+          exists: false,
+          error: "Invalid email format",
+          message:
+            "That email address doesn't look quite right. Could you spell it out for me?",
+        },
+        { status: 200, headers: CORS_HEADERS }
+      );
+    }
 
     // Check by email first
     let customer = await prisma.customer.findUnique({
@@ -83,7 +122,9 @@ export async function POST(request: NextRequest) {
 
     // Fallback: check by phone
     if (!customer && phone_number) {
-      const normalizedPhone = phone_number.replace(/\s+/g, "").replace(/^0/, "+44");
+      const normalizedPhone = phone_number
+        .replace(/\s+/g, "")
+        .replace(/^0/, "+44");
       customer = await prisma.customer.findFirst({
         where: {
           phone: {
@@ -111,15 +152,23 @@ export async function POST(request: NextRequest) {
           customerId: customer.id,
           status: {
             in: [
-              "PENDING", "ACCEPTED", "EN_ROUTE", "ARRIVED",
-              "DIAGNOSING", "QUOTED", "QUOTE_ACCEPTED",
-              "IN_PROGRESS", "PENDING_CUSTOMER_CONFIRMATION",
+              "PENDING",
+              "ACCEPTED",
+              "EN_ROUTE",
+              "ARRIVED",
+              "DIAGNOSING",
+              "QUOTED",
+              "QUOTE_ACCEPTED",
+              "IN_PROGRESS",
+              "PENDING_CUSTOMER_CONFIRMATION",
             ],
           },
         },
       });
 
-      console.log(`[Retell check-user] Found existing customer: ${customer.id}`);
+      console.log(
+        `[Retell check-user] Found existing customer: ${customer.id} (${Date.now() - startTime}ms)`
+      );
 
       return NextResponse.json(
         {
@@ -135,23 +184,28 @@ export async function POST(request: NextRequest) {
           active_job_count: activeJobs,
           message: `Welcome back, ${customer.name}! I can see you already have an account with us.`,
         },
-        { headers: CORS_HEADERS }
+        { status: 200, headers: CORS_HEADERS }
       );
     }
 
     // Customer doesn't exist - CREATE NEW
-    console.log("[Retell check-user] No existing customer found, creating new account...");
+    console.log(
+      "[Retell check-user] No existing customer found, creating new account..."
+    );
 
     const customerName = full_name || caller_name || "Phone Customer";
 
     // Normalize phone to E.164 for UK
     let normalizedPhone = phone_number
-      ? phone_number.replace(/\s+/g, "").replace(/-/g, "")
+      ? phone_number.replace(/[\s\-]/g, "")
       : "";
     if (normalizedPhone) {
       if (normalizedPhone.startsWith("0044")) {
         normalizedPhone = "+" + normalizedPhone.substring(2);
-      } else if (normalizedPhone.startsWith("44") && !normalizedPhone.startsWith("+")) {
+      } else if (
+        normalizedPhone.startsWith("44") &&
+        !normalizedPhone.startsWith("+")
+      ) {
         normalizedPhone = "+" + normalizedPhone;
       } else if (normalizedPhone.startsWith("0")) {
         normalizedPhone = "+44" + normalizedPhone.substring(1);
@@ -177,9 +231,13 @@ export async function POST(request: NextRequest) {
       name: customerName,
       email: normalizedEmail,
       phone: normalizedPhone,
-    }).catch((err) => console.error("Failed to send Telegram notification:", err));
+    }).catch((err) =>
+      console.error("Failed to send Telegram notification:", err)
+    );
 
-    console.log(`[Retell check-user] Created new customer via phone: ${newCustomer.id}`);
+    console.log(
+      `[Retell check-user] Created new customer via phone: ${newCustomer.id} (${Date.now() - startTime}ms)`
+    );
 
     return NextResponse.json(
       {
@@ -192,10 +250,31 @@ export async function POST(request: NextRequest) {
         customer_phone: newCustomer.phone,
         message: `Perfect! I've created your account, ${customerName}. Now let me help you with your emergency.`,
       },
-      { headers: CORS_HEADERS }
+      { status: 200, headers: CORS_HEADERS }
     );
-  } catch (error) {
-    console.error("[Retell check-user] Error:", error);
+  } catch (error: any) {
+    console.error("[Retell check-user] Error:", {
+      message: error?.message,
+      code: error?.code,
+      retellCallId,
+      elapsed: `${Date.now() - startTime}ms`,
+    });
+
+    // Handle specific Prisma errors
+    if (error?.code === "P2002") {
+      // Unique constraint violation - customer was created between check and create
+      return NextResponse.json(
+        {
+          success: false,
+          exists: false,
+          error: "Account may already exist with that email",
+          message:
+            "It looks like an account was just created with that email. Let me check again.",
+        },
+        { status: 200, headers: CORS_HEADERS }
+      );
+    }
+
     return NextResponse.json(
       {
         success: false,
@@ -203,7 +282,7 @@ export async function POST(request: NextRequest) {
         error: "Failed to check/create user",
         message: "I had a small technical issue. Let me try again.",
       },
-      { status: 500, headers: CORS_HEADERS }
+      { status: 200, headers: CORS_HEADERS }
     );
   }
 }
