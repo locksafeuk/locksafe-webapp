@@ -145,6 +145,55 @@ async function handleCallEnded(call: RetellCallData): Promise<{ success: boolean
     },
   });
 
+  // Update any linked job with call data (ported from Bland.ai webhook)
+  try {
+    const linkedJob = await prisma.job.findFirst({
+      where: { blandCallId: call.call_id },
+    });
+    if (linkedJob) {
+      await prisma.job.update({
+        where: { id: linkedJob.id },
+        data: {
+          phoneCollectedData: {
+            ...(typeof linkedJob.phoneCollectedData === "object" && linkedJob.phoneCollectedData !== null
+              ? (linkedJob.phoneCollectedData as Record<string, unknown>)
+              : {}),
+            call_id: call.call_id,
+            call_status: call.disconnection_reason === "error" ? "failed" : "completed",
+            call_length_seconds: durationSec,
+            completed: call.disconnection_reason !== "error",
+            recording_url: call.recording_url,
+            webhook_received_at: new Date().toISOString(),
+          },
+        },
+      });
+      console.log(`[Retell] Updated linked job ${linkedJob.jobNumber} with call data`);
+    }
+  } catch (jobUpdateError: any) {
+    console.warn(`[Retell] Could not update linked job: ${jobUpdateError?.message}`);
+  }
+
+  // Log analytics event (ported from Bland.ai webhook)
+  try {
+    await prisma.analyticsEvent.create({
+      data: {
+        type: "retell_call_completed",
+        data: {
+          call_id: call.call_id,
+          call_status: call.disconnection_reason === "error" ? "failed" : "completed",
+          call_length_seconds: durationSec,
+          completed: call.disconnection_reason !== "error",
+          had_error: call.disconnection_reason === "error",
+          from_number: call.from_number,
+          agent_id: call.agent_id,
+        },
+        userType: "customer",
+      },
+    });
+  } catch (analyticsError: any) {
+    console.warn(`[Retell] Could not log analytics: ${analyticsError?.message}`);
+  }
+
   console.log(`[Retell] Call ended: ${call.call_id}, duration: ${durationSec}s`);
   return { success: true };
 }
