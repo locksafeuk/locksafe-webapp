@@ -505,9 +505,9 @@ export default function LocksmithLoginPage() {
             {/* Forgot Password (Login only) */}
             {isLogin && (
               <div className="text-right">
-                <a href="#" className="text-sm text-orange-600 hover:text-orange-700 transition-colors">
+                <Link href="/forgot-password?type=locksmith" className="text-sm text-orange-600 hover:text-orange-700 transition-colors">
                   Forgot password?
-                </a>
+                </Link>
               </div>
             )}
 
@@ -581,7 +581,7 @@ export default function LocksmithLoginPage() {
             ← Back to website
           </Link>
           <span className="mx-3">•</span>
-         
+
         </div>
       </div>
     </div>

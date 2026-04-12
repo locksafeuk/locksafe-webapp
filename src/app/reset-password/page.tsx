@@ -17,6 +17,7 @@ import {
 function ResetPasswordContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
+  const userType = searchParams.get("type"); // "locksmith" or undefined for customer
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -45,7 +46,11 @@ function ResetPasswordContent() {
       const response = await fetch("/api/auth/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, password }),
+        body: JSON.stringify({
+          token,
+          password,
+          userType: userType || undefined
+        }),
       });
 
       const data = await response.json();
@@ -76,6 +81,9 @@ function ResetPasswordContent() {
   const strengthLabels = ["Weak", "Fair", "Good", "Strong"];
   const strengthColors = ["bg-red-500", "bg-yellow-500", "bg-blue-500", "bg-green-500"];
 
+  const forgotPasswordLink = userType === "locksmith" ? "/forgot-password?type=locksmith" : "/forgot-password";
+  const loginLink = userType === "locksmith" ? "/locksmith/login" : "/login";
+
   if (!token) {
     return (
       <div className="text-center">
@@ -88,7 +96,7 @@ function ResetPasswordContent() {
         <p className="text-slate-600 mb-6">
           This password reset link is invalid or has expired.
         </p>
-        <Link href="/forgot-password">
+        <Link href={forgotPasswordLink}>
           <Button className="btn-primary">
             Request New Reset Link
           </Button>
@@ -109,7 +117,7 @@ function ResetPasswordContent() {
         <p className="text-slate-600 mb-6">
           Your password has been successfully reset. You can now login with your new password.
         </p>
-        <Link href="/login">
+        <Link href={loginLink}>
           <Button className="btn-primary">
             Sign In
             <ArrowRight className="w-4 h-4" />

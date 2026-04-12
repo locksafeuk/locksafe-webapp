@@ -15,7 +15,7 @@ function generateToken(): string {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email } = body;
+    const { email, userType } = body; // userType can be "customer" or "locksmith" (optional)
 
     if (!email) {
       return NextResponse.json(
@@ -24,13 +24,41 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find customer by email
-    const customer = await prisma.customer.findUnique({
-      where: { email: email.toLowerCase() },
-    });
+    const emailLower = email.toLowerCase();
+
+    // Try to find user in both customer and locksmith tables
+    let user: any = null;
+    let isLocksmith = false;
+
+    // If userType is specified, only check that type
+    if (userType === "locksmith") {
+      user = await prisma.locksmith.findUnique({
+        where: { email: emailLower },
+      });
+      isLocksmith = true;
+    } else if (userType === "customer") {
+      user = await prisma.customer.findUnique({
+        where: { email: emailLower },
+      });
+      isLocksmith = false;
+    } else {
+      // Check both if userType not specified
+      user = await prisma.customer.findUnique({
+        where: { email: emailLower },
+      });
+
+      if (!user) {
+        user = await prisma.locksmith.findUnique({
+          where: { email: emailLower },
+        });
+        if (user) {
+          isLocksmith = true;
+        }
+      }
+    }
 
     // Always return success to prevent email enumeration
-    if (!customer || !customer.passwordHash) {
+    if (!user || !user.passwordHash) {
       // Wait a bit to simulate processing
       await new Promise(resolve => setTimeout(resolve, 500));
       return NextResponse.json({
@@ -44,20 +72,30 @@ export async function POST(request: NextRequest) {
     const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
 
     // Save token to database
-    await prisma.customer.update({
-      where: { id: customer.id },
-      data: {
-        resetToken,
-        resetTokenExpiry,
-      },
-    });
+    if (isLocksmith) {
+      await prisma.locksmith.update({
+        where: { id: user.id },
+        data: {
+          resetToken,
+          resetTokenExpiry,
+        },
+      });
+    } else {
+      await prisma.customer.update({
+        where: { id: user.id },
+        data: {
+          resetToken,
+          resetTokenExpiry,
+        },
+      });
+    }
 
     // Send reset email
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-    const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`;
+    const resetUrl = `${baseUrl}/reset-password?token=${resetToken}${isLocksmith ? '&type=locksmith' : ''}`;
 
-    await sendPasswordResetEmail(customer.email!, {
-      customerName: customer.name,
+    await sendPasswordResetEmail(user.email!, {
+      customerName: user.name,
       resetUrl,
     });
 

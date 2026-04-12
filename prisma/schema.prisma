@@ -142,6 +142,10 @@ model Locksmith {
   insuranceStatus             String     @default("pending") // pending, verified, expired, expiring_soon
   insuranceReminderSent       Boolean    @default(false) // Track if expiry reminder was sent
 
+  // Password reset
+  resetToken             String?
+  resetTokenExpiry       DateTime?
+
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 

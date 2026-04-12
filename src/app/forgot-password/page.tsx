@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   ArrowLeft,
@@ -11,7 +12,10 @@ import {
   Loader2,
 } from "lucide-react";
 
-export default function ForgotPasswordPage() {
+function ForgotPasswordContent() {
+  const searchParams = useSearchParams();
+  const userType = searchParams.get("type"); // "customer" or "locksmith"
+
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -26,7 +30,10 @@ export default function ForgotPasswordPage() {
       const response = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({
+          email,
+          userType: userType || undefined
+        }),
       });
 
       const data = await response.json();
@@ -42,6 +49,9 @@ export default function ForgotPasswordPage() {
       setIsLoading(false);
     }
   };
+
+  const loginLink = userType === "locksmith" ? "/locksmith/login" : "/login";
+  const title = userType === "locksmith" ? "Locksmith Password Reset" : "Forgot Your Password?";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-orange-50/30 to-slate-50 flex flex-col">
@@ -96,7 +106,7 @@ export default function ForgotPasswordPage() {
                   >
                     Try Different Email
                   </Button>
-                  <Link href="/login">
+                  <Link href={loginLink}>
                     <Button className="w-full btn-primary">
                       Back to Login
                     </Button>
@@ -106,7 +116,7 @@ export default function ForgotPasswordPage() {
             ) : (
               <>
                 <Link
-                  href="/login"
+                  href={loginLink}
                   className="inline-flex items-center gap-2 text-slate-600 hover:text-slate-900 mb-6"
                 >
                   <ArrowLeft className="w-4 h-4" />
@@ -114,7 +124,7 @@ export default function ForgotPasswordPage() {
                 </Link>
 
                 <h1 className="text-2xl font-bold text-slate-900 mb-2">
-                  Forgot Your Password?
+                  {title}
                 </h1>
                 <p className="text-slate-600 mb-6">
                   Enter your email address and we&apos;ll send you a link to reset your password.
@@ -167,7 +177,7 @@ export default function ForgotPasswordPage() {
           <div className="mt-6 text-center">
             <p className="text-sm text-slate-600">
               Remember your password?{" "}
-              <Link href="/login" className="text-orange-600 hover:text-orange-700 font-medium">
+              <Link href={loginLink} className="text-orange-600 hover:text-orange-700 font-medium">
                 Sign in
               </Link>
             </p>
@@ -175,5 +185,17 @@ export default function ForgotPasswordPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function ForgotPasswordPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-orange-50/30 to-slate-50 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+      </div>
+    }>
+      <ForgotPasswordContent />
+    </Suspense>
   );
 }
