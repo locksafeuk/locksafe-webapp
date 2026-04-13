@@ -1221,7 +1221,376 @@ export function getRelatedPosts(post: BlogPost): BlogPost[] {
 }
 
 export function getAllCategories(): BlogCategory[] {
-  return [...new Set(blogPosts.map(post => post.category))];
+  return [...new Set(blogPosts.map(post => post.category)),
+  {
+  slug: 'lock-snapping-prevention-guide-uk',
+  title: 'Lock Snapping: What It Is, How It Works & How to Protect Your Home',
+  metaTitle: 'Lock Snapping Prevention UK: Anti-Snap Locks Guide | LockSafe',
+  metaDescription: 'Lock snapping accounts for up to 33% of UK burglaries. Learn what it is, how burglars do it in seconds, and how to protect your home with anti-snap locks. Expert advice from LockSafe.',
+  excerpt: 'Lock snapping is one of the most common burglary techniques in the UK, allowing intruders to break through a standard euro cylinder lock in under 30 seconds. Here\'s everything you need to know to protect your home.',
+  content: `<h2>What Is Lock Snapping?</h2>
+<p>Lock snapping is a burglary technique that exploits a critical weakness in standard euro cylinder locks — the type found in the vast majority of uPVC, composite, and aluminium doors across the UK. By applying brute force to the exposed section of the cylinder, a burglar can snap the lock in half in as little as 5 to 30 seconds, gaining immediate access to your home.</p>
+<p>The sound is minimal — often compared to snapping a pencil — which means neighbours are unlikely to notice. No specialist tools are required, and the technique requires no particular skill. This combination of speed, silence, and simplicity makes lock snapping one of the most prevalent burglary methods in the UK today.</p>
+
+<h2>How Common Is Lock Snapping in the UK?</h2>
+<p>The statistics are alarming. According to industry data and police reports:</p>
+<ul>
+  <li>Lock snapping accounts for <strong>up to 33% of burglaries</strong> in certain UK regions</li>
+  <li>Nationally, approximately <strong>25–30% of door-entry burglaries</strong> use this method</li>
+  <li>In West Yorkshire alone, 10% of all burglaries have been attributed to lock snapping</li>
+  <li>Properties with euro cylinders manufactured before 2011 are at <strong>significantly higher risk</strong></li>
+</ul>
+<p>If your home has a uPVC or composite door with a standard euro cylinder lock — and you haven't upgraded it recently — there's a very real chance your lock is vulnerable right now.</p>
+
+<h2>How Does Lock Snapping Work?</h2>
+<p>Standard euro cylinder locks have a structural weakness near the central screw hole. When a burglar applies force — typically using a pair of pliers or a screwdriver — to the exposed section of the cylinder, the metal fatigues and snaps at this weak point.</p>
+<p>Once the outer section breaks away, the internal cam mechanism is exposed. The burglar can then use a simple screwdriver to rotate the cam and retract the locking bolts, opening the door as easily as if they had a key.</p>
+<p>The entire process takes between 5 and 30 seconds. By the time you hear anything unusual, the intruder may already be inside.</p>
+
+<h2>Is Your Lock Vulnerable?</h2>
+<p>Your euro cylinder lock is likely vulnerable to snapping if:</p>
+<ul>
+  <li>It protrudes more than 3mm beyond the door handle or escutcheon plate</li>
+  <li>It was installed before 2011 (when anti-snap standards were introduced)</li>
+  <li>It has no visible security rating stamped on it (look for TS007 or SS312)</li>
+  <li>It came as standard with a new-build property or budget door installation</li>
+  <li>You've never had it assessed or upgraded by a professional locksmith</li>
+</ul>
+<p>If any of these apply to your home, we strongly recommend booking a security assessment. At <strong>LockSafe</strong>, our Hertfordshire-based locksmiths can assess your locks and recommend the right upgrade — often completing the work in a single visit.</p>
+
+<h2>How to Protect Your Home: Anti-Snap Locks</h2>
+<p>The most effective defence against lock snapping is upgrading to a high-security <strong>anti-snap euro cylinder lock</strong>. These locks are specifically engineered to defeat the snapping technique through two key mechanisms:</p>
+
+<h3>1. Sacrificial Break Point</h3>
+<p>Anti-snap cylinders are designed with a predetermined "snap line" — a section that breaks away under force, but leaves the core locking mechanism completely intact and the door securely locked. The burglar snaps the outer section, but gains nothing — the door remains locked.</p>
+
+<h3>2. Hardened Materials & Additional Security Features</h3>
+<p>Quality anti-snap locks also include:</p>
+<ul>
+  <li><strong>Anti-drill pins</strong> — hardened steel inserts that defeat drilling attacks</li>
+  <li><strong>Anti-pick pins</strong> — security pins that resist lock picking</li>
+  <li><strong>Anti-bump technology</strong> — prevents bump key attacks</li>
+  <li><strong>Anti-extraction features</strong> — prevents the cylinder being pulled out</li>
+</ul>
+
+<h2>What Certifications Should You Look For?</h2>
+<p>When choosing an anti-snap lock, look for these recognised UK security certifications:</p>
+
+<h3>SS312 Diamond Standard</h3>
+<p>The highest accreditation for euro cylinder locks in the UK, awarded by the Master Locksmiths Association (MLA). Locks tested to SS312 Diamond must withstand snapping, drilling, picking, and bumping. This is the gold standard — if your lock carries this mark, you have the best available protection.</p>
+
+<h3>TS007 3-Star Rating</h3>
+<p>A BSI Kitemark standard introduced in 2012. A 3-star TS007 cylinder provides excellent anti-snap protection. You can also achieve 3-star protection by combining a 1-star cylinder with a 2-star door handle (TS007 2-star rated).</p>
+
+<h3>Secured by Design</h3>
+<p>A police-backed initiative that endorses products proven to reduce crime. Locks carrying the Secured by Design mark have been independently assessed and meet police-recommended security standards.</p>
+
+<h2>Correct Installation Is Critical</h2>
+<p>Even the best anti-snap lock can be compromised by poor installation. The most important rule: <strong>your euro cylinder should not protrude more than 3mm beyond the door handle or escutcheon plate</strong>. Any exposed cylinder provides leverage for a snapping attack.</p>
+<p>This is why we always recommend professional installation. At LockSafe, our locksmiths ensure your new anti-snap cylinder is correctly sized and fitted flush with your door furniture — eliminating the exposure that makes snapping possible.</p>
+
+<h2>Additional Security Measures</h2>
+<p>While upgrading your euro cylinder is the most important step, consider these complementary measures for comprehensive uPVC door security:</p>
+<ul>
+  <li><strong>High-security door handles</strong> (TS007 2-star rated) — protect the cylinder from attack and reduce exposure</li>
+  <li><strong>Sash jammers</strong> — internal devices that prevent the door opening even if the lock is compromised</li>
+  <li><strong>Hinge bolts</strong> — reinforce the hinge side of the door against forced entry</li>
+  <li><strong>Letterbox fishing guard</strong> (TS008 standard) — prevents key fishing through the letterbox</li>
+  <li><strong>Security lighting</strong> — deters opportunistic burglars</li>
+</ul>
+
+<h2>How Much Does an Anti-Snap Lock Cost?</h2>
+<p>Upgrading to an anti-snap lock is one of the most cost-effective home security investments you can make. Typical costs:</p>
+<ul>
+  <li><strong>Anti-snap cylinder (supply)</strong>: approximately £60</li>
+  <li><strong>Professional fitting (labour)</strong>: approximately £70</li>
+  <li><strong>Total (supply & fit)</strong>: approximately £130</li>
+</ul>
+<p>Compare this to the average cost of a burglary — estimated at over £3,000 in stolen goods and property damage — and the investment is clearly worthwhile. Many home insurance policies also offer reduced premiums for properties with BS3621 or TS007-rated locks.</p>
+
+<h2>Book Your Anti-Snap Lock Upgrade with LockSafe</h2>
+<p>LockSafe is Hertfordshire's trusted 24/7 locksmith service. Our DBS-checked, fully insured locksmiths carry a full range of SS312 Diamond and TS007 3-star anti-snap cylinders and can complete your upgrade in a single visit — usually within 30 minutes of arrival.</p>
+<p>Don't wait until after a break-in to upgrade your locks. <strong>Call LockSafe today</strong> for a free security assessment and fixed-price quote. We cover all areas across Hertfordshire including St Albans, Welwyn Garden City, Hatfield, Stevenage, Potters Bar, Hertford, and surrounding areas.</p>
+<p><strong>📞 Available 24/7 — No call-out fee — Fixed prices — 30-minute response</strong></p>`,
+  author: 'james',
+  category: 'home-security',
+  tags: ['anti-snap lock', 'lock snapping', 'home security', 'euro cylinder', 'burglary prevention', 'uPVC door security', 'Hertfordshire locksmith'],
+  publishedAt: '2026-04-14',
+  readTime: 8,
+  featured: false,
+  faqs: [
+    {
+      question: 'What is lock snapping?',
+      answer: 'Lock snapping is a burglary technique where intruders apply force to a standard euro cylinder lock, causing it to snap at its weakest point. This exposes the internal mechanism, allowing the door to be opened in seconds without a key.'
+    },
+    {
+      question: 'How do I know if my lock is vulnerable to snapping?',
+      answer: 'Your lock is likely vulnerable if it protrudes more than 3mm beyond the door handle, was installed before 2011, has no visible security rating (TS007 or SS312), or came as standard with a budget door installation. A professional locksmith can assess your lock for free.'
+    },
+    {
+      question: 'What is the best anti-snap lock for UK homes?',
+      answer: 'Look for locks rated to SS312 Diamond standard (the highest MLA accreditation) or TS007 3-star rating (BSI Kitemark). These locks are specifically designed to defeat snapping, drilling, picking, and bumping attacks.'
+    },
+    {
+      question: 'How much does it cost to upgrade to an anti-snap lock?',
+      answer: 'A typical anti-snap lock upgrade costs approximately £130 including supply and professional fitting. This is a small investment compared to the average cost of a burglary, which exceeds £3,000 in stolen goods and damage.'
+    },
+    {
+      question: 'Does LockSafe cover Hertfordshire for anti-snap lock upgrades?',
+      answer: 'Yes. LockSafe provides 24/7 anti-snap lock upgrades across all of Hertfordshire including St Albans, Welwyn Garden City, Hatfield, Stevenage, Potters Bar, Hertford, and surrounding areas. We offer fixed prices with no call-out fee and typically arrive within 30 minutes.'
+    }
+  ],
+  relatedPosts: ['euro-cylinder-lock-guide', 'home-security-checklist-2024', 'upvc-door-security-complete-guide']
+},
+  {
+  slug: 'upvc-door-security-complete-guide',
+  title: 'UPVC Door Security: The Complete Guide for UK Homeowners',
+  metaTitle: 'UPVC Door Security UK: Complete Guide to Locks & Upgrades | LockSafe',
+  metaDescription: 'Over 70% of UK break-ins happen through front doors. Our complete guide to uPVC door security covers anti-snap locks, multipoint systems, sash jammers, and more. Expert advice from LockSafe Hertfordshire.',
+  excerpt: 'uPVC doors are the most common door type in UK homes — but are they as secure as you think? This complete guide covers every security upgrade you need to know about, from anti-snap locks to sash jammers and letterbox guards.',
+  content: `<h2>Are uPVC Doors Secure?</h2>
+<p>uPVC doors are the most popular choice for UK homeowners, valued for their durability, energy efficiency, and low maintenance. But when it comes to security, the picture is more complicated. While modern uPVC doors with the right hardware can be extremely secure, many older installations — and even some new builds — contain significant vulnerabilities that burglars actively exploit.</p>
+<p>The sobering reality: <strong>over 70% of UK break-ins occur through front doors</strong>. And the most common method? Targeting the lock itself — specifically through a technique called lock snapping, which can defeat a standard euro cylinder in under 30 seconds.</p>
+<p>The good news is that uPVC door security can be dramatically improved with the right upgrades. This guide covers everything you need to know.</p>
+
+<h2>Understanding Your uPVC Door's Locking System</h2>
+<p>Most uPVC doors use a <strong>multipoint locking system</strong> — a mechanism that engages multiple hooks, bolts, and rollers along the full height of the door when you lift the handle and turn the key. This is a significant security advantage over single-point locks, as it creates multiple contact points between the door and frame.</p>
+<p>However, the security of your multipoint system is only as strong as its weakest component — and in most cases, that's the <strong>euro cylinder lock</strong> that sits in the centre of the door. This is the component most vulnerable to attack.</p>
+
+<h2>The 7 Essential uPVC Door Security Upgrades</h2>
+
+<h3>1. Anti-Snap Euro Cylinder Lock (Most Important)</h3>
+<p>If you do nothing else from this guide, upgrade your euro cylinder to an anti-snap model. Standard cylinders are vulnerable to "lock snapping" — a technique where burglars apply force to the exposed section of the cylinder, causing it to break and exposing the internal mechanism.</p>
+<p>Anti-snap cylinders defeat this attack through a sacrificial break point: when force is applied, a predetermined outer section breaks away, but the core mechanism remains intact and the door stays locked.</p>
+<p><strong>What to look for:</strong></p>
+<ul>
+  <li><strong>SS312 Diamond Standard</strong> — the highest MLA accreditation, tested against snapping, drilling, picking, and bumping</li>
+  <li><strong>TS007 3-Star Rating</strong> — BSI Kitemark standard; excellent anti-snap protection</li>
+  <li><strong>Secured by Design</strong> — police-backed accreditation</li>
+</ul>
+<p><strong>Critical installation note:</strong> Your cylinder must not protrude more than 3mm beyond the door handle. Any exposed cylinder provides leverage for a snapping attack. Always use a professional locksmith for installation.</p>
+<p><strong>Typical cost:</strong> £130 supply and fit (LockSafe fixed price, no hidden charges)</p>
+
+<h3>2. High-Security Door Handle (TS007 2-Star)</h3>
+<p>Your door handle does more than just open the door — it also protects the euro cylinder from attack. A high-security handle covers the cylinder, reducing exposure and preventing tools from gripping the lock.</p>
+<p>Look for handles rated to <strong>TS007 2-Star standard</strong>. When combined with a TS007 1-star cylinder, you achieve full 3-star protection — the same level as a standalone 3-star cylinder, but often at lower cost.</p>
+<p>High-security handles are made from hardened materials and include anti-pull and anti-grip protection. They're a worthwhile upgrade even if you already have an anti-snap cylinder.</p>
+<p><strong>Typical cost:</strong> From £110 supply and fit</p>
+
+<h3>3. Multipoint Locking System Check</h3>
+<p>If your uPVC door is more than 10 years old, it's worth having the multipoint locking mechanism inspected. Over time, the hooks, bolts, and rollers can wear, reducing their effectiveness. Signs of a failing multipoint system include:</p>
+<ul>
+  <li>Difficulty lifting the handle to engage the locks</li>
+  <li>The door not sitting flush in the frame</li>
+  <li>Visible gaps around the door edges when closed</li>
+  <li>The handle feeling loose or wobbly</li>
+</ul>
+<p>A LockSafe locksmith can inspect and service your multipoint system, replacing worn components and ensuring all locking points engage correctly.</p>
+
+<h3>4. Sash Jammers</h3>
+<p>Sash jammers are simple, affordable devices that provide an additional layer of security by preventing the door from opening even if the main lock is compromised. They work like an internal deadbolt, pivoting over the edge of the door frame.</p>
+<p>For a uPVC front door, we recommend fitting <strong>two sash jammers</strong> — one near the top and one near the bottom of the door. They're available in locking and non-locking versions; locking versions provide better security but require a key to operate from inside.</p>
+<p>Sash jammers can also be fitted to French doors, patio doors, and uPVC windows.</p>
+<p><strong>Typical cost:</strong> From £12 per unit (supply only); professional fitting available</p>
+
+<h3>5. Hinge Bolts (Dog Bolts)</h3>
+<p>Most forced entry attempts focus on the lock side of the door, but the hinge side is also vulnerable — particularly for outward-opening doors. Hinge bolts (also called dog bolts) reinforce the hinge side by automatically engaging when the door is closed, preventing the door from being forced open or pried from its hinges.</p>
+<p>Fit hinge bolts approximately a quarter of the door height from the top and bottom. They're a low-cost, high-impact security upgrade that's often overlooked.</p>
+<p><strong>Typical cost:</strong> From £12 per pair (supply only)</p>
+
+<h3>6. Letterbox Fishing Guard (TS008 Standard)</h3>
+<p>"Letterbox fishing" is a burglary technique where intruders use a long retractable rod through the letterbox to hook keys left on a table or hook near the front door. It's more common than most people realise.</p>
+<p>A letterbox fishing guard or security letter plate has a cover at the back that blocks the view into the hallway and prevents rods from being pushed through. Look for products meeting the <strong>TS008 security standard</strong>.</p>
+<p>Simple prevention tip: never leave keys within reach of the letterbox, even if you have a fishing guard fitted.</p>
+<p><strong>Typical cost:</strong> From £30 supply and fit</p>
+
+<h3>7. Door Chain or Restrictor</h3>
+<p>A door chain allows you to identify visitors before fully opening the door — an important safety measure, particularly for elderly residents or those living alone. For uPVC doors, look for chains with <strong>Secured by Design accreditation</strong> and ensure they're fitted with appropriate fixings that reach the internal steel reinforcement of the door frame.</p>
+<p>An alternative is a door restrictor, which screws into the wall and loops around the door handle, limiting how far the door can open.</p>
+<p><strong>Typical cost:</strong> From £24 supply and fit</p>
+
+<h2>Door Standards & Certifications to Look For</h2>
+<p>If you're replacing your uPVC door entirely, look for doors meeting these standards:</p>
+<ul>
+  <li><strong>PAS 24</strong> — rigorous testing against crowbars, chisels, and heavy impact; the minimum standard for Secured by Design doors</li>
+  <li><strong>Secured by Design (SBD)</strong> — police-approved; properties with SBD windows have experienced a 42% reduction in burglary vs 21% city-wide reduction</li>
+  <li><strong>BS 6375</strong> — British Standard for door performance including weather resistance and security</li>
+</ul>
+
+<h2>Insurance Implications</h2>
+<p>Your home insurance policy may require specific lock standards. Many insurers require locks to comply with <strong>BS3621</strong> (British Standard for thief-resistant locks) or equivalent. Upgrading to TS007 3-star or SS312 Diamond locks may also qualify you for a reduced premium — always check with your insurer after making security upgrades.</p>
+
+<h2>How to Check Your Current Security Level</h2>
+<p>Not sure how secure your uPVC door is right now? Here's a quick self-assessment:</p>
+<ol>
+  <li>Look at your euro cylinder — does it protrude more than 3mm beyond the handle? If yes, it's vulnerable.</li>
+  <li>Check for a security rating stamped on the cylinder (TS007, SS312, or a star rating). No marking = likely a budget cylinder.</li>
+  <li>Is the cylinder the original one that came with the door? If it's more than 5–10 years old, consider upgrading.</li>
+  <li>Do you have sash jammers fitted? If not, your door can potentially be opened even with the lock engaged.</li>
+  <li>Is your letterbox within reach of keys or door handles? If yes, you're vulnerable to fishing attacks.</li>
+</ol>
+
+<h2>Book a Free Security Assessment with LockSafe</h2>
+<p>Not sure where to start? LockSafe offers free security assessments for homeowners across Hertfordshire. Our DBS-checked, fully insured locksmiths will inspect your uPVC door, identify vulnerabilities, and provide a fixed-price quote for any recommended upgrades — with no obligation to proceed.</p>
+<p>We cover all areas across Hertfordshire including St Albans, Welwyn Garden City, Hatfield, Stevenage, Potters Bar, Hertford, Ware, Cheshunt, and surrounding areas. Available 24/7 with a typical 30-minute response time.</p>
+<p><strong>📞 Call LockSafe today — No call-out fee — Fixed prices — 30-minute response</strong></p>`,
+  author: 'mike',
+  category: 'home-security',
+  tags: ['uPVC door security', 'anti-snap lock', 'multipoint locking', 'sash jammer', 'home security', 'Hertfordshire locksmith', 'lock upgrade'],
+  publishedAt: '2026-04-15',
+  readTime: 9,
+  featured: false,
+  faqs: [
+    {
+      question: 'Are uPVC doors secure?',
+      answer: 'Modern uPVC doors with the right hardware can be very secure. However, many installations use standard euro cylinder locks that are vulnerable to lock snapping. Upgrading to an anti-snap cylinder and adding sash jammers significantly improves security.'
+    },
+    {
+      question: 'What is the most important uPVC door security upgrade?',
+      answer: 'Upgrading your euro cylinder to an anti-snap model (rated SS312 Diamond or TS007 3-star) is the single most important upgrade. Lock snapping accounts for up to 33% of UK burglaries and can defeat a standard cylinder in under 30 seconds.'
+    },
+    {
+      question: 'How do I know if my uPVC door lock needs upgrading?',
+      answer: 'Check if your euro cylinder protrudes more than 3mm beyond the door handle, has no visible security rating, or was installed before 2011. If any of these apply, we recommend a professional security assessment.'
+    },
+    {
+      question: 'What is a sash jammer and do I need one?',
+      answer: 'A sash jammer is a device that prevents your door from opening even if the main lock is compromised. They\'re inexpensive (from £12) and provide an important additional layer of security. We recommend fitting two per door — one near the top and one near the bottom.'
+    },
+    {
+      question: 'Does LockSafe offer uPVC door security upgrades in Hertfordshire?',
+      answer: 'Yes. LockSafe provides comprehensive uPVC door security upgrades across all of Hertfordshire, including St Albans, Welwyn Garden City, Hatfield, Stevenage, and Hertford. We offer free security assessments, fixed prices, no call-out fee, and 24/7 availability.'
+    }
+  ],
+  relatedPosts: ['lock-snapping-prevention-guide-uk', 'euro-cylinder-lock-guide', 'home-security-checklist-2024']
+},
+  {
+  slug: 'how-to-spot-rogue-locksmith-uk',
+  title: 'How to Spot a Rogue Locksmith: 10 Warning Signs UK Homeowners Must Know',
+  metaTitle: 'How to Spot a Rogue Locksmith UK: 10 Warning Signs | LockSafe',
+  metaDescription: 'Rogue locksmiths cost UK homeowners millions every year. Learn the 10 warning signs of a fake locksmith, how bait-and-switch pricing works, and how to find a trusted local locksmith. Expert guide from LockSafe.',
+  excerpt: 'Rogue locksmiths are a serious problem across the UK, using bait-and-switch pricing and unnecessary drilling to overcharge vulnerable homeowners. Here are 10 warning signs to watch for — and how to protect yourself.',
+  content: `<h2>The Rogue Locksmith Problem in the UK</h2>
+<p>You're locked out of your home. It's late, you're stressed, and you need help fast. You search online for "emergency locksmith near me" and call the first number you find. The locksmith arrives, quotes you £49 — then drills out your perfectly good lock and hands you a bill for £400.</p>
+<p>This scenario plays out thousands of times every year across the UK. Rogue locksmiths — sometimes called "cowboy locksmiths" — operate by advertising unrealistically low prices online, then dramatically inflating the bill once they're at your door. They often drill locks unnecessarily, charge for parts that weren't needed, and leave homeowners with damaged doors and empty wallets.</p>
+<p>The Master Locksmiths Association (MLA) estimates that rogue operators cost UK consumers millions of pounds annually. And because there is no government licensing requirement for locksmiths in the UK — anyone can legally call themselves a locksmith — the problem is widespread.</p>
+<p>Here's how to protect yourself.</p>
+
+<h2>10 Warning Signs of a Rogue Locksmith</h2>
+
+<h3>1. Suspiciously Low Advertised Prices</h3>
+<p>If a locksmith advertises prices like "from £39" or "from £49" for emergency call-outs, treat this as a major red flag. These prices are almost never the final bill. Rogue operators use artificially low advertised prices as bait to get you to call — then dramatically increase the price once they're at your door, knowing you're in a vulnerable position.</p>
+<p>Legitimate locksmiths provide realistic price ranges that reflect actual costs. At LockSafe, we provide fixed-price quotes before any work begins — what we quote is what you pay.</p>
+
+<h3>2. No Physical Address or Local Presence</h3>
+<p>Many rogue locksmith operations are run from call centres that subcontract work to unvetted individuals. When you search online, you may find a website with a local-sounding name and a local phone number — but the company has no actual local presence.</p>
+<p>Always ask: "Where are you based?" and "Are you a local company?" A legitimate local locksmith will have a verifiable address and genuine knowledge of your area. LockSafe is based in Hertfordshire and serves the local community — we're not a national call centre.</p>
+
+<h3>3. Refuses to Give a Price Over the Phone</h3>
+<p>A reputable locksmith should be able to give you a realistic price estimate over the phone based on the type of lock, the job required, and the time of day. If a locksmith refuses to give any indication of cost before arriving, be very cautious.</p>
+<p>It's reasonable for a locksmith to say they need to see the lock before giving a final price — but they should still be able to give you a range. "I can't tell you anything until I get there" is a warning sign.</p>
+
+<h3>4. Dramatically Increases the Price on Arrival</h3>
+<p>This is the classic "bait-and-switch" tactic. The locksmith arrives, looks at your lock, and suddenly the price is three or four times what was quoted on the phone. Common excuses include:</p>
+<ul>
+  <li>"Your lock is a special type that costs more"</li>
+  <li>"I'll need to drill it — that's extra"</li>
+  <li>"The parts are more expensive than I thought"</li>
+  <li>"There's a call-out charge I forgot to mention"</li>
+</ul>
+<p>If this happens, you are within your rights to refuse the work and ask the locksmith to leave. Do not feel pressured to accept inflated prices.</p>
+
+<h3>5. Drills Your Lock Without Attempting Non-Destructive Entry</h3>
+<p>A skilled locksmith should always attempt non-destructive entry first — using picking tools and techniques to open the lock without damaging it. Drilling should only be used as a last resort when non-destructive methods have genuinely failed.</p>
+<p>Rogue locksmiths often go straight to drilling because it justifies charging for a new lock (which they supply at inflated prices) and takes less skill. If a locksmith immediately reaches for a drill without attempting to pick the lock, ask why.</p>
+
+<h3>6. Supplies Cheap Locks at Inflated Prices</h3>
+<p>After unnecessarily drilling your lock, a rogue locksmith will often supply a cheap replacement lock at a massively inflated price. The lock may be a low-quality, unbranded cylinder worth £5–£10 that they charge £80–£150 for.</p>
+<p>Always ask to see the lock before it's fitted, and ask for the brand name and security rating. A legitimate locksmith will supply quality, branded locks (such as Yale, Mul-T-Lock, or ABS) and will be happy to show you the product.</p>
+
+<h3>7. No ID, Credentials, or Insurance</h3>
+<p>A professional locksmith should be able to show you:</p>
+<ul>
+  <li>Photo ID</li>
+  <li>Proof of insurance (public liability)</li>
+  <li>Any relevant accreditations (MLA membership, DBS check certificate)</li>
+</ul>
+<p>If a locksmith refuses to show ID or cannot provide evidence of insurance, do not let them work on your property. All LockSafe locksmiths are DBS-checked, fully insured, and carry ID at all times.</p>
+
+<h3>8. Asks for Cash Only</h3>
+<p>Legitimate businesses accept card payments. A locksmith who insists on cash only — particularly after the price has been inflated — is a significant warning sign. Cash-only transactions leave you with no payment record and no recourse if something goes wrong.</p>
+
+<h3>9. No Written Quote or Invoice</h3>
+<p>Before any work begins, you should receive a written quote (even if it's a text message or email). After the work is complete, you should receive a proper invoice. A locksmith who refuses to provide written documentation is operating unprofessionally and potentially illegally.</p>
+
+<h3>10. Aggressive or Pressuring Behaviour</h3>
+<p>Rogue locksmiths rely on your vulnerability — you're locked out, stressed, and want the problem solved quickly. Some use this to pressure you into accepting inflated prices, refusing to leave until you pay, or making you feel you have no choice.</p>
+<p>Remember: you always have the right to refuse work and ask a locksmith to leave before they start. If you feel threatened or unsafe, call the police.</p>
+
+<h2>How to Find a Trusted Locksmith in the UK</h2>
+
+<h3>Look for MLA Approval</h3>
+<p>The Master Locksmiths Association (MLA) is the UK's leading trade body for locksmiths. MLA-approved companies are vetted, DBS-checked, regularly inspected, and employ qualified locksmiths. You can verify MLA membership at <strong>locksmiths.co.uk</strong>.</p>
+
+<h3>Check Reviews on Trusted Platforms</h3>
+<p>Look for reviews on Checkatrade, Trustpilot, Google, or Which? Trusted Traders. Be wary of companies with very few reviews or reviews that all look similar. Genuine local locksmiths build their reputation over time through real customer feedback.</p>
+
+<h3>Choose a Local Company, Not a National Call Centre</h3>
+<p>The MLA specifically advises consumers to choose local professional locksmiths over national call centres. National call centres often subcontract to unvetted individuals and charge significantly more than local MLA-licensed locksmiths.</p>
+
+<h3>Get a Price Before They Arrive</h3>
+<p>Always ask for a price range over the phone before the locksmith comes out. A reputable locksmith will give you a realistic estimate. If they refuse, call someone else.</p>
+
+<h3>Ask for ID on Arrival</h3>
+<p>Before letting any locksmith work on your property, ask to see photo ID and proof of insurance. A professional will have no problem showing you these.</p>
+
+<h2>Why Choose LockSafe?</h2>
+<p>LockSafe is Hertfordshire's trusted local locksmith service. Here's what makes us different from rogue operators:</p>
+<ul>
+  <li><strong>Fixed prices</strong> — we quote before we start, and that's what you pay</li>
+  <li><strong>No call-out fee</strong> — you only pay for the work done</li>
+  <li><strong>Non-destructive entry first</strong> — we always try to open your lock without drilling</li>
+  <li><strong>DBS-checked locksmiths</strong> — all our engineers carry ID and are fully vetted</li>
+  <li><strong>Fully insured</strong> — public liability insurance on every job</li>
+  <li><strong>Quality locks supplied</strong> — we only fit branded, rated locks with full warranties</li>
+  <li><strong>Card payments accepted</strong> — no cash-only demands</li>
+  <li><strong>Written invoices</strong> — full documentation on every job</li>
+  <li><strong>Local Hertfordshire team</strong> — not a national call centre</li>
+  <li><strong>24/7 availability</strong> — 30-minute response across Hertfordshire</li>
+</ul>
+<p>If you're locked out or need any locksmith service across Hertfordshire — including St Albans, Welwyn Garden City, Hatfield, Stevenage, Potters Bar, Hertford, and surrounding areas — <strong>call LockSafe first</strong>. We'll give you a fair, fixed price and send a vetted local locksmith to you fast.</p>
+<p><strong>📞 Available 24/7 — No call-out fee — Fixed prices — 30-minute response</strong></p>`,
+  author: 'sarah',
+  category: 'tips-advice',
+  tags: ['rogue locksmith', 'locksmith scam', 'how to choose locksmith', 'trusted locksmith UK', 'locksmith warning signs', 'Hertfordshire locksmith', 'MLA approved'],
+  publishedAt: '2026-04-16',
+  readTime: 10,
+  featured: false,
+  faqs: [
+    {
+      question: 'How do I know if a locksmith is legitimate?',
+      answer: 'Look for MLA (Master Locksmiths Association) approval, check reviews on Checkatrade or Trustpilot, ask for a price estimate before they arrive, and request to see photo ID and proof of insurance when they turn up. Legitimate locksmiths will have no problem with any of these requests.'
+    },
+    {
+      question: 'What is bait-and-switch pricing in locksmithing?',
+      answer: 'Bait-and-switch is when a locksmith advertises a very low price (e.g., "from £39") to get you to call, then dramatically increases the price once they\'re at your door — knowing you\'re in a vulnerable position and unlikely to send them away. Always get a realistic price range before the locksmith arrives.'
+    },
+    {
+      question: 'Should a locksmith always try non-destructive entry first?',
+      answer: 'Yes. A skilled locksmith should always attempt to pick or manipulate the lock open before resorting to drilling. Drilling should only be used as a genuine last resort. If a locksmith immediately reaches for a drill without attempting non-destructive entry, ask why.'
+    },
+    {
+      question: 'Is there a licensing requirement for locksmiths in the UK?',
+      answer: 'No. Unlike many other trades, there is no government licensing requirement for locksmiths in the UK — anyone can legally call themselves a locksmith. This is why checking for MLA membership and other credentials is so important.'
+    },
+    {
+      question: 'What should I do if a locksmith tries to overcharge me?',
+      answer: 'You have the right to refuse work and ask the locksmith to leave before they start. Do not feel pressured to accept inflated prices. If you feel threatened, call the police. Always get a written quote before work begins so you have documentation if a dispute arises.'
+    }
+  ],
+  relatedPosts: ['how-to-choose-right-locksmith', 'locked-out-of-house-what-to-do', '24-hour-locksmith-services-uk']
+},
+];
 }
 
 export function searchPosts(query: string): BlogPost[] {
