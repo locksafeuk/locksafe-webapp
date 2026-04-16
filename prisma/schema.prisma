@@ -1,0 +1,1829 @@
+//
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// Admin user model
+model Admin {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         String   @default("admin") // admin, super_admin
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// Customer/Client model
+model Customer {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  email        String?  @unique
+  phone        String
+  passwordHash String?  // Optional - for account-based customers
+
+  // Source tracking
+  createdVia   String   @default("web") // web, phone, app
+
+  // Stripe Customer (for saving payment methods)
+  stripeCustomerId      String?   // Stripe customer ID
+  stripePaymentMethodId String?   // Default saved payment method ID
+
+  // Email verification
+  emailVerified          Boolean   @default(false)
+  verificationToken      String?
+  verificationTokenExpiry DateTime?
+
+  // Password reset
+  resetToken             String?
+  resetTokenExpiry       DateTime?
+
+  // Onboarding & Terms
+  termsAcceptedAt        DateTime?  // When customer accepted T&C
+  onboardingCompleted    Boolean    @default(false)
+  passwordSet            Boolean    @default(false) // Whether customer has set a password
+  locationConfirmed      Boolean    @default(false) // Whether customer confirmed their location
+
+  // WhatsApp support integration
+  whatsappChatId         String?    // WhatsApp chat ID for support
+  whatsappVerified       Boolean    @default(false)
+
+  // OneSignal Push Notifications
+  oneSignalPlayerId      String?    // OneSignal player/subscription ID
+  oneSignalSubscribedAt  DateTime?  // When user subscribed to push
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  jobs         Job[]
+  reviews      Review[]
+}
+
+// Locksmith/Technician model
+model Locksmith {
+  id                String        @id @default(auto()) @map("_id") @db.ObjectId
+  name              String
+  companyName       String?
+  email             String        @unique
+  phone             String
+  passwordHash      String?       // For login
+  profileImage      String?
+  rating            Float         @default(5.0)
+  totalJobs         Int           @default(0)
+  totalEarnings     Float         @default(0)
+  isVerified        Boolean       @default(false)
+  isActive          Boolean       @default(true)
+  licenseNumber     String?
+  insuranceNumber   String?
+  coverageAreas     String[]      // Postcodes they cover (legacy)
+  services          String[]      // Types of services offered
+  yearsExperience   Int           @default(0)
+
+  // Location & Coverage (radius-based)
+  baseLat           Float?        // Base location latitude
+  baseLng           Float?        // Base location longitude
+  baseAddress       String?       // Human-readable base address
+  coverageRadius    Int           @default(10) // Coverage radius in miles
+
+  // Pricing - Assessment Fee (required for auto-dispatch)
+  defaultAssessmentFee  Float?    // Locksmith's default assessment fee (e.g., 29.00)
+                                  // Must be set for auto-dispatch eligibility
+
+  // Stripe Connect
+  stripeConnectId         String?   // Stripe Connect account ID
+  stripeConnectOnboarded  Boolean   @default(false)
+  stripeConnectVerified   Boolean   @default(false)
+
+  // Notification preferences
+  smsNotifications        Boolean   @default(true)  // Receive SMS for new jobs
+  emailNotifications      Boolean   @default(true)  // Receive email notifications
+  pushNotifications       Boolean   @default(true)  // Receive push notifications
+
+  // Availability status for receiving job notifications
+  isAvailable             Boolean   @default(true)  // When ON, locksmith receives job notifications
+  lastAvailabilityChange  DateTime? // Track when availability was last changed
+
+  // Scheduled availability (working hours)
+  scheduleEnabled         Boolean   @default(false) // Enable automatic availability schedule
+  scheduleTimezone        String    @default("Europe/London") // Timezone for schedule
+  scheduleStartTime       String?   // Start time in HH:MM format (e.g., "08:00")
+  scheduleEndTime         String?   // End time in HH:MM format (e.g., "20:00")
+  scheduleDays            String[]  // Days of week: ["monday", "tuesday", "wednesday", "thursday", "friday"]
+
+  // Bot registration for direct messaging
+  telegramChatId          String?   // Telegram chat ID for bot notifications
+  whatsappChatId          String?   // WhatsApp chat ID for bot notifications
+  preferredBotPlatform    String?   // "telegram" or "whatsapp"
+
+  // OneSignal Push Notifications
+  oneSignalPlayerId       String?   // OneSignal player/subscription ID
+  oneSignalSubscribedAt   DateTime? // When locksmith subscribed to push
+
+  // Onboarding & Terms
+  termsAcceptedAt             DateTime?  // When locksmith accepted T&C
+  onboardingCompleted         Boolean    @default(false)
+  insuranceDocumentUrl        String?    // Uploaded insurance document
+  certificationDocumentUrl    String?    // Uploaded locksmith certification
+  additionalDocumentUrls      String[]   // Any additional supporting documents
+  documentationUploadedAt     DateTime?  // When documentation was uploaded
+
+  // Insurance expiry tracking
+  insuranceExpiryDate         DateTime?  // When insurance certificate expires
+  insuranceVerifiedAt         DateTime?  // When admin verified the insurance
+  insuranceVerifiedById       String?    // Admin ID who verified
+  insuranceStatus             String     @default("pending") // pending, verified, expired, expiring_soon
+  insuranceReminderSent       Boolean    @default(false) // Track if expiry reminder was sent
+
+  // Password reset
+  resetToken             String?
+  resetTokenExpiry       DateTime?
+
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  jobs              Job[]
+  quotes            Quote[]
+  applications      LocksmithApplication[]
+  payouts           Payout[]
+  reviews           Review[]
+}
+
+// Locksmith application for a job (when locksmith applies with assessment fee)
+model LocksmithApplication {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+
+  jobId         String    @db.ObjectId
+  job           Job       @relation(fields: [jobId], references: [id])
+
+  locksmithId   String    @db.ObjectId
+  locksmith     Locksmith @relation(fields: [locksmithId], references: [id])
+
+  assessmentFee Float     // Fee the locksmith is charging
+  callOutFee    Float?    // Call-out fee for emergency workflow
+  eta           Int       // Minutes until arrival
+  estimatedETA  String?   // Human-readable ETA (e.g., "15 minutes")
+  message       String?   // Optional message to customer
+
+  status        String    @default("pending") // pending, accepted, rejected
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([jobId, locksmithId])
+}
+
+// Main Job model - the core entity
+model Job {
+  id               String    @id @default(auto()) @map("_id") @db.ObjectId
+  jobNumber        String    @unique // Human-readable job number
+
+  status           JobStatus @default(PENDING)
+
+  // Source tracking (phone/web/app)
+  createdVia       String    @default("web") // web, phone, app, retell_ai
+  blandCallId      String?   // Bland.ai call ID for phone-initiated jobs
+  retellCallId     String?   // Retell AI call ID for voice-initiated jobs
+  phoneCollectedData Json?   // Data collected during phone call
+  continueToken    String?   // Token for continuing phone-initiated request (uniqueness enforced at application level)
+
+  // Emergency workflow tracking
+  isEmergency          Boolean   @default(false) // Whether this is an emergency request
+  emergencyDetails     String?   // Details of the emergency
+  exactLocation        String?   // Exact location description (e.g., "blue door, flat 3")
+  notifiedLocksmithIds String[]  // IDs of locksmiths who were notified
+  notifiedAt           DateTime? // When locksmiths were notified
+
+  // Customer info
+  customerId       String    @db.ObjectId
+  customer         Customer  @relation(fields: [customerId], references: [id])
+
+  // Locksmith info (assigned after acceptance)
+  locksmithId      String?   @db.ObjectId
+  locksmith        Locksmith? @relation(fields: [locksmithId], references: [id])
+
+  // Job details
+  problemType      String    // lockout, broken, key-stuck, etc.
+  propertyType     String    // house, flat, commercial, car
+  description      String?
+
+  // Location
+  postcode         String
+  address          String
+  latitude         Float?
+  longitude        Float?
+
+  // Assessment fee
+  assessmentFee    Float     @default(29.00)
+  assessmentPaid   Boolean   @default(false)
+  acceptedEta      Int?      // ETA in minutes that was agreed upon
+
+  // Timestamps for workflow
+  createdAt        DateTime  @default(now())
+  acceptedAt       DateTime?
+  enRouteAt        DateTime?    // When locksmith started heading to location
+  estimatedArrival String?      // ETA as string (e.g., "15 minutes", "30 mins")
+  arrivedAt        DateTime?
+  diagnosedAt      DateTime?
+  workStartedAt    DateTime?
+  workCompletedAt  DateTime?
+  signedAt         DateTime?
+
+  // GPS tracking for all events (anti-fraud protection)
+  requestGps       Json?     // { lat, lng, accuracy } - Customer's location when requesting
+  acceptedGps      Json?     // { lat, lng, accuracy } - Locksmith's location when accepting
+  arrivalGps       Json?     // { lat, lng, accuracy } - Locksmith's location when arriving
+  quoteGps         Json?     // { lat, lng, accuracy } - Locksmith's location when sending quote
+  workStartedGps   Json?     // { lat, lng, accuracy } - Locksmith's location when starting work
+  completionGps    Json?     // { lat, lng, accuracy } - Locksmith's location when completing
+  signatureGps     Json?     // { lat, lng, accuracy } - Customer's location when signing
+
+  // Photos
+  photos           Photo[]
+
+  // Quote
+  quote            Quote?
+
+  // Digital signature
+  signature        Signature?
+
+  // Final report
+  report           Report?
+
+  // Applications from locksmiths
+  applications     LocksmithApplication[]
+
+  // Payments
+  payments         Payment[]
+
+  // Review
+  review           Review?
+
+  // Confirmation deadline for customer to sign (locksmith safety)
+  confirmationDeadline    DateTime?  // When customer must sign by
+  confirmationRemindersSent Int      @default(0) // Number of reminders sent
+  autoCompletedAt         DateTime?  // If job was auto-completed after deadline
+
+  // Metadata
+  updatedAt        DateTime  @updatedAt
+
+  @@index([continueToken])
+}
+
+// Job status enum
+enum JobStatus {
+  PHONE_INITIATED                // Phone call started, awaiting web completion
+  PENDING                        // Customer submitted, waiting for locksmith
+  ACCEPTED                       // Locksmith accepted the job
+  EN_ROUTE                       // Locksmith is on the way
+  ARRIVED                        // Locksmith arrived at location
+  DIAGNOSING                     // Locksmith performing diagnostic
+  QUOTED                         // Quote sent to customer
+  QUOTE_ACCEPTED                 // Customer accepted quote
+  QUOTE_DECLINED                 // Customer declined quote (assessment only)
+  IN_PROGRESS                    // Work being performed
+  PENDING_CUSTOMER_CONFIRMATION  // Work finished, waiting for customer to confirm & sign
+  COMPLETED                      // Work finished and customer confirmed
+  SIGNED                         // Customer signed off and payment processed
+  CANCELLED                      // Job cancelled
+}
+
+// Quote model
+model Quote {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  jobId       String   @unique @db.ObjectId
+  job         Job      @relation(fields: [jobId], references: [id])
+
+  locksmithId String   @db.ObjectId
+  locksmith   Locksmith @relation(fields: [locksmithId], references: [id])
+
+  // Diagnostic info
+  lockType    String   // cylinder, mortice, multipoint, etc.
+  defect      String   // description of issue found
+  difficulty  String   // easy, medium, hard, specialist
+
+  // Parts breakdown
+  parts       QuotePart[]
+
+  // Labour
+  labourCost  Float
+  labourTime  Int      // estimated minutes
+
+  // Totals
+  partsTotal  Float
+  subtotal    Float
+  vat         Float
+  total       Float
+
+  // Status
+  accepted    Boolean  @default(false)
+  acceptedAt  DateTime?
+  declinedAt  DateTime?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Parts in a quote
+type QuotePart {
+  name        String
+  quantity    Int
+  unitPrice   Float
+  total       Float
+}
+
+// Payment model
+model Payment {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+
+  jobId           String    @db.ObjectId
+  job             Job       @relation(fields: [jobId], references: [id])
+
+  customerId      String?   @db.ObjectId  // Customer who made the payment
+
+  type            String    // assessment, quote, tip, callout
+  amount          Float
+  status          String    @default("pending") // pending, succeeded, failed, refunded
+
+  // Stripe integration
+  stripePaymentId       String?   // Stripe payment intent ID
+  stripeCheckoutId      String?   // Stripe Checkout Session ID
+  stripePaymentIntentId String?   // Payment Intent from completed checkout
+
+  // Payment link for SMS-based checkout flow
+  paymentUrl            String?   // Short URL sent to customer via SMS
+  paymentUrlExpiresAt   DateTime? // When the payment link expires
+
+  paidAt          DateTime?
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// Payout to locksmith
+model Payout {
+  id               String    @id @default(auto()) @map("_id") @db.ObjectId
+
+  locksmithId      String    @db.ObjectId
+  locksmith        Locksmith @relation(fields: [locksmithId], references: [id])
+
+  amount           Float
+  platformFee      Float     // Our commission
+  netAmount        Float     // Amount paid to locksmith
+  status           String    @default("pending") // pending, processing, paid, failed
+
+  stripePayoutId   String?   // Stripe payout/transfer ID
+  stripeTransferId String?
+
+  periodStart      DateTime  // Payout period
+  periodEnd        DateTime
+
+  jobIds           String[]  // Jobs included in this payout
+
+  createdAt        DateTime  @default(now())
+  paidAt           DateTime?
+}
+
+// Review from customer
+model Review {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+
+  jobId         String    @unique @db.ObjectId
+  job           Job       @relation(fields: [jobId], references: [id])
+
+  customerId    String    @db.ObjectId
+  customer      Customer  @relation(fields: [customerId], references: [id])
+
+  locksmithId   String    @db.ObjectId
+  locksmith     Locksmith @relation(fields: [locksmithId], references: [id])
+
+  rating        Int       // 1-5 stars
+  comment       String?
+  isPublic      Boolean   @default(true)
+
+  createdAt     DateTime  @default(now())
+}
+
+// In-app notifications for users
+model Notification {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Recipient - one of these will be set
+  customerId    String?  @db.ObjectId
+  locksmithId   String?  @db.ObjectId
+
+  // Related job (optional)
+  jobId         String?  @db.ObjectId
+
+  // Notification content
+  type          String   // signature_reminder, job_update, payment, auto_completed, etc.
+  title         String
+  message       String
+  actionUrl     String?  // URL to navigate to when clicked
+  actionLabel   String?  // Button label like "Sign Now"
+
+  // Status
+  read          Boolean  @default(false)
+  readAt        DateTime?
+
+  // Metadata
+  data          Json?    // Extra data for notification
+  createdAt     DateTime @default(now())
+
+  @@index([customerId])
+  @@index([locksmithId])
+  @@index([read])
+}
+
+// Photos for documentation
+model Photo {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  jobId     String    @db.ObjectId
+  job       Job       @relation(fields: [jobId], references: [id])
+
+  type      PhotoType // before, during, after, lock_serial, damage
+  url       String
+  caption   String?
+
+  // Metadata
+  takenAt   DateTime  @default(now())
+  gpsLat    Float?
+  gpsLng    Float?
+}
+
+enum PhotoType {
+  BEFORE
+  DURING
+  AFTER
+  LOCK_SERIAL
+  DAMAGE
+  OTHER
+}
+
+// Digital signature
+model Signature {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  jobId       String   @unique @db.ObjectId
+  job         Job      @relation(fields: [jobId], references: [id])
+
+  signatureData String  // Base64 encoded signature image
+  signerName    String
+  signerIp      String?
+  deviceInfo    String?
+
+  // Confirmations
+  confirmsWork       Boolean @default(true)
+  confirmsPrice      Boolean @default(true)
+  confirmsSatisfied  Boolean @default(true)
+
+  signedAt     DateTime @default(now())
+}
+
+// Legal PDF Report
+model Report {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  jobId       String   @unique @db.ObjectId
+  job         Job      @relation(fields: [jobId], references: [id])
+
+  pdfUrl      String
+  reportNumber String  @unique // LRS-2026-001234
+
+  // Embedded data for legal purposes
+  fullTimeline Json    // Complete timeline of events
+  gpsLog       Json    // All GPS points
+  photoUrls    String[]// All photo URLs
+  quoteData    Json    // Quote breakdown
+  signatureUrl String  // Signature image URL
+
+  generatedAt  DateTime @default(now())
+}
+
+// Analytics event for tracking metrics
+model AnalyticsEvent {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  type        String   // page_view, job_created, job_completed, etc.
+  data        Json     // Event-specific data
+  sessionId   String?
+  userId      String?  // Customer or locksmith ID
+  userType    String?  // customer, locksmith, admin
+  createdAt   DateTime @default(now())
+}
+
+// Blog posts for SEO content
+model BlogPost {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  slug        String   @unique
+  title       String
+  excerpt     String
+  content     String
+  featuredImage String?
+
+  // SEO
+  metaTitle       String?
+  metaDescription String?
+  keywords        String[]
+
+  // Author
+  authorName  String
+  authorImage String?
+
+  // Status
+  published   Boolean  @default(false)
+  publishedAt DateTime?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// FAQ for SEO/AEO
+model FAQ {
+  id       String  @id @default(auto()) @map("_id") @db.ObjectId
+  question String
+  answer   String
+  category String  // general, pricing, service, etc.
+  order    Int     @default(0)
+  active   Boolean @default(true)
+}
+
+// Service areas for GEO/SEO
+model ServiceArea {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String   // "London", "Manchester", etc.
+  slug        String   @unique // "london", "manchester"
+  postcodes   String[] // Covered postcodes
+  description String?  // Area-specific content
+  isActive    Boolean  @default(true)
+
+  // SEO
+  metaTitle       String?
+  metaDescription String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ==========================================
+// MARKETING FUNNEL & USER TRACKING SYSTEM
+// ==========================================
+
+// User session tracking for behavior analysis
+model UserSession {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  visitorId       String   // Fingerprint/cookie ID
+  customerId      String?  @db.ObjectId
+
+  // Session data
+  startedAt       DateTime @default(now())
+  lastActiveAt    DateTime @default(now())
+  deviceType      String   // mobile, tablet, desktop
+  browser         String
+  referrer        String?
+  utmSource       String?
+  utmMedium       String?
+  utmCampaign     String?
+  landingPage     String
+
+  // Tracking
+  pageViews       PageView[]
+  events          UserEvent[]
+  funnelStage     String   @default("visitor") // visitor, lead, prospect, customer, advocate
+  segment         String[] // emergency, price_shopper, researcher, etc.
+
+  // Scoring
+  engagementScore Int      @default(0)
+  intentScore     Int      @default(0)
+
+  // Modal history
+  modalsShown     String[]
+  modalsDismissed String[]
+  modalsConverted String[]
+
+  @@index([visitorId])
+  @@index([customerId])
+}
+
+// Page view tracking
+model PageView {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  sessionId   String   @db.ObjectId
+  session     UserSession @relation(fields: [sessionId], references: [id])
+
+  path        String
+  title       String?
+  timeOnPage  Int?     // seconds
+  scrollDepth Int      @default(0) // percentage
+
+  createdAt   DateTime @default(now())
+
+  @@index([sessionId])
+}
+
+// User event tracking (clicks, interactions, etc.)
+model UserEvent {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  sessionId   String   @db.ObjectId
+  session     UserSession @relation(fields: [sessionId], references: [id])
+
+  type        String   // click, form_start, form_abandon, scroll, hover, etc.
+  element     String?  // Button ID, form name, etc.
+  data        Json?
+
+  createdAt   DateTime @default(now())
+
+  @@index([sessionId])
+  @@index([type])
+}
+
+// Funnel triggers for modals and popups
+model FunnelTrigger {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String   @unique
+  description String?
+
+  // Trigger conditions
+  conditions  Json     // Complex conditions object
+
+  // Action
+  modalType   String   // survey, offer, lead_magnet, exit_intent, etc.
+  modalConfig Json     // Modal content and styling
+
+  // Targeting
+  segments    String[] // Which segments to show
+  funnelStages String[] // Which funnel stages
+
+  // Limits
+  priority    Int      @default(0)
+  showOnce    Boolean  @default(true)
+  cooldownHours Int    @default(24)
+  maxShows    Int      @default(1)
+
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+// Modal interaction tracking
+model ModalInteraction {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  sessionId   String
+  visitorId   String
+  customerId  String?
+
+  modalType   String
+  triggerId   String?
+
+  action      String   // shown, dismissed, converted, completed
+  data        Json?    // Survey responses, form data, etc.
+
+  createdAt   DateTime @default(now())
+
+  @@index([visitorId])
+  @@index([modalType])
+}
+
+// Lead magnet signups
+model LeadMagnet {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  email       String
+  name        String?
+  phone       String?
+
+  source      String   // Which lead magnet/popup
+  segment     String[]
+
+  downloaded  String[] // Which assets they downloaded
+
+  emailsSent  String[] // Which emails they've received
+  emailsOpened String[]
+  emailsClicked String[]
+
+  convertedToCustomer Boolean @default(false)
+  customerId  String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([email])
+}
+
+// ==========================================
+// AI-POWERED AD CREATION SYSTEM
+// ==========================================
+
+// Meta Business account connection
+model MetaAdAccount {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Account info
+  accountId       String   @unique  // Meta Ad Account ID (act_xxxxx)
+  businessId      String?  // Business Manager ID
+  name            String
+  currency        String   @default("GBP")
+  timezone        String   @default("Europe/London")
+
+  // Authentication
+  accessToken     String   // Encrypted access token
+  tokenExpiresAt  DateTime?
+  refreshToken    String?
+
+  // Pixel connection
+  pixelId         String?  // Connected Meta Pixel ID
+  pixelName       String?
+
+  // Status
+  isActive        Boolean  @default(true)
+  lastSyncAt      DateTime?
+
+  // Relations
+  campaigns       AdCampaign[]
+  audiences       AdAudience[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Ad Campaign
+model AdCampaign {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Meta IDs
+  metaCampaignId  String?  @unique  // ID from Meta after creation
+  accountId       String   @db.ObjectId
+  account         MetaAdAccount @relation(fields: [accountId], references: [id])
+
+  // Campaign settings
+  name            String
+  objective       AdObjective
+  status          AdStatus @default(DRAFT)
+
+  // Budget
+  dailyBudget     Float?   // Daily budget in currency
+  lifetimeBudget  Float?   // Lifetime budget
+  bidStrategy     String   @default("LOWEST_COST")  // LOWEST_COST, COST_CAP, BID_CAP
+
+  // Schedule
+  startDate       DateTime?
+  endDate         DateTime?
+
+  // Performance tracking
+  totalSpend      Float    @default(0)
+  totalImpressions Int     @default(0)
+  totalClicks     Int      @default(0)
+  totalConversions Int     @default(0)
+  totalRevenue    Float    @default(0)
+
+  // AI metadata
+  aiGenerated     Boolean  @default(false)
+  aiPrompt        String?  // Original prompt used
+
+  // Relations
+  adSets          AdSet[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  lastSyncAt      DateTime?
+
+  @@index([accountId])
+  @@index([status])
+}
+
+// Ad Set (targeting and budget at ad set level)
+model AdSet {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Meta IDs
+  metaAdSetId     String?  @unique
+  campaignId      String   @db.ObjectId
+  campaign        AdCampaign @relation(fields: [campaignId], references: [id])
+
+  // Ad set settings
+  name            String
+  status          AdStatus @default(DRAFT)
+
+  // Budget (can override campaign)
+  dailyBudget     Float?
+  lifetimeBudget  Float?
+
+  // Schedule
+  startDate       DateTime?
+  endDate         DateTime?
+
+  // Optimization
+  optimizationGoal String  @default("LEAD")  // LEAD, CONVERSIONS, LINK_CLICKS, etc.
+  billingEvent    String   @default("IMPRESSIONS")  // IMPRESSIONS, LINK_CLICKS
+
+  // Targeting
+  targeting       Json     // Full targeting spec (locations, demographics, interests)
+
+  // Placements
+  placements      String[] // FEED, STORIES, REELS, etc. (empty = automatic)
+
+  // Performance
+  spend           Float    @default(0)
+  impressions     Int      @default(0)
+  clicks          Int      @default(0)
+  conversions     Int      @default(0)
+  ctr             Float    @default(0)
+  cpc             Float    @default(0)
+  cpm             Float    @default(0)
+
+  // Relations
+  ads             Ad[]
+  audienceId      String?  @db.ObjectId
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([campaignId])
+}
+
+// Individual Ad
+model Ad {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Meta IDs
+  metaAdId        String?  @unique
+  adSetId         String   @db.ObjectId
+  adSet           AdSet    @relation(fields: [adSetId], references: [id])
+
+  // Ad settings
+  name            String
+  status          AdStatus @default(DRAFT)
+
+  // Creative
+  creativeId      String   @db.ObjectId
+  creative        AdCreative @relation(fields: [creativeId], references: [id])
+
+  // Tracking (auto-configured)
+  trackingUrl     String?  // Final URL with UTM + fbclid
+  utmSource       String   @default("facebook")
+  utmMedium       String   @default("paid")
+  utmCampaign     String?  // Auto-set from campaign name
+  utmContent      String?  // Auto-set from ad name
+  pixelEventType  String?  // Lead, Purchase, etc.
+
+  // Performance
+  spend           Float    @default(0)
+  impressions     Int      @default(0)
+  clicks          Int      @default(0)
+  conversions     Int      @default(0)
+  revenue         Float    @default(0)
+  ctr             Float    @default(0)
+  cpc             Float    @default(0)
+  roas            Float    @default(0)
+
+  // AI metadata
+  aiGenerated     Boolean  @default(false)
+  aiVariation     String?  // "emotional", "urgency", "social_proof", etc.
+
+  // Review status
+  metaReviewStatus String?  // PENDING, APPROVED, REJECTED
+  metaReviewFeedback String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  lastSyncAt      DateTime?
+
+  @@index([adSetId])
+  @@index([status])
+}
+
+// Ad Creative (reusable across ads)
+model AdCreative {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Meta IDs
+  metaCreativeId  String?  @unique
+
+  // Creative type
+  type            CreativeType @default(IMAGE)
+
+  // Content
+  primaryText     String   // Main ad copy
+  headline        String   // Headline
+  description     String?  // Link description
+  callToAction    String   @default("LEARN_MORE")  // CTA button type
+
+  // Media
+  imageUrl        String?  // Image URL
+  imageHash       String?  // Meta image hash after upload
+  videoUrl        String?
+  videoId         String?  // Meta video ID
+  thumbnailUrl    String?
+
+  // Link
+  destinationUrl  String   // Landing page URL (without UTM)
+  displayUrl      String?  // Display URL shown in ad
+
+  // AI metadata
+  aiGenerated     Boolean  @default(false)
+  aiPrompt        String?
+  emotionalAngle  String?  // emotional, urgency, social_proof, benefit
+
+  // Relations
+  ads             Ad[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Saved Audiences
+model AdAudience {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Meta IDs
+  metaAudienceId  String?  @unique  // Custom/Lookalike audience ID
+  accountId       String   @db.ObjectId
+  account         MetaAdAccount @relation(fields: [accountId], references: [id])
+
+  // Audience info
+  name            String
+  description     String?
+  type            AudienceType @default(SAVED)
+
+  // Targeting definition
+  targeting       Json     // Full targeting spec
+
+  // Size estimates
+  estimatedSize   Int?     // Estimated reach
+  estimatedDaily  Int?     // Estimated daily reach
+
+  // AI metadata
+  aiGenerated     Boolean  @default(false)
+  aiSuggestion    String?  // Why AI suggested this audience
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([accountId])
+}
+
+// AI Content Generation Log
+model AIGeneration {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Request
+  type            String   // copy, audience, analysis, optimization
+  prompt          String
+  context         Json?    // Additional context provided
+
+  // Response
+  output          Json     // Generated content
+  tokensUsed      Int      @default(0)
+  model           String   @default("gpt-4")
+
+  // Usage tracking
+  usedInCampaign  String?  @db.ObjectId
+  usedInAd        String?  @db.ObjectId
+  wasAccepted     Boolean  @default(false)
+
+  createdAt       DateTime @default(now())
+}
+
+// Ad Performance Snapshots (for historical tracking)
+model AdPerformanceSnapshot {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Reference
+  adId            String?  @db.ObjectId
+  adSetId         String?  @db.ObjectId
+  campaignId      String?  @db.ObjectId
+
+  // Date
+  date            DateTime @db.Date
+
+  // Metrics
+  spend           Float
+  impressions     Int
+  clicks          Int
+  conversions     Int
+  revenue         Float
+  ctr             Float
+  cpc             Float
+  cpm             Float
+  roas            Float
+  frequency       Float?   // Average times shown per person
+
+  createdAt       DateTime @default(now())
+
+  @@index([adId, date])
+  @@index([campaignId, date])
+}
+
+// UTM Templates
+model UTMTemplate {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  name            String
+  description     String?
+
+  // UTM parameters
+  source          String
+  medium          String
+  campaign        String?
+  content         String?
+  term            String?
+
+  // Usage
+  useCount        Int      @default(0)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Enums
+enum AdObjective {
+  AWARENESS       // Brand awareness
+  TRAFFIC         // Link clicks
+  ENGAGEMENT      // Post engagement
+  LEADS           // Lead generation
+  SALES           // Conversions/purchases
+  APP_INSTALLS    // App installs
+}
+
+enum AdStatus {
+  DRAFT           // Not yet published
+  PENDING_REVIEW  // Submitted to Meta, pending review
+  ACTIVE          // Running
+  PAUSED          // Manually paused
+  REJECTED        // Rejected by Meta
+  COMPLETED       // Budget exhausted or end date reached
+  ARCHIVED        // Archived
+}
+
+enum CreativeType {
+  IMAGE           // Single image
+  VIDEO           // Video
+  CAROUSEL        // Multiple images/videos
+  COLLECTION      // Collection ad
+}
+
+enum AudienceType {
+  SAVED           // Saved audience (targeting spec)
+  CUSTOM          // Custom audience (website visitors, customer list)
+  LOOKALIKE       // Lookalike audience
+}
+
+// ==========================================
+// ORGANIC SOCIAL MEDIA POSTING SYSTEM
+// ==========================================
+
+// Content pillars/themes for consistent content strategy
+model ContentPillar {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  name            String   @unique  // "anti-fraud", "tips", "stories", etc.
+  displayName     String   // "Anti-Fraud Education"
+  description     String   // What this pillar covers
+  color           String   // Hex color for UI display
+  icon            String   // Lucide icon name
+
+  // Content guidelines
+  toneGuidelines  String[] // ["authoritative", "protective", "empowering"]
+  topicExamples   String[] // Example topics for AI
+  hashtags        String[] // Default hashtags for this pillar
+
+  // Scheduling preferences
+  postsPerWeek    Int      @default(2)
+  preferredDays   String[] // ["monday", "wednesday"]
+  preferredTimes  String[] // ["09:00", "18:00"]
+
+  isActive        Boolean  @default(true)
+
+  // Relations
+  posts           SocialPost[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Individual social media posts (organic)
+model SocialPost {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Content
+  content         String   // Post text/copy
+  headline        String?  // For image overlay or article title
+  hook            String?  // The opening hook line
+  hookType        String?  // "pattern-interrupt", "curiosity-gap", etc.
+
+  // Media
+  imageUrl        String?  // Uploaded/generated image URL
+  imageTemplateId String?  @db.ObjectId
+  imageTemplate   ImageTemplate? @relation(fields: [imageTemplateId], references: [id])
+  videoUrl        String?
+  carouselImages  String[] // For carousel posts
+
+  // Categorization
+  pillarId        String?  @db.ObjectId
+  pillar          ContentPillar? @relation(fields: [pillarId], references: [id])
+  hashtags        String[]
+
+  // Platform targeting
+  platforms       SocialPlatform[] @default([FACEBOOK, INSTAGRAM])
+
+  // AI generation metadata
+  aiGenerated     Boolean  @default(false)
+  aiPrompt        String?  // Original prompt used
+  aiFramework     String?  // "justin-welsh", "russell-brunson", etc.
+  emotionalAngle  String?  // "urgency", "trust", "fear", etc.
+
+  // Scheduling & Status
+  status          PostStatus @default(DRAFT)
+  scheduledFor    DateTime?
+  publishedAt     DateTime?
+
+  // Publishing results
+  facebookPostId  String?  // Post ID after publishing to Facebook
+  instagramPostId String?  // Post ID after publishing to Instagram
+  publishError    String?  // Error message if publish failed
+
+  // Approval workflow
+  approvedBy      String?  // Admin ID who approved
+  approvedAt      DateTime?
+  rejectionReason String?
+
+  // Performance tracking
+  impressions     Int      @default(0)
+  reach           Int      @default(0)
+  engagement      Int      @default(0) // likes + comments + shares
+  likes           Int      @default(0)
+  comments        Int      @default(0)
+  shares          Int      @default(0)
+  saves           Int      @default(0)
+  clicks          Int      @default(0)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  lastSyncAt      DateTime?
+
+  @@index([status])
+  @@index([scheduledFor])
+  @@index([pillarId])
+}
+
+// Image templates for branded graphics
+model ImageTemplate {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  name            String   @unique
+  description     String?
+
+  // Template design
+  backgroundUrl   String   // Background image URL
+  backgroundType  String   @default("image") // "image", "gradient", "solid"
+  gradientColors  String[] // For gradient backgrounds
+  solidColor      String?  // For solid backgrounds
+
+  // Layout configuration
+  layout          String   @default("centered") // "centered", "top", "bottom", "left", "right"
+  width           Int      @default(1080)
+  height          Int      @default(1080)
+
+  // Text styling
+  primaryFont     String   @default("Inter")
+  primaryFontSize Int      @default(48)
+  primaryColor    String   @default("#FFFFFF")
+  primaryWeight   String   @default("bold")
+
+  secondaryFont   String   @default("Inter")
+  secondaryFontSize Int    @default(24)
+  secondaryColor  String   @default("#FFFFFF")
+  secondaryWeight String   @default("normal")
+
+  // Logo/branding
+  showLogo        Boolean  @default(true)
+  logoPosition    String   @default("bottom-right") // "top-left", "top-right", "bottom-left", "bottom-right"
+  logoUrl         String?
+
+  // Overlays
+  overlayColor    String?  // Semi-transparent overlay
+  overlayOpacity  Float    @default(0.5)
+
+  // Category
+  category        String   @default("general") // "tips", "stories", "stats", "quotes"
+
+  isActive        Boolean  @default(true)
+
+  // Relations
+  posts           SocialPost[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Autopilot configuration
+model AutopilotConfig {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Enable/disable autopilot
+  isEnabled       Boolean  @default(false)
+
+  // Generation settings
+  postsPerDay     Int      @default(2)
+  generateAheadDays Int    @default(7) // How many days ahead to generate
+
+  // Approval settings
+  requireApproval Boolean  @default(true)
+  autoApproveAfterHours Int? // Auto-approve if no rejection after X hours
+
+  // Publishing settings
+  publishToFacebook Boolean @default(true)
+  publishToInstagram Boolean @default(true)
+
+  // Time preferences (stored as JSON)
+  publishTimes    Json     // { "monday": ["09:00", "18:00"], ... }
+
+  // Pillar distribution
+  pillarWeights   Json     // { "pillarId": 0.3, ... }
+
+  // AI preferences
+  preferredFrameworks String[] @default(["justin-welsh", "russell-brunson", "nicholas-cole", "simon-sinek"])
+  emotionalAngleRotation String[] @default(["trust", "urgency", "control", "benefit", "fear"])
+
+  // Admin notification
+  notifyOnGeneration Boolean @default(true)
+  notifyOnPublish Boolean @default(true)
+  notificationEmail String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Social media account connections
+model SocialAccount {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  platform        SocialPlatform
+  accountId       String   // Platform account/page ID
+  accountName     String
+  accountHandle   String?  // @handle
+  profileImage    String?
+
+  // Authentication
+  accessToken     String   // Encrypted
+  tokenExpiresAt  DateTime?
+  refreshToken    String?
+
+  // Page-specific (Facebook)
+  pageId          String?
+  pageAccessToken String?
+
+  // Status
+  isActive        Boolean  @default(true)
+  lastSyncAt      DateTime?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([platform, accountId])
+}
+
+enum SocialPlatform {
+  FACEBOOK
+  INSTAGRAM
+  TWITTER
+  LINKEDIN
+  TIKTOK
+}
+
+enum PostStatus {
+  DRAFT           // Initial state
+  PENDING_APPROVAL // Waiting for admin approval
+  APPROVED        // Approved, waiting to be scheduled or published
+  SCHEDULED       // Scheduled for future publishing
+  PUBLISHING      // Currently being published
+  PUBLISHED       // Successfully published
+  FAILED          // Publishing failed
+  REJECTED        // Rejected by admin
+  ARCHIVED        // Archived/removed
+}
+
+// ==========================================
+// EMAIL CAMPAIGN SYSTEM (Admin to Locksmiths)
+// ==========================================
+
+// Email campaign sent to locksmiths
+model EmailCampaign {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Campaign info
+  name            String   // Internal name
+  subject         String   // Email subject line
+  preheader       String?  // Preview text
+  template        String   // Template ID: "announcement", "newsletter", "update", etc.
+
+  // Content
+  headline        String?
+  body            String   // Rich HTML body
+  ctaText         String?  // Call to action button text
+  ctaUrl          String?  // Call to action URL
+
+  // Styling
+  accentColor     String   @default("#f97316") // Brand color
+
+  // Status
+  status          EmailCampaignStatus @default(DRAFT)
+  sentAt          DateTime?
+  scheduledFor    DateTime?
+
+  // Stats (aggregated from recipients)
+  totalRecipients Int      @default(0)
+  totalDelivered  Int      @default(0)
+  totalOpened     Int      @default(0)
+  totalClicked    Int      @default(0)
+  totalBounced    Int      @default(0)
+
+  // Relations
+  recipients      EmailRecipient[]
+
+  // Metadata
+  createdBy       String?  // Admin ID
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status])
+  @@index([sentAt])
+}
+
+// Individual email recipient tracking
+model EmailRecipient {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Campaign reference
+  campaignId      String   @db.ObjectId
+  campaign        EmailCampaign @relation(fields: [campaignId], references: [id])
+
+  // Recipient info
+  locksmithId     String   @db.ObjectId
+  email           String
+  name            String
+
+  // Resend tracking
+  resendEmailId   String?  // ID returned by Resend
+
+  // Status & events
+  status          String   @default("pending") // pending, sent, delivered, bounced, complained
+  deliveredAt     DateTime?
+  openedAt        DateTime?
+  openCount       Int      @default(0)
+  clickedAt       DateTime?
+  clickCount      Int      @default(0)
+  bouncedAt       DateTime?
+  bounceReason    String?
+  complainedAt    DateTime?
+
+  // Click tracking
+  clickedLinks    String[] // URLs that were clicked
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([campaignId, locksmithId])
+  @@index([campaignId])
+  @@index([locksmithId])
+  @@index([status])
+}
+
+enum EmailCampaignStatus {
+  DRAFT           // Still being edited
+  SCHEDULED       // Scheduled for future
+  SENDING         // Currently sending
+  SENT            // All emails sent
+  PAUSED          // Paused mid-send
+  CANCELLED       // Cancelled
+}
+
+// ============================================
+// AI AGENT OPERATING SYSTEM MODELS
+// ============================================
+
+// Agent definition - autonomous AI workers
+model Agent {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  name            String   @unique                    // "ceo", "cto", "cmo", "coo"
+  displayName     String                              // "CEO Agent", "COO Agent"
+  role            String                              // Role description
+
+  // Hierarchy
+  parentAgentId   String?  @db.ObjectId
+
+  status          String   @default("active")         // active, paused, terminated
+  skillsPath      String                              // Path to SKILL.md file
+
+  // Budget Control
+  monthlyBudgetUsd   Float    @default(50)            // Monthly token budget ($)
+  budgetUsedUsd      Float    @default(0)             // Current month usage
+  budgetResetAt      DateTime @default(now())         // When budget resets
+
+  // Heartbeat Configuration
+  heartbeatEnabled   Boolean  @default(true)
+  heartbeatCronExpr  String   @default("*/30 * * * *") // Cron expression
+  lastHeartbeat      DateTime?
+  nextHeartbeat      DateTime?
+
+  // Permissions
+  permissions        String[] @default([])            // Tool access list
+  governanceLevel    String   @default("autonomous")  // autonomous, supervised, approval_required
+
+  // Stats
+  totalTasksCompleted Int     @default(0)
+  totalExecutions     Int     @default(0)
+  successRate         Float   @default(100)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tasks           AgentTask[]
+  executions      AgentExecution[]
+  memories        AgentMemory[]
+}
+
+// Task assigned to an agent
+model AgentTask {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  agentId         String   @db.ObjectId
+  agent           Agent    @relation(fields: [agentId], references: [id])
+
+  parentTaskId    String?  @db.ObjectId               // Parent task (delegation)
+
+  title           String
+  description     String
+  priority        Int      @default(5)                // 1-10, 10 = highest
+  status          String   @default("pending")        // pending, in_progress, completed, failed, blocked
+
+  // Goal Alignment
+  companyGoalId   String?  @db.ObjectId
+  projectContext  String?                             // Context about what this achieves
+
+  // Delegation
+  delegatedFrom   String?                             // Agent that delegated this
+  delegatedTo     String?                             // Subagent to execute
+
+  // Execution
+  assignedAt      DateTime @default(now())
+  startedAt       DateTime?
+  completedAt     DateTime?
+  deadline        DateTime?
+
+  // Results
+  result          String?                             // JSON result
+  resultSummary   String?                             // Human-readable summary
+  error           String?
+
+  // Cost tracking
+  tokensUsed      Int      @default(0)
+  costUsd         Float    @default(0)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Agent execution log (immutable audit trail)
+model AgentExecution {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  agentId         String   @db.ObjectId
+  agent           Agent    @relation(fields: [agentId], references: [id])
+
+  taskId          String?  @db.ObjectId
+  traceId         String                              // Group related executions
+
+  // Execution details
+  actionType      String                              // tool_call, decision, delegation, heartbeat
+  actionName      String                              // Tool name or action description
+  input           String                              // JSON input
+  output          String?                             // JSON output
+  status          String   @default("success")        // success, failed, blocked, pending_approval
+
+  // Cost tracking
+  tokensUsed      Int      @default(0)
+  costUsd         Float    @default(0)
+  model           String?                             // AI model used (gpt-4, etc)
+
+  // Timing
+  startedAt       DateTime @default(now())
+  completedAt     DateTime?
+  durationMs      Int?
+
+  // Approval (if needed)
+  requiresApproval Boolean @default(false)
+  approvedBy       String?                            // Admin who approved
+  approvedAt       DateTime?
+
+  createdAt       DateTime @default(now())
+}
+
+// Agent memory (short + long term)
+model AgentMemory {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  agentId         String   @db.ObjectId
+  agent           Agent    @relation(fields: [agentId], references: [id])
+
+  type            String   @default("short")          // short, long, system
+  category        String                              // decisions, campaigns, patterns, bugs, etc
+
+  content         String                              // The memory content
+  metadata        String?                             // JSON metadata
+
+  // Relevance
+  importance      Float    @default(0.5)              // 0-1 importance score
+  lastAccessedAt  DateTime @default(now())
+  accessCount     Int      @default(1)
+
+  // Expiry
+  expiresAt       DateTime?                           // Null = permanent
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Company goals (for goal alignment)
+model CompanyGoal {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  title           String
+  description     String
+  type            String   @default("strategic")      // strategic, quarterly, project
+
+  status          String   @default("active")         // active, completed, paused
+  priority        Int      @default(5)                // 1-10
+
+  // Metrics
+  targetMetric    String?                             // What we're measuring
+  targetValue     Float?                              // Target value
+  currentValue    Float?                              // Current progress
+  progress        Float    @default(0)                // 0-100%
+
+  // Ownership
+  ownerAgentId    String?  @db.ObjectId               // Primary agent responsible
+
+  deadline        DateTime?
+  completedAt     DateTime?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ==========================================
+// VOICE AI RECEPTIONIST SYSTEM (Retell AI)
+// ==========================================
+
+// Voice call records from Retell AI
+model VoiceCall {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Retell AI identifiers
+  retellCallId    String   @unique  // Retell's call_id
+  agentId         String?            // Retell agent ID used
+
+  // Caller info
+  callerPhone     String?            // Caller's phone number
+  callerName      String?            // Extracted from conversation
+  callerPostcode  String?            // Extracted postcode
+
+  // Call metadata
+  callType        String   @default("inbound")  // inbound, outbound, web
+  callStatus      String   @default("in_progress") // in_progress, completed, failed, transferred
+  startedAt       DateTime @default(now())
+  endedAt         DateTime?
+  durationSeconds Int?
+
+  // Classification
+  callCategory    String?  // emergency, appointment, inquiry, complaint, spam
+  urgencyLevel    String?  // critical, high, medium, low
+  problemType     String?  // lockout, broken_lock, security_upgrade, rekeying, consultation
+  propertyType    String?  // residential, commercial, automotive
+
+  // Outcome
+  outcome         String?  // job_created, appointment_booked, info_provided, escalated, abandoned
+  outcomeDetails  Json?    // Details about the outcome
+
+  // Linked entities
+  jobId           String?  @db.ObjectId  // Created job (if any)
+  customerId      String?  @db.ObjectId  // Linked customer (if identified)
+  locksmithId     String?  @db.ObjectId  // Dispatched locksmith (if any)
+  bookingDate     DateTime?              // For appointment bookings
+
+  // Sentiment & quality
+  sentimentScore  Float?   // -1 to 1 (negative to positive)
+  sentimentLabel  String?  // positive, neutral, negative
+  customerSatisfaction Int? // 1-5 post-call survey
+
+  // Transcript
+  transcript      Json?    // Full transcript array [{role, content, timestamp}]
+  summary         String?  // AI-generated call summary
+
+  // Recording
+  recordingUrl    String?
+  recordingDuration Int?
+
+  // Call analysis from Retell
+  callAnalysis    Json?    // Full analysis object from Retell
+
+  // Revenue attribution
+  estimatedRevenue Float?  // Estimated revenue from this call
+  actualRevenue    Float?  // Actual revenue (after job completion)
+
+  // Deduplication
+  dedupeKey       String?  @unique  // For webhook deduplication
+
+  // Human escalation
+  wasEscalated    Boolean  @default(false)
+  escalationReason String?
+  escalatedTo     String?  // Phone number or name of human agent
+
+  // Flags
+  flaggedForReview Boolean @default(false)
+  reviewNotes     String?
+  isTestCall      Boolean  @default(false)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([callerPhone])
+  @@index([callCategory])
+  @@index([callStatus])
+  @@index([startedAt])
+  @@index([outcome])
+}
+
+// Voice agent configuration and prompts
+model VoiceAgentConfig {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  name            String   @unique  // Config name/version
+  isActive        Boolean  @default(false)
+
+  // Retell AI config
+  retellAgentId   String?  // Retell agent ID
+  retellLlmId     String?  // Retell LLM ID
+
+  // Voice settings
+  voiceId         String?  // TTS voice ID
+  language        String   @default("en-GB")
+  speakingRate    Float    @default(1.0)
+
+  // Prompts
+  systemPrompt    String   // Main agent prompt
+  greetingMessage String?  // Initial greeting
+  fallbackMessage String?  // When agent can't understand
+
+  // Behavior
+  maxCallDuration Int      @default(600) // Max seconds (10 min default)
+  silenceTimeout  Int      @default(10)  // Seconds of silence before prompting
+  enableRecording Boolean  @default(true)
+
+  // Business hours
+  businessHoursStart String @default("00:00") // 24/7 by default
+  businessHoursEnd   String @default("23:59")
+  afterHoursMessage  String?
+
+  // Feature toggles
+  enableDispatch     Boolean @default(true)
+  enableBooking      Boolean @default(true)
+  enableFAQ          Boolean @default(true)
+  enableEscalation   Boolean @default(true)
+
+  // Status
+  isPaused        Boolean  @default(false)
+  pauseReason     String?
+
+  // Blocked numbers
+  blockedNumbers  String[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Daily/hourly call analytics snapshots
+model CallAnalyticsSnapshot {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Time period
+  periodType      String   // hourly, daily, weekly, monthly
+  periodStart     DateTime
+  periodEnd       DateTime
+
+  // Volume metrics
+  totalCalls      Int      @default(0)
+  emergencyCalls  Int      @default(0)
+  appointmentCalls Int     @default(0)
+  inquiryCalls    Int      @default(0)
+  spamCalls       Int      @default(0)
+
+  // Duration metrics
+  avgDurationSeconds Float @default(0)
+  maxDurationSeconds Int   @default(0)
+  minDurationSeconds Int   @default(0)
+
+  // Outcome metrics
+  jobsCreated     Int      @default(0)
+  appointmentsBooked Int   @default(0)
+  escalations     Int      @default(0)
+  abandonedCalls  Int      @default(0)
+
+  // Conversion metrics
+  callToJobRate   Float    @default(0)  // Percentage
+  callToBookingRate Float  @default(0)
+
+  // Sentiment
+  avgSentimentScore Float  @default(0)
+  negativeSentimentCount Int @default(0)
+
+  // Revenue
+  estimatedRevenue Float   @default(0)
+  actualRevenue    Float   @default(0)
+
+  // Performance
+  avgResponseTime  Float   @default(0)  // Seconds to first dispatch
+  avgTimeToDispatch Float  @default(0)
+
+  createdAt       DateTime @default(now())
+
+  @@unique([periodType, periodStart])
+  @@index([periodType])
+  @@index([periodStart])
+}
+
+// Agent governance - pending approvals
+model AgentApproval {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  agentId         String   @db.ObjectId
+  executionId     String   @db.ObjectId
+
+  actionType      String                              // What action needs approval
+  actionDetails   String                              // JSON description
+  reason          String                              // Why approval is needed
+
+  status          String   @default("pending")        // pending, approved, rejected
+
+  // Resolution
+  resolvedBy      String?                             // Admin ID
+  resolvedAt      DateTime?
+  resolution      String?                             // Approval notes
+
+  // Notification
+  notifiedVia     String[] @default([])               // telegram, email, dashboard
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Token Blacklist for logout/revoked JWT tokens
+model TokenBlacklist {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  token     String   @unique // The JWT token (hashed for security)
+  userId    String   // ID of the user who logged out
+  userType  String   // "admin", "locksmith", or "customer"
+  expiresAt DateTime // When the token would have expired naturally
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
+// ==========================================
+// PUSH NOTIFICATION SUBSCRIPTIONS
+// ==========================================
+
+// Push subscription storage for guest users
+// Links to user when they register/login
+model PushSubscription {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  playerId     String   @unique  // OneSignal player ID (UUID)
+  userType     String   @default("guest") // guest, customer, locksmith
+
+  // Linked user (populated when guest converts)
+  customerId   String?  @db.ObjectId
+  locksmithId  String?  @db.ObjectId
+
+  // Subscription metadata
+  subscribedAt DateTime @default(now())
+  linkedAt     DateTime? // When subscription was linked to a user
+
+  // Device info (for debugging)
+  deviceType   String?  // mobile, desktop, tablet
+  browser      String?  // chrome, safari, firefox, edge
+  os           String?  // ios, android, windows, macos
+
+  // Status
+  isActive     Boolean  @default(true)
+  unsubscribedAt DateTime?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([locksmithId])
+  @@index([isActive])
+}
