@@ -15,6 +15,9 @@ import {
   CheckCircle,
   Settings,
   Sparkles,
+  Plus,
+  Trash2,
+  AlertCircle,
 } from "lucide-react";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
 import { Button } from "@/components/ui/button";
@@ -54,11 +57,36 @@ const EMOTIONAL_ANGLES = [
   { id: "curiosity", name: "Curiosity" },
 ];
 
+interface SocialAccount {
+  id: string;
+  platform: "FACEBOOK" | "INSTAGRAM";
+  accountId: string;
+  accountName: string;
+  accountHandle?: string;
+  profileImage?: string;
+  isActive: boolean;
+  lastSyncAt?: Date;
+  createdAt: Date;
+}
+
 export default function AutopilotSettingsPage() {
   const [config, setConfig] = useState<AutopilotConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [manualGenerating, setManualGenerating] = useState(false);
+
+  // Social accounts state
+  const [socialAccounts, setSocialAccounts] = useState<SocialAccount[]>([]);
+  const [showAccountForm, setShowAccountForm] = useState(false);
+  const [accountFormPlatform, setAccountFormPlatform] = useState<"FACEBOOK" | "INSTAGRAM">("FACEBOOK");
+  const [accountFormData, setAccountFormData] = useState({
+    accountId: "",
+    accountName: "",
+    accountHandle: "",
+    accessToken: "",
+    pageId: "",
+    pageAccessToken: "",
+  });
 
   // Form state
   const [isEnabled, setIsEnabled] = useState(false);
@@ -76,7 +104,81 @@ export default function AutopilotSettingsPage() {
 
   useEffect(() => {
     fetchConfig();
+    fetchSocialAccounts();
   }, []);
+
+  const fetchSocialAccounts = async () => {
+    try {
+      const response = await fetch("/api/admin/organic/accounts");
+      const data = await response.json();
+      if (data.success) {
+        setSocialAccounts(data.accounts);
+      }
+    } catch (error) {
+      console.error("Error fetching social accounts:", error);
+    }
+  };
+
+  const handleAddAccount = async () => {
+    if (!accountFormData.accountId || !accountFormData.accountName || !accountFormData.accessToken) {
+      alert("Please fill in all required fields");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/admin/organic/accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          platform: accountFormPlatform,
+          ...accountFormData,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert(data.message);
+        setShowAccountForm(false);
+        setAccountFormData({
+          accountId: "",
+          accountName: "",
+          accountHandle: "",
+          accessToken: "",
+          pageId: "",
+          pageAccessToken: "",
+        });
+        fetchSocialAccounts();
+      } else {
+        alert(`Failed: ${data.error}`);
+      }
+    } catch (error) {
+      console.error("Error adding account:", error);
+      alert("Failed to add account");
+    }
+  };
+
+  const handleDeleteAccount = async (accountId: string) => {
+    if (!confirm("Are you sure you want to disconnect this account?")) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/admin/organic/accounts?id=${accountId}`, {
+        method: "DELETE",
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert(data.message);
+        fetchSocialAccounts();
+      } else {
+        alert(`Failed: ${data.error}`);
+      }
+    } catch (error) {
+      console.error("Error deleting account:", error);
+      alert("Failed to delete account");
+    }
+  };
 
   const fetchConfig = async () => {
     try {
@@ -311,11 +413,215 @@ export default function AutopilotSettingsPage() {
             </div>
           </div>
 
+          {/* Social Media Accounts */}
+          <div className="bg-white rounded-xl p-6 border border-slate-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Settings className="w-5 h-5 text-slate-600" />
+                <h2 className="text-lg font-semibold text-slate-900">Connected Accounts</h2>
+              </div>
+              <Button
+                onClick={() => setShowAccountForm(!showAccountForm)}
+                variant="outline"
+                size="sm"
+                className="text-blue-600 border-blue-300"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Connect Account
+              </Button>
+            </div>
+
+            {/* Account Form */}
+            {showAccountForm && (
+              <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <h3 className="font-medium text-slate-900 mb-3">Connect New Account</h3>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Platform
+                    </label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAccountFormPlatform("FACEBOOK")}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg border ${
+                          accountFormPlatform === "FACEBOOK"
+                            ? "bg-blue-100 border-blue-500 text-blue-700"
+                            : "bg-white border-slate-300 text-slate-600"
+                        }`}
+                      >
+                        <Facebook className="w-4 h-4" />
+                        Facebook
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAccountFormPlatform("INSTAGRAM")}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg border ${
+                          accountFormPlatform === "INSTAGRAM"
+                            ? "bg-pink-100 border-pink-500 text-pink-700"
+                            : "bg-white border-slate-300 text-slate-600"
+                        }`}
+                      >
+                        <Instagram className="w-4 h-4" />
+                        Instagram
+                      </button>
+                    </div>
+                  </div>
+
+                  {accountFormPlatform === "FACEBOOK" ? (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                          Page ID *
+                        </label>
+                        <input
+                          type="text"
+                          value={accountFormData.pageId}
+                          onChange={(e) => setAccountFormData({ ...accountFormData, pageId: e.target.value, accountId: e.target.value })}
+                          placeholder="123456789012345"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                          Page Name *
+                        </label>
+                        <input
+                          type="text"
+                          value={accountFormData.accountName}
+                          onChange={(e) => setAccountFormData({ ...accountFormData, accountName: e.target.value })}
+                          placeholder="LockSafe UK"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                          Page Access Token *
+                        </label>
+                        <input
+                          type="password"
+                          value={accountFormData.pageAccessToken || accountFormData.accessToken}
+                          onChange={(e) => setAccountFormData({ ...accountFormData, pageAccessToken: e.target.value, accessToken: e.target.value })}
+                          placeholder="EAAxxxxxxxx..."
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <p className="text-xs text-slate-500 mt-1">
+                          Get from: <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Graph API Explorer</a>
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                          Instagram Business Account ID *
+                        </label>
+                        <input
+                          type="text"
+                          value={accountFormData.accountId}
+                          onChange={(e) => setAccountFormData({ ...accountFormData, accountId: e.target.value })}
+                          placeholder="17841400000000000"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                          Account Name *
+                        </label>
+                        <input
+                          type="text"
+                          value={accountFormData.accountName}
+                          onChange={(e) => setAccountFormData({ ...accountFormData, accountName: e.target.value })}
+                          placeholder="@locksafeuk"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                          Access Token *
+                        </label>
+                        <input
+                          type="password"
+                          value={accountFormData.accessToken}
+                          onChange={(e) => setAccountFormData({ ...accountFormData, accessToken: e.target.value })}
+                          placeholder="EAAxxxxxxxx..."
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleAddAccount}
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Connect
+                    </Button>
+                    <Button
+                      onClick={() => setShowAccountForm(false)}
+                      variant="outline"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Connected Accounts List */}
+            {socialAccounts.length === 0 ? (
+              <div className="text-center py-8">
+                <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-3" />
+                <p className="text-slate-600 mb-1">No accounts connected</p>
+                <p className="text-sm text-slate-500">
+                  Connect your Facebook Page or Instagram Business account to start publishing
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {socialAccounts.map((account) => (
+                  <div
+                    key={account.id}
+                    className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200"
+                  >
+                    <div className="flex items-center gap-3">
+                      {account.platform === "FACEBOOK" ? (
+                        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                          <Facebook className="w-5 h-5 text-blue-600" />
+                        </div>
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-pink-100 flex items-center justify-center">
+                          <Instagram className="w-5 h-5 text-pink-600" />
+                        </div>
+                      )}
+                      <div>
+                        <p className="font-medium text-slate-900">{account.accountName}</p>
+                        <p className="text-xs text-slate-500">
+                          {account.platform} • {account.isActive ? "Active" : "Inactive"}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteAccount(account.id)}
+                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Platform Settings */}
           <div className="bg-white rounded-xl p-6 border border-slate-200">
             <div className="flex items-center gap-2 mb-4">
               <Settings className="w-5 h-5 text-slate-600" />
-              <h2 className="text-lg font-semibold text-slate-900">Platform Settings</h2>
+              <h2 className="text-lg font-semibold text-slate-900">Publishing Platforms</h2>
             </div>
 
             <div className="flex gap-4">
