@@ -52,16 +52,19 @@ export async function POST(request: NextRequest) {
           playerId: directPlayerId,
         });
       } catch (dbError: any) {
-        // Record might not exist - that's OK
+        // Record might not exist
         if (dbError.code === "P2025") {
-          console.log("[OneSignal] No database record found for guest subscription (already deleted)");
-          return NextResponse.json({
-            success: true,
-            message: "Guest subscription already removed or not found in database",
-            deletedFromDatabase: false,
-            deletedFromOneSignal,
-            playerId: directPlayerId,
-          });
+          console.log("[OneSignal] No database record found for guest subscription");
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Subscription not found",
+              message: "Guest subscription not found in database",
+              deletedFromOneSignal,
+              playerId: directPlayerId,
+            },
+            { status: 404 }
+          );
         }
 
         // Other database errors
@@ -121,6 +124,19 @@ export async function POST(request: NextRequest) {
 
       userFound = true;
       playerId = customer.oneSignalPlayerId;
+
+      if (!playerId) {
+        console.log(`[OneSignal] No OneSignal player ID for customer ${userId}`);
+        return NextResponse.json(
+          {
+            success: false,
+            error: "User has no active OneSignal subscription",
+            userFound: true,
+            userId,
+          },
+          { status: 404 }
+        );
+      }
 
       // Delete player from OneSignal API first (before database)
       if (playerId) {
@@ -189,6 +205,19 @@ export async function POST(request: NextRequest) {
 
       userFound = true;
       playerId = locksmith.oneSignalPlayerId;
+
+      if (!playerId) {
+        console.log(`[OneSignal] No OneSignal player ID for locksmith ${userId}`);
+        return NextResponse.json(
+          {
+            success: false,
+            error: "User has no active OneSignal subscription",
+            userFound: true,
+            userId,
+          },
+          { status: 404 }
+        );
+      }
 
       // Delete player from OneSignal API first (before database)
       if (playerId) {

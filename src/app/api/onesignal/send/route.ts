@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import db from "@/lib/db";
+import { verifyApiKey } from "@/lib/agent-auth";
+import { verifyToken, type TokenPayload } from "@/lib/auth";
 import {
   sendNotification,
   sendTemplatedNotification,
@@ -8,6 +10,87 @@ import {
   NOTIFICATION_TEMPLATES,
   ONESIGNAL_SEGMENTS,
 } from "@/lib/onesignal";
+
+async function getSessionPayload(request: NextRequest): Promise<TokenPayload | null> {
+  const authToken = request.cookies.get("auth_token")?.value;
+  if (!authToken) {
+    return null;
+  }
+
+  return verifyToken(authToken);
+}
+
+async function getPlayerIdForSession(session: TokenPayload): Promise<string | null> {
+  if (session.type === "customer") {
+    const customer = await db.customer.findUnique({
+      where: { id: session.id },
+      select: { oneSignalPlayerId: true },
+    });
+    return customer?.oneSignalPlayerId || null;
+  }
+
+  if (session.type === "locksmith") {
+    const locksmith = await db.locksmith.findUnique({
+      where: { id: session.id },
+      select: { oneSignalPlayerId: true },
+    });
+    return locksmith?.oneSignalPlayerId || null;
+  }
+
+  return null;
+}
+
+async function authorizeSendRequest(
+  request: NextRequest,
+  body: Record<string, any>
+): Promise<{ allowed: boolean; error?: string }> {
+  const apiAuth = verifyApiKey(request);
+  const session = await getSessionPayload(request);
+  const isAdmin = apiAuth.authenticated || session?.type === "admin";
+
+  if (body.template || body.segment || body.userId || body.userType) {
+    if (!isAdmin) {
+      return { allowed: false, error: "Unauthorized: admin credentials required" };
+    }
+    return { allowed: true };
+  }
+
+  if (body.playerIds?.length) {
+    if (isAdmin) {
+      return { allowed: true };
+    }
+
+    if (!session) {
+      return { allowed: false, error: "Unauthorized: login required" };
+    }
+
+    if (!Array.isArray(body.playerIds) || body.playerIds.length !== 1) {
+      return {
+        allowed: false,
+        error: "Unauthorized: only a single self playerId may be sent",
+      };
+    }
+
+    const ownPlayerId = await getPlayerIdForSession(session);
+    if (!ownPlayerId) {
+      return {
+        allowed: false,
+        error: "Unauthorized: no active subscription for current user",
+      };
+    }
+
+    if (body.playerIds[0] !== ownPlayerId) {
+      return {
+        allowed: false,
+        error: "Unauthorized: cannot send notifications to other users",
+      };
+    }
+
+    return { allowed: true };
+  }
+
+  return { allowed: false, error: "Unauthorized or invalid send request" };
+}
 
 /**
  * POST /api/onesignal/send
@@ -40,6 +123,14 @@ export async function POST(request: NextRequest) {
       data,
       jobId,
     } = body;
+
+    const authResult = await authorizeSendRequest(request, body);
+    if (!authResult.allowed) {
+      return NextResponse.json(
+        { error: authResult.error },
+        { status: 401 }
+      );
+    }
 
     // Option 1: Send using a template
     if (template) {
@@ -193,7 +284,17 @@ function getJobUrl(userType: string | undefined, jobId: string): string {
  *
  * Get available templates and segments
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const apiAuth = verifyApiKey(request);
+  const session = await getSessionPayload(request);
+
+  if (!apiAuth.authenticated && session?.type !== "admin") {
+    return NextResponse.json(
+      { error: "Unauthorized: admin credentials required" },
+      { status: 401 }
+    );
+  }
+
   return NextResponse.json({
     templates: Object.keys(NOTIFICATION_TEMPLATES),
     segments: Object.values(ONESIGNAL_SEGMENTS),
