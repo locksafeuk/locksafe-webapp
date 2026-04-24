@@ -41,6 +41,7 @@ import {
   Trash2,
   X,
   Send,
+  Edit,
 } from "lucide-react";
 import Image from "next/image";
 
@@ -125,6 +126,19 @@ export default function AdminLocksmithsPage() {
 
   // Welcome emails state
   const [sendingWelcomeEmails, setSendingWelcomeEmails] = useState(false);
+
+  // Profile editing state
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileEdits, setProfileEdits] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    companyName: "",
+    yearsExperience: 0,
+    coverageRadius: 10,
+    baseAddress: "",
+  });
 
   const fetchLocksmiths = useCallback(async () => {
     try {
@@ -420,6 +434,51 @@ export default function AdminLocksmithsPage() {
     }
   };
 
+  // Handle saving profile edits from admin
+  const handleSaveProfileEdit = async () => {
+    if (!selectedLocksmith) return;
+    setSavingProfile(true);
+    try {
+      const response = await fetch(`/api/locksmiths/${selectedLocksmith.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: profileEdits.name.trim(),
+          email: profileEdits.email.trim(),
+          phone: profileEdits.phone.trim(),
+          companyName: profileEdits.companyName.trim() || null,
+          yearsExperience: Number(profileEdits.yearsExperience),
+          coverageRadius: Number(profileEdits.coverageRadius),
+          baseAddress: profileEdits.baseAddress.trim() || null,
+        }),
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        const updated = {
+          ...selectedLocksmith,
+          name: profileEdits.name.trim(),
+          email: profileEdits.email.trim(),
+          phone: profileEdits.phone.trim(),
+          companyName: profileEdits.companyName.trim() || null,
+          yearsExperience: Number(profileEdits.yearsExperience),
+          coverageRadius: Number(profileEdits.coverageRadius),
+          baseAddress: profileEdits.baseAddress.trim() || null,
+          avatar: profileEdits.name.trim().split(" ").map((n: string) => n[0]).join(""),
+        };
+        setSelectedLocksmith(updated);
+        setLocksmiths(prev => prev.map(ls => ls.id === selectedLocksmith.id ? updated : ls));
+        setEditingProfile(false);
+      } else {
+        alert(data.error || "Failed to update profile");
+      }
+    } catch (error) {
+      console.error("Error saving profile:", error);
+      alert("Failed to update profile");
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
   // Filter locksmiths by search and status
   const filteredLocksmiths = locksmiths.filter((ls) => {
     const matchesSearch =
@@ -651,7 +710,7 @@ export default function AdminLocksmithsPage() {
                   <tr
                     key={ls.id}
                     className="hover:bg-slate-50 cursor-pointer transition-colors"
-                    onClick={() => setSelectedLocksmith(ls)}
+                    onClick={() => { setSelectedLocksmith(ls); setEditingProfile(false); }}
                   >
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-3">
@@ -892,7 +951,7 @@ export default function AdminLocksmithsPage() {
                     </div>
                   </div>
                   <button
-                    onClick={() => setSelectedLocksmith(null)}
+                    onClick={() => { setSelectedLocksmith(null); setEditingProfile(false); }}
                     className="p-2 hover:bg-slate-100 rounded-full"
                   >
                     <XCircle className="w-5 h-5" />
@@ -956,21 +1015,152 @@ export default function AdminLocksmithsPage() {
                 </div>
 
                 {/* Contact Info */}
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="p-4 bg-slate-50 rounded-xl">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Mail className="w-4 h-4 text-slate-400" />
-                      <span className="text-sm text-slate-500">Email</span>
-                    </div>
-                    <div className="font-medium">{selectedLocksmith.email}</div>
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-medium text-slate-700">Contact &amp; Profile Details</span>
+                    {!editingProfile ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProfileEdits({
+                            name: selectedLocksmith.name,
+                            email: selectedLocksmith.email,
+                            phone: selectedLocksmith.phone,
+                            companyName: selectedLocksmith.companyName || "",
+                            yearsExperience: selectedLocksmith.yearsExperience,
+                            coverageRadius: selectedLocksmith.coverageRadius,
+                            baseAddress: selectedLocksmith.baseAddress || "",
+                          });
+                          setEditingProfile(true);
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-orange-600 border border-orange-300 rounded-lg hover:bg-orange-50 transition-colors"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                        Edit Details
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setEditingProfile(false)}
+                          className="px-3 py-1.5 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+                          disabled={savingProfile}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSaveProfileEdit}
+                          disabled={savingProfile}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-white bg-orange-500 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50"
+                        >
+                          {savingProfile ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                          )}
+                          {savingProfile ? "Saving..." : "Save"}
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  <div className="p-4 bg-slate-50 rounded-xl">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Phone className="w-4 h-4 text-slate-400" />
-                      <span className="text-sm text-slate-500">Phone</span>
+
+                  {editingProfile ? (
+                    <div className="space-y-3">
+                      <div className="grid md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-slate-500 mb-1">Full Name</label>
+                          <input
+                            type="text"
+                            value={profileEdits.name}
+                            onChange={(e) => setProfileEdits(prev => ({ ...prev, name: e.target.value }))}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-slate-500 mb-1">Company Name</label>
+                          <input
+                            type="text"
+                            value={profileEdits.companyName}
+                            onChange={(e) => setProfileEdits(prev => ({ ...prev, companyName: e.target.value }))}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                            placeholder="Independent"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-slate-500 mb-1">Email</label>
+                          <input
+                            type="email"
+                            value={profileEdits.email}
+                            onChange={(e) => setProfileEdits(prev => ({ ...prev, email: e.target.value }))}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-slate-500 mb-1">Phone</label>
+                          <input
+                            type="tel"
+                            value={profileEdits.phone}
+                            onChange={(e) => setProfileEdits(prev => ({ ...prev, phone: e.target.value }))}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-slate-500 mb-1">Years Experience</label>
+                          <input
+                            type="number"
+                            min={0}
+                            max={50}
+                            value={profileEdits.yearsExperience}
+                            onChange={(e) => setProfileEdits(prev => ({ ...prev, yearsExperience: Number(e.target.value) }))}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-slate-500 mb-1">Coverage Radius (miles)</label>
+                          <input
+                            type="number"
+                            min={1}
+                            max={100}
+                            value={profileEdits.coverageRadius}
+                            onChange={(e) => setProfileEdits(prev => ({ ...prev, coverageRadius: Number(e.target.value) }))}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-slate-500 mb-1">Base Address</label>
+                        <input
+                          type="text"
+                          value={profileEdits.baseAddress}
+                          onChange={(e) => setProfileEdits(prev => ({ ...prev, baseAddress: e.target.value }))}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                          placeholder="e.g. London, SW1A 1AA"
+                        />
+                      </div>
                     </div>
-                    <div className="font-medium">{selectedLocksmith.phone}</div>
-                  </div>
+                  ) : (
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="p-4 bg-slate-50 rounded-xl">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Mail className="w-4 h-4 text-slate-400" />
+                          <span className="text-sm text-slate-500">Email</span>
+                        </div>
+                        <div className="font-medium">{selectedLocksmith.email}</div>
+                      </div>
+                      <div className="p-4 bg-slate-50 rounded-xl">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Phone className="w-4 h-4 text-slate-400" />
+                          <span className="text-sm text-slate-500">Phone</span>
+                        </div>
+                        <div className="font-medium">{selectedLocksmith.phone}</div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Stats */}

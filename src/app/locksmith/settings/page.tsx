@@ -1410,6 +1410,57 @@ export default function LocksmithSettingsPage() {
             </div>
             <ChevronRight className="w-5 h-5 text-slate-400" />
           </button>
+
+          <button
+            type="button"
+            onClick={() => router.push("/locksmith/faq")}
+            className="w-full p-4 sm:px-6 flex items-center justify-between hover:bg-slate-50 transition-colors text-left"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
+                <Info className="w-5 h-5 text-purple-600" />
+              </div>
+              <div>
+                <div className="font-medium text-slate-900">Help Center</div>
+                <div className="text-sm text-slate-500">FAQs and support resources</div>
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-slate-400" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => router.push("/terms")}
+            className="w-full p-4 sm:px-6 flex items-center justify-between hover:bg-slate-50 transition-colors text-left"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
+                <FileText className="w-5 h-5 text-orange-600" />
+              </div>
+              <div>
+                <div className="font-medium text-slate-900">Partner Terms</div>
+                <div className="text-sm text-slate-500">Platform terms and conditions</div>
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-slate-400" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => router.push("/privacy")}
+            className="w-full p-4 sm:px-6 flex items-center justify-between hover:bg-slate-50 transition-colors text-left"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center">
+                <Shield className="w-5 h-5 text-slate-600" />
+              </div>
+              <div>
+                <div className="font-medium text-slate-900">Privacy Policy</div>
+                <div className="text-sm text-slate-500">How we handle your data</div>
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-slate-400" />
+          </button>
         </div>
       </div>
 

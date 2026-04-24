@@ -237,7 +237,7 @@ export async function PATCH(
     }
 
     // General update (for other fields)
-    const allowedFields = ['name', 'companyName', 'phone', 'email', 'yearsExperience', 'coverageAreas', 'services', 'profileImage'];
+    const allowedFields = ['name', 'companyName', 'phone', 'email', 'yearsExperience', 'coverageAreas', 'services', 'profileImage', 'coverageRadius', 'baseAddress', 'baseLat', 'baseLng'];
     const filteredData: Record<string, unknown> = {};
 
     for (const field of allowedFields) {
