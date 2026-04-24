@@ -180,6 +180,7 @@ export async function PATCH(
         try {
           await sendLocksmithArrivedEmail(updatedJob.customer.email, {
             customerName: updatedJob.customer.name,
+            jobId: updatedJob.id,
             jobNumber: updatedJob.jobNumber,
             locksmithName: updatedJob.locksmith.name,
             locksmithPhone: updatedJob.locksmith.phone || "",

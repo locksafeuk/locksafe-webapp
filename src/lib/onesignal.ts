@@ -48,7 +48,7 @@ export const NOTIFICATION_TEMPLATES = {
   // Customer notifications
   LOCKSMITH_ASSIGNED: {
     headings: { en: "Locksmith Assigned" },
-    contents: { en: "A locksmith has accepted your job and is on the way!" },
+    contents: { en: "A locksmith has accepted your job {jobNumber} and is on the way!" },
   },
   LOCKSMITH_EN_ROUTE: {
     headings: { en: "Locksmith En Route" },
@@ -56,45 +56,45 @@ export const NOTIFICATION_TEMPLATES = {
   },
   LOCKSMITH_ARRIVED: {
     headings: { en: "Locksmith Arrived" },
-    contents: { en: "Your locksmith has arrived at your location." },
+    contents: { en: "Your locksmith has arrived at your location for job {jobNumber}." },
   },
   QUOTE_READY: {
     headings: { en: "Quote Ready" },
-    contents: { en: "Your locksmith has sent you a quote. Tap to review." },
+    contents: { en: "Your locksmith has sent you a quote for job {jobNumber}. Tap to review." },
   },
   WORK_COMPLETE: {
     headings: { en: "Work Complete" },
-    contents: { en: "Your locksmith has finished the work. Please review and sign." },
+    contents: { en: "Your locksmith has finished work on job {jobNumber}. Please review and sign." },
   },
   SIGNATURE_REMINDER: {
     headings: { en: "Signature Required" },
-    contents: { en: "Please sign off on your completed job to release payment." },
+    contents: { en: "Please sign off on job {jobNumber} to release payment." },
   },
 
   // Locksmith notifications
   NEW_JOB_AVAILABLE: {
     headings: { en: "New Job Available" },
-    contents: { en: "A new job is available in your area. Tap to view details." },
+    contents: { en: "New job {jobNumber} available in {postcode}: {problemType}. Tap to view details." },
   },
   JOB_ACCEPTED: {
     headings: { en: "Job Accepted" },
-    contents: { en: "The customer has accepted your application!" },
+    contents: { en: "The customer has accepted your application for job {jobNumber}!" },
   },
   JOB_ASSIGNED: {
     headings: { en: "Job Assigned" },
-    contents: { en: "Admin has assigned you a new job! Please accept or decline." },
+    contents: { en: "Admin has assigned you job {jobNumber}! Please accept or decline." },
   },
   QUOTE_ACCEPTED: {
     headings: { en: "Quote Accepted" },
-    contents: { en: "Your quote has been accepted. You can begin work." },
+    contents: { en: "Your quote for job {jobNumber} has been accepted. You can begin work." },
   },
   QUOTE_DECLINED: {
     headings: { en: "Quote Declined" },
-    contents: { en: "The customer has declined your quote." },
+    contents: { en: "The customer has declined your quote for job {jobNumber}." },
   },
   CUSTOMER_SIGNED: {
     headings: { en: "Job Signed Off" },
-    contents: { en: "The customer has signed off. Payment will be processed." },
+    contents: { en: "The customer has signed off job {jobNumber}. Payment will be processed." },
   },
   PAYOUT_SENT: {
     headings: { en: "Payout Sent" },

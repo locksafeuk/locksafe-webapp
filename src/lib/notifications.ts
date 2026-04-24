@@ -394,6 +394,7 @@ export async function autoCompleteJob(jobId: string) {
         if (paymentProcessed) {
           await sendPaymentReceiptEmail(job.customer.email, {
             customerName: job.customer.name,
+            jobId: job.id,
             jobNumber: job.jobNumber,
             locksmithName: job.locksmith?.name || "Your locksmith",
             paymentType: "work_quote",

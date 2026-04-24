@@ -149,6 +149,7 @@ export async function POST(
         if (updatedJob.customer?.email) {
           await sendJobConfirmationEmail(updatedJob.customer.email, {
             customerName: updatedJob.customer.name,
+            jobId: updatedJob.id,
             jobNumber: updatedJob.jobNumber,
             locksmithName: updatedJob.locksmith?.name || "Your Locksmith",
             assessmentFee: application.assessmentFee,
@@ -228,6 +229,7 @@ export async function POST(
     if (updatedJob.customer) {
       sendCustomerPushNotification(updatedJob.customerId, "LOCKSMITH_ASSIGNED", {
         jobId: updatedJob.id,
+        variables: { jobNumber: updatedJob.jobNumber },
       }).catch((err) =>
         console.error("[Push] Failed to send locksmith assigned push notification:", err)
       );
@@ -237,6 +239,7 @@ export async function POST(
     if (updatedJob.locksmithId) {
       sendLocksmithPushNotification(updatedJob.locksmithId, "JOB_ACCEPTED", {
         jobId: updatedJob.id,
+        variables: { jobNumber: updatedJob.jobNumber },
       }).catch((err) =>
         console.error("[Push] Failed to send job accepted push notification:", err)
       );

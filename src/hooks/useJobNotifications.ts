@@ -76,7 +76,7 @@ export function useJobNotifications({
 
           // Show browser notification
           showLocalNotification("New Job Available", {
-            body: `${data.data.problemType} in ${data.data.postcode}`,
+            body: `${data.data.jobNumber ? `${data.data.jobNumber} - ` : ""}${data.data.problemType} in ${data.data.postcode}`,
             tag: `job-${data.data.jobId}`,
             data: {
               url: `/locksmith/jobs`,

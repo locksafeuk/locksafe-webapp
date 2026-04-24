@@ -160,6 +160,7 @@ export async function PATCH(
       sendCustomerPushNotification(job.customerId, "LOCKSMITH_EN_ROUTE", {
         jobId: job.id,
         variables: {
+          jobNumber: job.jobNumber,
           eta: eta || job.estimatedArrival || "soon",
         },
       }).catch((err) =>
@@ -193,6 +194,7 @@ export async function PATCH(
       try {
         await sendLocksmithArrivedEmail(job.customer.email, {
           customerName: job.customer.name,
+          jobId: job.id,
           jobNumber: job.jobNumber,
           locksmithName: job.locksmith.name,
           locksmithPhone: job.locksmith.phone || "",
@@ -215,6 +217,7 @@ export async function PATCH(
       // Send OneSignal push notification to customer
       sendCustomerPushNotification(job.customerId, "LOCKSMITH_ARRIVED", {
         jobId: job.id,
+        variables: { jobNumber: job.jobNumber },
       }).catch((err) =>
         console.error("[Push] Failed to send arrival push notification:", err)
       );
@@ -304,6 +307,7 @@ export async function PATCH(
       // Send OneSignal push notification to customer
       sendCustomerPushNotification(job.customerId, "WORK_COMPLETE", {
         jobId: job.id,
+        variables: { jobNumber: job.jobNumber },
       }).catch((err) =>
         console.error("[Push] Failed to send work complete push notification:", err)
       );
@@ -319,6 +323,7 @@ export async function PATCH(
       if (job.locksmithId) {
         sendLocksmithPushNotification(job.locksmithId, "CUSTOMER_SIGNED", {
           jobId: job.id,
+          variables: { jobNumber: job.jobNumber },
         }).catch((err) =>
           console.error("[Push] Failed to send customer signed push notification:", err)
         );

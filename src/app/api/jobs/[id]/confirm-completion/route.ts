@@ -414,6 +414,7 @@ export async function POST(
       try {
         await sendJobCompletionEmail(job.customer.email, {
           customerName: job.customer.name,
+          jobId: job.id,
           jobNumber: job.jobNumber,
           locksmithName: job.locksmith?.name || "Your Locksmith",
           totalPaid: quoteTotal,
@@ -423,6 +424,7 @@ export async function POST(
         // Send payment receipt
         await sendPaymentReceiptEmail(job.customer.email, {
           customerName: job.customer.name,
+          jobId: job.id,
           jobNumber: job.jobNumber,
           locksmithName: job.locksmith?.name || "Your Locksmith",
           paymentType: "work_quote",

@@ -198,6 +198,7 @@ export async function notifyNearbyLocksmiths(job: JobForNotification): Promise<{
         notifyLocksmiths(playerIds, "NEW_JOB_AVAILABLE", {
           jobId: job.id,
           variables: {
+            jobNumber: job.jobNumber,
             postcode: job.postcode,
             problemType: problemLabels[job.problemType] || job.problemType,
           },

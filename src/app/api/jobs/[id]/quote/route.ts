@@ -113,6 +113,7 @@ export async function POST(
     if (job.customer?.email && job.locksmith) {
       sendQuoteReceivedEmail(job.customer.email, {
         customerName: job.customer.name,
+        jobId: job.id,
         jobNumber: job.jobNumber,
         locksmithName: job.locksmith.name,
         quoteTotal: total,
@@ -155,6 +156,7 @@ export async function POST(
     if (job.customer) {
       sendCustomerPushNotification(job.customerId, "QUOTE_READY", {
         jobId: job.id,
+        variables: { jobNumber: job.jobNumber },
       }).catch((err) =>
         console.error("[Push] Failed to send quote ready push notification:", err)
       );
@@ -313,6 +315,7 @@ export async function PATCH(
       if (job?.locksmithId) {
         sendLocksmithPushNotification(job.locksmithId, "QUOTE_ACCEPTED", {
           jobId: job.id,
+          variables: { jobNumber: job.jobNumber },
         }).catch((err) =>
           console.error("[Push] Failed to send quote accepted push notification:", err)
         );
@@ -359,6 +362,7 @@ export async function PATCH(
       if (job?.locksmithId) {
         sendLocksmithPushNotification(job.locksmithId, "QUOTE_DECLINED", {
           jobId: job.id,
+          variables: { jobNumber: job.jobNumber },
         }).catch((err) =>
           console.error("[Push] Failed to send quote declined push notification:", err)
         );

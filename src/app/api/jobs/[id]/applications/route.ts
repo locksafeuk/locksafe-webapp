@@ -214,6 +214,7 @@ export async function POST(
     if (job.customer?.email) {
       sendLocksmithApplicationNotification(job.customer.email, {
         customerName: job.customer.name,
+        jobId: job.id,
         jobNumber: job.jobNumber,
         locksmithName: application.locksmith.name,
         assessmentFee,

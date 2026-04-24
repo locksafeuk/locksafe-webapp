@@ -321,6 +321,7 @@ export async function sendJobConfirmationEmail(
   customerEmail: string,
   data: {
     customerName: string;
+    jobId: string;
     jobNumber: string;
     locksmithName: string;
     assessmentFee: number;
@@ -375,7 +376,7 @@ export async function sendJobConfirmationEmail(
           <p>The locksmith will assess your lock and provide a quote for any work needed. You can accept or decline the quote with no obligation.</p>
 
           <p style="text-align:center;margin-top:24px;">
-            <a href="${SITE_URL}/customer/job/${data.jobNumber}" class="button">Track Your Job</a>
+            <a href="${SITE_URL}/customer/job/${data.jobId}" class="button">Track Your Job</a>
           </p>
         </div>
         <div class="footer">
@@ -484,6 +485,7 @@ export async function sendQuoteReceivedEmail(
   customerEmail: string,
   data: {
     customerName: string;
+    jobId: string;
     jobNumber: string;
     locksmithName: string;
     quoteTotal: number;
@@ -527,7 +529,7 @@ export async function sendQuoteReceivedEmail(
           </div>
 
           <p style="text-align:center;margin-top:24px;">
-            <a href="${SITE_URL}/customer/job/${data.jobNumber}/quote" class="button">View Full Quote</a>
+            <a href="${SITE_URL}/customer/job/${data.jobId}/quote" class="button">View Full Quote</a>
           </p>
 
           <p style="background:#dbeafe;padding:12px;border-radius:8px;font-size:14px;color:#1e40af;">
@@ -554,6 +556,7 @@ export async function sendLocksmithApplicationNotification(
   customerEmail: string,
   data: {
     customerName: string;
+    jobId: string;
     jobNumber: string;
     locksmithName: string;
     assessmentFee: number;
@@ -592,7 +595,7 @@ export async function sendLocksmithApplicationNotification(
           </div>
 
           <p style="text-align:center;margin-top:24px;">
-            <a href="${SITE_URL}/customer/job/${data.jobNumber}" class="button">View All Applications</a>
+            <a href="${SITE_URL}/customer/job/${data.jobId}" class="button">View All Applications</a>
           </p>
         </div>
         <div class="footer">
@@ -614,6 +617,7 @@ export async function sendJobCompletionEmail(
   customerEmail: string,
   data: {
     customerName: string;
+    jobId: string;
     jobNumber: string;
     locksmithName: string;
     totalPaid: number;
@@ -661,7 +665,7 @@ export async function sendJobCompletionEmail(
           </p>
 
           <p style="text-align:center;margin-top:16px;">
-            <a href="${SITE_URL}/review/${data.jobNumber}" style="color:#f97316;">Rate your experience with ${data.locksmithName}</a>
+            <a href="${SITE_URL}/customer/job/${data.jobId}/review" style="color:#f97316;">Rate your experience with ${data.locksmithName}</a>
           </p>
         </div>
         <div class="footer">
@@ -1309,6 +1313,7 @@ export async function sendPaymentReceiptEmail(
   customerEmail: string,
   data: {
     customerName: string;
+    jobId: string;
     jobNumber: string;
     locksmithName: string;
     paymentType: "assessment_fee" | "work_quote";
@@ -1407,7 +1412,7 @@ export async function sendPaymentReceiptEmail(
           </p>
 
           <p style="text-align:center;margin-top:24px;">
-            <a href="${SITE_URL}/customer/job/${data.jobNumber}" style="display:inline-block;background:#f97316;color:white;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;">View Job Details</a>
+            <a href="${SITE_URL}/customer/job/${data.jobId}" style="display:inline-block;background:#f97316;color:white;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;">View Job Details</a>
           </p>
         </div>
         <div class="footer">
@@ -1678,6 +1683,7 @@ export async function sendLocksmithArrivedEmail(
   customerEmail: string,
   data: {
     customerName: string;
+    jobId: string;
     jobNumber: string;
     locksmithName: string;
     locksmithPhone: string;
@@ -1732,7 +1738,7 @@ export async function sendLocksmithArrivedEmail(
           </p>
 
           <p style="text-align:center;margin-top:24px;">
-            <a href="${SITE_URL}/customer/job/${data.jobNumber}" class="button">Track Your Job</a>
+            <a href="${SITE_URL}/customer/job/${data.jobId}" class="button">Track Your Job</a>
           </p>
         </div>
         <div class="footer">
