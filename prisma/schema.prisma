@@ -91,7 +91,7 @@ model Locksmith {
   baseLat           Float?        // Base location latitude
   baseLng           Float?        // Base location longitude
   baseAddress       String?       // Human-readable base address
-  coverageRadius    Int           @default(10) // Coverage radius in miles
+  coverageRadius    Int?           @default(10) // Coverage radius in miles
 
   // Pricing - Assessment Fee (required for auto-dispatch)
   defaultAssessmentFee  Float?    // Locksmith's default assessment fee (e.g., 29.00)
