@@ -222,7 +222,7 @@ export async function findBestLocksmiths(
 
       // Skip if outside coverage radius or max distance
       const effectiveRadius = Math.min(
-        locksmith.coverageRadius,
+        locksmith.coverageRadius ?? MAX_DISTANCE_MILES,
         MAX_DISTANCE_MILES,
       );
       if (distance > effectiveRadius) continue;
