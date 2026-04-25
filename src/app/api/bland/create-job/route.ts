@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { notifyNewJob } from "@/lib/telegram";
+import { generateJobNumber } from "@/lib/job-number";
 import {
   verifyBlandWebhook,
   unauthorizedResponse,
@@ -13,15 +14,6 @@ import {
 // Handle OPTIONS preflight
 export async function OPTIONS() {
   return new NextResponse(null, { status: 200, headers: blandCorsHeaders });
-}
-
-// Generate unique job number
-function generateJobNumber(): string {
-  const date = new Date();
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const random = Math.floor(Math.random() * 10000).toString().padStart(4, "0");
-  return `LS-${year}${month}-${random}`;
 }
 
 // Generate unique continue token
@@ -148,7 +140,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate tokens
-    const jobNumber = generateJobNumber();
+    const jobNumber = await generateJobNumber(postcode);
     const continueToken = generateContinueToken();
 
     // Geocode postcode if provided

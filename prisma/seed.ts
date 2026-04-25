@@ -31,12 +31,14 @@ function simpleHash(password: string): string {
   return Buffer.from(`hashed:${password}`).toString("base64");
 }
 
-// Helper to generate job numbers
-function generateJobNumber(index: number): string {
-  const date = new Date();
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  return `LS-${year}${month}-${String(index).padStart(4, "0")}`;
+// Helper to generate job numbers in the format <PREFIX>-JOB<NNN>.
+// PREFIX is the first 3 alphanumeric chars of the postcode (uppercased);
+// for seed data we use a 4-digit suffix derived from `index` to guarantee
+// uniqueness across the 5 batched job loops.
+function generateJobNumber(index: number, postcode?: string): string {
+  const cleaned = (postcode || "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  const prefix = cleaned.length > 0 ? cleaned.slice(0, 3) : "JOB";
+  return `${prefix}-JOB${String(index).padStart(4, "0")}`;
 }
 
 // Helper to generate dates in the past
@@ -341,7 +343,7 @@ async function main() {
 
     const job = await prisma.job.create({
       data: {
-        jobNumber: generateJobNumber(1000 + i),
+        jobNumber: generateJobNumber(1000 + i, addr.postcode),
         status: JobStatus.SIGNED,
         customerId: customer.id,
         locksmithId: locksmith.id,
@@ -456,7 +458,7 @@ async function main() {
 
     const job = await prisma.job.create({
       data: {
-        jobNumber: generateJobNumber(2000 + i),
+        jobNumber: generateJobNumber(2000 + i, addr.postcode),
         status: JobStatus.IN_PROGRESS,
         customerId: customer.id,
         locksmithId: locksmith.id,
@@ -513,7 +515,7 @@ async function main() {
 
     const job = await prisma.job.create({
       data: {
-        jobNumber: generateJobNumber(3000 + i),
+        jobNumber: generateJobNumber(3000 + i, addr.postcode),
         status: JobStatus.QUOTED,
         customerId: customer.id,
         locksmithId: locksmith.id,
@@ -568,7 +570,7 @@ async function main() {
 
     const job = await prisma.job.create({
       data: {
-        jobNumber: generateJobNumber(4000 + i),
+        jobNumber: generateJobNumber(4000 + i, addr.postcode),
         status: JobStatus.ACCEPTED,
         customerId: customer.id,
         locksmithId: locksmith.id,
@@ -597,7 +599,7 @@ async function main() {
 
     const job = await prisma.job.create({
       data: {
-        jobNumber: generateJobNumber(5000 + i),
+        jobNumber: generateJobNumber(5000 + i, addr.postcode),
         status: JobStatus.PENDING,
         customerId: customer.id,
         problemType: randomPick(problemTypes),

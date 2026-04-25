@@ -10,6 +10,7 @@
  */
 
 import prisma from "@/lib/db";
+import { generateJobNumber } from "@/lib/job-number";
 import { sendSMS } from "@/lib/sms";
 import {
   findNearbyLocksmiths,
@@ -66,34 +67,6 @@ export interface EmergencyJobResult {
     locksmithIds: string[];
   };
   error?: string;
-}
-
-// ============================================
-// JOB NUMBER GENERATION
-// ============================================
-
-async function generateJobNumber(): Promise<string> {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-
-  // Find latest job number for this month
-  const prefix = `LRS-${year}${month}`;
-  const latestJob = await prisma.job.findFirst({
-    where: {
-      jobNumber: { startsWith: prefix },
-    },
-    orderBy: { jobNumber: "desc" },
-    select: { jobNumber: true },
-  });
-
-  let sequence = 1;
-  if (latestJob) {
-    const lastSequence = parseInt(latestJob.jobNumber.split("-").pop() || "0");
-    sequence = lastSequence + 1;
-  }
-
-  return `${prefix}-${String(sequence).padStart(4, "0")}`;
 }
 
 // ============================================
@@ -200,7 +173,7 @@ export async function createEmergencyJob(
     }
 
     // 3. Create job
-    const jobNumber = await generateJobNumber();
+    const jobNumber = await generateJobNumber(input.postcode);
     const job = await prisma.job.create({
       data: {
         jobNumber,

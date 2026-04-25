@@ -10,6 +10,7 @@
 
 import prisma from "@/lib/db";
 import crypto from "node:crypto";
+import { generateJobNumber } from "@/lib/job-number";
 
 // ============================================
 // TYPES
@@ -214,7 +215,7 @@ export async function createJob(input: CreateJobInput): Promise<CreateJobResult>
   } = input;
 
   // Generate job number
-  const jobNumber = await generateJobNumber();
+  const jobNumber = await generateJobNumber(postcode);
 
   // Default assessment fee
   const assessmentFee = 29;
@@ -288,37 +289,6 @@ export async function createJob(input: CreateJobInput): Promise<CreateJobResult>
     },
   };
 }
-
-/**
- * Generate unique job number: LS-DDMM-XXXX
- */
-async function generateJobNumber(): Promise<string> {
-  const now = new Date();
-  const day = now.getDate().toString().padStart(2, "0");
-  const month = (now.getMonth() + 1).toString().padStart(2, "0");
-  const prefix = `LS-${day}${month}`;
-
-  // Find highest job number for today
-  const latestJob = await prisma.job.findFirst({
-    where: {
-      jobNumber: { startsWith: prefix },
-    },
-    orderBy: { jobNumber: "desc" },
-    select: { jobNumber: true },
-  });
-
-  let sequence = 1;
-  if (latestJob) {
-    const lastSequence = parseInt(latestJob.jobNumber.split("-")[2], 10);
-    sequence = lastSequence + 1;
-  }
-
-  return `${prefix}-${sequence.toString().padStart(4, "0")}`;
-}
-
-// ============================================
-// NOTIFICATION OPERATIONS
-// ============================================
 
 /**
  * Send job notifications (SMS + Email)

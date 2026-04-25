@@ -4,15 +4,7 @@ import { calculateDistanceMiles } from "@/lib/utils";
 import { notifyNearbyLocksmiths } from "@/lib/job-notifications";
 import { notifyNewJob } from "@/lib/telegram";
 import { notifyCustomerJobSubmitted, notifyLocksmiths, type JobSMSContext } from "@/lib/sms";
-
-// Generate unique job number
-function generateJobNumber(): string {
-  const date = new Date();
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const random = Math.floor(Math.random() * 10000).toString().padStart(4, "0");
-  return `LS-${year}${month}-${random}`;
-}
+import { generateJobNumber } from "@/lib/job-number";
 
 // Geocode postcode to coordinates
 async function geocodePostcode(postcode: string): Promise<{ lat: number; lng: number } | null> {
@@ -85,7 +77,7 @@ export async function POST(request: NextRequest) {
     // Create job
     const job = await prisma.job.create({
       data: {
-        jobNumber: generateJobNumber(),
+        jobNumber: await generateJobNumber(postcode),
         customerId: customerIdToUse,
         problemType,
         propertyType,

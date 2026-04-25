@@ -6,17 +6,8 @@ import { verifyToken } from "@/lib/auth";
 import { sendCustomerOnboardingEmail } from "@/lib/email";
 import { sendSMS } from "@/lib/sms";
 import { notifyNearbyLocksmiths } from "@/lib/job-notifications";
+import { generateJobNumber } from "@/lib/job-number";
 import crypto from "crypto";
-
-// Generate unique job number
-function generateJobNumber(): string {
-  const date = new Date();
-  const year = date.getFullYear().toString().slice(-2);
-  const month = (date.getMonth() + 1).toString().padStart(2, "0");
-  const day = date.getDate().toString().padStart(2, "0");
-  const random = Math.floor(Math.random() * 10000).toString().padStart(4, "0");
-  return `LRS-${year}${month}${day}-${random}`;
-}
 
 // Generate onboarding token
 function generateOnboardingToken(): string {
@@ -150,7 +141,7 @@ export async function POST(request: NextRequest) {
     // Create the job
     const job = await prisma.job.create({
       data: {
-        jobNumber: generateJobNumber(),
+        jobNumber: await generateJobNumber(postcode),
         status: initialStatus,
         createdVia: "admin",
         customerId: customer.id,

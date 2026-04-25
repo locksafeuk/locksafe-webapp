@@ -15,7 +15,7 @@ export function PostServiceReviewModal({
   isOpen,
   onClose,
   onSubmit,
-  jobNumber = "LS-001",
+  jobNumber = "SW1-JOB123",
   locksmithName = "Your Locksmith",
 }: PostServiceReviewModalProps) {
   const [rating, setRating] = useState(0);

@@ -781,8 +781,8 @@ async function handleVerifiedMessage(phone: string, message: string, buttonId: s
     return;
   }
 
-  // Check if it's a job number
-  const jobNumberMatch = message.match(/ls-\d{4}-\d{4}/i);
+  // Check if it's a job number (format: <PREFIX>-JOB<NNN>, e.g. SW1-JOB123)
+  const jobNumberMatch = message.match(/[A-Z0-9]{1,4}-JOB\d{3,4}/i);
   if (jobNumberMatch) {
     await showJobDetails(phone, jobNumberMatch[0]);
     return;
