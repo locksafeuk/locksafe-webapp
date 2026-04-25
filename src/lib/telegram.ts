@@ -133,7 +133,7 @@ export async function notifyNewLocksmith(data: {
   phone: string;
   companyName?: string | null;
   baseAddress?: string | null;
-  coverageRadius?: number;
+  coverageRadius?: number | null;
 }): Promise<boolean> {
   const message = `
 🔧 <b>New Locksmith Registered</b>
