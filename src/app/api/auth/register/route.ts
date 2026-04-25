@@ -3,6 +3,7 @@ import prisma from "@/lib/db";
 import { generateToken, hashPassword, AUTH_COOKIE_OPTIONS, getRedirectPath } from "@/lib/auth";
 import { sendVerificationEmail } from "@/lib/email";
 import { notifyNewCustomer, notifyNewJob } from "@/lib/telegram";
+import { generateJobNumber } from "@/lib/job-number";
 
 // Generate a random token
 function generateRandomToken(): string {
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest) {
     // If there's a pending request, create the job
     let createdJob = null;
     if (pendingRequest) {
-      const jobNumber = `LS-${Date.now().toString(36).toUpperCase()}`;
+      const jobNumber = await generateJobNumber(pendingRequest.postcode);
 
       createdJob = await prisma.job.create({
         data: {
