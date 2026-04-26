@@ -1,5 +1,3 @@
-"use client";
-
 import { Star, Shield } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 

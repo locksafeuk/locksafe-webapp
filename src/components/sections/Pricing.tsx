@@ -1,5 +1,3 @@
-"use client";
-
 import { CheckCircle2, AlertCircle, Info, Phone, ArrowRight, Shield, Clock, PoundSterling } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";

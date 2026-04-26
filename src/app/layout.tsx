@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DM_Sans, Plus_Jakarta_Sans } from "next/font/google";
+import { DM_Sans } from "next/font/google";
 import "./globals.css";
 import ClientBody from "./ClientBody";
 import { GoogleAnalytics } from "@/components/analytics/GoogleAnalytics";
@@ -12,14 +12,8 @@ import { SITE_URL, SITE_NAME, SUPPORT_PHONE, SUPPORT_EMAIL } from "@/lib/config"
 // preloaded subset, and font-display: swap by default.
 const dmSans = DM_Sans({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["400", "600", "700"],
   variable: "--font-dm-sans",
-  display: "swap",
-});
-const jakarta = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  weight: ["500", "600", "700", "800"],
-  variable: "--font-jakarta",
   display: "swap",
 });
 
@@ -261,7 +255,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en-GB" className={`${dmSans.variable} ${jakarta.variable}`}>
+    <html lang="en-GB" className={dmSans.variable}>
       <head>
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <link rel="manifest" href="/manifest.json" />

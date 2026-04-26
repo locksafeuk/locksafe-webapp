@@ -1,12 +1,29 @@
 "use client";
 
 import { useEffect } from "react";
+import dynamic from "next/dynamic";
 import { AuthProvider, useAuth } from "@/components/auth/AuthContext";
-import PushNotificationBanner from "@/components/notifications/PushNotificationBanner";
 import { OneSignalProvider } from "@/components/notifications/OneSignalProvider";
-import { UserTracker, ModalSystem } from "@/components/marketing";
-import PWAInstallPrompt from "@/components/pwa/PWAInstallPrompt";
-import { CookieConsent } from "@/components/gdpr/CookieConsent";
+import { UserTracker } from "@/components/marketing";
+
+// Defer non-critical overlays so they don't block LCP / hydration on
+// marketing pages. They render only after the page is interactive.
+const ModalSystem = dynamic(
+  () => import("@/components/marketing").then((m) => ({ default: m.ModalSystem })),
+  { ssr: false, loading: () => null },
+);
+const PWAInstallPrompt = dynamic(
+  () => import("@/components/pwa/PWAInstallPrompt"),
+  { ssr: false, loading: () => null },
+);
+const CookieConsent = dynamic(
+  () => import("@/components/gdpr/CookieConsent").then((m) => ({ default: m.CookieConsent })),
+  { ssr: false, loading: () => null },
+);
+const PushNotificationBanner = dynamic(
+  () => import("@/components/notifications/PushNotificationBanner"),
+  { ssr: false, loading: () => null },
+);
 
 // Component that uses auth context to show push notification banner
 function PushNotificationWrapper() {
