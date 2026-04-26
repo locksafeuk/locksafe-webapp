@@ -1,5 +1,3 @@
-"use client";
-
 import { Shield, Eye, Clock, FileCheck, AlertTriangle, CheckCircle2, Scale, Users, Quote } from "lucide-react";
 
 const features = [

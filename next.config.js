@@ -13,8 +13,10 @@ const nextConfig = {
       { protocol: 'https', hostname: 'res.cloudinary.com' },
     ],
   },
-  // Reduce client bundle size by tree-shaking large icon/utility libs.
+  // Reduce client bundle size by tree-shaking large icon/utility libs
+  // and inline critical CSS to remove render-blocking stylesheet.
   experimental: {
+    optimizeCss: true,
     optimizePackageImports: [
       'lucide-react',
       '@radix-ui/react-dialog',
