@@ -52,28 +52,10 @@ export default function ClientBody({
         });
       });
     }
-
-    // Hide Stripe test mode badge - internal only knowledge
-    const hideStripeBadge = () => {
-      // Target the Stripe badge iframe that floats on screen
-      const stripeBadges = document.querySelectorAll(
-        'iframe[name*="stripe"], iframe[name*="Stripe"], body > div[style*="position: fixed"][style*="z-index"]'
-      );
-      stripeBadges.forEach((el) => {
-        const element = el as HTMLElement;
-        if (element.style.position === 'fixed' || element.getAttribute('name')?.includes('stripe')) {
-          element.style.display = 'none';
-          element.style.visibility = 'hidden';
-        }
-      });
-    };
-
-    // Run immediately and observe for changes
-    hideStripeBadge();
-    const observer = new MutationObserver(hideStripeBadge);
-    observer.observe(document.body, { childList: true, subtree: true });
-
-    return () => observer.disconnect();
+    // Stripe test-mode badge is hidden via a global CSS rule in globals.css
+    // (see `[data-stripe-test-mode]`/iframe selectors). We avoid a global
+    // MutationObserver here because it caused long main-thread tasks on every
+    // DOM mutation across the whole app.
   }, []);
 
   return (

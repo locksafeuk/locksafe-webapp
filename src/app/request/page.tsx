@@ -24,6 +24,7 @@ import {
   Building,
 } from "lucide-react";
 import { ImageUploader } from "@/components/ui/ImageUploader";
+import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import { captureGPS } from "@/hooks/useGPS";
 import { useTrackingEvents } from "@/hooks/useTrackingEvents";
 import { triggerNotificationPrompt } from "@/components/notifications/PushNotificationBanner";
@@ -68,9 +69,11 @@ const requestTypeContext: Record<string, { title: string; subtitle: string; urge
 interface PostcodeAddress {
   line1: string;
   line2?: string;
+  line3?: string;
   town: string;
   county?: string;
   postcode: string;
+  formatted: string;
 }
 
 function RequestPageContent() {
@@ -138,7 +141,8 @@ function RequestPageContent() {
     }
   }, [step, formStartTracked, trackFormStarted]);
 
-  // Postcode lookup function
+  // Postcode lookup function — proxies through our server which calls
+  // getAddress.io for real PAF addresses (key stays server-side).
   const lookupPostcode = useCallback(async (postcode: string) => {
     const cleanPostcode = postcode.replace(/\s/g, "").toUpperCase();
     if (cleanPostcode.length < 5) {
@@ -151,42 +155,53 @@ function RequestPageContent() {
     setPostcodeError(null);
 
     try {
-      // Using postcodes.io API (free, no key required)
-      const response = await fetch(`https://api.postcodes.io/postcodes/${cleanPostcode}`);
-      const data = await response.json();
+      const response = await fetch(
+        `/api/postcode/lookup?postcode=${encodeURIComponent(cleanPostcode)}`
+      );
 
-      if (data.status === 200 && data.result) {
-        const result = data.result;
-        // Generate sample addresses based on postcode data
-        const addresses: PostcodeAddress[] = [
-          {
-            line1: `1 ${result.admin_ward || "Main"} Street`,
-            town: result.admin_district || result.region || "Town",
-            county: result.county || result.european_electoral_region,
-            postcode: result.postcode,
-          },
-          {
-            line1: `2 ${result.admin_ward || "Main"} Street`,
-            town: result.admin_district || result.region || "Town",
-            county: result.county || result.european_electoral_region,
-            postcode: result.postcode,
-          },
-          {
-            line1: `3 ${result.admin_ward || "Main"} Street`,
-            town: result.admin_district || result.region || "Town",
-            county: result.county || result.european_electoral_region,
-            postcode: result.postcode,
-          },
-        ];
-        setAddressSuggestions(addresses);
-        setShowSuggestions(true);
-      } else {
+      if (response.status === 400) {
         setPostcodeError("Invalid postcode. Please check and try again.");
         setAddressSuggestions([]);
+        setShowSuggestions(false);
+        return;
       }
+
+      if (!response.ok) {
+        setPostcodeError("Could not verify postcode. Please enter your address manually.");
+        setAddressSuggestions([]);
+        setShowSuggestions(false);
+        return;
+      }
+
+      const data: {
+        postcode: string;
+        addresses: Array<{
+          line1: string;
+          line2?: string;
+          line3?: string;
+          town: string;
+          county?: string;
+          formatted: string;
+        }>;
+      } = await response.json();
+
+      const mapped: PostcodeAddress[] = (data.addresses || []).map((a) => ({
+        line1: a.line1,
+        line2: a.line2,
+        line3: a.line3,
+        town: a.town,
+        county: a.county,
+        postcode: data.postcode,
+        formatted: a.formatted,
+      }));
+
+      setAddressSuggestions(mapped);
+      setShowSuggestions(mapped.length > 0);
     } catch (error) {
       console.error("Postcode lookup error:", error);
       setPostcodeError("Could not verify postcode. Please enter your address manually.");
+      setAddressSuggestions([]);
+      setShowSuggestions(false);
     } finally {
       setIsLookingUp(false);
     }
@@ -203,12 +218,9 @@ function RequestPageContent() {
   }, [formData.postcode, lookupPostcode]);
 
   const selectAddress = (address: PostcodeAddress) => {
-    const fullAddress = [address.line1, address.line2, address.town, address.county]
-      .filter(Boolean)
-      .join(", ");
     setFormData((prev) => ({
       ...prev,
-      address: fullAddress,
+      address: address.formatted,
       postcode: address.postcode,
     }));
     setShowSuggestions(false);
@@ -524,49 +536,63 @@ function RequestPageContent() {
                 {/* Address suggestions dropdown */}
                 {showSuggestions && addressSuggestions.length > 0 && (
                   <div className="bg-white rounded-xl border border-slate-200 shadow-lg overflow-hidden animate-in slide-in-from-top-2 duration-200">
-                    <div className="px-3 py-2 bg-slate-50 border-b border-slate-100">
+                    <div className="px-3 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
                       <p className="text-xs text-slate-500 flex items-center gap-1">
                         <Search className="w-3 h-3" />
-                        Select your address or enter manually below
+                        Select your address
                       </p>
+                      <span className="text-[11px] text-slate-400">
+                        {addressSuggestions.length} found
+                      </span>
                     </div>
-                    {addressSuggestions.map((address, index) => (
-                      <button
-                        key={`${address.line1}-${index}`}
-                        type="button"
-                        onClick={() => selectAddress(address)}
-                        className="w-full px-4 py-3 text-left hover:bg-orange-50 border-b border-slate-100 last:border-0 transition-colors"
-                      >
-                        <div className="text-sm font-medium text-slate-900">{address.line1}</div>
-                        <div className="text-xs text-slate-500">
-                          {[address.town, address.county, address.postcode].filter(Boolean).join(", ")}
-                        </div>
-                      </button>
-                    ))}
+                    <div className="max-h-72 overflow-y-auto">
+                      {addressSuggestions.map((address, index) => (
+                        <button
+                          key={`${address.formatted}-${index}`}
+                          type="button"
+                          onClick={() => selectAddress(address)}
+                          className="w-full px-4 py-3 text-left hover:bg-orange-50 border-b border-slate-100 last:border-0 transition-colors"
+                        >
+                          <div className="text-sm font-medium text-slate-900">{address.line1}</div>
+                          <div className="text-xs text-slate-500">
+                            {[address.town, address.county, address.postcode].filter(Boolean).join(", ")}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
                     <button
                       type="button"
                       onClick={() => setShowSuggestions(false)}
-                      className="w-full px-4 py-2 text-xs text-slate-500 hover:text-slate-700 bg-slate-50"
+                      className="w-full px-4 py-2 text-xs text-slate-500 hover:text-slate-700 bg-slate-50 border-t border-slate-100"
                     >
                       Enter address manually instead
                     </button>
                   </div>
                 )}
 
-                <label className="block">
-                  <span className="text-xs sm:text-sm font-medium text-slate-700">
+                {!isLookingUp &&
+                  !postcodeError &&
+                  formData.postcode.replace(/\s/g, "").length >= 5 &&
+                  addressSuggestions.length === 0 && (
+                    <p className="text-xs text-slate-500 -mt-1">
+                      We couldn&apos;t find your address automatically — please type it in below.
+                    </p>
+                  )}
+
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">
                     Full Address
-                  </span>
-                  <textarea
-                    placeholder="House number and street name"
+                  </label>
+                  <AddressAutocomplete
                     value={formData.address}
-                    onChange={(e) =>
-                      setFormData({ ...formData, address: e.target.value })
-                    }
-                    rows={3}
-                    className="w-full px-4 py-3 text-base border border-slate-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none mt-1 resize-none"
+                    onChange={(address) => setFormData((prev) => ({ ...prev, address }))}
+                    postcode={formData.postcode}
+                    placeholder="Start typing your house number and street..."
                   />
-                </label>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Type at least 3 characters and pick from the list, or write the full address yourself.
+                  </p>
+                </div>
 
                 <label className="block">
                   <span className="text-xs sm:text-sm font-medium text-slate-700">

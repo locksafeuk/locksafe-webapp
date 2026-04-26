@@ -82,6 +82,8 @@ export function NotificationBell({ className = "", variant = "dark" }: Notificat
   // Fetch notifications
   const fetchNotifications = useCallback(async () => {
     if (!isAuthenticated || !user) return;
+    // Notifications endpoint is scoped to customers/locksmiths only.
+    if (user.type !== "customer" && user.type !== "locksmith") return;
 
     try {
       setLoading(true);

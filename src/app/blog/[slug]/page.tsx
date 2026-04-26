@@ -276,13 +276,17 @@ export default async function BlogPostPage({ params }: Props) {
                       Home
                     </Link>
                   </li>
-                  <ChevronRight className="w-4 h-4 flex-shrink-0" />
+                  <li aria-hidden="true" className="flex items-center">
+                    <ChevronRight className="w-4 h-4 flex-shrink-0" />
+                  </li>
                   <li>
                     <Link href="/blog" className="hover:text-white transition-colors">
                       Blog
                     </Link>
                   </li>
-                  <ChevronRight className="w-4 h-4 flex-shrink-0" />
+                  <li aria-hidden="true" className="flex items-center">
+                    <ChevronRight className="w-4 h-4 flex-shrink-0" />
+                  </li>
                   <li>
                     <Link
                       href={`/blog/category/${post.category}`}

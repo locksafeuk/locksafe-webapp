@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
+import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import {
   ArrowLeft,
   ArrowRight,
@@ -95,6 +96,17 @@ export default function AdminCreateJobPage() {
   const [postcodeValid, setPostcodeValid] = useState(false);
   const [postcodeError, setPostcodeError] = useState<string | null>(null);
 
+  // Address suggestions from getAddress.io (via /api/postcode/lookup proxy)
+  interface AddressSuggestion {
+    line1: string;
+    town: string;
+    county?: string;
+    postcode: string;
+    formatted: string;
+  }
+  const [addressSuggestions, setAddressSuggestions] = useState<AddressSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
   // Submission state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -134,12 +146,16 @@ export default function AdminCreateJobPage() {
     return () => clearTimeout(timer);
   }, [searchQuery, searchCustomers]);
 
-  // Postcode lookup
+  // Postcode lookup — uses our proxy which calls getAddress.io for real
+  // PAF-quality addresses (key stays server-side). Returns a list of real
+  // addresses for the picker; we never fabricate one.
   const lookupPostcode = useCallback(async (postcode: string) => {
     const cleanPostcode = postcode.replace(/\s/g, "").toUpperCase();
     if (cleanPostcode.length < 5) {
       setPostcodeValid(false);
       setPostcodeError(null);
+      setAddressSuggestions([]);
+      setShowSuggestions(false);
       return;
     }
 
@@ -147,31 +163,56 @@ export default function AdminCreateJobPage() {
     setPostcodeError(null);
 
     try {
-      const response = await fetch(`https://api.postcodes.io/postcodes/${cleanPostcode}`);
-      const data = await response.json();
+      const response = await fetch(
+        `/api/postcode/lookup?postcode=${encodeURIComponent(cleanPostcode)}`
+      );
 
-      if (data.status === 200 && data.result) {
-        setPostcodeValid(true);
-        // Auto-fill address with location info
-        const result = data.result;
-        const locationInfo = [result.admin_district, result.region].filter(Boolean).join(", ");
-        if (!jobDetails.address && locationInfo) {
-          setJobDetails(prev => ({
-            ...prev,
-            address: locationInfo,
-          }));
-        }
-      } else {
+      if (response.status === 400) {
         setPostcodeValid(false);
         setPostcodeError("Invalid postcode");
+        setAddressSuggestions([]);
+        setShowSuggestions(false);
+        return;
       }
+
+      if (!response.ok) {
+        setPostcodeValid(false);
+        setPostcodeError("Could not verify postcode");
+        setAddressSuggestions([]);
+        setShowSuggestions(false);
+        return;
+      }
+
+      const data: {
+        postcode: string;
+        addresses: Array<{
+          line1: string;
+          town: string;
+          county?: string;
+          formatted: string;
+        }>;
+      } = await response.json();
+
+      const mapped: AddressSuggestion[] = (data.addresses || []).map((a) => ({
+        line1: a.line1,
+        town: a.town,
+        county: a.county,
+        postcode: data.postcode,
+        formatted: a.formatted,
+      }));
+
+      setPostcodeValid(true);
+      setAddressSuggestions(mapped);
+      setShowSuggestions(mapped.length > 0);
     } catch (error) {
       console.error("Postcode lookup error:", error);
       setPostcodeError("Could not verify postcode");
+      setAddressSuggestions([]);
+      setShowSuggestions(false);
     } finally {
       setIsLookingUp(false);
     }
-  }, [jobDetails.address]);
+  }, []);
 
   // Debounced postcode lookup
   useEffect(() => {
@@ -715,20 +756,71 @@ export default function AdminCreateJobPage() {
                   )}
                 </div>
 
+                {/* Address suggestions */}
+                {showSuggestions && addressSuggestions.length > 0 && (
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="px-3 py-2 bg-slate-50 border-b border-slate-100">
+                      <p className="text-xs text-slate-500 flex items-center gap-1">
+                        <Search className="w-3 h-3" />
+                        Select address ({addressSuggestions.length} found) or enter manually below
+                      </p>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto">
+                      {addressSuggestions.map((address, index) => (
+                        <button
+                          key={`${address.formatted}-${index}`}
+                          type="button"
+                          onClick={() => {
+                            setJobDetails({
+                              ...jobDetails,
+                              address: address.formatted,
+                              postcode: address.postcode,
+                            });
+                            setShowSuggestions(false);
+                          }}
+                          className="w-full px-4 py-3 text-left hover:bg-orange-50 border-b border-slate-100 last:border-0 transition-colors"
+                        >
+                          <div className="text-sm font-medium text-slate-900">{address.line1}</div>
+                          <div className="text-xs text-slate-500">
+                            {[address.town, address.county, address.postcode].filter(Boolean).join(", ")}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowSuggestions(false)}
+                      className="w-full px-4 py-2 text-xs text-slate-500 hover:text-slate-700 bg-slate-50"
+                    >
+                      Enter address manually instead
+                    </button>
+                  </div>
+                )}
+
+                {!isLookingUp &&
+                  !postcodeError &&
+                  postcodeValid &&
+                  addressSuggestions.length === 0 && (
+                    <p className="text-xs text-slate-500">
+                      No address suggestions available — please type the address below.
+                    </p>
+                  )}
+
                 {/* Address */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     Full Address *
                   </label>
-                  <textarea
+                  <AddressAutocomplete
                     value={jobDetails.address}
-                    onChange={(e) =>
-                      setJobDetails({ ...jobDetails, address: e.target.value })
-                    }
-                    placeholder="House number, street name, town"
-                    rows={3}
-                    className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none text-base resize-none"
+                    onChange={(address) => setJobDetails({ ...jobDetails, address })}
+                    postcode={jobDetails.postcode}
+                    placeholder="Start typing house number and street..."
+                    inputClassName="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none text-base resize-none"
                   />
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Type at least 3 characters and pick from the list, or write the full address yourself.
+                  </p>
                 </div>
 
                 {/* Description */}

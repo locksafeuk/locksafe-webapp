@@ -45,9 +45,9 @@ function GoogleAdsTrackingInner({ adsId, gaId }: GoogleAdsTrackingProps) {
       {/* Google tag (gtag.js) */}
       <Script
         src={`https://www.googletagmanager.com/gtag/js?id=${primaryId}`}
-        strategy="afterInteractive"
+        strategy="lazyOnload"
       />
-      <Script id="google-ads-init" strategy="afterInteractive">
+      <Script id="google-ads-init" strategy="lazyOnload">
         {`
           window.dataLayer = window.dataLayer || [];
           function gtag(){dataLayer.push(arguments);}

@@ -152,7 +152,7 @@ export async function showLocalNotification(
     const registration = await navigator.serviceWorker.ready;
     await registration.showNotification(title, {
       icon: '/icons/icon-192x192.png',
-      badge: '/icons/icon-72x72.png',
+      badge: '/icons/icon-192x192.svg',
       requireInteraction: true,
       ...options,
     });

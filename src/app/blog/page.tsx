@@ -163,7 +163,9 @@ function BlogCard({ post, featured = false }: { post: BlogPost; featured?: boole
           alt={post.title}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           itemProp="image"
-          loading="lazy"
+          loading={featured ? "eager" : "lazy"}
+          fetchPriority={featured ? "high" : "auto"}
+          decoding="async"
         />
         <div className="absolute top-3 left-3">
           <span
@@ -288,7 +290,9 @@ export default function BlogPage() {
                     Home
                   </Link>
                 </li>
-                <ChevronRight className="w-4 h-4" />
+                <li aria-hidden="true" className="flex items-center">
+                  <ChevronRight className="w-4 h-4" />
+                </li>
                 <li>
                   <span className="text-orange-400">Blog</span>
                 </li>

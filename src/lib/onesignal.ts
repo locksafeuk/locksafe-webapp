@@ -210,7 +210,7 @@ export async function sendNotification(
 
   // Add branding
   notification.chrome_web_icon = "/icons/icon-192x192.png";
-  notification.chrome_web_badge = "/icons/icon-72x72.png";
+  notification.chrome_web_badge = "/icons/icon-192x192.svg";
 
   try {
     const response = await fetch(`${ONESIGNAL_API_URL}/notifications`, {

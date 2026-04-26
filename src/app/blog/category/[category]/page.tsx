@@ -123,13 +123,17 @@ export default async function BlogCategoryPage({ params }: Props) {
                     Home
                   </Link>
                 </li>
-                <ChevronRight className="w-4 h-4" />
+                <li aria-hidden="true" className="flex items-center">
+                  <ChevronRight className="w-4 h-4" />
+                </li>
                 <li>
                   <Link href="/blog" className="hover:text-white transition-colors">
                     Blog
                   </Link>
                 </li>
-                <ChevronRight className="w-4 h-4" />
+                <li aria-hidden="true" className="flex items-center">
+                  <ChevronRight className="w-4 h-4" />
+                </li>
                 <li>
                   <span className="text-orange-400">{categoryInfo.label}</span>
                 </li>
@@ -184,7 +188,7 @@ export default async function BlogCategoryPage({ params }: Props) {
               </div>
             ) : (
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {posts.map((post) => (
+                {posts.map((post, idx) => (
                   <article
                     key={post.slug}
                     className="group bg-white rounded-xl overflow-hidden border border-slate-200 hover:border-orange-300 hover:shadow-lg transition-all"
@@ -194,7 +198,9 @@ export default async function BlogCategoryPage({ params }: Props) {
                         src={post.image}
                         alt={post.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        loading="lazy"
+                        loading={idx < 3 ? "eager" : "lazy"}
+                        fetchPriority={idx === 0 ? "high" : "auto"}
+                        decoding="async"
                       />
                       {post.featured && (
                         <div className="absolute top-3 right-3">

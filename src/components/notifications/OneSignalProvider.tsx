@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import Script from "next/script";
+import { usePathname } from "next/navigation";
 
 interface OneSignalContextType {
   isInitialized: boolean;
@@ -46,6 +47,15 @@ export function OneSignalProvider({ children }: OneSignalProviderProps) {
     playerId: null,
     permission: "default",
   });
+
+  // Only load OneSignal on authenticated dashboard routes where push is offered.
+  // Skip marketing pages, blog, admin, etc., to keep main thread free.
+  const pathname = usePathname();
+  const shouldLoadSdk =
+    !!ONESIGNAL_APP_ID &&
+    (pathname?.startsWith("/customer") ||
+      pathname?.startsWith("/locksmith") ||
+      pathname?.startsWith("/profile"));
 
   // Initialize OneSignal when script loads
   const handleScriptLoad = () => {
@@ -103,13 +113,13 @@ export function OneSignalProvider({ children }: OneSignalProviderProps) {
 
   return (
     <OneSignalContext.Provider value={state}>
-      {/* Load OneSignal SDK */}
-      {ONESIGNAL_APP_ID && (
+      {/* Load OneSignal SDK only on authenticated dashboard routes */}
+      {shouldLoadSdk && (
         <Script
           src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js"
           defer
           onLoad={handleScriptLoad}
-          strategy="afterInteractive"
+          strategy="lazyOnload"
         />
       )}
       {children}

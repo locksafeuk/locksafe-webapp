@@ -1,15 +1,29 @@
 import type { Metadata } from "next";
+import dynamic from "next/dynamic";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { Hero } from "@/components/sections/Hero";
 import { Features } from "@/components/sections/Features";
 import { HowItWorks } from "@/components/sections/HowItWorks";
-import { Pricing } from "@/components/sections/Pricing";
-import { Stats } from "@/components/sections/Stats";
-import { Testimonials } from "@/components/sections/Testimonials";
-import { FAQ } from "@/components/sections/FAQ";
-import { CTA } from "@/components/sections/CTA";
 import { SITE_URL, SITE_NAME } from "@/lib/config";
+
+// Below-the-fold sections are split into separate chunks so they don't block
+// First Contentful Paint or Largest Contentful Paint on mobile.
+const Pricing = dynamic(() =>
+  import("@/components/sections/Pricing").then((m) => ({ default: m.Pricing }))
+);
+const Stats = dynamic(() =>
+  import("@/components/sections/Stats").then((m) => ({ default: m.Stats }))
+);
+const Testimonials = dynamic(() =>
+  import("@/components/sections/Testimonials").then((m) => ({ default: m.Testimonials }))
+);
+const FAQ = dynamic(() =>
+  import("@/components/sections/FAQ").then((m) => ({ default: m.FAQ }))
+);
+const CTA = dynamic(() =>
+  import("@/components/sections/CTA").then((m) => ({ default: m.CTA }))
+);
 
 export const metadata: Metadata = {
   title: `${SITE_NAME} - The Only Platform That Prevents Locksmith Price Scams`,

@@ -36,7 +36,7 @@ function MicrosoftAdsInner({ uetTagId }: MicrosoftAdsProps) {
   return (
     <>
       {/* Microsoft UET Tag */}
-      <Script id="microsoft-uet-init" strategy="afterInteractive">
+      <Script id="microsoft-uet-init" strategy="lazyOnload">
         {`
           (function(w,d,t,r,u){
             var f,n,i;
