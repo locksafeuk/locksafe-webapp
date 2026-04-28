@@ -3,6 +3,10 @@ import { prisma } from "@/lib/prisma";
 /**
  * Aggregated metrics snapshot sent to the Holding Dashboard.
  * Only contains counts/sums/dates — no PII.
+ *
+ * NOTE: PiDo Holding reads metric fields at the TOP LEVEL of the
+ * payload. We therefore flatten every group's fields onto the root
+ * object, while also keeping the nested groups for self-description.
  */
 export interface HoldingMetricsSnapshot {
   platform_id: string;
@@ -18,6 +22,45 @@ export interface HoldingMetricsSnapshot {
     date: string; // YYYY-MM-DD UTC
     month: string; // YYYY-MM UTC
   };
+
+  // Flat top-level metrics (read by PiDo dashboard)
+  revenue_today: number;
+  revenue_month: number;
+  revenue_year: number;
+  transactions_today: number;
+  transactions_month: number;
+  average_transaction_value: number;
+  costs_month: number;
+  estimated_profit_month: number;
+
+  total_users: number;
+  new_users_today: number;
+  new_users_month: number;
+  active_users_today: number;
+  active_users_month: number;
+  logins_month: number;
+
+  visitors_month: number;
+  signups_month: number;
+  leads_month: number;
+  customers_month: number;
+  visitor_to_signup_rate: number;
+  signup_to_customer_rate: number;
+  lead_to_customer_rate: number;
+
+  errors_24h: number;
+  errors_7d: number;
+  failed_jobs_24h: number;
+  failed_payments_month: number;
+  uptime_percentage: number;
+  last_deploy_at: string;
+  last_successful_cron_at: string;
+
+  open_support_tickets: number;
+  unresolved_errors: number;
+  pending_admin_actions: number;
+  database_size_mb: number;
+  api_latency_ms: number;
   business: {
     revenue_today: number;
     revenue_month: number;
@@ -336,11 +379,56 @@ export async function collectHoldingMetrics(): Promise<HoldingMetricsSnapshot> {
     collectMaintenance(),
   ]);
 
+  // PiDo Holding's schema rejects null for numeric fields, so coerce to 0
+  // for the flat top-level mirror. Date string fields keep null.
+  const n = (v: number | null | undefined): number => (v == null ? 0 : v);
+
   const platform = buildPlatformBlock();
   return {
     platform_id: platform.id,
     platform,
     period: buildPeriodBlock(now),
+
+    // Flat top-level mirror — PiDo dashboard reads these directly
+    revenue_today: n(business.revenue_today),
+    revenue_month: n(business.revenue_month),
+    revenue_year: n(business.revenue_year),
+    transactions_today: n(business.transactions_today),
+    transactions_month: n(business.transactions_month),
+    average_transaction_value: n(business.average_transaction_value),
+    costs_month: n(business.costs_month),
+    estimated_profit_month: n(business.estimated_profit_month),
+
+    total_users: n(usage.total_users),
+    new_users_today: n(usage.new_users_today),
+    new_users_month: n(usage.new_users_month),
+    active_users_today: n(usage.active_users_today),
+    active_users_month: n(usage.active_users_month),
+    logins_month: n(usage.logins_month),
+
+    visitors_month: n(conversion.visitors_month),
+    signups_month: n(conversion.signups_month),
+    leads_month: n(conversion.leads_month),
+    customers_month: n(conversion.customers_month),
+    visitor_to_signup_rate: n(conversion.visitor_to_signup_rate),
+    signup_to_customer_rate: n(conversion.signup_to_customer_rate),
+    lead_to_customer_rate: n(conversion.lead_to_customer_rate),
+
+    errors_24h: n(technical.errors_24h),
+    errors_7d: n(technical.errors_7d),
+    failed_jobs_24h: n(technical.failed_jobs_24h),
+    failed_payments_month: n(technical.failed_payments_month),
+    uptime_percentage: n(technical.uptime_percentage),
+    last_deploy_at: technical.last_deploy_at ?? now.toISOString(),
+    last_successful_cron_at: technical.last_successful_cron_at ?? now.toISOString(),
+
+    open_support_tickets: n(maintenance.open_support_tickets),
+    unresolved_errors: n(maintenance.unresolved_errors),
+    pending_admin_actions: n(maintenance.pending_admin_actions),
+    database_size_mb: n(maintenance.database_size_mb),
+    api_latency_ms: n(maintenance.api_latency_ms),
+
+    // Nested groups kept for self-description
     business,
     usage,
     conversion,
