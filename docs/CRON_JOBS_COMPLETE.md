@@ -17,6 +17,9 @@ LockSafe UK requires **7 cron jobs** to be fully operational. All endpoints requ
 | 5 | Publish Organic Posts | `/api/cron/publish-organic` | Every 5 min | OPTIONAL |
 | 6 | Generate Organic Content | `/api/cron/generate-organic` | Daily (6AM) | OPTIONAL |
 | 7 | Sync Meta Performance | `/api/cron/sync-meta-performance` | Every 6 hours | OPTIONAL |
+| 8 | Sync Google Ads Performance | `/api/cron/sync-google-ads-performance` | Every 6 hours | OPTIONAL (CMO autonomous loop) |
+| 9 | CMO Autonomous Optimisation | `/api/cron/cmo-autonomous` | Every 6 hours | OPTIONAL (Phase 3 — adds negative keywords, pauses bad campaigns) |
+| 10 | Agents Weekly Report | `/api/cron/agents-weekly-report` | Mondays 9AM | OPTIONAL (Phase 3 — Telegram weekly summary) |
 
 ---
 

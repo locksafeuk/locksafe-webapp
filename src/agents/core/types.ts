@@ -54,6 +54,8 @@ export interface AgentContext {
   agentName: string;
   permissions: string[];
   budgetRemaining: number;
+  /** Optional traceability: the AgentExecution.id this tool call belongs to. */
+  executionId?: string;
 }
 
 export interface AgentTool {

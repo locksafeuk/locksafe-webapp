@@ -27,11 +27,21 @@ const envSchema = z.object({
 
   // Resend (email)
   RESEND_API_KEY: z.string().optional(),
-
-  // Retell AI Voice Agent
   RETELL_API_KEY: z.string().startsWith("key_").optional(),
   RETELL_AGENT_ID: z.string().startsWith("agent_").optional(),
   RETELL_PHONE_NUMBER: z.string().startsWith("+").optional(),
+
+  // Google Ads API (CMO autonomous loop — Phase 1: read-only stats only)
+  GOOGLE_ADS_DEVELOPER_TOKEN: z.string().optional(),
+  GOOGLE_ADS_OAUTH_CLIENT_ID: z.string().optional(),
+  GOOGLE_ADS_OAUTH_CLIENT_SECRET: z.string().optional(),
+  // MCC / manager account ID (digits only, no dashes). Sent as
+  // `login-customer-id` header on every API call when operating on customer
+  // accounts beneath an MCC.
+  GOOGLE_ADS_LOGIN_CUSTOMER_ID: z.string().optional(),
+  // OAuth callback URL — must exactly match a redirect URI registered in
+  // the Google Cloud OAuth consent screen.
+  GOOGLE_ADS_OAUTH_REDIRECT_URI: z.string().url().optional(),
 
   // Sentry
   NEXT_PUBLIC_SENTRY_DSN: z.string().url().optional(),

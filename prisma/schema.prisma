@@ -749,6 +749,170 @@ model MetaAdAccount {
   updatedAt       DateTime @updatedAt
 }
 
+// Google Ads account connection (Phase 1 — read-only; tokens stored unencrypted
+// matching MetaAdAccount convention. TODO(security): apply at-rest encryption
+// across both before Phase 3 autonomy ships.)
+model GoogleAdsAccount {
+  id                  String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Customer ID without dashes, e.g. "1234567890" — NOT the AW-* tag ID
+  customerId          String   @unique
+  // Manager / MCC ID under which this customer sits (login-customer-id header)
+  loginCustomerId     String?
+  name                String
+  currency            String   @default("GBP")
+  timezone            String   @default("Europe/London")
+
+  // OAuth credentials (long-lived refresh token; access token is short-lived
+  // and refreshed on demand by GoogleAdsClient)
+  refreshToken        String
+  accessToken         String?
+  tokenExpiresAt      DateTime?
+  scope               String?
+
+  // Status
+  isActive            Boolean  @default(true)
+  lastSyncAt          DateTime?
+
+  // Relations
+  drafts              GoogleAdsCampaignDraft[]
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+// Phase 2 — AI-generated Google Ads campaign drafts.
+// Stored separately from AdCampaign (Meta-only) to keep platforms isolated and
+// avoid breaking the 30+ existing accessors of AdCampaign.account.pixelId etc.
+// Drafts move through DRAFT → PENDING_APPROVAL → APPROVED → PUBLISHED.
+model GoogleAdsCampaignDraft {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  accountId         String   @db.ObjectId
+  account           GoogleAdsAccount @relation(fields: [accountId], references: [id])
+
+  // Lifecycle
+  status            String   @default("DRAFT")
+  // DRAFT | PENDING_APPROVAL | APPROVED | REJECTED | PUBLISHING | PUBLISHED | PAUSED | FAILED
+
+  // Post-publish IDs (resource names from Google Ads API)
+  googleCampaignId  String?  @unique  // numeric ID
+  googleAdGroupId   String?
+  googleAdId        String?
+  googleBudgetId    String?
+
+  // Campaign settings
+  name              String
+  dailyBudget       Float    // GBP
+  biddingStrategy   String   @default("MAXIMIZE_CONVERSIONS")
+  targetCpa         Float?
+  channel           String   @default("SEARCH")
+
+  // Targeting
+  geoTargets        String[] @default(["2826"])  // Google geo target constants; 2826 = United Kingdom
+  languageTargets   String[] @default(["1000"])  // 1000 = English
+
+  // Responsive Search Ad creative
+  headlines         String[]
+  descriptions      String[]
+  finalUrl          String
+  pinnedHeadlines   Json?    // optional pin map { headlineIndex: position }
+
+  // Keywords
+  keywords          Json     // [{ text, matchType: "EXACT"|"PHRASE"|"BROAD" }]
+  negativeKeywords  String[] @default([])
+
+  // AI metadata
+  aiGenerated       Boolean  @default(true)
+  aiPrompt          String?
+  aiReasoning       String?
+  agentId           String?  @db.ObjectId
+
+  // Approval tracking
+  approvalId        String?  @db.ObjectId
+  approvedBy        String?
+  approvedAt        DateTime?
+  rejectedReason    String?
+
+  // Performance (synced)
+  totalSpend        Float    @default(0)
+  totalConversions  Int      @default(0)
+  totalRevenue      Float    @default(0)
+  totalClicks       Int      @default(0)
+  totalImpressions  Int      @default(0)
+
+  publishError      String?
+  publishedAt       DateTime?
+  pausedAt          DateTime?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  lastSyncAt        DateTime?
+
+  @@index([accountId])
+  @@index([status])
+}
+
+// Phase 3 — Marketing policy / spend guard.
+// One row per platform ("meta" | "google" | "global"). Consulted by every
+// auto-publish and auto-optimisation path. The "global" row is a master kill
+// switch that overrides per-platform settings.
+model MarketingPolicy {
+  id                       String   @id @default(auto()) @map("_id") @db.ObjectId
+  platform                 String   @unique  // "meta" | "google" | "global"
+
+  // Master kill switch — when false, every auto-action for this platform
+  // is blocked, including auto-approve and optimiseGoogleCampaigns.
+  // Manual admin actions through the UI are unaffected.
+  autonomyEnabled          Boolean  @default(false)
+
+  // Hard caps (GBP). 0 = "not enforced" (use parent global row).
+  maxDailySpend            Float    @default(15)   // total per platform per day
+  maxMonthlySpend          Float    @default(300)  // total per platform per calendar month
+  maxCampaignDailyBudget   Float    @default(20)   // largest single-campaign budget the agent may set
+  minCampaignDailyBudget   Float    @default(2)    // smallest budget below which the agent should pause instead
+
+  // Auto-approval thresholds. If the agent files an approval whose
+  // dailyBudget <= autoApproveMaxBudget AND the platform's autonomyEnabled
+  // AND the past 7d spend < maxWeeklyAutoApproveSpend, the system resolves
+  // it without admin input. Anything above bumps to manual review.
+  autoApproveMaxBudget     Float    @default(10)   // GBP/day
+  maxWeeklyAutoApproveSpend Float   @default(50)   // GBP rolling 7d agent-initiated
+
+  // Optimisation guards
+  pauseRoasThreshold       Float    @default(0.5)  // pause campaigns under this ROAS after grace
+  pauseGraceDays           Int      @default(3)    // require N days under threshold before pausing
+  minImpressionsForPause   Int      @default(500)  // ignore tiny-volume campaigns
+
+  // Notification settings
+  notifyOnAutoAction       Boolean  @default(true) // Telegram/email when agent acts
+
+  // Audit
+  updatedBy                String?
+  notes                    String?
+
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+}
+
+// Phase 3 — daily spend ledger keyed by (platform, date).
+// Lightweight rollup written by the spend-guard whenever it consults the
+// snapshot tables, so subsequent guard checks are O(1). Idempotent: re-write
+// safely; the value is the canonical aggregate, not a delta.
+model DailySpendLedger {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  platform    String   // "meta" | "google"
+  date        DateTime // UTC midnight of the day
+  spend       Float    @default(0)
+  agentSpend  Float    @default(0)  // subset spent on agent-initiated campaigns
+  source      String   @default("snapshot")  // "snapshot" | "manual"
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@unique([platform, date])
+  @@index([date])
+}
+
 // Ad Campaign
 model AdCampaign {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
@@ -991,10 +1155,21 @@ model AIGeneration {
 model AdPerformanceSnapshot {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
 
+  // Platform discriminator. "meta" rows reference adId/adSetId/campaignId
+  // (ObjectIds into our DB). "google" rows reference googleCampaignId
+  // (string ID from Google Ads API) since we don't mirror Google campaigns
+  // into AdCampaign in Phase 1.
+  platform              String   @default("meta")
+
   // Reference
-  adId            String?  @db.ObjectId
-  adSetId         String?  @db.ObjectId
-  campaignId      String?  @db.ObjectId
+  adId                  String?  @db.ObjectId
+  adSetId               String?  @db.ObjectId
+  campaignId            String?  @db.ObjectId
+
+  // Google-specific identifiers (used when platform = "google")
+  googleAccountId       String?  @db.ObjectId
+  googleCampaignId      String?  // Google Ads numeric campaign ID
+  googleCampaignName    String?  // Denormalised for reporting without an extra fetch
 
   // Date
   date            DateTime @db.Date
@@ -1015,6 +1190,8 @@ model AdPerformanceSnapshot {
 
   @@index([adId, date])
   @@index([campaignId, date])
+  @@index([googleCampaignId, date])
+  @@index([platform, date])
 }
 
 // UTM Templates
@@ -1766,6 +1943,11 @@ model AgentApproval {
   actionDetails   String                              // JSON description
   reason          String                              // Why approval is needed
 
+  // Optional structured target reference for fast lookup by approval consumers
+  // (e.g. ad publish gate). actionDetails JSON remains the canonical source.
+  targetType      String?                             // e.g. "google_ads_draft", "ad_campaign"
+  targetId        String?                             // FK string to the target row
+
   status          String   @default("pending")        // pending, approved, rejected
 
   // Resolution
@@ -1778,6 +1960,9 @@ model AgentApproval {
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@index([targetType, targetId, status])
+  @@index([status, createdAt])
 }
 
 // Token Blacklist for logout/revoked JWT tokens
