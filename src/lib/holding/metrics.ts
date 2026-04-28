@@ -5,9 +5,9 @@ import { prisma } from "@/lib/prisma";
  * Only contains counts/sums/dates — no PII.
  */
 export interface HoldingMetricsSnapshot {
+  platform_id: string;
   platform: {
     id: string;
-    name: string;
     domain: string;
     industry: string;
     status: string;
@@ -85,7 +85,6 @@ function safeRate(numerator: number, denominator: number): number | null {
 function buildPlatformBlock(): HoldingMetricsSnapshot["platform"] {
   return {
     id: process.env.HOLDING_PLATFORM_ID || "locksafeuk",
-    name: "LockSafeUk",
     domain: "locksafe.uk",
     industry: "locksmith",
     status: "live",
@@ -337,8 +336,10 @@ export async function collectHoldingMetrics(): Promise<HoldingMetricsSnapshot> {
     collectMaintenance(),
   ]);
 
+  const platform = buildPlatformBlock();
   return {
-    platform: buildPlatformBlock(),
+    platform_id: platform.id,
+    platform,
     period: buildPeriodBlock(now),
     business,
     usage,
