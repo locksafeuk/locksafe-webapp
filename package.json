@@ -18,6 +18,7 @@
     "db:seed": "npx ts-node --compiler-options '{\"module\":\"CommonJS\",\"strict\":false}' prisma/seed-production.ts",
     "db:seed-dev": "FORCE_SEED=true bun prisma/seed.ts",
     "db:reset": "echo '⚠️ DISABLED - Use db:seed-dev with FORCE_SEED=true for dev reset'",
+    "holding:metrics": "bun run scripts/send-holding-metrics.ts",
     "postinstall": "bun run db:generate"
   },
   "prisma": {
