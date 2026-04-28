@@ -21,8 +21,8 @@ export function CookieConsent() {
   const [showDetails, setShowDetails] = useState(false);
   const [preferences, setPreferences] = useState<CookiePreferences>({
     essential: true,
-    functional: true,
-    analytics: true,
+    functional: false,
+    analytics: false,
     marketing: false,
   } as CookiePreferences);
 
@@ -54,27 +54,36 @@ export function CookieConsent() {
   }, []);
 
   const applyPreferences = (prefs: CookiePreferences) => {
-    // Apply analytics preferences
-    if (prefs.analytics) {
-      // Enable Google Analytics
-      if (typeof window !== "undefined" && (window as unknown as Record<string, unknown>).gtag) {
-        (window as unknown as Record<string, (...args: unknown[]) => void>).gtag("consent", "update", {
-          analytics_storage: "granted",
-        });
-      }
+    if (typeof window === "undefined") return;
+
+    // Push Consent Mode v2 update into the GTM dataLayer. GTM-loaded gtag
+    // picks this up and gates GA4 / Google Ads / Microsoft UET tags.
+    const consentUpdate = {
+      analytics_storage: prefs.analytics ? "granted" : "denied",
+      ad_storage: prefs.marketing ? "granted" : "denied",
+      ad_user_data: prefs.marketing ? "granted" : "denied",
+      ad_personalization: prefs.marketing ? "granted" : "denied",
+      personalization_storage: prefs.functional ? "granted" : "denied",
+      functionality_storage: "granted",
+      security_storage: "granted",
+    };
+
+    const w = window as unknown as {
+      dataLayer?: unknown[];
+      gtag?: (...args: unknown[]) => void;
+    };
+    w.dataLayer = w.dataLayer || [];
+    if (typeof w.gtag === "function") {
+      w.gtag("consent", "update", consentUpdate);
     } else {
-      // Disable Google Analytics
-      if (typeof window !== "undefined" && (window as unknown as Record<string, unknown>).gtag) {
-        (window as unknown as Record<string, (...args: unknown[]) => void>).gtag("consent", "update", {
-          analytics_storage: "denied",
-        });
-      }
+      // Fallback if gtag stub hasn't initialised yet (GTM script not loaded).
+      w.dataLayer.push(["consent", "update", consentUpdate]);
     }
 
-    // Marketing preferences would be applied similarly
-    if (prefs.marketing) {
-      // Enable marketing tracking
-    }
+    // Notify direct integrations (Meta Pixel) that consent state changed.
+    window.dispatchEvent(
+      new CustomEvent("locksafe:consent-changed", { detail: prefs })
+    );
   };
 
   const savePreferences = (prefs: CookiePreferences) => {

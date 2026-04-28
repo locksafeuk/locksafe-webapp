@@ -2,10 +2,8 @@ import type { Metadata } from "next";
 import { DM_Sans } from "next/font/google";
 import "./globals.css";
 import ClientBody from "./ClientBody";
-import { GoogleAnalytics } from "@/components/analytics/GoogleAnalytics";
+import { GoogleTagManager, GTMNoScript } from "@/components/analytics/GoogleTagManager";
 import { MetaPixel } from "@/components/analytics/MetaPixel";
-import { GoogleAdsTracking } from "@/components/analytics/GoogleAdsTracking";
-import { MicrosoftAds } from "@/components/analytics/MicrosoftAds";
 import { SITE_URL, SITE_NAME, SUPPORT_PHONE, SUPPORT_EMAIL } from "@/lib/config";
 
 // Self-hosted Google Fonts via next/font — no render-blocking external CSS,
@@ -18,10 +16,10 @@ const dmSans = DM_Sans({
 });
 
 // Analytics & Ads Configuration
-const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || "";
+// GA4, Google Ads, Microsoft UET are loaded via Google Tag Manager (NEXT_PUBLIC_GTM_ID).
+// Meta Pixel stays direct so eventID dedup with the server-side Conversions API works.
+const GTM_ID = process.env.NEXT_PUBLIC_GTM_ID || "";
 const META_PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID || "";
-const GOOGLE_ADS_ID = process.env.NEXT_PUBLIC_GOOGLE_ADS_ID || "";
-const BING_UET_TAG_ID = process.env.NEXT_PUBLIC_BING_UET_TAG_ID || "";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -257,6 +255,9 @@ export default function RootLayout({
   return (
     <html lang="en-GB" className={dmSans.variable}>
       <head>
+        {/* GTM consent-default + loader. Must be in <head> so consent defaults
+            (deny-by-default) execute before any tag fires. */}
+        <GoogleTagManager gtmId={GTM_ID} />
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/icons/icon-192x192.svg" />
@@ -271,11 +272,10 @@ export default function RootLayout({
         />
       </head>
       <body suppressHydrationWarning className="antialiased">
-        {/* Analytics & Conversion Tracking */}
-        <GoogleAnalytics measurementId={GA_MEASUREMENT_ID} />
+        {/* GTM noscript fallback — must be the first child of <body>. */}
+        <GTMNoScript gtmId={GTM_ID} />
+        {/* Meta Pixel stays direct (preserves eventID dedup with server CAPI). */}
         <MetaPixel pixelId={META_PIXEL_ID} />
-        <GoogleAdsTracking adsId={GOOGLE_ADS_ID} gaId={GA_MEASUREMENT_ID} />
-        <MicrosoftAds uetTagId={BING_UET_TAG_ID} />
         <ClientBody>{children}</ClientBody>
       </body>
     </html>

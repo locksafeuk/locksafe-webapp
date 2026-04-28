@@ -27,8 +27,47 @@ const nextConfig = {
       '@radix-ui/react-progress',
     ],
   },
-  // Long-term cache static chunks and immutable assets.
+  // Long-term cache static chunks and immutable assets, plus a security
+  // header baseline including a Content-Security-Policy that allow-lists
+  // GTM, GA, Google Ads, Bing UET, Meta Pixel, OneSignal, Sentry, Mapbox
+  // and Stripe — everything we currently load from third parties.
   async headers() {
+    // NOTE: 'unsafe-inline' is required by GTM (injects inline scripts) and
+    // Next.js inline runtime hydration; 'unsafe-eval' is needed in dev and by
+    // some Mapbox bundles. Tighten with nonces if/when sGTM is adopted.
+    const csp = [
+      "default-src 'self'",
+      "base-uri 'self'",
+      "object-src 'none'",
+      "frame-ancestors 'none'",
+      "form-action 'self' https://checkout.stripe.com",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://*.googletagmanager.com https://www.google-analytics.com https://www.google.com https://www.gstatic.com https://googleads.g.doubleclick.net https://td.doubleclick.net https://connect.facebook.net https://bat.bing.com https://*.onesignal.com https://cdn.onesignal.com https://api.mapbox.com https://js.stripe.com",
+      "style-src 'self' 'unsafe-inline' https://api.mapbox.com",
+      "img-src 'self' data: blob: https: https://www.facebook.com https://www.google-analytics.com https://www.googletagmanager.com https://googleads.g.doubleclick.net https://www.google.com https://stats.g.doubleclick.net",
+      "font-src 'self' data:",
+      "connect-src 'self' https://www.google-analytics.com https://*.analytics.google.com https://*.google.com https://*.googletagmanager.com https://stats.g.doubleclick.net https://googleads.g.doubleclick.net https://graph.facebook.com https://www.facebook.com https://bat.bing.com https://*.onesignal.com wss://*.onesignal.com https://*.sentry.io https://api.mapbox.com https://events.mapbox.com https://api.stripe.com",
+      "frame-src 'self' https://www.googletagmanager.com https://td.doubleclick.net https://js.stripe.com https://hooks.stripe.com",
+      "worker-src 'self' blob:",
+      "manifest-src 'self'",
+      "media-src 'self' data: blob:",
+      "upgrade-insecure-requests",
+    ].join('; ');
+
+    const securityHeaders = [
+      { key: 'Content-Security-Policy', value: csp },
+      { key: 'X-Content-Type-Options', value: 'nosniff' },
+      { key: 'X-Frame-Options', value: 'DENY' },
+      { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+      {
+        key: 'Permissions-Policy',
+        value: 'camera=(), microphone=(), geolocation=(self), interest-cohort=()',
+      },
+      {
+        key: 'Strict-Transport-Security',
+        value: 'max-age=31536000; includeSubDomains; preload',
+      },
+    ];
+
     return [
       {
         source: '/:all*(svg|jpg|jpeg|png|webp|avif|ico|woff2)',
@@ -41,6 +80,10 @@ const nextConfig = {
         headers: [
           { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
         ],
+      },
+      {
+        source: '/:path*',
+        headers: securityHeaders,
       },
     ];
   },

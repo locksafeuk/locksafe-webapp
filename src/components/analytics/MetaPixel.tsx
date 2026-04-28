@@ -2,13 +2,13 @@
 
 import Script from "next/script";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, Suspense } from "react";
+import { useEffect, useState, Suspense } from "react";
 
 // Extend Window interface for Facebook Pixel
 declare global {
   interface Window {
     fbq?: (
-      command: "init" | "track" | "trackCustom" | "trackSingle" | "trackSingleCustom",
+      command: "init" | "track" | "trackCustom" | "trackSingle" | "trackSingleCustom" | "consent",
       eventNameOrPixelId: string,
       params?: Record<string, unknown>,
       options?: { eventID?: string }
@@ -59,19 +59,54 @@ export type LockSafeCustomEvent =
   | "ExitIntentShown"
   | "LeadMagnetDownload";
 
+const COOKIE_CONSENT_KEY = "locksafe_cookie_consent";
+
+function readMarketingConsent(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const raw = localStorage.getItem(COOKIE_CONSENT_KEY);
+    if (!raw) return false;
+    return JSON.parse(raw).marketing === true;
+  } catch {
+    return false;
+  }
+}
+
 function MetaPixelInner({ pixelId }: MetaPixelProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [marketingConsent, setMarketingConsent] = useState(false);
 
-  // Track page views on route change
+  // Read initial consent + subscribe to changes from CookieConsent banner.
   useEffect(() => {
+    setMarketingConsent(readMarketingConsent());
+
+    const onConsentChanged = (e: Event) => {
+      const detail = (e as CustomEvent<{ marketing?: boolean }>).detail;
+      const granted = !!detail?.marketing;
+      setMarketingConsent(granted);
+      // If user revokes after grant, tell Meta to stop persisting cookies.
+      if (!granted && typeof window !== "undefined" && window.fbq) {
+        window.fbq("consent", "revoke");
+      }
+    };
+
+    window.addEventListener("locksafe:consent-changed", onConsentChanged);
+    return () => {
+      window.removeEventListener("locksafe:consent-changed", onConsentChanged);
+    };
+  }, []);
+
+  // Track page views on route change (only after consent + pixel loaded).
+  useEffect(() => {
+    if (!marketingConsent) return;
     if (typeof window !== "undefined" && window.fbq && pixelId) {
       window.fbq("track", "PageView");
     }
-  }, [pathname, searchParams, pixelId]);
+  }, [pathname, searchParams, pixelId, marketingConsent]);
 
-  // Don't render in development or if no pixel ID
-  if (!pixelId || process.env.NODE_ENV !== "production") {
+  // Don't render in development, without a pixel ID, or before consent.
+  if (!pixelId || process.env.NODE_ENV !== "production" || !marketingConsent) {
     return null;
   }
 

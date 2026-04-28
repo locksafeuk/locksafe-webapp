@@ -2,9 +2,7 @@
 
 import { useCallback } from "react";
 import { useMetaPixel } from "@/components/analytics/MetaPixel";
-import { useGoogleAds } from "@/components/analytics/GoogleAdsTracking";
-import { useMicrosoftAds } from "@/components/analytics/MicrosoftAds";
-import { useGoogleAnalytics } from "@/components/analytics/GoogleAnalytics";
+import { pushDataLayerEvent } from "@/components/analytics/GoogleTagManager";
 
 // Unified event types for LockSafe
 export type TrackingEventType =
@@ -58,26 +56,25 @@ export interface TrackingEventData {
 
 interface TrackingConfig {
   enableMeta?: boolean;
-  enableGoogle?: boolean;
-  enableMicrosoft?: boolean;
+  enableGTM?: boolean;
   enableServerSide?: boolean;
 }
 
 const defaultConfig: TrackingConfig = {
   enableMeta: true,
-  enableGoogle: true,
-  enableMicrosoft: true,
+  enableGTM: true,
   enableServerSide: true,
 };
 
-// Check if user has consented to marketing cookies
+const COOKIE_CONSENT_KEY = "locksafe_cookie_consent";
+
+// Check if user has consented to marketing cookies (single source of truth).
 function hasMarketingConsent(): boolean {
   if (typeof window === "undefined") return false;
 
   try {
-    const consent = localStorage.getItem("cookie-consent");
+    const consent = localStorage.getItem(COOKIE_CONSENT_KEY);
     if (!consent) return false;
-
     const parsed = JSON.parse(consent);
     return parsed.marketing === true;
   } catch {
@@ -85,18 +82,28 @@ function hasMarketingConsent(): boolean {
   }
 }
 
-// Generate unique event ID for deduplication
+function hasAnalyticsConsent(): boolean {
+  if (typeof window === "undefined") return false;
+
+  try {
+    const consent = localStorage.getItem(COOKIE_CONSENT_KEY);
+    if (!consent) return false;
+    const parsed = JSON.parse(consent);
+    return parsed.analytics === true;
+  } catch {
+    return false;
+  }
+}
+
+// Generate unique event ID for browser/server dedup (Meta CAPI).
 function generateEventId(): string {
   return `${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
 }
 
 export function useTrackingEvents(config: TrackingConfig = defaultConfig) {
   const metaPixel = useMetaPixel();
-  const googleAds = useGoogleAds();
-  const microsoftAds = useMicrosoftAds();
-  const googleAnalytics = useGoogleAnalytics();
 
-  // Send server-side event for Conversions API
+  // Send server-side event for Meta Conversions API.
   const sendServerEvent = useCallback(
     async (eventName: string, eventData: TrackingEventData, eventId: string) => {
       if (!config.enableServerSide) return;
@@ -120,147 +127,76 @@ export function useTrackingEvents(config: TrackingConfig = defaultConfig) {
     [config.enableServerSide]
   );
 
-  // Main tracking function
+  // Main tracking function.
   const track = useCallback(
     async (eventType: TrackingEventType, data: TrackingEventData = {}) => {
       const eventId = generateEventId();
-      const hasConsent = hasMarketingConsent();
+      const marketingConsent = hasMarketingConsent();
+      const analyticsConsent = hasAnalyticsConsent();
       const value = data.value || 0;
 
-      // Only fire browser-side pixels if user consented to marketing
-      if (hasConsent) {
-        // META PIXEL
-        if (config.enableMeta) {
-          switch (eventType) {
-            case "lead":
-            case "postcode_entered":
-              metaPixel.trackLead(data.value || 50, data.postcode);
-              break;
-            case "form_started":
-              metaPixel.trackFormStarted(data.formName || "unknown");
-              break;
-            case "form_abandoned":
-              metaPixel.trackFormAbandoned(data.formName || "unknown", data.formStep);
-              break;
-            case "quote_received":
-              metaPixel.trackQuoteReceived(data.quoteValue || value, data.jobId || "");
-              metaPixel.trackAddToCart(data.quoteValue || value, data.jobId || "");
-              break;
-            case "quote_accepted":
-              metaPixel.trackQuoteAccepted(data.quoteValue || value, data.jobId || "");
-              break;
-            case "quote_declined":
-              metaPixel.trackQuoteDeclined(data.quoteValue || value, data.jobId || "");
-              break;
-            case "assessment_paid":
-            case "begin_checkout":
-              metaPixel.trackInitiateCheckout(
-                data.assessmentFee || data.value || 29,
-                data.jobId || ""
-              );
-              break;
-            case "add_to_cart":
-              metaPixel.trackAddToCart(value, data.jobId || "");
-              break;
-            case "purchase":
-            case "job_completed":
-              metaPixel.trackPurchase(value, data.jobId || "", data.jobNumber);
-              break;
-            case "customer_signup":
-              metaPixel.trackCompleteRegistration("customer");
-              break;
-            case "locksmith_signup":
-              metaPixel.trackCompleteRegistration("locksmith");
-              break;
-            default:
-              metaPixel.trackCustom(eventType, data, eventId);
-          }
-        }
+      // GTM dataLayer push — fires for every event regardless of consent.
+      // GTM tags themselves are gated by Consent Mode v2 (analytics_storage,
+      // ad_storage), so denied users won't have GA4/Ads/UET fire.
+      if (config.enableGTM) {
+        pushDataLayerEvent(`ls_${eventType}`, {
+          ...data,
+          event_id: eventId,
+          value,
+          currency: data.currency || "GBP",
+        });
+      }
 
-        // GOOGLE ADS / GA4
-        if (config.enableGoogle) {
-          const googleAdsId = process.env.NEXT_PUBLIC_GOOGLE_ADS_ID;
-          const leadConversionLabel = process.env.NEXT_PUBLIC_GOOGLE_LEAD_CONVERSION_LABEL;
-          const purchaseConversionLabel = process.env.NEXT_PUBLIC_GOOGLE_PURCHASE_CONVERSION_LABEL;
-
-          switch (eventType) {
-            case "lead":
-            case "postcode_entered":
-              googleAds.trackGenerateLead(data.value || 50, data.source);
-              if (googleAdsId && leadConversionLabel) {
-                googleAds.trackLeadConversion(leadConversionLabel, data.value || 50, data.jobId);
-              }
-              break;
-            case "quote_received":
-            case "add_to_cart":
-              googleAds.trackAddToCart(data.jobId || "", "Locksmith Quote", value);
-              break;
-            case "begin_checkout":
-            case "assessment_paid":
-              googleAds.trackBeginCheckout(data.assessmentFee || value, [
-                { id: data.jobId || "", name: "Assessment Fee", price: data.assessmentFee || 29 },
-              ]);
-              googleAds.trackAddPaymentInfo(data.assessmentFee || value);
-              break;
-            case "purchase":
-            case "job_completed":
-              googleAds.trackPurchase(data.jobNumber || data.jobId || "", value, [
-                { id: data.jobId || "", name: "Locksmith Service", price: value },
-              ]);
-              if (googleAdsId && purchaseConversionLabel) {
-                googleAds.trackPurchaseConversion(
-                  purchaseConversionLabel,
-                  value,
-                  data.jobNumber || data.jobId || ""
-                );
-              }
-              break;
-            case "customer_signup":
-            case "locksmith_signup":
-              googleAds.trackSignUp(data.userType);
-              break;
-            case "phone_click":
-              googleAds.trackPhoneClick(data.phoneNumber as string || "");
-              break;
-            default:
-              googleAds.trackEvent(eventType, data);
-          }
-
-          // Also track to Google Analytics
-          googleAnalytics.trackEvent(eventType, "conversion", data.jobId, value);
-        }
-
-        // MICROSOFT ADS
-        if (config.enableMicrosoft) {
-          switch (eventType) {
-            case "lead":
-            case "postcode_entered":
-              microsoftAds.trackLead(data.value || 50);
-              break;
-            case "add_to_cart":
-            case "quote_received":
-              microsoftAds.trackAddToCart(value);
-              break;
-            case "begin_checkout":
-            case "assessment_paid":
-              microsoftAds.trackBeginCheckout(data.assessmentFee || value);
-              break;
-            case "purchase":
-            case "job_completed":
-              microsoftAds.trackPurchase(value, data.jobNumber);
-              break;
-            case "customer_signup":
-            case "locksmith_signup":
-              microsoftAds.trackSignUp(data.userType);
-              break;
-            default:
-              microsoftAds.trackEvent(eventType);
-          }
+      // META PIXEL (browser-side) — only if marketing consent granted.
+      if (config.enableMeta && marketingConsent) {
+        switch (eventType) {
+          case "lead":
+          case "postcode_entered":
+            metaPixel.trackLead(data.value || 50, data.postcode);
+            break;
+          case "form_started":
+            metaPixel.trackFormStarted(data.formName || "unknown");
+            break;
+          case "form_abandoned":
+            metaPixel.trackFormAbandoned(data.formName || "unknown", data.formStep);
+            break;
+          case "quote_received":
+            metaPixel.trackQuoteReceived(data.quoteValue || value, data.jobId || "");
+            metaPixel.trackAddToCart(data.quoteValue || value, data.jobId || "");
+            break;
+          case "quote_accepted":
+            metaPixel.trackQuoteAccepted(data.quoteValue || value, data.jobId || "");
+            break;
+          case "quote_declined":
+            metaPixel.trackQuoteDeclined(data.quoteValue || value, data.jobId || "");
+            break;
+          case "assessment_paid":
+          case "begin_checkout":
+            metaPixel.trackInitiateCheckout(
+              data.assessmentFee || data.value || 29,
+              data.jobId || ""
+            );
+            break;
+          case "add_to_cart":
+            metaPixel.trackAddToCart(value, data.jobId || "");
+            break;
+          case "purchase":
+          case "job_completed":
+            metaPixel.trackPurchase(value, data.jobId || "", data.jobNumber);
+            break;
+          case "customer_signup":
+            metaPixel.trackCompleteRegistration("customer");
+            break;
+          case "locksmith_signup":
+            metaPixel.trackCompleteRegistration("locksmith");
+            break;
+          default:
+            metaPixel.trackCustom(eventType, data, eventId);
         }
       }
 
-      // Server-side tracking (always fires for important conversions)
-      // This handles iOS 14.5+ tracking gaps and contract-based legal basis
+      // Server-side tracking (always fires for important conversions).
+      // Handles iOS 14.5+ tracking gaps; deduplicated browser-side via eventId.
       if (config.enableServerSide) {
         const serverSideEvents = [
           "lead",
@@ -278,9 +214,13 @@ export function useTrackingEvents(config: TrackingConfig = defaultConfig) {
         }
       }
 
+      // Reference analyticsConsent so unused-var lints don't trip; reserved
+      // for future direct GA4 calls if we ever bypass GTM for a hot path.
+      void analyticsConsent;
+
       return eventId;
     },
-    [config, metaPixel, googleAds, microsoftAds, googleAnalytics, sendServerEvent]
+    [config, metaPixel, sendServerEvent]
   );
 
   // Convenience methods

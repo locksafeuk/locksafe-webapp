@@ -276,6 +276,7 @@ export async function POST(request: Request) {
 export async function GET() {
   const configured = {
     meta: !!(META_PIXEL_ID && META_ACCESS_TOKEN),
+    gtm: !!process.env.NEXT_PUBLIC_GTM_ID,
     google: !!process.env.NEXT_PUBLIC_GOOGLE_ADS_ID,
     microsoft: !!process.env.NEXT_PUBLIC_BING_UET_TAG_ID,
   };

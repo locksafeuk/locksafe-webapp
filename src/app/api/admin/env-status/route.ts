@@ -65,6 +65,7 @@ export async function GET() {
 
     // Check other ad platform variables
     const otherVars = {
+      NEXT_PUBLIC_GTM_ID: !!process.env.NEXT_PUBLIC_GTM_ID,
       NEXT_PUBLIC_GOOGLE_ADS_ID: !!process.env.NEXT_PUBLIC_GOOGLE_ADS_ID,
       NEXT_PUBLIC_BING_UET_TAG_ID: !!process.env.NEXT_PUBLIC_BING_UET_TAG_ID,
       NEXT_PUBLIC_TIKTOK_PIXEL_ID: !!process.env.NEXT_PUBLIC_TIKTOK_PIXEL_ID,
