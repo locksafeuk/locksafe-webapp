@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 
 interface GoogleAdsAccountRow {
@@ -25,6 +25,14 @@ interface SyncStatus {
 }
 
 export default function GoogleAdsIntegrationPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading…</div>}>
+      <GoogleAdsIntegrationPageInner />
+    </Suspense>
+  );
+}
+
+function GoogleAdsIntegrationPageInner() {
   const params = useSearchParams();
   const connected = params.get("connected") === "1";
   const errorParam = params.get("error");
