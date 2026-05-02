@@ -1,15 +1,19 @@
-import Link from "next/link";
+import { RequestCTAButton } from "@/components/onboarding/RequestCTAButton";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Phone, Shield, CheckCircle2 } from "lucide-react";
+import { ArrowRight, CheckCircle2, Phone, Shield } from "lucide-react";
+import Link from "next/link";
 
 export function CTA() {
   return (
     <section className="py-16 md:py-24 bg-gradient-to-br from-orange-500 to-amber-500 relative overflow-hidden">
       {/* Background pattern */}
       <div className="absolute inset-0 opacity-10">
-        <div className="absolute top-0 left-0 w-full h-full" style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='0.4'%3E%3Cpath d='m36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm-30 30v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-        }} />
+        <div
+          className="absolute top-0 left-0 w-full h-full"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='0.4'%3E%3Cpath d='m36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm-30 30v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+          }}
+        />
       </div>
 
       <div className="section-container relative">
@@ -50,12 +54,10 @@ export function CTA() {
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link href="/request">
-              <Button className="bg-white text-orange-600 hover:bg-slate-100 font-semibold px-8 py-6 text-lg rounded-full">
-                Get Emergency Help
-                <ArrowRight className="w-5 h-5 ml-2" />
-              </Button>
-            </Link>
+            <RequestCTAButton className="bg-white text-orange-600 hover:bg-slate-100 font-semibold px-8 py-6 text-lg rounded-full">
+              Get Emergency Help
+              <ArrowRight className="w-5 h-5 ml-2" />
+            </RequestCTAButton>
             <a href="tel:07818333989">
               <Button
                 variant="outline"

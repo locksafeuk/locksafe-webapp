@@ -253,7 +253,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en-GB" className={dmSans.variable}>
+    <html lang="en-GB" className={dmSans.variable} suppressHydrationWarning>
       <head>
         {/* GTM consent-default + loader. Must be in <head> so consent defaults
             (deny-by-default) execute before any tag fires. */}

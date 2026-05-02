@@ -1,6 +1,16 @@
-import { CheckCircle2, AlertCircle, Info, Phone, ArrowRight, Shield, Clock, PoundSterling } from "lucide-react";
-import Link from "next/link";
+import { RequestCTAButton } from "@/components/onboarding/RequestCTAButton";
 import { Button } from "@/components/ui/button";
+import {
+  AlertCircle,
+  ArrowRight,
+  CheckCircle2,
+  Clock,
+  Info,
+  Phone,
+  PoundSterling,
+  Shield,
+} from "lucide-react";
+import Link from "next/link";
 
 const pricingTiers = [
   {
@@ -9,14 +19,16 @@ const pricingTiers = [
     subtitle: "Call-out & Diagnostic",
     price: "£25-49",
     priceNote: "Typical range",
-    description: "This is NOT for any work. It covers the locksmith's travel to you and time to inspect the problem. You see this price upfront before you book.",
+    description:
+      "This is NOT for any work. It covers the locksmith's travel to you and time to inspect the problem. You see this price upfront before you book.",
     includes: [
       "Locksmith travels to your location",
       "On-site inspection of the problem",
       "Professional diagnosis",
       "Detailed quote for actual work",
     ],
-    highlight: "You pay this to confirm your booking. If you decline the work quote, this is all you pay.",
+    highlight:
+      "You pay this to confirm your booking. If you decline the work quote, this is all you pay.",
     color: "orange",
   },
   {
@@ -25,22 +37,36 @@ const pricingTiers = [
     subtitle: "The Actual Job",
     price: "Varies",
     priceNote: "Based on job complexity",
-    description: "After diagnosing your problem, the locksmith provides a detailed quote for the work. You see exact costs BEFORE any work begins.",
+    description:
+      "After diagnosing your problem, the locksmith provides a detailed quote for the work. You see exact costs BEFORE any work begins.",
     includes: [
       "Itemised parts breakdown",
       "Labour costs clearly stated",
       "No hidden charges",
       "Assessment fee deducted from total",
     ],
-    highlight: "You can ACCEPT or DECLINE. Decline = you only pay the assessment fee. No pressure.",
+    highlight:
+      "You can ACCEPT or DECLINE. Decline = you only pay the assessment fee. No pressure.",
     color: "green",
   },
 ];
 
 const commonServices = [
-  { service: "Emergency lockout (standard lock)", price: "£60 - £120", time: "15-30 min" },
-  { service: "Lock replacement (cylinder)", price: "£80 - £150", time: "20-40 min" },
-  { service: "Lock replacement (mortice)", price: "£120 - £200", time: "30-60 min" },
+  {
+    service: "Emergency lockout (standard lock)",
+    price: "£60 - £120",
+    time: "15-30 min",
+  },
+  {
+    service: "Lock replacement (cylinder)",
+    price: "£80 - £150",
+    time: "20-40 min",
+  },
+  {
+    service: "Lock replacement (mortice)",
+    price: "£120 - £200",
+    time: "30-60 min",
+  },
   { service: "Anti-snap lock upgrade", price: "£90 - £180", time: "25-45 min" },
   { service: "uPVC door lock repair", price: "£70 - £140", time: "20-45 min" },
   { service: "Safe opening", price: "£150 - £400", time: "30-90 min" },
@@ -60,7 +86,8 @@ export function Pricing() {
             Know Exactly What You'll Pay
           </h2>
           <p className="text-lg text-slate-600">
-            No surprises. No hidden fees. Two simple steps with full transparency at each stage.
+            No surprises. No hidden fees. Two simple steps with full
+            transparency at each stage.
           </p>
         </div>
 
@@ -75,26 +102,37 @@ export function Pricing() {
                 What is the Assessment Fee?
               </h3>
               <p className="text-slate-700 text-lg mb-4">
-                <strong className="text-orange-600">Assessment Fee = Call-out + Diagnostic ONLY.</strong>{" "}
-                This covers the locksmith's travel to your location and time to inspect the problem.
-                It is <strong>NOT</strong> payment for any repair work.
+                <strong className="text-orange-600">
+                  Assessment Fee = Call-out + Diagnostic ONLY.
+                </strong>{" "}
+                This covers the locksmith's travel to your location and time to
+                inspect the problem. It is <strong>NOT</strong> payment for any
+                repair work.
               </p>
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="flex items-start gap-3">
                   <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-600">Shown upfront before you book</span>
+                  <span className="text-slate-600">
+                    Shown upfront before you book
+                  </span>
                 </div>
                 <div className="flex items-start gap-3">
                   <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-600">Typically £25-49 depending on location</span>
+                  <span className="text-slate-600">
+                    Typically £25-49 depending on location
+                  </span>
                 </div>
                 <div className="flex items-start gap-3">
                   <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-600">Deducted from final work quote</span>
+                  <span className="text-slate-600">
+                    Deducted from final work quote
+                  </span>
                 </div>
                 <div className="flex items-start gap-3">
                   <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-600">Refundable if locksmith doesn't arrive</span>
+                  <span className="text-slate-600">
+                    Refundable if locksmith doesn't arrive
+                  </span>
                 </div>
               </div>
             </div>
@@ -113,23 +151,37 @@ export function Pricing() {
               }`}
             >
               {/* Step number */}
-              <div className={`absolute -top-4 left-6 w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${
-                tier.color === "orange" ? "bg-orange-500" : "bg-green-500"
-              }`}>
+              <div
+                className={`absolute -top-4 left-6 w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${
+                  tier.color === "orange" ? "bg-orange-500" : "bg-green-500"
+                }`}
+              >
                 {tier.step}
               </div>
 
               <div className="mt-4">
                 <div className="flex items-start justify-between mb-4">
                   <div>
-                    <h3 className="text-xl font-bold text-slate-900">{tier.title}</h3>
-                    <p className={`text-sm font-medium ${
-                      tier.color === "orange" ? "text-orange-600" : "text-green-600"
-                    }`}>{tier.subtitle}</p>
+                    <h3 className="text-xl font-bold text-slate-900">
+                      {tier.title}
+                    </h3>
+                    <p
+                      className={`text-sm font-medium ${
+                        tier.color === "orange"
+                          ? "text-orange-600"
+                          : "text-green-600"
+                      }`}
+                    >
+                      {tier.subtitle}
+                    </p>
                   </div>
                   <div className="text-right">
-                    <div className="text-2xl font-bold text-slate-900">{tier.price}</div>
-                    <div className="text-xs text-slate-500">{tier.priceNote}</div>
+                    <div className="text-2xl font-bold text-slate-900">
+                      {tier.price}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      {tier.priceNote}
+                    </div>
                   </div>
                 </div>
 
@@ -137,21 +189,34 @@ export function Pricing() {
 
                 <ul className="space-y-2 mb-4">
                   {tier.includes.map((item) => (
-                    <li key={item} className="flex items-start gap-2 text-sm text-slate-700">
-                      <CheckCircle2 className={`w-4 h-4 flex-shrink-0 mt-0.5 ${
-                        tier.color === "orange" ? "text-orange-500" : "text-green-500"
-                      }`} />
+                    <li
+                      key={item}
+                      className="flex items-start gap-2 text-sm text-slate-700"
+                    >
+                      <CheckCircle2
+                        className={`w-4 h-4 flex-shrink-0 mt-0.5 ${
+                          tier.color === "orange"
+                            ? "text-orange-500"
+                            : "text-green-500"
+                        }`}
+                      />
                       {item}
                     </li>
                   ))}
                 </ul>
 
-                <div className={`p-3 rounded-lg ${
-                  tier.color === "orange" ? "bg-orange-100" : "bg-green-100"
-                }`}>
-                  <p className={`text-sm font-medium ${
-                    tier.color === "orange" ? "text-orange-800" : "text-green-800"
-                  }`}>
+                <div
+                  className={`p-3 rounded-lg ${
+                    tier.color === "orange" ? "bg-orange-100" : "bg-green-100"
+                  }`}
+                >
+                  <p
+                    className={`text-sm font-medium ${
+                      tier.color === "orange"
+                        ? "text-orange-800"
+                        : "text-green-800"
+                    }`}
+                  >
                     {tier.highlight}
                   </p>
                 </div>
@@ -163,7 +228,9 @@ export function Pricing() {
         {/* Visual Flow Arrow - Mobile Hidden */}
         <div className="hidden md:flex justify-center items-center mt-6 mb-12">
           <div className="bg-white border-2 border-green-300 rounded-full px-6 py-3 shadow-sm">
-            <span className="text-green-700 font-semibold">Then you decide: Accept or Decline</span>
+            <span className="text-green-700 font-semibold">
+              Then you decide: Accept or Decline
+            </span>
           </div>
         </div>
 
@@ -173,13 +240,19 @@ export function Pricing() {
             Typical Work Prices
           </h3>
           <p className="text-slate-600 text-center mb-6">
-            Indicative prices only. Your actual quote depends on lock type, time of day, and complexity.
+            Indicative prices only. Your actual quote depends on lock type, time
+            of day, and complexity.
           </p>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {commonServices.map((item) => (
-              <div key={item.service} className="bg-white rounded-xl p-4 border border-slate-200">
-                <div className="font-medium text-slate-900 mb-2">{item.service}</div>
+              <div
+                key={item.service}
+                className="bg-white rounded-xl p-4 border border-slate-200"
+              >
+                <div className="font-medium text-slate-900 mb-2">
+                  {item.service}
+                </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-green-600 font-semibold">
                     <PoundSterling className="w-4 h-4" />
@@ -195,7 +268,8 @@ export function Pricing() {
           </div>
 
           <p className="text-center text-sm text-slate-500 mt-4">
-            * Prices may be higher for out-of-hours, weekends, and bank holidays. Always shown upfront.
+            * Prices may be higher for out-of-hours, weekends, and bank
+            holidays. Always shown upfront.
           </p>
         </div>
 
@@ -208,12 +282,16 @@ export function Pricing() {
             <div className="text-center md:text-left flex-1">
               <h3 className="text-2xl font-bold mb-2">No Hidden Fees. Ever.</h3>
               <p className="text-white/80">
-                What you see is what you pay. The work quote is binding - no "extra charges" after the fact.
-                If the locksmith tries to charge more than quoted, report it and we'll intervene.
+                What you see is what you pay. The work quote is binding - no
+                "extra charges" after the fact. If the locksmith tries to charge
+                more than quoted, report it and we'll intervene.
               </p>
             </div>
             <Link href="/refund-policy" className="flex-shrink-0">
-              <Button variant="outline" className="border-white/30 text-white hover:bg-white/10 bg-transparent">
+              <Button
+                variant="outline"
+                className="border-white/30 text-white hover:bg-white/10 bg-transparent"
+              >
                 View Refund Policy
               </Button>
             </Link>
@@ -223,15 +301,14 @@ export function Pricing() {
         {/* Call to Action */}
         <div className="text-center">
           <p className="text-slate-600 mb-4">
-            Ready to get help? See real prices from verified locksmiths in your area.
+            Ready to get help? See real prices from verified locksmiths in your
+            area.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/request">
-              <Button className="btn-primary px-8">
-                Get Emergency Help
-                <ArrowRight className="w-4 h-4" />
-              </Button>
-            </Link>
+            <RequestCTAButton className="btn-primary px-8">
+              Get Emergency Help
+              <ArrowRight className="w-4 h-4" />
+            </RequestCTAButton>
             <a href="tel:07818333989">
               <Button variant="outline" className="border-slate-300 px-8">
                 <Phone className="w-4 h-4" />

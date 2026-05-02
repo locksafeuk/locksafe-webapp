@@ -64,9 +64,36 @@ export function OneSignalProvider({ children }: OneSignalProviderProps) {
       return;
     }
 
+    // Guard against double-init: route changes (pathname triggers re-mount of
+    // <Script>) and dev hot reload can both queue a second OneSignal.init(),
+    // which throws "SDK already initialized".
+    const w = window as unknown as {
+      __locksafeOneSignalInit?: boolean;
+      OneSignalDeferred?: Array<(o: unknown) => void>;
+    };
+    if (w.__locksafeOneSignalInit) {
+      return;
+    }
+    w.__locksafeOneSignalInit = true;
+
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     window.OneSignalDeferred.push(async (OneSignal: any) => {
       try {
+        // Extra safety: if some other code already initialized OneSignal in
+        // this tab, don't try again.
+        if (OneSignal?.__initialized || OneSignal?.context?.appConfig) {
+          const subscription = OneSignal.User?.PushSubscription;
+          const permission =
+            OneSignal.Notifications?.permissionNative || "default";
+          setState({
+            isInitialized: true,
+            isSubscribed: subscription?.optedIn || false,
+            playerId: subscription?.id || null,
+            permission,
+          });
+          return;
+        }
+
         await OneSignal.init({
           appId: ONESIGNAL_APP_ID,
           safari_web_id: process.env.NEXT_PUBLIC_ONESIGNAL_SAFARI_WEB_ID,
@@ -106,6 +133,8 @@ export function OneSignalProvider({ children }: OneSignalProviderProps) {
           }
         );
       } catch (error) {
+        // Allow a retry if init failed mid-flight
+        w.__locksafeOneSignalInit = false;
         console.error("[OneSignal] Initialization failed:", error);
       }
     });

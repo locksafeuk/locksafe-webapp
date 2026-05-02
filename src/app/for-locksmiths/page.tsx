@@ -1,25 +1,26 @@
-import type { Metadata } from "next";
-import Link from "next/link";
-import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
+import { Header } from "@/components/layout/Header";
+import { LocksmithSignupCTAButton } from "@/components/onboarding/LocksmithSignupCTAButton";
 import { Button } from "@/components/ui/button";
 import { SITE_NAME, getFullUrl } from "@/lib/config";
 import {
-  Users,
+  ArrowRight,
+  Award,
+  CheckCircle2,
+  Clock,
+  FileCheck,
+  MapPin,
+  Phone,
   PoundSterling,
   Shield,
-  MapPin,
-  CheckCircle2,
-  ArrowRight,
-  Clock,
-  TrendingUp,
-  FileCheck,
   Star,
-  Zap,
-  Award,
-  Phone,
+  TrendingUp,
+  Users,
   Wrench,
+  Zap,
 } from "lucide-react";
+import type { Metadata } from "next";
+import Link from "next/link";
 
 export const metadata: Metadata = {
   title: `For Locksmiths | ${SITE_NAME} - Join Our Platform`,
@@ -132,16 +133,14 @@ export default function ForLocksmithsPage() {
               </h1>
               <p className="text-lg text-slate-300 mb-8">
                 Join the UK's first anti-fraud locksmith platform. Get verified
-                leads, set your own prices, and build a trusted reputation.
-                No monthly fees — ever.
+                leads, set your own prices, and build a trusted reputation. No
+                monthly fees — ever.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link href="/locksmith-signup">
-                  <Button className="btn-primary px-8 text-lg">
-                    Apply Now
-                    <ArrowRight className="w-5 h-5" />
-                  </Button>
-                </Link>
+                <LocksmithSignupCTAButton className="btn-primary px-8 text-lg">
+                  Apply Now
+                  <ArrowRight className="w-5 h-5" />
+                </LocksmithSignupCTAButton>
                 <a href="tel:07818333989">
                   <Button
                     variant="outline"
@@ -161,7 +160,9 @@ export default function ForLocksmithsPage() {
                   <div className="text-3xl md:text-4xl font-bold text-orange-500">
                     {stat.value}
                   </div>
-                  <div className="text-sm text-slate-400 mt-1">{stat.label}</div>
+                  <div className="text-sm text-slate-400 mt-1">
+                    {stat.label}
+                  </div>
                 </div>
               ))}
             </div>
@@ -214,7 +215,9 @@ export default function ForLocksmithsPage() {
                   <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center mx-auto mb-4 text-white font-bold text-lg">
                     {item.step}
                   </div>
-                  <h3 className="font-bold text-slate-900 mb-2">{item.title}</h3>
+                  <h3 className="font-bold text-slate-900 mb-2">
+                    {item.title}
+                  </h3>
                   <p className="text-sm text-slate-600">{item.description}</p>
                 </div>
               ))}
@@ -264,12 +267,10 @@ export default function ForLocksmithsPage() {
               Apply now and start receiving verified leads in your area. No
               monthly fees, no commitments.
             </p>
-            <Link href="/locksmith-signup">
-              <Button className="bg-white text-orange-600 hover:bg-slate-100 px-8 text-lg font-bold">
-                Apply Now
-                <ArrowRight className="w-5 h-5" />
-              </Button>
-            </Link>
+            <LocksmithSignupCTAButton className="bg-white text-orange-600 hover:bg-slate-100 px-8 text-lg font-bold">
+              Apply Now
+              <ArrowRight className="w-5 h-5" />
+            </LocksmithSignupCTAButton>
           </div>
         </section>
       </main>

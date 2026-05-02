@@ -12,6 +12,8 @@ export const COOKIE_KEYS = {
   PWA_PROMPT_SHOWN: "ls_pwa_shown",
   DEVICE_TYPE: "ls_device",
   WELCOME_SURVEY_COMPLETED: "ls_ws_done",
+  WALKTHROUGH_SEEN: "ls_walkthrough_seen",
+  LOCKSMITH_WALKTHROUGH_SEEN: "ls_locksmith_walkthrough_seen",
 } as const;
 
 // Default cookie expiration (365 days)
@@ -53,7 +55,7 @@ export const MODAL_TIMINGS = {
 export function setCookie(
   name: string,
   value: string,
-  expiryDays: number = DEFAULT_EXPIRY_DAYS
+  expiryDays: number = DEFAULT_EXPIRY_DAYS,
 ): void {
   if (typeof document === "undefined") return;
 
@@ -98,7 +100,9 @@ export function isMobileDevice(): boolean {
   if (typeof navigator === "undefined") return false;
 
   const userAgent = navigator.userAgent.toLowerCase();
-  return /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile/i.test(userAgent);
+  return /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile/i.test(
+    userAgent,
+  );
 }
 
 /**
@@ -157,7 +161,7 @@ export function getTimeSinceLastModal(): number {
     return Number.POSITIVE_INFINITY; // No modal shown yet
   }
 
-  return Date.now() - parseInt(lastModalTime, 10);
+  return Date.now() - Number.parseInt(lastModalTime, 10);
 }
 
 /**
@@ -200,7 +204,7 @@ export function getTimeSincePWAPrompt(): number {
     return Number.POSITIVE_INFINITY;
   }
 
-  return Date.now() - parseInt(pwaTime, 10);
+  return Date.now() - Number.parseInt(pwaTime, 10);
 }
 
 /**
@@ -230,6 +234,39 @@ export function markWelcomeSurveyCompleted(): void {
  */
 export function hasCompletedWelcomeSurvey(): boolean {
   return getCookie(COOKIE_KEYS.WELCOME_SURVEY_COMPLETED) === "true";
+}
+
+/**
+ * Mark first-visit walkthrough as seen (skipped, dismissed, or completed).
+ * Persisted for 1 year so the walkthrough never appears again on the same device.
+ */
+export function markWalkthroughSeen(): void {
+  setCookie(COOKIE_KEYS.WALKTHROUGH_SEEN, "true", DEFAULT_EXPIRY_DAYS);
+}
+
+/**
+ * Check if the first-visit walkthrough has already been shown to this visitor.
+ */
+export function hasSeenWalkthrough(): boolean {
+  return getCookie(COOKIE_KEYS.WALKTHROUGH_SEEN) === "true";
+}
+
+/**
+ * Mark the locksmith-prospect walkthrough as seen (skipped, dismissed, or completed).
+ */
+export function markLocksmithWalkthroughSeen(): void {
+  setCookie(
+    COOKIE_KEYS.LOCKSMITH_WALKTHROUGH_SEEN,
+    "true",
+    DEFAULT_EXPIRY_DAYS,
+  );
+}
+
+/**
+ * Check if the locksmith-prospect walkthrough has already been shown to this visitor.
+ */
+export function hasSeenLocksmithWalkthrough(): boolean {
+  return getCookie(COOKIE_KEYS.LOCKSMITH_WALKTHROUGH_SEEN) === "true";
 }
 
 /**
