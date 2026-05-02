@@ -605,18 +605,44 @@ export class MetaMarketingClient {
   // ===================
 
   async uploadImage(imageUrl: string): Promise<{ hash: string; url: string }> {
-    // For URL-based upload
-    const body = {
-      url: imageUrl,
-    };
+    // Meta's `/adimages` endpoint accepts either a `url` param (Meta fetches
+    // the image server-side) OR a multipart binary `source` field. The URL
+    // path is gated by an extra capability check that returns
+    // `(#3) Application does not have the capability to make this API call`
+    // for apps without Ads Management Standard Access — even when the token
+    // has `ads_management` and successfully writes campaigns/ad sets.
+    //
+    // The multipart bytes path uses only the standard `ads_management`
+    // capability, so we download the image ourselves and forward the bytes.
+    const imgRes = await fetch(imageUrl);
+    if (!imgRes.ok) {
+      throw new Error(`Failed to fetch image for upload: ${imgRes.status} ${imageUrl}`);
+    }
+    const arrayBuf = await imgRes.arrayBuffer();
+    const contentType = imgRes.headers.get('content-type') || 'image/png';
+    const ext = contentType.split('/')[1]?.split(';')[0] || 'png';
+    const filename = `creative.${ext}`;
 
-    const result = await this.request<{ images: Record<string, { hash: string; url: string }> }>(
-      `/${this.adAccountId}/adimages`,
-      'POST',
-      body
-    );
+    const form = new FormData();
+    form.append('source', new Blob([arrayBuf], { type: contentType }), filename);
+    form.append('access_token', this.accessToken);
+    const proof = this.generateAppSecretProof();
+    if (proof) form.append('appsecret_proof', proof);
 
-    const imageData = Object.values(result.images)[0];
+    const url = `${META_BASE_URL}/${this.adAccountId}/adimages`;
+    const response = await fetch(url, { method: 'POST', body: form });
+    const data = await response.json();
+    if (!response.ok) {
+      const err = data.error || {};
+      const message = [err.message, err.error_user_title, err.error_user_msg]
+        .filter(Boolean)
+        .join(' | ') || 'Image upload failed';
+      console.error('[Meta API] uploadImage (multipart) failed', { error: err, imageUrl });
+      throw new MetaAPIError(message, err);
+    }
+
+    const images = (data as { images: Record<string, { hash: string; url: string }> }).images;
+    const imageData = Object.values(images)[0];
     return { hash: imageData.hash, url: imageData.url };
   }
 
