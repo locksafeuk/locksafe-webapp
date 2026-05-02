@@ -3,6 +3,7 @@
 import { useCallback } from "react";
 import { useMetaPixel } from "@/components/analytics/MetaPixel";
 import { pushDataLayerEvent } from "@/components/analytics/GoogleTagManager";
+import { mapJobProblemTypeToCatalogId } from "@/lib/services-catalog";
 
 // Unified event types for LockSafe
 export type TrackingEventType =
@@ -135,6 +136,15 @@ export function useTrackingEvents(config: TrackingConfig = defaultConfig) {
       const analyticsConsent = hasAnalyticsConsent();
       const value = data.value || 0;
 
+      // Resolve a Meta catalog id from the service/problem type so Pixel +
+      // CAPI carry `content_ids` matching `/api/meta/catalog-feed`. Falls
+      // back to undefined when no mapping is available; helpers then keep
+      // the legacy behaviour (jobId as content_ids).
+      const rawProblemType =
+        (data.serviceType as string | undefined) ||
+        (data.problemType as string | undefined);
+      const catalogId = mapJobProblemTypeToCatalogId(rawProblemType);
+
       // GTM dataLayer push — fires for every event regardless of consent.
       // GTM tags themselves are gated by Consent Mode v2 (analytics_storage,
       // ad_storage), so denied users won't have GA4/Ads/UET fire.
@@ -162,7 +172,7 @@ export function useTrackingEvents(config: TrackingConfig = defaultConfig) {
             break;
           case "quote_received":
             metaPixel.trackQuoteReceived(data.quoteValue || value, data.jobId || "");
-            metaPixel.trackAddToCart(data.quoteValue || value, data.jobId || "");
+            metaPixel.trackAddToCart(data.quoteValue || value, data.jobId || "", catalogId);
             break;
           case "quote_accepted":
             metaPixel.trackQuoteAccepted(data.quoteValue || value, data.jobId || "");
@@ -174,15 +184,16 @@ export function useTrackingEvents(config: TrackingConfig = defaultConfig) {
           case "begin_checkout":
             metaPixel.trackInitiateCheckout(
               data.assessmentFee || data.value || 29,
-              data.jobId || ""
+              data.jobId || "",
+              catalogId
             );
             break;
           case "add_to_cart":
-            metaPixel.trackAddToCart(value, data.jobId || "");
+            metaPixel.trackAddToCart(value, data.jobId || "", catalogId);
             break;
           case "purchase":
           case "job_completed":
-            metaPixel.trackPurchase(value, data.jobId || "", data.jobNumber);
+            metaPixel.trackPurchase(value, data.jobId || "", data.jobNumber, catalogId);
             break;
           case "customer_signup":
             metaPixel.trackCompleteRegistration("customer");
@@ -210,7 +221,16 @@ export function useTrackingEvents(config: TrackingConfig = defaultConfig) {
         ];
 
         if (serverSideEvents.includes(eventType)) {
-          await sendServerEvent(eventType, data, eventId);
+          // Inject catalog content_ids/content_type for CAPI so the server
+          // event matches the Meta product catalog feed. Caller-supplied
+          // values win.
+          const enrichedData: TrackingEventData = {
+            ...data,
+            ...(catalogId && !data.contentIds
+              ? { contentIds: [catalogId], contentType: data.contentType || "product" }
+              : {}),
+          };
+          await sendServerEvent(eventType, enrichedData, eventId);
         }
       }
 

@@ -113,6 +113,25 @@ export async function POST(
     const metaAdAccountId = process.env.META_AD_ACCOUNT_ID;
     const metaPageId = process.env.META_PAGE_ID;
 
+    // Backfill pixelId / accessToken on the linked account row from env when
+    // they're missing (older accounts were created before env vars were set).
+    if (campaign.account) {
+      const patch: { pixelId?: string; accessToken?: string } = {};
+      if (!campaign.account.pixelId && process.env.NEXT_PUBLIC_META_PIXEL_ID) {
+        patch.pixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID;
+      }
+      if (!campaign.account.accessToken && process.env.META_ACCESS_TOKEN) {
+        patch.accessToken = process.env.META_ACCESS_TOKEN;
+      }
+      if (Object.keys(patch).length > 0) {
+        const updated = await prisma.metaAdAccount.update({
+          where: { id: campaign.account.id },
+          data: patch,
+        });
+        campaign.account = updated;
+      }
+    }
+
     const missingVars: string[] = [];
     if (!metaAccessToken) missingVars.push('META_ACCESS_TOKEN');
     if (!metaAdAccountId) missingVars.push('META_AD_ACCOUNT_ID');
@@ -137,66 +156,145 @@ export async function POST(
       }, { status: 400 });
     }
 
-    // Track what gets created for response
+    // Track what gets created for response (used for rollback on failure)
     let metaCampaignId: string | null = null;
-    let metaAdSetId: string | null = null;
+    const metaAdSetIds: string[] = [];
     const metaAdIds: string[] = [];
+    const metaCreativeIds: string[] = [];
     const errors: string[] = [];
 
+    // Resolve any catalog product sets up-front so we can fail fast before
+    // creating any Meta entities. Each catalog adset stores its own slugsKey
+    // implicitly via `serviceSlugs[]`; we look up the matching DB row and
+    // create the real product_set on Meta if it's still a `pending:` placeholder.
+    let catalogConfig: Awaited<ReturnType<typeof prisma.metaCatalogConfig.findFirst>> = null;
+    const productSetIdByAdSetId = new Map<string, string>();
+    const catalogAdSets = campaign.adSets.filter((as) => as.isCatalogAdset);
+    if (catalogAdSets.length > 0) {
+      catalogConfig = await prisma.metaCatalogConfig.findFirst({ where: { isActive: true } });
+      if (!catalogConfig?.catalogId) {
+        return NextResponse.json(
+          {
+            error:
+              'Catalog ad sets are present but no active Meta catalog is connected. Configure one at /admin/marketing/meta-catalog before publishing.',
+          },
+          { status: 400 },
+        );
+      }
+      for (const adSet of catalogAdSets) {
+        const slugs = (adSet.serviceSlugs || []).filter(Boolean);
+        if (slugs.length === 0) {
+          return NextResponse.json(
+            { error: `Catalog ad set "${adSet.name}" has no serviceSlugs.` },
+            { status: 400 },
+          );
+        }
+        const slugsKey = [...slugs].sort().join(',');
+        let productSetRow = await prisma.serviceCatalogProductSet.findUnique({
+          where: { slugsKey },
+        });
+        if (!productSetRow || productSetRow.productSetId.startsWith('pending:')) {
+          try {
+            const created = await metaClient.createCatalogProductSet({
+              catalogId: catalogConfig.catalogId,
+              name: `LockSafe – ${slugsKey}`,
+              retailerIds: slugs,
+            });
+            if (productSetRow) {
+              productSetRow = await prisma.serviceCatalogProductSet.update({
+                where: { id: productSetRow.id },
+                data: { productSetId: created.id },
+              });
+            } else {
+              productSetRow = await prisma.serviceCatalogProductSet.create({
+                data: {
+                  catalogId: catalogConfig.catalogId,
+                  productSetId: created.id,
+                  name: `LockSafe – ${slugsKey}`,
+                  slugsKey,
+                  slugs,
+                },
+              });
+            }
+          } catch (psErr) {
+            return NextResponse.json(
+              {
+                error: `Failed to create Meta product set for ad set "${adSet.name}".`,
+                details: psErr instanceof Error ? psErr.message : 'Unknown error',
+              },
+              { status: 502 },
+            );
+          }
+        }
+        productSetIdByAdSetId.set(adSet.id, productSetRow.productSetId);
+      }
+    }
+
     try {
-      // Create campaign in Meta
+      // Decide budget strategy: if the campaign has a campaign-level dailyBudget,
+      // use Campaign Budget Optimization (CBO) — Meta auto-distributes across
+      // ad sets and rejects per-ad-set budgets. Otherwise rely on ad-set
+      // budgets. (Meta returns "Invalid parameter" if neither is set.)
+      const useCBO = Boolean(campaign.dailyBudget && campaign.dailyBudget > 0);
+
       const metaCampaign = await metaClient.createCampaign({
         name: campaign.name,
         objective: campaign.objective as keyof typeof OBJECTIVE_MAP,
-        status: 'PAUSED', // Always create as PAUSED first
-        dailyBudget: campaign.dailyBudget || undefined,
+        status: 'PAUSED',
+        ...(useCBO ? { dailyBudget: campaign.dailyBudget! } : {}),
         startTime: campaign.startDate || undefined,
         endTime: campaign.endDate || undefined,
       });
       metaCampaignId = metaCampaign.id;
 
-      // Update campaign with Meta ID
-      await prisma.adCampaign.update({
-        where: { id: campaign.id },
-        data: {
-          metaCampaignId,
-          status: 'PENDING_REVIEW',
-        },
-      });
-
-      // Create ad sets in Meta
+      // Create each ad set + its ads. Whole stack rolls back if any step fails
+      // (no more orphan campaigns with zero ad sets in Ads Manager).
       for (const adSet of campaign.adSets) {
-        try {
-          const metaAdSet = await metaClient.createAdSet({
-            campaignId: metaCampaignId,
-            name: adSet.name,
-            objective: campaign.objective as keyof typeof OPTIMIZATION_GOALS,
-            targeting: (adSet.targeting as Record<string, unknown>) || {
-              geo_locations: { countries: ['GB'] },
-              age_min: 18,
-              age_max: 65,
-            },
-            dailyBudget: adSet.dailyBudget || campaign.dailyBudget || undefined,
-            startTime: adSet.startDate || campaign.startDate || undefined,
-            endTime: adSet.endDate || campaign.endDate || undefined,
-            status: 'PAUSED',
-          });
-          metaAdSetId = metaAdSet.id;
+        const productSetId = productSetIdByAdSetId.get(adSet.id);
+        const isCatalog = adSet.isCatalogAdset && Boolean(productSetId);
 
-          // Update ad set with Meta ID
-          await prisma.adSet.update({
-            where: { id: adSet.id },
-            data: {
-              metaAdSetId,
-              status: 'PENDING_REVIEW',
-            },
-          });
+        const metaAdSet = await metaClient.createAdSet({
+          campaignId: metaCampaignId,
+          name: adSet.name,
+          objective: campaign.objective as keyof typeof OPTIMIZATION_GOALS,
+          targeting: (adSet.targeting as Record<string, unknown>) || {
+            geo_locations: { countries: ['GB'] },
+            age_min: 18,
+            age_max: 65,
+          },
+          // When CBO is on at the campaign level, ad-set budget MUST be
+          // omitted (Meta rejects both at once).
+          dailyBudget: useCBO ? undefined : (adSet.dailyBudget || undefined),
+          startTime: adSet.startDate || campaign.startDate || undefined,
+          endTime: adSet.endDate || campaign.endDate || undefined,
+          status: 'PAUSED',
+          ...(isCatalog && productSetId ? { productSetId } : {}),
+        });
+        metaAdSetIds.push(metaAdSet.id);
 
-          // Create ads in Meta
-          for (const ad of adSet.ads) {
-            try {
-              // First create creative in Meta
-              const metaCreative = await metaClient.createAdCreative({
+        await prisma.adSet.update({
+          where: { id: adSet.id },
+          data: {
+            metaAdSetId: metaAdSet.id,
+            status: 'PENDING_REVIEW',
+            ...(isCatalog && productSetId ? { productSetId } : {}),
+          },
+        });
+
+        for (const ad of adSet.ads) {
+          const metaCreative = isCatalog && productSetId
+            ? await metaClient.createDynamicCatalogAdCreative({
+                name: `${ad.name} Creative (DPA)`,
+                pageId: process.env.META_PAGE_ID || '',
+                productSetId,
+                messageTemplate: ad.creative.primaryText,
+                headlineTemplate: ad.creative.headline,
+                descriptionTemplate: ad.creative.description || undefined,
+                linkTemplate: ad.trackingUrl || ad.creative.destinationUrl,
+                callToAction: ad.creative.callToAction as typeof import('@/lib/meta-marketing').CTA_TYPES[number],
+                urlParameters: `utm_source=facebook&utm_medium=paid&utm_campaign=${ad.utmCampaign || ''}&utm_content=${ad.utmContent || ''}`,
+              })
+            : await metaClient.createAdCreative({
                 name: `${ad.name} Creative`,
                 pageId: process.env.META_PAGE_ID || '',
                 imageUrl: ad.creative.imageUrl || undefined,
@@ -207,46 +305,65 @@ export async function POST(
                 callToAction: ad.creative.callToAction as "LEARN_MORE" | "SHOP_NOW" | "SIGN_UP" | "GET_QUOTE" | "CONTACT_US" | "BOOK_NOW" | "APPLY_NOW" | "DOWNLOAD" | "GET_OFFER" | "REQUEST_TIME" | "SEE_MORE" | "SUBSCRIBE",
                 urlParameters: `utm_source=facebook&utm_medium=paid&utm_campaign=${ad.utmCampaign || ''}&utm_content=${ad.utmContent || ''}`,
               });
+          metaCreativeIds.push(metaCreative.id);
 
-              // Update creative with Meta ID
-              await prisma.adCreative.update({
-                where: { id: ad.creative.id },
-                data: { metaCreativeId: metaCreative.id },
-              });
+          await prisma.adCreative.update({
+            where: { id: ad.creative.id },
+            data: { metaCreativeId: metaCreative.id },
+          });
 
-              // Create ad in Meta
-              const metaAd = await metaClient.createAd({
-                adSetId: metaAdSetId,
-                creativeId: metaCreative.id,
-                name: ad.name,
-                status: 'PAUSED',
-                trackingPixelId: campaign.account.pixelId || undefined,
-              });
-              metaAdIds.push(metaAd.id);
+          const metaAd = await metaClient.createAd({
+            adSetId: metaAdSet.id,
+            creativeId: metaCreative.id,
+            name: ad.name,
+            status: 'PAUSED',
+            trackingPixelId: campaign.account.pixelId || undefined,
+          });
+          metaAdIds.push(metaAd.id);
 
-              // Update ad with Meta ID
-              await prisma.ad.update({
-                where: { id: ad.id },
-                data: {
-                  metaAdId: metaAd.id,
-                  status: 'PENDING_REVIEW',
-                },
-              });
-            } catch (adError) {
-              console.error(`Error creating Meta ad for ${ad.name}:`, adError);
-              errors.push(`Ad "${ad.name}": ${adError instanceof Error ? adError.message : 'Unknown error'}`);
-            }
-          }
-        } catch (adSetError) {
-          console.error(`Error creating Meta ad set for ${adSet.name}:`, adSetError);
-          errors.push(`Ad Set "${adSet.name}": ${adSetError instanceof Error ? adSetError.message : 'Unknown error'}`);
+          await prisma.ad.update({
+            where: { id: ad.id },
+            data: {
+              metaAdId: metaAd.id,
+              status: 'PENDING_REVIEW',
+            },
+          });
         }
       }
+
+      // Persist the campaign Meta ID + final status only after the entire
+      // stack succeeds, so a partial failure leaves the campaign as DRAFT.
+      await prisma.adCampaign.update({
+        where: { id: campaign.id },
+        data: {
+          metaCampaignId,
+          status: 'PENDING_REVIEW',
+        },
+      });
     } catch (campaignError) {
       console.error('Error creating Meta campaign:', campaignError);
 
+      // Best-effort rollback so we don't leave orphan Meta entities (campaign
+      // visible in Ads Manager with zero ad sets, which is the symptom we hit).
+      for (const id of [...metaAdIds, ...metaCreativeIds]) {
+        await metaClient.deleteEntity(id);
+      }
+      for (const id of metaAdSetIds) {
+        await metaClient.deleteEntity(id);
+      }
+      if (metaCampaignId) await metaClient.deleteEntity(metaCampaignId);
+
+      // Reset local IDs we may have already persisted on adsets so the user
+      // can retry without duplicates.
+      await prisma.adSet.updateMany({
+        where: { campaignId: campaign.id },
+        data: { metaAdSetId: null, status: 'DRAFT' },
+      });
+      // Don't try to clear individual ad metaAdIds — they were never persisted
+      // outside the failed loop iteration; the next retry will overwrite.
+
       // Parse Meta API error for better messages
-      let errorDetails = campaignError instanceof Error ? campaignError.message : 'Unknown error';
+      const errorDetails = campaignError instanceof Error ? campaignError.message : 'Unknown error';
       let troubleshootingTips: string[] = [];
 
       if (errorDetails.includes('Invalid OAuth access token')) {
@@ -277,7 +394,7 @@ export async function POST(
       }
 
       return NextResponse.json({
-        error: 'Failed to create campaign in Meta',
+        error: 'Failed to create campaign in Meta (rolled back)',
         details: errorDetails,
         troubleshooting: troubleshootingTips,
       }, { status: 500 });
@@ -305,7 +422,7 @@ export async function POST(
       campaign: updatedCampaign,
       meta: {
         campaignId: metaCampaignId,
-        adSetId: metaAdSetId,
+        adSetIds: metaAdSetIds,
         adIds: metaAdIds,
         published: true,
       },

@@ -3,10 +3,24 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import prisma from "@/lib/db";
+import { verifyToken } from "@/lib/auth";
+
+async function requireAdmin() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("auth_token")?.value;
+  if (!token) return null;
+  const payload = await verifyToken(token);
+  if (!payload || payload.type !== "admin") return null;
+  return payload;
+}
 
 export async function GET(request: NextRequest) {
   try {
+    const admin = await requireAdmin();
+    if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const approvals = await prisma.agentApproval.findMany({
       where: { status: "pending" },
       orderBy: { createdAt: "desc" },

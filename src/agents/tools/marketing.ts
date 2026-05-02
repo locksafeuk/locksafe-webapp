@@ -15,6 +15,8 @@ import {
 } from "@/lib/google-ads";
 import { generateGoogleAdsDraftPlan } from "@/lib/openai-google-ads";
 import { checkAutoAction, getEffectivePolicy } from "@/lib/spend-guard";
+import { isServiceSlug } from "@/lib/services-catalog";
+import { optimiseMetaCampaigns } from "@/lib/meta-optimiser";
 
 // OpenAI client for content generation
 const openai = new OpenAI({
@@ -1283,6 +1285,194 @@ export const optimiseGoogleCampaignsTool: AgentTool = {
   },
 };
 
+/**
+ * Phase D: launchAcquisitionEngine
+ *
+ * One-shot CMO action: drafts a complete catalog-driven Meta campaign
+ * (campaign + 2 adsets + 4 DR ad variants per slug per adset) and files an
+ * approval request. The actual publish to Meta happens through the existing
+ * /api/admin/ads/[id]/publish route once approved.
+ */
+export const launchAcquisitionEngineTool: AgentTool = {
+  name: "launchAcquisitionEngine",
+  description:
+    "Draft a complete catalog-backed Meta campaign with prospecting + retargeting adsets, 4 DR copy variants per service, and file an approval request.",
+  category: "marketing",
+  permissions: ["cmo", "ads-specialist"],
+  parameters: [
+    {
+      name: "slugs",
+      type: "array",
+      required: true,
+      description: "Service catalog slugs to target (e.g. ['locked-out','emergency-locksmith'])",
+    },
+    {
+      name: "dailyBudget",
+      type: "number",
+      required: true,
+      description: "Total daily campaign budget in GBP (split across both adsets).",
+    },
+    {
+      name: "durationDays",
+      type: "number",
+      required: false,
+      description: "How many days to run (1–90). Default 14.",
+      default: 14,
+    },
+    {
+      name: "city",
+      type: "string",
+      required: false,
+      description: "Optional UK city for hyper-local copy.",
+    },
+  ],
+  async execute(params, context): Promise<ToolResult> {
+    const slugsRaw = Array.isArray(params.slugs) ? (params.slugs as unknown[]) : [];
+    const slugs = slugsRaw.filter((s): s is string => typeof s === "string" && isServiceSlug(s));
+    const dailyBudget = Number(params.dailyBudget);
+    const durationDays = Number.isFinite(params.durationDays as number)
+      ? Math.min(Math.max(Number(params.durationDays), 1), 90)
+      : 14;
+    const city = typeof params.city === "string" ? params.city : undefined;
+
+    if (slugs.length === 0) {
+      return { success: false, error: "Provide at least one valid service slug." };
+    }
+    if (!Number.isFinite(dailyBudget) || dailyBudget < 1) {
+      return { success: false, error: "dailyBudget must be a number ≥ £1." };
+    }
+
+    // Spend-guard pre-check (the launch route also gates at publish time, but
+    // this short-circuits the agent loop before running the OpenAI bill).
+    const guard = await checkAutoAction({
+      platform: "meta",
+      action: "publish_draft",
+      proposedDailyBudget: dailyBudget,
+      initiator: "agent",
+    });
+    if (!guard.allowed) {
+      return { success: false, error: `spend-guard blocked: ${guard.reason}` };
+    }
+
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://locksafe.uk";
+    const url = `${baseUrl}/api/admin/ads/launch-catalog-campaign`;
+
+    // The launch route enforces admin auth via cookies, but agents call this
+    // server-side with the AGENT_API_KEY shared secret. We call it through
+    // the internal handler directly to avoid an HTTP round-trip + auth dance.
+    // NOTE: importing the route handler keeps types clean and skips fetch.
+    const { POST: launch } = await import(
+      "@/app/api/admin/ads/launch-catalog-campaign/route"
+    );
+
+    // Build a minimal Request (the route reads cookies for admin auth, which
+    // we bypass by setting initiator='agent'; auth still required, so we use
+    // a synthetic admin cookie generated from AGENT_API_KEY -> JWT.
+    // For now, the agent invokes through HTTP to keep the auth path uniform.
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        // Internal agent header — the launch route accepts admin cookies; for
+        // server-side agent calls we rely on a tightly-scoped service token
+        // mediated by middleware. If your middleware does not support this
+        // header yet, call this tool from an admin-authenticated session.
+        "x-agent-key": process.env.AGENT_API_KEY ?? "",
+      },
+      body: JSON.stringify({
+        slugs,
+        dailyBudget,
+        durationDays,
+        city,
+        requestApproval: true,
+        initiator: "agent",
+      }),
+    }).catch((err) => ({ ok: false, status: 500, json: async () => ({ error: String(err) }) }) as Response);
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      return { success: false, error: (body as { error?: string }).error ?? `launch failed: HTTP ${res.status}` };
+    }
+
+    const data = (await res.json()) as {
+      campaignId: string;
+      adsets: Array<{ id: string; mode: string }>;
+      approvalId: string | null;
+      summary: { slugs: string[]; dailyBudget: number; durationDays: number; totalAds: number };
+    };
+
+    return {
+      success: true,
+      data: {
+        campaignId: data.campaignId,
+        adsets: data.adsets,
+        approvalId: data.approvalId,
+        summary: data.summary,
+        message: `Drafted £${dailyBudget}/day campaign covering ${slugs.length} service(s), ${data.summary.totalAds} ad variants. Approval pending at /admin/agents/approvals.`,
+      },
+      tokensUsed: 4 * slugs.length * 600, // approx — copywriter is the cost driver
+      costUsd: 4 * slugs.length * 0.012,
+    };
+  },
+};
+
+/**
+ * Phase C: optimiseMetaCampaigns — closed-loop maintenance for Meta ads.
+ * Mirrors `optimiseGoogleCampaigns` but for Meta. Honours `MarketingPolicy(meta)`
+ * and the spend guard. Always safe to call: defaults to dry-run when autonomy
+ * is off so the heartbeat can still produce a Telegram digest.
+ */
+export const optimiseMetaCampaignsTool: AgentTool = {
+  name: "optimiseMetaCampaigns",
+  description:
+    "Scan recent Meta ad performance and propose (or execute) pause/scale/rotate actions, gated by MarketingPolicy.",
+  category: "marketing",
+  permissions: ["cmo", "ads-specialist"],
+  parameters: [
+    {
+      name: "lookbackDays",
+      type: "number",
+      required: false,
+      description: "How many days of snapshots to consider. Default 7.",
+      default: 7,
+    },
+    {
+      name: "dryRun",
+      type: "boolean",
+      required: false,
+      description: "When true, persists decisions without touching Meta or DB campaign state.",
+      default: true,
+    },
+  ],
+  async execute(params, _context): Promise<ToolResult> {
+    const lookbackDays = Number.isFinite(params.lookbackDays as number)
+      ? Number(params.lookbackDays)
+      : 7;
+    const dryRun = params.dryRun !== false;
+
+    try {
+      const result = await optimiseMetaCampaigns({ lookbackDays, dryRun });
+      return {
+        success: true,
+        data: {
+          dryRun: result.dryRun,
+          proposed: result.decisions.length,
+          executed: result.executed,
+          blocked: result.blocked,
+          errors: result.errors,
+          decisions: result.decisions.map((d) => ({
+            action: d.action,
+            target: `${d.targetType}:${d.targetId}`,
+            reason: d.reason,
+          })),
+        },
+      };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  },
+};
+
 // Export all marketing tools
 export const marketingTools: AgentTool[] = [
   getMarketingStatsTool,
@@ -1297,4 +1487,6 @@ export const marketingTools: AgentTool[] = [
   createGoogleAdsDraftTool,
   listGoogleAdsDraftsTool,
   optimiseGoogleCampaignsTool,
+  launchAcquisitionEngineTool,
+  optimiseMetaCampaignsTool,
 ];

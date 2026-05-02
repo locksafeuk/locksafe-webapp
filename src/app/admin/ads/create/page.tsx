@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -165,6 +165,16 @@ export default function CreateAdPage() {
   // Step 1: Goal
   const [goal, setGoal] = useState<string>("");
 
+  // Meta Catalog — service selector (Step 1) + DPA toggle (Step 3)
+  type CatalogService = {
+    slug: string;
+    effective: { title: string; description: string; image_link: string; link: string };
+  };
+  const [catalogServices, setCatalogServices] = useState<CatalogService[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [selectedServiceSlug, setSelectedServiceSlug] = useState<string | null>(null);
+  const [useCatalog, setUseCatalog] = useState(false);
+
   // Step 2: AI Copy
   const [additionalContext, setAdditionalContext] = useState("");
   const [targetAudiencePreset, setTargetAudiencePreset] = useState("");
@@ -174,10 +184,15 @@ export default function CreateAdPage() {
 
   // Step 3: Creative
   const [imageUrl, setImageUrl] = useState("");
+  // Up to (MIN_AD_SETS - 1) extra image URLs so each of the 4 ad sets gets
+  // its own creative when the admin uploads more than one. The first slot is
+  // `imageUrl` above for backward compatibility.
+  const [extraImageUrls, setExtraImageUrls] = useState<string[]>(["", "", ""]);
   const [destinationUrl, setDestinationUrl] = useState("https://locksafe.uk/request");
 
   // Step 4: Audience
   const [audienceSuggestions, setAudienceSuggestions] = useState<AudienceSuggestion[]>([]);
+  const [audienceError, setAudienceError] = useState<string | null>(null);
   const [selectedAudience, setSelectedAudience] = useState<number | null>(null);
   const [manualTargeting, setManualTargeting] = useState({
     locations: ["GB"],
@@ -204,10 +219,34 @@ export default function CreateAdPage() {
     };
   } | null>(null);
 
+  // Load Meta Catalog service list once on mount so the Step 1 selector + Step 3 DPA toggle have data.
+  useEffect(() => {
+    let cancelled = false;
+    setCatalogLoading(true);
+    fetch("/api/admin/meta-catalog/services")
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (data?.success && Array.isArray(data.items)) {
+          setCatalogServices(data.items as CatalogService[]);
+        }
+      })
+      .catch((err) => {
+        console.warn("Failed to load Meta catalog services:", err);
+      })
+      .finally(() => {
+        if (!cancelled) setCatalogLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Generate AI copy
   const generateCopy = async () => {
     setAiLoading(true);
     try {
+      const selectedService = catalogServices.find((s) => s.slug === selectedServiceSlug);
       const res = await fetch("/api/admin/ai/generate-copy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -219,6 +258,8 @@ export default function CreateAdPage() {
             : undefined,
           tone,
           uniqueSellingPoints: additionalContext ? [additionalContext] : undefined,
+          service: selectedService?.slug,
+          serviceName: selectedService?.effective.title,
         }),
       });
 
@@ -234,45 +275,34 @@ export default function CreateAdPage() {
     }
   };
 
-  // Generate audience suggestions
+  // Generate audience suggestions — calls the AI route (Patel/Deiss audience-research prompt)
   const generateAudiences = async () => {
     setAiLoading(true);
+    setAudienceError(null);
     try {
-      setAudienceSuggestions([
-        {
-          name: "Emergency Service Seekers",
-          description: "People actively looking for locksmith services - high intent, needs protection assurance",
-          demographics: { ageMin: 25, ageMax: 55, genders: ["all"] },
-          interests: ["Home security", "Property ownership", "DIY"],
-          behaviors: ["Online buyers", "Mobile shoppers", "Local search users"],
-          estimatedReach: "moderate",
-          reasoning: "High-intent audience likely to convert. Lead with speed + protection messaging.",
-          suggestedBudget: { daily: 30, currency: "GBP" },
-        },
-        {
-          name: "Scam-Aware Homeowners",
-          description: "Property owners who've heard about or experienced locksmith scams",
-          demographics: { ageMin: 30, ageMax: 65, genders: ["all"] },
-          interests: ["Home improvement", "Consumer rights", "Security systems"],
-          behaviors: ["Engaged shoppers", "Research-heavy buyers"],
-          estimatedReach: "narrow",
-          reasoning: "Perfect for anti-fraud messaging. Lead with 'UK's first anti-fraud platform'.",
-          suggestedBudget: { daily: 25, currency: "GBP" },
-        },
-        {
-          name: "Recent Movers & New Homeowners",
-          description: "People who recently moved and need lock changes for security",
-          demographics: { ageMin: 25, ageMax: 45, genders: ["all"] },
-          interests: ["Moving services", "New home", "Furniture", "Real estate"],
-          behaviors: ["Recently moved", "New homeowner"],
-          estimatedReach: "narrow",
-          reasoning: "High relevance for lock replacement. Lead with transparency + documentation.",
-          suggestedBudget: { daily: 20, currency: "GBP" },
-        },
-      ]);
-      setSelectedAudience(0);
+      const selectedService = catalogServices.find((s) => s.slug === selectedServiceSlug);
+      const res = await fetch("/api/admin/ai/generate-audiences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          goal: goal.toLowerCase() || "leads",
+          location: "United Kingdom",
+          tone,
+          additionalContext: additionalContext || undefined,
+          service: selectedService?.slug,
+          serviceName: selectedService?.effective.title,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || "Failed to generate audiences");
+      }
+      const list = (data.audiences || []) as AudienceSuggestion[];
+      setAudienceSuggestions(list);
+      setSelectedAudience(list.length > 0 ? 0 : null);
     } catch (error) {
       console.error("Error generating audiences:", error);
+      setAudienceError(error instanceof Error ? error.message : "Failed to generate audiences");
     } finally {
       setAiLoading(false);
     }
@@ -284,6 +314,7 @@ export default function CreateAdPage() {
     try {
       const selectedCopyData = selectedCopy.map(i => copyVariations[i]);
       const audience = selectedAudience !== null ? audienceSuggestions[selectedAudience] : null;
+      const selectedService = catalogServices.find((s) => s.slug === selectedServiceSlug);
 
       const res = await fetch("/api/admin/ads", {
         method: "POST",
@@ -309,11 +340,25 @@ export default function CreateAdPage() {
           headline: selectedCopyData[0]?.headline,
           description: selectedCopyData[0]?.description,
           callToAction: selectedCopyData[0]?.callToAction,
-          imageUrl,
-          destinationUrl,
+          // Send EVERY selected variation so the server creates one ad set per
+          // variation (≥4 enforced server-side). Each ad set gets its own copy.
+          selectedCopyVariations: selectedCopyData,
+          // Fall back to the catalog service's image when the admin didn't upload
+          // one (esp. when DPA mode is on, where the upload UI is hidden).
+          imageUrl: imageUrl || selectedService?.effective.image_link || "",
+          // Pool of images, one per ad set. Server cycles when there are fewer
+          // images than ad sets.
+          imageUrls: [imageUrl, ...extraImageUrls]
+            .map((u) => (u || "").trim())
+            .filter((u) => u !== ""),
+          destinationUrl: destinationUrl || selectedService?.effective.link || "",
           useAI: true,
           publishToMeta,
           status: publishToMeta ? "ACTIVE" : "DRAFT",
+          // Meta Catalog integration
+          service: selectedServiceSlug || undefined,
+          serviceSlug: selectedServiceSlug || undefined,
+          useCatalog,
         }),
       });
 
@@ -348,12 +393,23 @@ export default function CreateAdPage() {
   const getFrameworkStyle = (framework: string) => {
     const normalizedFramework = framework.toLowerCase();
     const styles: Record<string, { bg: string; text: string; icon: string }> = {
-      "justin welsh": { bg: "bg-amber-100", text: "text-amber-800", icon: "JW" },
-      "russell brunson": { bg: "bg-rose-100", text: "text-rose-800", icon: "RB" },
-      "nicholas cole": { bg: "bg-cyan-100", text: "text-cyan-800", icon: "NC" },
-      "simon sinek": { bg: "bg-violet-100", text: "text-violet-800", icon: "SS" },
+      // New Patel/Deiss frameworks
+      "neil patel": { bg: "bg-emerald-100", text: "text-emerald-800", icon: "NP" },
+      "neil patel — data-driven hook": { bg: "bg-emerald-100", text: "text-emerald-800", icon: "NP" },
+      "neil patel — search-intent promise": { bg: "bg-teal-100", text: "text-teal-800", icon: "NP" },
+      "ryan deiss": { bg: "bg-indigo-100", text: "text-indigo-800", icon: "RD" },
+      "ryan deiss — before/after/bridge": { bg: "bg-indigo-100", text: "text-indigo-800", icon: "RD" },
+      "ryan deiss — pas + cvj": { bg: "bg-fuchsia-100", text: "text-fuchsia-800", icon: "RD" },
+      // Legacy aliases — kept so any cached/historical copy variations still render with a colour.
+      "justin welsh": { bg: "bg-emerald-100", text: "text-emerald-800", icon: "NP" },
+      "russell brunson": { bg: "bg-indigo-100", text: "text-indigo-800", icon: "RD" },
+      "nicholas cole": { bg: "bg-teal-100", text: "text-teal-800", icon: "NP" },
+      "simon sinek": { bg: "bg-fuchsia-100", text: "text-fuchsia-800", icon: "RD" },
     };
-    return styles[normalizedFramework] || { bg: "bg-slate-100", text: "text-slate-700", icon: "AI" };
+    if (styles[normalizedFramework]) return styles[normalizedFramework];
+    if (normalizedFramework.includes("neil patel")) return styles["neil patel"];
+    if (normalizedFramework.includes("ryan deiss")) return styles["ryan deiss"];
+    return { bg: "bg-slate-100", text: "text-slate-700", icon: "AI" };
   };
 
   const renderStep = () => {
@@ -406,6 +462,58 @@ export default function CreateAdPage() {
                 );
               })}
             </div>
+
+            {/* Meta Catalog Service Selector */}
+            <div className="bg-white border border-slate-200 rounded-xl p-4">
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <div>
+                  <h3 className="font-semibold text-slate-900 text-sm">Service / Product Set <span className="text-slate-400 font-normal">(optional)</span></h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Anchor the AI copy and audience suggestions around a specific LockSafe service from the Meta Catalog. Required if you want to publish a Dynamic Product Ad.
+                  </p>
+                </div>
+                {selectedServiceSlug && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedServiceSlug(null);
+                      setUseCatalog(false);
+                    }}
+                    className="text-xs text-slate-500 hover:text-slate-700 underline whitespace-nowrap"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              {catalogLoading ? (
+                <div className="text-xs text-slate-500 py-3">Loading services…</div>
+              ) : catalogServices.length === 0 ? (
+                <div className="text-xs text-slate-500 py-3">
+                  No catalog services configured yet. <a href="/admin/marketing/meta-catalog" className="text-orange-600 underline">Manage catalog</a>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {catalogServices.map((s) => {
+                    const active = selectedServiceSlug === s.slug;
+                    return (
+                      <button
+                        key={s.slug}
+                        type="button"
+                        onClick={() => setSelectedServiceSlug(active ? null : s.slug)}
+                        className={`text-left p-2 rounded-lg border text-xs transition-all ${
+                          active
+                            ? "border-orange-400 bg-orange-50"
+                            : "border-slate-200 bg-white hover:border-slate-300"
+                        }`}
+                      >
+                        <div className="font-semibold text-slate-900 truncate">{s.effective.title}</div>
+                        <div className="text-[10px] text-slate-500 font-mono truncate">{s.slug}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         );
 
@@ -427,26 +535,26 @@ export default function CreateAdPage() {
                   <Zap className="h-5 w-5 text-orange-600" />
                 </div>
                 <div className="flex-1">
-                  <h4 className="font-semibold text-slate-900 text-sm">Elite Copywriting Frameworks</h4>
+                  <h4 className="font-semibold text-slate-900 text-sm">Direct-Response Copywriting Frameworks</h4>
                   <p className="text-xs text-slate-600 mt-1">
-                    AI generates 4 variations using proven strategies from master copywriters:
+                    AI generates 4 variations using proven strategies from Neil Patel & Ryan Deiss:
                   </p>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
-                    <div className="px-2 py-2 bg-amber-100 rounded-lg border border-amber-200">
-                      <div className="font-bold text-amber-800 text-xs">Justin Welsh</div>
-                      <div className="text-[10px] text-amber-700 mt-0.5">Pattern Interrupts & Hooks</div>
+                    <div className="px-2 py-2 bg-emerald-100 rounded-lg border border-emerald-200">
+                      <div className="font-bold text-emerald-800 text-xs">Neil Patel</div>
+                      <div className="text-[10px] text-emerald-700 mt-0.5">Data-Driven Hook</div>
                     </div>
-                    <div className="px-2 py-2 bg-rose-100 rounded-lg border border-rose-200">
-                      <div className="font-bold text-rose-800 text-xs">Russell Brunson</div>
-                      <div className="text-[10px] text-rose-700 mt-0.5">Hook-Story-Offer</div>
+                    <div className="px-2 py-2 bg-teal-100 rounded-lg border border-teal-200">
+                      <div className="font-bold text-teal-800 text-xs">Neil Patel</div>
+                      <div className="text-[10px] text-teal-700 mt-0.5">Search-Intent Promise</div>
                     </div>
-                    <div className="px-2 py-2 bg-cyan-100 rounded-lg border border-cyan-200">
-                      <div className="font-bold text-cyan-800 text-xs">Nicholas Cole</div>
-                      <div className="text-[10px] text-cyan-700 mt-0.5">Category Design</div>
+                    <div className="px-2 py-2 bg-indigo-100 rounded-lg border border-indigo-200">
+                      <div className="font-bold text-indigo-800 text-xs">Ryan Deiss</div>
+                      <div className="text-[10px] text-indigo-700 mt-0.5">Before / After / Bridge</div>
                     </div>
-                    <div className="px-2 py-2 bg-violet-100 rounded-lg border border-violet-200">
-                      <div className="font-bold text-violet-800 text-xs">Simon Sinek</div>
-                      <div className="text-[10px] text-violet-700 mt-0.5">Start with Why</div>
+                    <div className="px-2 py-2 bg-fuchsia-100 rounded-lg border border-fuchsia-200">
+                      <div className="font-bold text-fuchsia-800 text-xs">Ryan Deiss</div>
+                      <div className="text-[10px] text-fuchsia-700 mt-0.5">PAS + Customer Value Journey</div>
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2 mt-3">
@@ -532,12 +640,12 @@ export default function CreateAdPage() {
                 ) : (
                   <>
                     <Wand2 className="h-4 w-4" />
-                    Generate 4 Elite Copy Variations
+                    Generate 4 Direct-Response Copy Variations
                   </>
                 )}
               </button>
               <p className="text-xs text-center text-slate-500 mt-2">
-                Uses frameworks from Welsh, Brunson, Cole & Sinek
+                Uses frameworks from Neil Patel & Ryan Deiss
               </p>
             </div>
 
@@ -656,7 +764,62 @@ export default function CreateAdPage() {
               <p className="text-slate-500 text-sm">Add your image and set the landing page URL</p>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-6">
+            {/* Meta Catalog (Dynamic Product Ads) toggle */}
+            {(() => {
+              const selectedService = catalogServices.find((s) => s.slug === selectedServiceSlug);
+              return (
+                <div className={`border rounded-xl p-4 ${useCatalog ? "border-purple-300 bg-purple-50" : "border-slate-200 bg-white"}`}>
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-slate-900 text-sm">Use Meta Catalog (Dynamic Product Ads)</h3>
+                        {useCatalog && (
+                          <span className="px-1.5 py-0.5 bg-purple-200 text-purple-800 text-[10px] rounded font-semibold">DPA</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-600 mt-1">
+                        Pull creative directly from the Meta product catalog instead of uploading a single image. Requires a service selected in Step 1.
+                      </p>
+                      {useCatalog && !selectedService && (
+                        <p className="text-xs text-red-600 mt-2">
+                          ⚠ Select a service in Step 1 first, or disable this toggle.
+                        </p>
+                      )}
+                      {useCatalog && selectedService && (
+                        <div className="mt-3 flex items-center gap-3 p-2 bg-white rounded-lg border border-purple-200">
+                          {selectedService.effective.image_link ? (
+                            <img
+                              src={selectedService.effective.image_link}
+                              alt={selectedService.effective.title}
+                              className="w-12 h-12 rounded object-cover border border-slate-200"
+                            />
+                          ) : (
+                            <div className="w-12 h-12 bg-slate-100 rounded flex items-center justify-center">
+                              <ImageIcon className="h-5 w-5 text-slate-400" />
+                            </div>
+                          )}
+                          <div className="text-xs">
+                            <div className="font-semibold text-slate-900">{selectedService.effective.title}</div>
+                            <div className="text-slate-500 font-mono">{selectedService.slug}</div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <label className="inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={useCatalog}
+                        onChange={(e) => setUseCatalog(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="relative w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                    </label>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div className={`grid md:grid-cols-2 gap-6 ${useCatalog ? "opacity-50 pointer-events-none" : ""}`}>
               {/* Image Upload */}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -696,6 +859,41 @@ export default function CreateAdPage() {
                 <p className="text-xs text-slate-500 mt-2">
                   Recommended: 1080x1080px (1:1) or 1200x628px (1.91:1)
                 </p>
+
+                {/* Extra image URLs — one per additional ad set. Each campaign
+                    is published with at least 4 ad sets; provide up to 3 more
+                    images here so each ad set gets its own creative. */}
+                <div className="mt-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">
+                      Extra ad-set images (optional)
+                    </label>
+                    <span className="text-[10px] text-slate-500">
+                      4 ad sets · budget split equally
+                    </span>
+                  </div>
+                  {extraImageUrls.map((url, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <span className="text-xs font-mono text-slate-400 w-12">
+                        Set {idx + 2}
+                      </span>
+                      <input
+                        type="text"
+                        placeholder={`https://example.com/image-${idx + 2}.jpg`}
+                        value={url}
+                        onChange={(e) => {
+                          const next = [...extraImageUrls];
+                          next[idx] = e.target.value;
+                          setExtraImageUrls(next);
+                        }}
+                        className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                      />
+                    </div>
+                  ))}
+                  <p className="text-[11px] text-slate-500">
+                    If you leave these blank, the first image is reused across all 4 ad sets.
+                  </p>
+                </div>
               </div>
 
               {/* Destination URL */}
@@ -757,6 +955,11 @@ export default function CreateAdPage() {
             </div>
 
             {/* AI Suggestions */}
+            {audienceError && (
+              <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+                {audienceError}
+              </div>
+            )}
             {audienceSuggestions.length === 0 ? (
               <button
                 onClick={generateAudiences}

@@ -151,6 +151,51 @@ export async function syncAllCampaigns(
 
     for (const campaign of campaigns) {
       try {
+        // Sync campaign effective_status from Meta so the local row mirrors Ads Manager.
+        try {
+          const statusRes = await fetch(
+            `https://graph.facebook.com/v25.0/${campaign.metaCampaignId}?fields=effective_status&access_token=${process.env.META_ACCESS_TOKEN}`
+          );
+          if (statusRes.ok) {
+            const statusData = await statusRes.json();
+            if (statusData.effective_status) {
+              let mappedStatus: 'ACTIVE' | 'PAUSED' | 'REJECTED' | 'PENDING_REVIEW' | null = null;
+              switch (statusData.effective_status) {
+                case 'ACTIVE':
+                  mappedStatus = 'ACTIVE';
+                  break;
+                case 'PAUSED':
+                case 'CAMPAIGN_PAUSED':
+                case 'ADSET_PAUSED':
+                  mappedStatus = 'PAUSED';
+                  break;
+                case 'DISAPPROVED':
+                  mappedStatus = 'REJECTED';
+                  break;
+                case 'PENDING_REVIEW':
+                case 'IN_PROCESS':
+                  mappedStatus = 'PENDING_REVIEW';
+                  break;
+              }
+
+              if (mappedStatus && mappedStatus !== campaign.status) {
+                await prisma.adCampaign.update({
+                  where: { id: campaign.id },
+                  data: { status: mappedStatus },
+                });
+                console.log(
+                  `[Meta Sync] Campaign ${campaign.name} status: ${campaign.status} → ${mappedStatus}`
+                );
+              }
+            }
+          }
+        } catch (statusErr) {
+          console.warn(
+            `[Meta Sync] Failed to fetch effective_status for ${campaign.metaCampaignId}:`,
+            statusErr
+          );
+        }
+
         // Sync campaign-level metrics
         const campaignInsights = await metaClient.getCampaignInsights(
           campaign.metaCampaignId!,

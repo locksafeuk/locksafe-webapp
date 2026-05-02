@@ -1,0 +1,18 @@
+
+
+
+Sat May 02 2026 08:58:46:504 GMT-0400 (EDT) -- [ERROR] Necessary ports to start BrowserStack Binary were occupied by PID: -
+Sat May 02 2026 08:58:46:507 GMT-0400 (EDT) -- [ERROR] Please ensure that 45691 is available to use
+Sat May 02 2026 08:58:46:508 GMT-0400 (EDT) -- [ERROR] SYS_CONFLICT:1001 https://browserstack.com/docs/local-testing/binary/errors/1001
+Sat May 02 2026 08:58:46:536 GMT-0400 (EDT) -- [ERROR] Necessary ports to start BrowserStack Binary were occupied by PID: -
+Sat May 02 2026 08:58:46:536 GMT-0400 (EDT) -- [ERROR] Please ensure that 45690 is available to use
+Sat May 02 2026 08:58:46:537 GMT-0400 (EDT) -- [ERROR] SYS_CONFLICT:1001 https://browserstack.com/docs/local-testing/binary/errors/1001
+Sat May 02 2026 08:58:46:549 GMT-0400 (EDT) -- You can learn more about BrowserStack Binary flags by running ./BrowserStackLocal --help
+Sat May 02 2026 08:58:46:549 GMT-0400 (EDT) -- You can learn more about BrowserStack Binary flags by running ./BrowserStackLocal --help
+Sat May 02 2026 08:58:46:876 GMT-0400 (EDT) -- Starting configuration console on http://localhost:45454
+Sat May 02 2026 08:58:48:109 GMT-0400 (EDT) -- [INFO] Started the BrowserStack Binary server on 45691, PID: 5439
+Sat May 02 2026 08:58:49:113 GMT-0400 (EDT) -- [SUCCESS] You can now access your local server(s) in our remote browser
+
+Sat May 02 2026 08:58:49:301 GMT-0400 (EDT) -- Press Ctrl-C to exit
+
+

@@ -1,11 +1,9 @@
 /**
  * AI Copy Generation API
  *
- * Generates powerful ad copy using elite copywriting frameworks from:
- * - Justin Welsh (pattern interrupts, hooks, one-liners)
- * - Russell Brunson (Hook-Story-Offer, Epiphany Bridge)
- * - Nicholas Cole (Category Design, specificity)
- * - Simon Sinek (Start with Why, purpose-driven)
+ * Generates direct-response ad copy using frameworks from:
+ * - Neil Patel (data-driven hooks, search-intent matching)
+ * - Ryan Deiss  (Before-After-Bridge, PAS + Customer Value Journey)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -54,7 +52,7 @@ export async function POST(request: NextRequest) {
     switch (type) {
       case 'generate': {
         // Standard generation using all 4 expert frameworks
-        const { productDescription, goal, targetAudience, tone, copyStyle, uniqueSellingPoints } = body;
+        const { productDescription, goal, targetAudience, tone, copyStyle, uniqueSellingPoints, service, serviceName } = body;
 
         // Use LockSafe UK default description if not provided
         const description = productDescription ||
@@ -67,6 +65,8 @@ export async function POST(request: NextRequest) {
           tone,
           copyStyle,
           uniqueSellingPoints,
+          service,
+          serviceName,
         });
 
         tokensUsed = 3000; // Increased for richer output
@@ -77,9 +77,21 @@ export async function POST(request: NextRequest) {
         // Generate using a specific expert framework
         const { framework, goal, targetAudience, tone } = body;
 
-        if (!framework || !['justin-welsh', 'russell-brunson', 'nicholas-cole', 'simon-sinek'].includes(framework)) {
+        const validFrameworks = [
+          'neil-patel-data-driven',
+          'neil-patel-search-intent',
+          'ryan-deiss-bab',
+          'ryan-deiss-pas',
+          // Legacy aliases — still accepted, mapped server-side to Patel/Deiss equivalents.
+          'justin-welsh',
+          'russell-brunson',
+          'nicholas-cole',
+          'simon-sinek',
+        ];
+
+        if (!framework || !validFrameworks.includes(framework)) {
           return NextResponse.json({
-            error: 'Valid framework required (justin-welsh, russell-brunson, nicholas-cole, simon-sinek)',
+            error: `Valid framework required (${validFrameworks.join(', ')})`,
           }, { status: 400 });
         }
 
@@ -187,7 +199,14 @@ export async function POST(request: NextRequest) {
       type,
       variations: result,
       tokensUsed,
-      frameworks: type === 'generate' ? ['Justin Welsh', 'Russell Brunson', 'Nicholas Cole', 'Simon Sinek'] : undefined,
+      frameworks: type === 'generate'
+        ? [
+            'Neil Patel — Data-Driven Hook',
+            'Neil Patel — Search-Intent Promise',
+            'Ryan Deiss — Before/After/Bridge',
+            'Ryan Deiss — PAS + Customer Value Journey',
+          ]
+        : undefined,
     });
   } catch (error) {
     console.error('Error generating copy:', error);

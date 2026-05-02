@@ -242,7 +242,24 @@ export class MetaMarketingClient {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new MetaAPIError(data.error?.message || 'Unknown error', data.error);
+      const err = data.error || {};
+      // Meta nests the actually-useful explanation under error_user_msg /
+      // error_user_title / error_subcode. Surface them so callers don't have
+      // to guess what "Invalid parameter" actually means.
+      const detailParts = [
+        err.message,
+        err.error_user_title,
+        err.error_user_msg,
+        err.error_subcode ? `subcode=${err.error_subcode}` : null,
+      ].filter(Boolean);
+      const message = detailParts.join(' | ') || 'Unknown error';
+      console.error('[Meta API] Request failed', {
+        endpoint,
+        method,
+        body,
+        error: err,
+      });
+      throw new MetaAPIError(message, err);
     }
 
     return data;
@@ -313,6 +330,19 @@ export class MetaMarketingClient {
     return this.request(`/${this.adAccountId}/campaigns`, 'POST', body);
   }
 
+  /**
+   * Delete any Meta entity by its node id (campaign, adset, ad, creative, product set).
+   * Used to roll back partially-created campaign trees when one of the publish steps fails.
+   * Errors are swallowed — best-effort cleanup must not mask the original failure.
+   */
+  async deleteEntity(id: string): Promise<void> {
+    try {
+      await this.request(`/${id}`, 'DELETE');
+    } catch (err) {
+      console.warn(`[Meta API] Failed to delete entity ${id} during rollback:`, err);
+    }
+  }
+
   async getCampaigns(status?: string): Promise<{ data: MetaCampaign[] }> {
     const params: Record<string, unknown> = {
       fields: 'id,name,status,objective,daily_budget,lifetime_budget,start_time,stop_time',
@@ -354,6 +384,10 @@ export class MetaMarketingClient {
     endTime?: Date;
     status?: 'ACTIVE' | 'PAUSED';
     bidAmount?: number;
+    /** Catalog ad mode — binds the adset to a Product Set for dynamic ads. */
+    productSetId?: string;
+    /** For retargeting catalog adsets: the pixel event to retarget on. */
+    catalogRetargetEvent?: 'ViewContent' | 'AddToCart' | 'InitiateCheckout';
   }): Promise<{ id: string }> {
     const body: Record<string, unknown> = {
       campaign_id: params.campaignId,
@@ -366,7 +400,18 @@ export class MetaMarketingClient {
     };
 
     // Add promoted object for conversion tracking
-    if (params.objective === 'LEADS' || params.objective === 'SALES') {
+    if (params.productSetId) {
+      // Catalog mode: bind the adset to a product set so Meta can render
+      // dynamic creatives. For retargeting flows, custom_event_type drives
+      // the audience (e.g. ViewContent in last 180d).
+      body.promoted_object = {
+        product_set_id: params.productSetId,
+        ...(params.catalogRetargetEvent
+          ? { custom_event_type: params.catalogRetargetEvent }
+          : {}),
+        ...(this.pixelId ? { pixel_id: this.pixelId } : {}),
+      };
+    } else if (params.objective === 'LEADS' || params.objective === 'SALES') {
       body.promoted_object = {
         pixel_id: this.pixelId,
         custom_event_type: PIXEL_EVENT_MAP[params.objective],
@@ -492,6 +537,75 @@ export class MetaMarketingClient {
         page_id: params.pageId || this.pageId,
         link_data: linkData,
       },
+    };
+
+    return this.request(`/${this.adAccountId}/adcreatives`, 'POST', body);
+  }
+
+  // ===================
+  // CATALOG ADS (Advantage+ Dynamic Product Ads)
+  // ===================
+
+  /**
+   * Create a Product Set inside a Catalog. Filters which catalog items appear
+   * in dynamic ads. We typically scope by retailer_id (=== service slug).
+   */
+  async createCatalogProductSet(params: {
+    catalogId: string;
+    name: string;
+    /** Service slugs to include (matches retailer_id in items_batch upsert). */
+    retailerIds: string[];
+  }): Promise<{ id: string }> {
+    const filter = {
+      retailer_id: { is_any: params.retailerIds },
+    };
+    return this.request(`/${params.catalogId}/product_sets`, 'POST', {
+      name: params.name,
+      filter: JSON.stringify(filter),
+    });
+  }
+
+  /**
+   * Create a dynamic catalog ad creative. Uses template placeholders
+   * ({{product.name}}, {{product.description}}) bound to a product_set_id.
+   */
+  async createDynamicCatalogAdCreative(params: {
+    name: string;
+    pageId: string;
+    productSetId: string;
+    /** Primary text template — supports {{product.name}}, {{product.description}}, {{product.price}}. */
+    messageTemplate: string;
+    /** Headline template (≤ 40 chars). */
+    headlineTemplate: string;
+    descriptionTemplate?: string;
+    /** Link template — defaults to the catalog item's link. */
+    linkTemplate?: string;
+    callToAction?: typeof CTA_TYPES[number];
+    urlParameters?: string;
+  }): Promise<{ id: string }> {
+    const link = params.linkTemplate ?? '{{product.url | permalink}}';
+
+    const linkData: Record<string, unknown> = {
+      link,
+      message: params.messageTemplate,
+      name: params.headlineTemplate,
+    };
+    if (params.descriptionTemplate) linkData.description = params.descriptionTemplate;
+    if (params.callToAction) {
+      linkData.call_to_action = {
+        type: params.callToAction,
+        value: { link },
+      };
+    }
+    if (params.urlParameters) linkData.url_tags = params.urlParameters;
+
+    const body: Record<string, unknown> = {
+      name: params.name,
+      object_story_spec: {
+        page_id: params.pageId || this.pageId,
+        template_data: linkData,
+      },
+      product_set_id: params.productSetId,
     };
 
     return this.request(`/${this.adAccountId}/adcreatives`, 'POST', body);

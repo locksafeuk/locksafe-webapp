@@ -14,6 +14,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { optimiseGoogleCampaignsTool } from "@/agents/tools/marketing";
+import { optimiseMetaCampaigns } from "@/lib/meta-optimiser";
 import { sendAdminAlert } from "@/lib/telegram";
 import { getEffectivePolicy } from "@/lib/spend-guard";
 
@@ -34,38 +35,80 @@ async function handle(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const policy = await getEffectivePolicy("google");
-  if (!policy.autonomyEnabled) {
-    return NextResponse.json({ ok: true, skipped: "autonomy disabled" });
+  const url = new URL(request.url);
+  const forceDryRun = url.searchParams.get("dryRun") === "true";
+
+  // ---- Google branch ----
+  const googlePolicy = await getEffectivePolicy("google");
+  let googleResult: unknown = { skipped: "autonomy disabled" };
+  if (googlePolicy.autonomyEnabled) {
+    const result = await optimiseGoogleCampaignsTool.execute(
+      { lookbackDays: 14, dryRun: false },
+      {
+        agentName: "cmo",
+        agentId: "cron:cmo-autonomous",
+        permissions: ["cmo", "ads-specialist"],
+        budgetRemaining: 0,
+      },
+    );
+
+    if (!result.success) {
+      console.error("[cron:cmo-autonomous] google failed:", result.error);
+    } else {
+      googleResult = result.data;
+      const data = result.data as {
+        negatives: { added: number };
+        paused: { actuallyPaused: number };
+      };
+      if (
+        googlePolicy.notifyOnAutoAction &&
+        (data.negatives.added > 0 || data.paused.actuallyPaused > 0)
+      ) {
+        await sendAdminAlert({
+          title: "CMO auto-optimised Google Ads",
+          message: `Added ${data.negatives.added} negative keywords. Paused ${data.paused.actuallyPaused} underperforming campaigns.`,
+          severity: "info",
+        });
+      }
+    }
   }
 
-  const result = await optimiseGoogleCampaignsTool.execute(
-    { lookbackDays: 14, dryRun: false },
-    {
-      agentName: "cmo",
-      agentId: "cron:cmo-autonomous",
-      permissions: ["cmo", "ads-specialist"],
-      budgetRemaining: 0,
-    },
-  );
+  // ---- Meta branch ----
+  // Always runs in dry-run mode when autonomy is off, so we still surface
+  // proposed actions via Telegram digest for human review.
+  const metaPolicy = await getEffectivePolicy("meta");
+  const metaResult = await optimiseMetaCampaigns({
+    lookbackDays: 7,
+    dryRun: forceDryRun || !metaPolicy.autonomyEnabled,
+  });
 
-  if (!result.success) {
-    console.error("[cron:cmo-autonomous] failed:", result.error);
-    return NextResponse.json({ ok: false, error: result.error }, { status: 500 });
-  }
-
-  const data = result.data as {
-    negatives: { added: number };
-    paused: { actuallyPaused: number };
-  };
-
-  if (policy.notifyOnAutoAction && (data.negatives.added > 0 || data.paused.actuallyPaused > 0)) {
+  if (
+    metaPolicy.notifyOnAutoAction &&
+    metaResult.decisions.length > 0
+  ) {
+    const proposed = metaResult.decisions.length;
+    const lines = metaResult.decisions
+      .slice(0, 8)
+      .map((d) => `• ${d.action} ${d.targetType} ${d.targetId.slice(-6)} — ${d.reason}`)
+      .join("\n");
     await sendAdminAlert({
-      title: "CMO auto-optimised Google Ads",
-      message: `Added ${data.negatives.added} negative keywords. Paused ${data.paused.actuallyPaused} underperforming campaigns.`,
-      severity: "info",
+      title: metaResult.dryRun
+        ? `CMO Meta digest (dry-run): ${proposed} proposed actions`
+        : `CMO auto-optimised Meta Ads: ${metaResult.executed} executed, ${metaResult.blocked} blocked`,
+      message: lines || "(no decisions)",
+      severity: metaResult.errors > 0 ? "warning" : "info",
     });
   }
 
-  return NextResponse.json({ ok: true, result: result.data });
+  return NextResponse.json({
+    ok: true,
+    google: googleResult,
+    meta: {
+      dryRun: metaResult.dryRun,
+      proposed: metaResult.decisions.length,
+      executed: metaResult.executed,
+      blocked: metaResult.blocked,
+      errors: metaResult.errors,
+    },
+  });
 }

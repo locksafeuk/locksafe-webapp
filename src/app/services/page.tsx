@@ -22,6 +22,21 @@ import {
   ShieldCheck,
   Zap,
 } from "lucide-react";
+import { SERVICE_CATALOG, type ServiceSlug } from "@/lib/services-catalog";
+
+// Map each catalog slug to a display icon + colour palette for the tile.
+const tileStyle: Record<ServiceSlug, { icon: typeof DoorOpen; color: string; bgColor: string; textColor: string }> = {
+  "emergency-locksmith": { icon: AlertTriangle, color: "bg-red-500", bgColor: "bg-red-50", textColor: "text-red-700" },
+  "locked-out": { icon: DoorOpen, color: "bg-orange-500", bgColor: "bg-orange-50", textColor: "text-orange-700" },
+  "lock-change": { icon: Lock, color: "bg-amber-500", bgColor: "bg-amber-50", textColor: "text-amber-700" },
+  "broken-key-extraction": { icon: Key, color: "bg-yellow-500", bgColor: "bg-yellow-50", textColor: "text-yellow-700" },
+  "upvc-door-lock-repair": { icon: Wrench, color: "bg-teal-500", bgColor: "bg-teal-50", textColor: "text-teal-700" },
+  "burglary-lock-repair": { icon: Shield, color: "bg-rose-600", bgColor: "bg-rose-50", textColor: "text-rose-700" },
+  "car-key-replacement": { icon: Car, color: "bg-slate-700", bgColor: "bg-slate-50", textColor: "text-slate-700" },
+  "safe-opening": { icon: ShieldCheck, color: "bg-indigo-600", bgColor: "bg-indigo-50", textColor: "text-indigo-700" },
+  "landlord-lock-change": { icon: Home, color: "bg-blue-500", bgColor: "bg-blue-50", textColor: "text-blue-700" },
+  "commercial-locksmith": { icon: Building2, color: "bg-purple-500", bgColor: "bg-purple-50", textColor: "text-purple-700" },
+};
 
 export const metadata: Metadata = {
   title: `Locksmith Services | ${SITE_NAME} - Emergency & Scheduled`,
@@ -44,104 +59,22 @@ export const metadata: Metadata = {
   },
 };
 
-const services = [
-  {
-    icon: DoorOpen,
-    title: "Emergency Lockouts",
-    description:
-      "Locked out of your home, office, or car? Our verified locksmiths respond in 15-30 minutes, 24/7. Non-destructive entry methods used wherever possible.",
-    features: [
-      "15-30 minute response time",
-      "Non-destructive entry preferred",
-      "Available 24/7, 365 days",
-      "GPS-tracked arrival",
-    ],
-    price: "From £60",
-    color: "bg-red-500",
-    bgColor: "bg-red-50",
-    textColor: "text-red-700",
-  },
-  {
-    icon: Lock,
-    title: "Lock Replacement",
-    description:
-      "Upgrade or replace cylinder, mortice, and multi-point locks. We use British Standard BS3621 locks for insurance compliance.",
-    features: [
-      "Cylinder & mortice locks",
-      "BS3621 compliant options",
-      "Insurance-approved locks",
-      "Same-day service available",
-    ],
-    price: "From £80",
-    color: "bg-orange-500",
-    bgColor: "bg-orange-50",
-    textColor: "text-orange-700",
-  },
-  {
-    icon: Shield,
-    title: "Security Upgrades",
-    description:
-      "Anti-snap, anti-bump, and anti-pick lock upgrades. Protect your home with the latest high-security locking systems.",
-    features: [
-      "Anti-snap cylinders",
-      "Anti-bump protection",
-      "High-security deadlocks",
-      "Security survey included",
-    ],
-    price: "From £90",
-    color: "bg-green-500",
-    bgColor: "bg-green-50",
-    textColor: "text-green-700",
-  },
-  {
-    icon: Home,
-    title: "Residential Services",
-    description:
-      "Complete home locksmith services including new-build lock fitting, tenant changeovers, and window lock repairs.",
-    features: [
-      "Tenant lock changes",
-      "Window lock repairs",
-      "New-build lock fitting",
-      "Patio door locks",
-    ],
-    price: "From £70",
-    color: "bg-blue-500",
-    bgColor: "bg-blue-50",
-    textColor: "text-blue-700",
-  },
-  {
-    icon: Building2,
-    title: "Commercial Locksmith",
-    description:
-      "Office lockouts, master key systems, access control installation, and fire door compliance. Serving businesses across the UK.",
-    features: [
-      "Master key systems",
-      "Access control",
-      "Fire door compliance",
-      "Restricted key profiles",
-    ],
-    price: "From £100",
-    color: "bg-purple-500",
-    bgColor: "bg-purple-50",
-    textColor: "text-purple-700",
-  },
-  {
-    icon: Car,
-    title: "Auto Locksmith",
-    description:
-      "Car lockouts, key cutting, transponder programming, and spare key creation. Most vehicle makes and models covered.",
-    features: [
-      "Car lockouts",
-      "Key cutting & programming",
-      "Transponder keys",
-      "Most makes & models",
-    ],
-    price: "From £80",
-    color: "bg-slate-700",
-    bgColor: "bg-slate-50",
-    textColor: "text-slate-700",
-  },
-];
+// Tiles are derived from the catalog (single source of truth). Pixel
+// `content_id` === slug === Meta catalog feed id, so dynamic ads work.
+const services = SERVICE_CATALOG.map((entry) => {
+  const style = tileStyle[entry.id as ServiceSlug];
+  return {
+    slug: entry.id,
+    icon: style.icon,
+    title: entry.title,
+    description: entry.shortDescription,
+    features: entry.whatsIncluded,
+    price: entry.priceHint,
+    color: style.color,
+    bgColor: style.bgColor,
+    textColor: style.textColor,
+  };
+});
 
 const guarantees = [
   {
@@ -223,9 +156,9 @@ export default function ServicesPage() {
                     <span className="text-lg font-bold text-slate-900">
                       {service.price}
                     </span>
-                    <Link href="/request">
+                    <Link href={`/services/${service.slug}`}>
                       <Button size="sm" className="btn-primary">
-                        Get Help
+                        Learn More
                         <ArrowRight className="w-4 h-4" />
                       </Button>
                     </Link>

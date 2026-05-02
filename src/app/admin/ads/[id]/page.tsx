@@ -215,7 +215,10 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     setPublishErrorDetails(null);
 
     try {
-      const res = await fetch(`/api/admin/ads/${id}/publish`, {
+      // Admin clicking the button is itself the explicit approval — pass
+      // override=true so the AI-approval gate doesn't block manual admin publishes.
+      // (server logs the override.)
+      const res = await fetch(`/api/admin/ads/${id}/publish?override=true`, {
         method: "POST",
       });
 

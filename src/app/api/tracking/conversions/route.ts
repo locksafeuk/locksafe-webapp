@@ -18,6 +18,7 @@ function mapToMetaEvent(eventType: string): string {
   const eventMap: Record<string, string> = {
     lead: "Lead",
     postcode_entered: "Lead",
+    view_content: "ViewContent",
     form_started: "ViewContent",
     quote_received: "AddToCart",
     quote_accepted: "InitiateCheckout",
@@ -112,14 +113,32 @@ async function sendToMetaConversionsAPI(
   // Add custom data
   const customData: Record<string, unknown> = {};
 
-  if (eventData.value) {
+  if (eventData.value !== undefined && eventData.value !== null) {
     customData.value = eventData.value;
     customData.currency = eventData.currency || "GBP";
   }
 
-  if (eventData.jobId) {
+  // Catalog content_ids: explicit `contentIds` from caller wins; otherwise
+  // fall back to `jobId` so legacy callers keep working. content_type
+  // defaults to 'product' (matches Meta dynamic-ads expectation).
+  const explicitContentIds = Array.isArray(eventData.contentIds)
+    ? (eventData.contentIds as unknown[]).filter((v): v is string => typeof v === "string")
+    : undefined;
+
+  if (explicitContentIds && explicitContentIds.length > 0) {
+    customData.content_ids = explicitContentIds;
+    customData.content_type = (eventData.contentType as string) || "product";
+  } else if (eventData.jobId) {
     customData.content_ids = [eventData.jobId];
-    customData.content_type = "product";
+    customData.content_type = (eventData.contentType as string) || "product";
+  }
+
+  if (eventData.contentName) {
+    customData.content_name = eventData.contentName;
+  }
+
+  if (eventData.contentCategory) {
+    customData.content_category = eventData.contentCategory;
   }
 
   if (eventData.jobNumber) {

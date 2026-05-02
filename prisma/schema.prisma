@@ -918,7 +918,11 @@ model AdCampaign {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
 
   // Meta IDs
-  metaCampaignId  String?  @unique  // ID from Meta after creation
+  // NOTE: not @unique — MongoDB's unique index treats multiple null values as
+  // duplicates, which blocks creating a 2nd draft (P2002). Meta's IDs are
+  // globally unique by construction, so we rely on the API for uniqueness
+  // and use a non-unique index for lookups.
+  metaCampaignId  String?  // ID from Meta after creation
   accountId       String   @db.ObjectId
   account         MetaAdAccount @relation(fields: [accountId], references: [id])
 
@@ -956,14 +960,15 @@ model AdCampaign {
 
   @@index([accountId])
   @@index([status])
+  @@index([metaCampaignId])
 }
 
 // Ad Set (targeting and budget at ad set level)
 model AdSet {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
 
-  // Meta IDs
-  metaAdSetId     String?  @unique
+  // Meta IDs (see AdCampaign.metaCampaignId for why this isn't @unique)
+  metaAdSetId     String?
   campaignId      String   @db.ObjectId
   campaign        AdCampaign @relation(fields: [campaignId], references: [id])
 
@@ -986,6 +991,14 @@ model AdSet {
   // Targeting
   targeting       Json     // Full targeting spec (locations, demographics, interests)
 
+  // Catalog binding (Advantage+ Catalog Ads). When set, the adset renders
+  // dynamic creatives keyed off the product set instead of static images.
+  productSetId    String?  // Meta product_set id
+  serviceSlugs    String[] // catalog item slugs included (== retailer_id list)
+  isCatalogAdset  Boolean  @default(false)
+  /// "prospecting" | "retargeting" — drives audience composition.
+  catalogMode     String?
+
   // Placements
   placements      String[] // FEED, STORIES, REELS, etc. (empty = automatic)
 
@@ -1006,14 +1019,15 @@ model AdSet {
   updatedAt       DateTime @updatedAt
 
   @@index([campaignId])
+  @@index([metaAdSetId])
 }
 
 // Individual Ad
 model Ad {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
 
-  // Meta IDs
-  metaAdId        String?  @unique
+  // Meta IDs (see AdCampaign.metaCampaignId for why this isn't @unique)
+  metaAdId        String?
   adSetId         String   @db.ObjectId
   adSet           AdSet    @relation(fields: [adSetId], references: [id])
 
@@ -1057,14 +1071,15 @@ model Ad {
 
   @@index([adSetId])
   @@index([status])
+  @@index([metaAdId])
 }
 
 // Ad Creative (reusable across ads)
 model AdCreative {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
 
-  // Meta IDs
-  metaCreativeId  String?  @unique
+  // Meta IDs (see AdCampaign.metaCampaignId for why this isn't @unique)
+  metaCreativeId  String?
 
   // Creative type
   type            CreativeType @default(IMAGE)
@@ -2012,3 +2027,85 @@ model PushSubscription {
   @@index([locksmithId])
   @@index([isActive])
 }
+
+// ============================================================================
+// META (FACEBOOK) CATALOG — service-intent catalog for dynamic ads.
+// Drives /api/meta/catalog-feed and the admin sync to Meta Graph API.
+// ============================================================================
+
+// Per-slug overrides for the static service catalog. The default copy lives in
+// `src/lib/services-catalog.ts`; this model only stores admin overrides such
+// as a custom-uploaded image and per-item Meta sync state.
+model ServiceCatalogItem {
+  id                  String    @id @default(auto()) @map("_id") @db.ObjectId
+  slug                String    @unique // matches ServiceSlug in code
+  imageUrl            String?   // custom uploaded image (Vercel Blob URL); overrides dynamic OG
+  customTitle         String?
+  customDescription   String?
+  // Meta Catalog sync state
+  metaProductId       String?   // returned product id once synced
+  metaRetailerId      String?   // retailer_id we sent (== slug)
+  lastSyncedAt        DateTime?
+  lastSyncStatus      String?   // "success" | "error"
+  lastSyncMessage     String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
+
+// Singleton-ish config for the connected Meta Commerce catalog. The first row
+// with `isActive = true` is treated as the active configuration.
+model MetaCatalogConfig {
+  id                  String    @id @default(auto()) @map("_id") @db.ObjectId
+  catalogId           String    // FB catalog id (numeric string)
+  catalogName         String?
+  feedId              String?   // optional scheduled-feed id pointing at /api/meta/catalog-feed
+  feedUrl             String?
+  isActive            Boolean   @default(true)
+  lastFullSyncAt      DateTime?
+  lastFullSyncStatus  String?   // "success" | "error" | "partial"
+  lastFullSyncMessage String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
+
+// Cache mapping from a set of service catalog slugs to a Meta Product Set id.
+// Reused so we don't re-create the same product_set on every campaign launch.
+model ServiceCatalogProductSet {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  catalogId       String   // FB catalog id this product_set belongs to
+  productSetId    String   @unique // FB product_set id
+  name            String
+  /// Sorted, comma-joined slug list — used as a stable lookup key.
+  slugsKey        String   @unique
+  slugs           String[] // raw slug array, mirrors slugsKey
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([catalogId])
+}
+
+// Per-action audit row written by the Meta optimiser (and other agent loops).
+// Keeps a forensic trail of WHY an automated action was taken — including the
+// policy snapshot at decision time and whether the action was actually
+// executed (live) or merely proposed (dryRun).
+model AgentDecision {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  agent           String   // "cmo" | "meta-optimiser" | "ads-specialist" | etc.
+  platform        String   // "meta" | "google"
+  action          String   // "pause_ad" | "scale_adset" | "rotate_creative" | "exclude_converters"
+  /// Free-form context — adId/adSetId/campaignId, metric snapshot, reasoning.
+  payload         Json
+  /// Frozen `MarketingPolicy` view used for the decision. Lets us re-evaluate
+  /// historical actions even after the policy is changed.
+  policySnapshot  Json
+  dryRun          Boolean  @default(true)
+  /// Outcome of execution — "ok", "blocked_by_policy", "blocked_by_spend", "error", or null when dryRun.
+  outcome         String?
+  outcomeMessage  String?
+  executedAt      DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([agent, createdAt])
+  @@index([platform, action, createdAt])
+}
+

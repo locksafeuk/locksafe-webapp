@@ -3,6 +3,7 @@ import { SITE_URL } from "@/lib/config";
 import { blogPosts, getAllCategories } from "@/lib/blog-data";
 import { postcodeData, getAllPostcodes } from "@/lib/postcode-data";
 import { getAllCitySlugs } from "@/lib/uk-cities-data";
+import { getAllServiceSlugs } from "@/lib/services-catalog";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = SITE_URL;
@@ -142,5 +143,31 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.6,
   }));
 
-  return [...staticPages, ...cityPages, ...postcodePages, ...blogPostPages, ...blogCategoryPages];
+  // Service-intent landing pages (one per Meta catalog item)
+  const servicePages: MetadataRoute.Sitemap = getAllServiceSlugs().map((slug) => ({
+    url: `${baseUrl}/services/${slug}`,
+    lastModified: new Date(),
+    changeFrequency: "weekly" as const,
+    priority: 0.8,
+  }));
+
+  // Top-level /services overview
+  const servicesIndex: MetadataRoute.Sitemap = [
+    {
+      url: `${baseUrl}/services`,
+      lastModified: new Date(),
+      changeFrequency: "weekly" as const,
+      priority: 0.85,
+    },
+  ];
+
+  return [
+    ...staticPages,
+    ...servicesIndex,
+    ...servicePages,
+    ...cityPages,
+    ...postcodePages,
+    ...blogPostPages,
+    ...blogCategoryPages,
+  ];
 }

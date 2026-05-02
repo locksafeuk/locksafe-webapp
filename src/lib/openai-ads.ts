@@ -3,10 +3,10 @@
  *
  * Features:
  * - Elite ad copy generation using frameworks from:
- *   - Justin Welsh (pattern interrupts, hooks, one-liners)
- *   - Russell Brunson (Hook-Story-Offer, Epiphany Bridge)
- *   - Nicholas Cole (Category Design, specificity)
- *   - Simon Sinek (Start with Why, purpose-driven)
+ *   - Neil Patel — Data-Driven Hooks (specific stat → curiosity → benefit)
+ *   - Neil Patel — Search-Intent Promise (mirror searcher question → deliver answer)
+ *   - Ryan Deiss  — Before / After / Bridge (pain → relief → product as bridge)
+ *   - Ryan Deiss  — PAS + Customer Value Journey (problem → agitate → solve, awareness-stage aware)
  * - Audience suggestions based on LockSafe UK business context
  * - Performance analysis and optimization recommendations
  * - Creative fatigue detection
@@ -24,6 +24,10 @@ import {
   getObjectionHandlers,
 } from './business-context';
 import {
+  NEIL_PATEL_DATA_DRIVEN,
+  NEIL_PATEL_SEARCH_INTENT,
+  RYAN_DEISS_BAB,
+  RYAN_DEISS_PAS,
   JUSTIN_WELSH_HOOKS,
   RUSSELL_BRUNSON_FRAMEWORKS,
   NICHOLAS_COLE_FRAMEWORKS,
@@ -47,6 +51,10 @@ export interface AdCopyRequest {
   copyStyle?: 'story' | 'direct' | 'why-led' | 'problem-solution' | 'benefit-stack';
   uniqueSellingPoints?: string[];
   competitors?: string[];
+  /** Optional service slug from the Meta product catalog (e.g. "lock-change", "emergency-lockout"). */
+  service?: string;
+  /** Optional human-readable service name to anchor the copy (e.g. "Emergency Lockout"). */
+  serviceName?: string;
   constraints?: {
     maxPrimaryTextLength?: number;
     maxHeadlineLength?: number;
@@ -114,67 +122,70 @@ export interface OptimizationSuggestion {
 // ===================
 
 function getEliteCopywritingPrompt(): string {
-  return `You are an ELITE Facebook/Instagram ad copywriter who has mastered the techniques of:
+  return `You are an ELITE direct-response Facebook/Instagram ad copywriter who has mastered the techniques of:
 
 ═══════════════════════════════════════════════════════════════
-JUSTIN WELSH - Pattern Interrupts & Hook Mastery
+NEIL PATEL — DATA-DRIVEN HOOK (NP-DDH)
 ═══════════════════════════════════════════════════════════════
-Key techniques:
-${JUSTIN_WELSH_HOOKS.patternInterrupts.map(p => `• "${p.formula}" → ${p.when}`).join('\n')}
+Lead with a specific, surprising number. Open a curiosity loop. Close with a clear benefit and proof.
 
-One-liner power formulas:
-${JUSTIN_WELSH_HOOKS.oneLinerFormulas.map(f => `• "${f.formula}" → ${f.purpose}`).join('\n')}
+Pattern interrupts (data-led):
+${NEIL_PATEL_DATA_DRIVEN.patternInterrupts.map(p => `• "${p.formula}" — ${p.when}`).join('\n')}
 
-═══════════════════════════════════════════════════════════════
-RUSSELL BRUNSON - Hook-Story-Offer & Epiphany Bridge
-═══════════════════════════════════════════════════════════════
-HOOK-STORY-OFFER Framework:
-• HOOK: Pattern interrupt + curiosity gap (stop the scroll)
-• STORY: Relatable struggle → epiphany moment → transformation
-• OFFER: Clear value + urgency + risk reversal
+One-liner conversion formulas:
+${NEIL_PATEL_DATA_DRIVEN.oneLinerFormulas.map(f => `• "${f.formula}" — ${f.purpose}`).join('\n')}
 
-Example for LockSafe UK:
-Hook: "${RUSSELL_BRUNSON_FRAMEWORKS.hookStoryOffer.locksafeExample.hook}"
-Story: "${RUSSELL_BRUNSON_FRAMEWORKS.hookStoryOffer.locksafeExample.story}"
-Offer: "${RUSSELL_BRUNSON_FRAMEWORKS.hookStoryOffer.locksafeExample.offer}"
-
-EPIPHANY BRIDGE (emotional transformation):
-${RUSSELL_BRUNSON_FRAMEWORKS.epiphanyBridge.stages.map((s, i) => `${i + 1}. ${s}`).join('\n')}
-
-Risk Reversal statements to use:
-${RUSSELL_BRUNSON_FRAMEWORKS.riskReversal.map(r => `• ${r}`).join('\n')}
+Proof stack pattern (stat → mechanism → outcome):
+${NEIL_PATEL_DATA_DRIVEN.proofPattern.examples.map(e => `• ${e}`).join('\n')}
 
 ═══════════════════════════════════════════════════════════════
-NICHOLAS COLE - Category Design & Specificity
+NEIL PATEL — SEARCH-INTENT PROMISE (NP-SIP)
 ═══════════════════════════════════════════════════════════════
-CATEGORY DESIGN: Don't compete. Create and own a new category.
-Our Category: "${NICHOLAS_COLE_FRAMEWORKS.categoryDesign.ourCategory}"
-Position: ${NICHOLAS_COLE_FRAMEWORKS.categoryDesign.positioningStatement}
+Mirror the exact question the audience is typing into Google, then deliver the answer (and the next step) in a single tight unit.
 
-SPECIFICITY RULES (vague = forgettable, specific = believable):
-${NICHOLAS_COLE_FRAMEWORKS.specificityRules.rules.map(r => `• BAD: "${r.bad}" → GOOD: "${r.good}"`).join('\n')}
+Intent-match formulas:
+${NEIL_PATEL_SEARCH_INTENT.intentMatchFormulas.map(f => `• "${f.formula}"`).join('\n')}
 
-"WHY NOW" Framework (create urgency to act):
-${NICHOLAS_COLE_FRAMEWORKS.whyNow.triggers.map(t => `• ${t.type}: "${t.example}"`).join('\n')}
+Headline templates:
+${NEIL_PATEL_SEARCH_INTENT.headlineFormulas.map(h => `• "${h.formula}" — e.g. "${h.example}"`).join('\n')}
 
-═══════════════════════════════════════════════════════════════
-SIMON SINEK - Start with Why & Golden Circle
-═══════════════════════════════════════════════════════════════
-GOLDEN CIRCLE: People don't buy WHAT you do, they buy WHY you do it.
-
-LockSafe UK's Golden Circle:
-• WHY: ${SIMON_SINEK_FRAMEWORKS.goldenCircle.locksafe.why}
-• HOW: ${SIMON_SINEK_FRAMEWORKS.goldenCircle.locksafe.how}
-• WHAT: ${SIMON_SINEK_FRAMEWORKS.goldenCircle.locksafe.what}
-
-Purpose-driven hooks:
-${SIMON_SINEK_FRAMEWORKS.purposeStatements.map(s => `• "${s}"`).join('\n')}
-
-Belief-driven copy pattern:
-${SIMON_SINEK_FRAMEWORKS.beliefCopy.map(b => `• Belief: "${b.belief}" → Proof: "${b.proof}"`).join('\n')}
+Value-loop close lines:
+${NEIL_PATEL_SEARCH_INTENT.valueLoopClose.map(c => `• "${c}"`).join('\n')}
 
 ═══════════════════════════════════════════════════════════════
-THE ULTIMATE AD FORMULA (All Experts Combined)
+RYAN DEISS — BEFORE / AFTER / BRIDGE (RD-BAB)
+═══════════════════════════════════════════════════════════════
+Walk the reader from pain (Before) to relief (After) using LockSafe as the literal Bridge. Direct-response gold for emergency intent.
+
+Structure:
+• BEFORE — ${RYAN_DEISS_BAB.structure.before}
+• AFTER  — ${RYAN_DEISS_BAB.structure.after}
+• BRIDGE — ${RYAN_DEISS_BAB.structure.bridge}
+
+LockSafe example:
+Before: "${RYAN_DEISS_BAB.locksafeExample.before}"
+After:  "${RYAN_DEISS_BAB.locksafeExample.after}"
+Bridge: "${RYAN_DEISS_BAB.locksafeExample.bridge}"
+
+Risk-reversal lines to weave into the Bridge:
+${RYAN_DEISS_BAB.riskReversal.map(r => `• ${r}`).join('\n')}
+
+═══════════════════════════════════════════════════════════════
+RYAN DEISS — PAS + CUSTOMER VALUE JOURNEY (RD-PAS)
+═══════════════════════════════════════════════════════════════
+Problem → Agitate → Solve, calibrated to the prospect's awareness stage so the same offer hits at every step of the funnel.
+
+Customer Value Journey awareness stages:
+${RYAN_DEISS_PAS.awarenessStages.map(s => `• ${s.stage.toUpperCase()} — ${s.description} → ${s.adAngle}`).join('\n')}
+
+PAS templates:
+${RYAN_DEISS_PAS.pasTemplates.map(t => `• "${t.formula}"`).join('\n')}
+
+Direct-response close lines:
+${RYAN_DEISS_PAS.drCloseLines.map(c => `• "${c}"`).join('\n')}
+
+═══════════════════════════════════════════════════════════════
+THE ULTIMATE AD FORMULA (Patel + Deiss combined)
 ═══════════════════════════════════════════════════════════════
 ${POWER_FRAMEWORKS.ultimateAdFormula.components.map(c => `${c.phase} (${c.source}): ${c.action}`).join('\n')}
 
@@ -182,18 +193,18 @@ EMOTIONAL ESCALATION LADDER:
 ${POWER_FRAMEWORKS.emotionalLadder.stages.map(s => `${s.emotion.toUpperCase()}: "${s.copy}"`).join('\n')}
 
 ═══════════════════════════════════════════════════════════════
-RULES FOR POWERFUL COPY
+RULES FOR POWERFUL DIRECT-RESPONSE COPY
 ═══════════════════════════════════════════════════════════════
-1. HOOK FIRST - First line must stop the scroll. Use pattern interrupts.
-2. SPECIFIC > VAGUE - Use numbers, mechanisms, proof points.
-3. EMOTION BEFORE LOGIC - Connect with feelings, then justify with facts.
-4. CATEGORY OWNER - Position as "UK's first anti-fraud platform", not "another booking site".
-5. RISK REVERSAL - Always include the automatic refund guarantee.
-6. STORY SELLS - Use founder story or customer journey where appropriate.
-7. WHY BEFORE WHAT - Lead with purpose when building trust.
-8. FUTURE PACING - Help reader visualize the protected outcome.
-9. ONE IDEA PER AD - Don't try to say everything.
-10. CTA CLARITY - Make the next step obvious and low-friction.`;
+1. SPECIFIC NUMBER FIRST — Open with a Patel-grade stat ("73%…", "2,500+…", "15-min average…"). Vague = forgettable.
+2. MIRROR INTENT — The first line should sound like the question the reader was already asking themselves.
+3. PAIN → RELIEF → BRIDGE — If using BAB, paint Before vividly enough that After feels like oxygen.
+4. AGITATE WITH PROOF — PAS only works if the agitation is true. Use real consequences (no receipt, no recourse, cash-only).
+5. MECHANISM > MARKETING — Tell HOW it works ("quote in writing before any work starts"), not just claim the benefit.
+6. RISK REVERSAL ALWAYS — Refund-on-no-show + decline-quote-pay-only-assessment. Built-in, not on request.
+7. AWARENESS STAGE AWARE — Match the angle to the stage (unaware = teach, most-aware = direct CTA).
+8. ONE IDEA PER AD — Don't try to say everything.
+9. CTA CLARITY — Concrete next step, low friction ("Compare verified locksmiths in 60 seconds — free").
+10. NEVER fabricate a stat. If a number isn't in the proof points, don't invent one.`;
 }
 
 // ===================
@@ -246,35 +257,39 @@ Generate 4 ELITE ad copy variations for LockSafe UK. Each variation MUST:
 6. End with clear VALUE + CTA`;
 
   const frameworkInstructions = `
-Create 4 variations, each using a DIFFERENT copywriting framework:
+Create 4 variations, each using a DIFFERENT direct-response framework:
 
-VARIATION 1 - JUSTIN WELSH STYLE:
-• Start with pattern interrupt hook
-• Use one-liner power format
-• Short, punchy, high-impact
-• Hook type: "${JUSTIN_WELSH_HOOKS.patternInterrupts[0].formula}"
+VARIATION 1 — NEIL PATEL DATA-DRIVEN HOOK (NP-DDH):
+• Open with a specific, surprising stat from the proof points (e.g. "73%…", "2,500+…", "15-min average…").
+• Curiosity gap on the second line.
+• Close with a clear benefit + proof + low-friction CTA.
+• framework field MUST be exactly: "Neil Patel"
+• hookType: "data-driven"
 
-VARIATION 2 - RUSSELL BRUNSON STYLE:
-• Use Hook-Story-Offer structure
-• Include mini epiphany bridge
-• Founder story or customer journey
-• End with strong offer + risk reversal
+VARIATION 2 — NEIL PATEL SEARCH-INTENT PROMISE (NP-SIP):
+• Mirror a question the LockSafe customer is typing into Google.
+• Headline answers it directly.
+• Body delivers the mechanism + value-loop close.
+• framework field MUST be exactly: "Neil Patel"
+• hookType: "search-intent"
 
-VARIATION 3 - NICHOLAS COLE STYLE:
-• Lead with category positioning
-• Maximum specificity (numbers, mechanisms)
-• "Why Now" urgency trigger
-• Clear differentiation from competitors
+VARIATION 3 — RYAN DEISS BEFORE / AFTER / BRIDGE (RD-BAB):
+• BEFORE: vivid, concrete pain (cash-only quote, no receipt).
+• AFTER: vivid relief (PDF receipt, agreed quote, refund guarantee).
+• BRIDGE: LockSafe mechanism + risk reversal.
+• framework field MUST be exactly: "Ryan Deiss"
+• hookType: "before-after-bridge"
 
-VARIATION 4 - SIMON SINEK STYLE:
-• Start with WHY (purpose/belief)
-• Connect emotionally first
-• Then explain HOW and WHAT
-• Purpose-driven messaging`;
+VARIATION 4 — RYAN DEISS PAS + CUSTOMER VALUE JOURNEY (RD-PAS):
+• PROBLEM (state the pain) → AGITATE (real consequence: no recourse) → SOLVE (mechanism + CTA).
+• Calibrate the agitation to the awareness stage (problem-aware or solution-aware works best for paid social).
+• framework field MUST be exactly: "Ryan Deiss"
+• hookType: "pas-cvj"`;
 
   const userPrompt = `Create 4 ELITE Facebook ad copy variations for LockSafe UK.
 
 GOAL: ${request.goal.toUpperCase()}
+${request.serviceName || request.service ? `FOCUS SERVICE: ${request.serviceName || request.service} — anchor every variation around this specific LockSafe service offering.` : ''}
 ${request.targetAudience ? `TARGET AUDIENCE: ${request.targetAudience}` : ''}
 ${request.tone ? `TONE: ${request.tone}` : ''}
 ${request.copyStyle ? `PREFERRED STYLE: ${request.copyStyle}` : ''}
@@ -296,8 +311,8 @@ Return a JSON object with a "variations" array. Each variation MUST have:
 - description: Link description
 - callToAction: CTA button (GET_QUOTE, LEARN_MORE, CONTACT_US, BOOK_NOW)
 - emotionalAngle: One of "urgency", "fear", "trust", "control", "benefit"
-- framework: Which expert framework was used ("Justin Welsh", "Russell Brunson", "Nicholas Cole", "Simon Sinek")
-- hookType: What type of hook was used (pattern interrupt, curiosity gap, story, belief, etc.)
+- framework: Which framework was used — EXACTLY one of "Neil Patel" or "Ryan Deiss"
+- hookType: One of "data-driven", "search-intent", "before-after-bridge", "pas-cvj"
 - reasoning: Why this approach works for LockSafe UK
 
 Return ONLY valid JSON, no markdown or explanation.`;
@@ -343,91 +358,134 @@ Return ONLY valid JSON, no markdown or explanation.`;
 // SINGLE FRAMEWORK GENERATION
 // ===================
 
+export type FrameworkId =
+  | 'neil-patel-data-driven'
+  | 'neil-patel-search-intent'
+  | 'ryan-deiss-bab'
+  | 'ryan-deiss-pas'
+  // Legacy aliases — accepted for backward compatibility, mapped to nearest Patel/Deiss equivalent.
+  | 'justin-welsh'
+  | 'russell-brunson'
+  | 'nicholas-cole'
+  | 'simon-sinek';
+
+const LEGACY_FRAMEWORK_MAP: Record<string, FrameworkId> = {
+  'justin-welsh': 'neil-patel-data-driven',
+  'russell-brunson': 'ryan-deiss-bab',
+  'nicholas-cole': 'neil-patel-search-intent',
+  'simon-sinek': 'ryan-deiss-pas',
+};
+
 export async function generateCopyWithFramework(
-  framework: 'justin-welsh' | 'russell-brunson' | 'nicholas-cole' | 'simon-sinek',
+  framework: FrameworkId,
   request: AdCopyRequest
 ): Promise<AdCopyVariation[]> {
   const businessContext = getBusinessSummary();
 
-  const frameworkPrompts: Record<string, string> = {
-    'justin-welsh': `
-You are writing in JUSTIN WELSH's style. Key characteristics:
-• Pattern interrupt opening - stop the scroll with unexpected statement
-• One-liner power - maximum impact in minimum words
-• Curiosity gaps - make them need to know more
-• Direct, confident tone
+  // Map legacy framework ids onto the new Patel/Deiss equivalents.
+  const resolved: FrameworkId = LEGACY_FRAMEWORK_MAP[framework] ?? framework;
 
-Hook formulas to use:
-${JUSTIN_WELSH_HOOKS.patternInterrupts.map(p => `"${p.formula}"`).join('\n')}
+  const frameworkPrompts: Record<FrameworkId, string> = {
+    'neil-patel-data-driven': `
+You are writing in NEIL PATEL's data-driven style. Key characteristics:
+• Open with a specific, surprising stat (no fabrication — only stats from proof points).
+• Curiosity loop on line two.
+• Mechanism + benefit + proof close.
+• Confident, analytical, never hypey.
 
-One-liner formulas:
-${JUSTIN_WELSH_HOOKS.oneLinerFormulas.map(f => `"${f.formula}"`).join('\n')}
+Pattern interrupts to draw on:
+${NEIL_PATEL_DATA_DRIVEN.patternInterrupts.map(p => `"${p.formula}"`).join('\n')}
 
-Generate 3 variations in Justin Welsh's style for LockSafe UK.`,
+One-liner conversion formulas:
+${NEIL_PATEL_DATA_DRIVEN.oneLinerFormulas.map(f => `"${f.formula}"`).join('\n')}
 
-    'russell-brunson': `
-You are writing in RUSSELL BRUNSON's style. Key characteristics:
-• Hook-Story-Offer structure
-• Epiphany Bridge - take reader through your realization
-• Urgency triggers (ethical urgency)
-• Risk reversal close
+Proof stack examples:
+${NEIL_PATEL_DATA_DRIVEN.proofPattern.examples.map(e => `• ${e}`).join('\n')}
 
-Use this structure:
-${RUSSELL_BRUNSON_FRAMEWORKS.hookStoryOffer.structure.hook}
-${RUSSELL_BRUNSON_FRAMEWORKS.hookStoryOffer.structure.story}
-${RUSSELL_BRUNSON_FRAMEWORKS.hookStoryOffer.structure.offer}
+Generate 3 variations in Neil Patel's data-driven style for LockSafe UK.`,
 
-LockSafe's Epiphany Bridge:
-${Object.entries(RUSSELL_BRUNSON_FRAMEWORKS.epiphanyBridge.locksafeJourney).map(([k, v]) => `${k}: "${v}"`).join('\n')}
+    'neil-patel-search-intent': `
+You are writing in NEIL PATEL's search-intent style. Key characteristics:
+• Mirror the exact question the audience is typing into Google.
+• Headline answers the question directly in plain language.
+• Body delivers the mechanism + value-loop close.
+• SEO-grade specificity, no fluff.
 
-Generate 3 variations in Russell Brunson's style for LockSafe UK.`,
+Intent-match formulas:
+${NEIL_PATEL_SEARCH_INTENT.intentMatchFormulas.map(f => `"${f.formula}" — e.g. "${f.example}"`).join('\n')}
 
-    'nicholas-cole': `
-You are writing in NICHOLAS COLE's style. Key characteristics:
-• Category Design - create and own a new category
-• Maximum specificity - numbers, mechanisms, proof
-• "Why Now" urgency
-• Clear differentiation
+Headline templates:
+${NEIL_PATEL_SEARCH_INTENT.headlineFormulas.map(h => `"${h.formula}"`).join('\n')}
 
-Category positioning:
-"${NICHOLAS_COLE_FRAMEWORKS.categoryDesign.positioningStatement}"
+Value-loop close lines:
+${NEIL_PATEL_SEARCH_INTENT.valueLoopClose.map(c => `"${c}"`).join('\n')}
 
-Specificity rules:
-${NICHOLAS_COLE_FRAMEWORKS.specificityRules.rules.map(r => `BAD: "${r.bad}" → GOOD: "${r.good}"`).join('\n')}
+Generate 3 variations in Neil Patel's search-intent style for LockSafe UK.`,
 
-Generate 3 variations in Nicholas Cole's style for LockSafe UK.`,
+    'ryan-deiss-bab': `
+You are writing in RYAN DEISS's Before / After / Bridge style. Key characteristics:
+• BEFORE — vivid, concrete pain (cash-only locksmith, no receipt, doubled quote).
+• AFTER  — vivid relief (PDF receipt, agreed price, refund-on-no-show).
+• BRIDGE — LockSafe mechanism + risk reversal makes the After possible.
+• Direct-response close.
 
-    'simon-sinek': `
-You are writing in SIMON SINEK's style. Key characteristics:
-• Start with WHY - purpose before product
-• Golden Circle - Why → How → What
-• Belief-driven copy
-• Emotional connection first
+Structure:
+BEFORE: ${RYAN_DEISS_BAB.structure.before}
+AFTER:  ${RYAN_DEISS_BAB.structure.after}
+BRIDGE: ${RYAN_DEISS_BAB.structure.bridge}
 
-LockSafe's Golden Circle:
-WHY: ${SIMON_SINEK_FRAMEWORKS.goldenCircle.locksafe.why}
-HOW: ${SIMON_SINEK_FRAMEWORKS.goldenCircle.locksafe.how}
-WHAT: ${SIMON_SINEK_FRAMEWORKS.goldenCircle.locksafe.what}
+LockSafe BAB example:
+Before: "${RYAN_DEISS_BAB.locksafeExample.before}"
+After:  "${RYAN_DEISS_BAB.locksafeExample.after}"
+Bridge: "${RYAN_DEISS_BAB.locksafeExample.bridge}"
 
-Belief statements:
-${SIMON_SINEK_FRAMEWORKS.beliefCopy.map(b => `"${b.belief}" → "${b.proof}"`).join('\n')}
+Risk-reversal lines for the Bridge:
+${RYAN_DEISS_BAB.riskReversal.map(r => `• ${r}`).join('\n')}
 
-Generate 3 variations in Simon Sinek's style for LockSafe UK.`,
+Generate 3 variations in Ryan Deiss's BAB style for LockSafe UK.`,
+
+    'ryan-deiss-pas': `
+You are writing in RYAN DEISS's PAS + Customer Value Journey style. Key characteristics:
+• PROBLEM — name the pain in the prospect's own words.
+• AGITATE — the consequence is real (no receipt, no recourse, cash-only).
+• SOLVE — LockSafe mechanism + low-friction CTA.
+• Calibrate to the awareness stage.
+
+Customer Value Journey awareness stages:
+${RYAN_DEISS_PAS.awarenessStages.map(s => `• ${s.stage.toUpperCase()} — ${s.description} → ${s.adAngle}`).join('\n')}
+
+PAS templates:
+${RYAN_DEISS_PAS.pasTemplates.map(t => `"${t.formula}"`).join('\n')}
+
+Direct-response close lines:
+${RYAN_DEISS_PAS.drCloseLines.map(c => `"${c}"`).join('\n')}
+
+Generate 3 variations in Ryan Deiss's PAS-CVJ style for LockSafe UK.`,
+
+    // Legacy aliases (kept for type completeness; resolution above redirects them).
+    'justin-welsh': '',
+    'russell-brunson': '',
+    'nicholas-cole': '',
+    'simon-sinek': '',
   };
 
-  const systemPrompt = `${frameworkPrompts[framework]}
+  const promptBody = frameworkPrompts[resolved] || frameworkPrompts['neil-patel-data-driven'];
+
+  const systemPrompt = `${promptBody}
 
 LOCKSAFE UK CONTEXT:
 ${businessContext}
 
-Generate compelling ad copy that converts.`;
+Generate compelling direct-response ad copy that converts.`;
 
-  const userPrompt = `Create 3 ${framework.replace('-', ' ').toUpperCase()} style ad variations.
+  const userPrompt = `Create 3 ${resolved.replace(/-/g, ' ').toUpperCase()} style ad variations.
 
 GOAL: ${request.goal.toUpperCase()}
 ${request.targetAudience ? `TARGET AUDIENCE: ${request.targetAudience}` : ''}
 
 Return JSON with "variations" array. Each has: primaryText, headline, description, callToAction, emotionalAngle, framework, hookType, reasoning.
+
+The "framework" field MUST be exactly "Neil Patel" or "Ryan Deiss".
 
 Return ONLY valid JSON.`;
 
@@ -473,9 +531,9 @@ export async function generatePowerHeadlines(params: {
   }
 
   // Generate additional headlines with AI
-  const systemPrompt = `You are a headline expert combining techniques from Justin Welsh, Russell Brunson, Nicholas Cole, and Simon Sinek.
+  const systemPrompt = `You are a headline expert combining direct-response techniques from Neil Patel (data-driven hooks, search-intent matching) and Ryan Deiss (Before/After/Bridge, PAS + Customer Value Journey).
 
-For LockSafe UK - UK's first anti-fraud locksmith platform.
+For LockSafe UK — the UK's documented locksmith hire platform.
 
 Existing power headlines for ${params.angle}:
 ${preBuiltHeadlines.join('\n')}
@@ -510,49 +568,57 @@ export async function suggestAudiences(params: {
   location: string;
   currentAudiences?: string[];
   budget?: number;
+  service?: string;
+  serviceName?: string;
+  tone?: string;
+  additionalContext?: string;
 }): Promise<AudienceSuggestion[]> {
   const businessContext = getBusinessSummary();
   const audienceContext = getAudienceContext();
 
-  const systemPrompt = `You are a Facebook Ads targeting expert specializing in local services and emergency services.
+  const systemPrompt = `You are a direct-response Facebook Ads targeting expert applying the audience-research playbooks of Neil Patel and Ryan Deiss to LockSafe UK.
 
-IMPORTANT: You are creating audiences for LockSafe UK specifically. Here is the business context:
-
+BUSINESS CONTEXT:
 ${businessContext}
 
 EXISTING TARGET AUDIENCES WE'VE IDENTIFIED:
 ${audienceContext}
 
-NICHOLAS COLE's CATEGORY POSITIONING:
-${NICHOLAS_COLE_FRAMEWORKS.categoryDesign.positioningStatement}
+PRINCIPLES TO APPLY:
+• Ryan Deiss — Customer Value Journey: every audience must be tagged to ONE awareness stage (unaware, problem-aware, solution-aware, product-aware, most-aware). Most paid social wins are problem-aware or solution-aware.
+• Ryan Deiss — Before / After / Bridge: audiences are picked based on the BEFORE state we can disrupt (locked out and being overcharged; landlord fearing tenant lockout liability; new-mover replacing locks).
+• Neil Patel — Search-intent / data-driven: anchor each audience to behaviours and interests that map to a real Google query or in-market signal (not vague psychographics).
+• Anti-fraud category positioning is the wedge — favour audiences who feel exposed to scam risk.
 
-Your suggestions should:
-- Be specific and actionable (real Facebook interests and behaviors)
-- Match the goal (emergency lockouts need different targeting than security upgrades)
-- Consider the dual-audience nature (customers AND locksmiths use this platform)
-- Leverage pain points specific to locksmith services (fear of scams, need for speed, etc.)
-- Align with our anti-fraud category positioning`;
+OUTPUT QUALITY BAR:
+• Real Facebook interests / behaviours (not invented).
+• Tight age bands tied to the persona (don't sprawl 18-65).
+• Suggested daily budget calibrated to estimatedReach (narrow ~£15-25, moderate ~£25-40, broad ~£40-60).
+• Each audience must be DISTINCT — no overlap with the others returned.`;
 
   const userPrompt = `Suggest 3 Facebook ad audiences for LockSafe UK.
 
 GOAL: ${params.goal.toUpperCase()}
 LOCATION: ${params.location}
+${params.serviceName || params.service ? `FOCUS SERVICE: ${params.serviceName || params.service}` : ''}
+${params.tone ? `BRAND TONE: ${params.tone}` : ''}
 ${params.currentAudiences?.length ? `CURRENT AUDIENCES (don't repeat): ${params.currentAudiences.join(', ')}` : ''}
 ${params.budget ? `TOTAL BUDGET: £${params.budget}/day` : ''}
+${params.additionalContext ? `ADDITIONAL CONTEXT: ${params.additionalContext}` : ''}
 
-For LockSafe UK, consider these audience types:
-1. Emergency seekers (locked out NOW, high urgency)
-2. Scam-aware customers (been burned before, want protection)
-3. Proactive security upgraders (homeowners, landlords, new movers)
+For LockSafe UK, return THREE distinct audiences spanning at least two awareness stages from the Customer Value Journey. Typical strong segments:
+1. Emergency seekers (problem-aware → most-aware: locked out NOW, high urgency)
+2. Scam-aware customers (solution-aware: been burned before, want protection)
+3. Proactive security upgraders (problem-aware: homeowners, landlords, new movers)
 
-Return a JSON object with an "audiences" array. Each audience should have:
-- name: Short name for the audience
-- description: Why this audience would convert for LockSafe UK specifically
+Return a JSON object with an "audiences" array. Each audience MUST have:
+- name: Short, distinctive persona name
+- description: Why this audience converts for LockSafe UK specifically (1-2 sentences)
 - demographics: { ageMin, ageMax, genders: ["male", "female", or "all"] }
-- interests: Array of Facebook interest names (be specific)
-- behaviors: Array of Facebook behaviors
+- interests: Array of 3-6 specific Facebook interest names
+- behaviors: Array of Facebook behaviors (e.g. "Recently moved", "Small business owners")
 - estimatedReach: "narrow", "moderate", or "broad"
-- reasoning: Why this audience is good for LockSafe UK and this goal
+- reasoning: Awareness-stage label + the BAB "Before" pain we can disrupt for them
 - suggestedBudget: { daily: number, currency: "GBP" }
 
 Return ONLY valid JSON.`;
@@ -629,11 +695,11 @@ Industry benchmarks for local services/emergency services:
 - CTR dropping 20%+ week-over-week indicates fatigue
 
 COPYWRITING OPTIMIZATION:
-When suggesting copy improvements, reference these expert frameworks:
-- Justin Welsh: Pattern interrupts, one-liners
-- Russell Brunson: Hook-Story-Offer structure
-- Nicholas Cole: Specificity, category positioning
-- Simon Sinek: Start with Why`;
+When suggesting copy improvements, reference these direct-response frameworks:
+- Neil Patel — Data-Driven Hook (specific stat → curiosity → benefit)
+- Neil Patel — Search-Intent Promise (mirror searcher question → deliver answer)
+- Ryan Deiss  — Before / After / Bridge (pain → relief → product as bridge)
+- Ryan Deiss  — PAS + Customer Value Journey (problem → agitate → solve, awareness-stage aware)`;
 
   const userPrompt = `Analyze this Facebook ad campaign performance for LockSafe UK:
 
@@ -718,7 +784,7 @@ Return a JSON object with a "suggestions" array. Each suggestion should have:
 - implementation: Optional object with specific values to use
 
 For copy suggestions, include:
-- Which expert framework to use (Justin Welsh, Russell Brunson, Nicholas Cole, Simon Sinek)
+- Which framework to use (Neil Patel — data-driven, Neil Patel — search-intent, Ryan Deiss — BAB, Ryan Deiss — PAS)
 - Specific hook type to try
 - Example copy if helpful
 
@@ -776,11 +842,9 @@ COMMON OBJECTIONS & RESPONSES:
 ${objectionHandlers}
 
 COPYWRITING EXPERTISE:
-You have mastered techniques from:
-- JUSTIN WELSH: Pattern interrupts, one-liners, scroll-stopping hooks
-- RUSSELL BRUNSON: Hook-Story-Offer, Epiphany Bridge, urgency triggers
-- NICHOLAS COLE: Category Design, specificity, "Why Now" positioning
-- SIMON SINEK: Start with Why, Golden Circle, purpose-driven messaging
+You have mastered direct-response techniques from:
+- NEIL PATEL: Data-driven hooks (specific stat → curiosity → benefit), search-intent matching
+- RYAN DEISS: Before / After / Bridge, PAS + Customer Value Journey, conversion math
 
 You help with:
 - Analyzing ad performance and explaining results
@@ -870,11 +934,11 @@ ${params.whatWorked ? `WHAT WORKED: ${params.whatWorked}` : ''}
 ${params.whatDidntWork ? `WHAT DIDN'T WORK: ${params.whatDidntWork}` : ''}
 ${params.preferredFramework ? `PREFERRED FRAMEWORK: ${params.preferredFramework}` : ''}
 
-Generate 4 refreshed variations, each using a DIFFERENT expert framework:
-1. Justin Welsh style (pattern interrupt, one-liner)
-2. Russell Brunson style (hook-story-offer)
-3. Nicholas Cole style (category, specificity)
-4. Simon Sinek style (why-led, belief-driven)
+Generate 4 refreshed variations, each using a DIFFERENT direct-response framework:
+1. Neil Patel — Data-Driven Hook (specific stat, curiosity loop, mechanism close)
+2. Neil Patel — Search-Intent Promise (mirror the searcher's question, deliver the answer)
+3. Ryan Deiss  — Before / After / Bridge (vivid pain, vivid relief, LockSafe as bridge)
+4. Ryan Deiss  — PAS + Customer Value Journey (problem, agitate, solve — awareness-stage aware)
 
 Return JSON with a "variations" array, each with:
 - primaryText
@@ -1024,3 +1088,129 @@ export async function generateHeadlines(params: {
   const parsed = JSON.parse(content);
   return parsed.headlines || [];
 }
+
+// ===================
+// SERVICE-AWARE DR CREATIVES (catalog-bound)
+// ===================
+//
+// Used by the CMO acquisition engine. For a given catalog slug, produces
+// exactly N variants — one per Angle — validated against Meta limits +
+// LockSafe brand voice. Each variant is structured (framework + angle +
+// hookScore) so creative rotation can pick the strongest.
+
+import {
+  buildSystemPrompt as buildDRSystemPrompt,
+  buildUserPrompt as buildDRUserPrompt,
+  validateVariant,
+  getServiceForCopy,
+  DEFAULT_ANGLES,
+  type AdVariant,
+  type Angle,
+} from "./dr-copywriting";
+
+export interface ServiceCreativeRequest {
+  slug: string;
+  angles?: Angle[];
+  city?: string;
+}
+
+export interface ServiceCreativeResult {
+  slug: string;
+  variants: AdVariant[];
+  rejected: Array<{ angle: Angle; errors: string[] }>;
+  tokensUsed: number;
+}
+
+export async function generateServiceAdCreatives(
+  req: ServiceCreativeRequest,
+): Promise<ServiceCreativeResult> {
+  const service = getServiceForCopy(req.slug);
+  if (!service) throw new Error(`Unknown service slug: ${req.slug}`);
+
+  const angles = req.angles && req.angles.length ? req.angles : DEFAULT_ANGLES;
+
+  const systemPrompt = buildDRSystemPrompt();
+  const userPrompt = buildDRUserPrompt({ service, angles, city: req.city });
+
+  const callModel = async () =>
+    openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.8,
+      max_tokens: 1800,
+      response_format: { type: "json_object" },
+    });
+
+  // Try once; on schema/validation fail, retry once asking the model to fix.
+  const raw = await callModel();
+  let tokensUsed = raw.usage?.total_tokens ?? 0;
+  let parsed = parseVariantsPayload(raw.choices[0].message.content);
+
+  let { variants, rejected } = applyValidation(parsed, angles);
+
+  if (rejected.length) {
+    // One retry with explicit error feedback.
+    const retry = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+        {
+          role: "user",
+          content: [
+            "Your previous response failed validation. Issues per variant:",
+            ...rejected.map(
+              (r) => `- angle=${r.angle}: ${r.errors.slice(0, 4).join("; ")}`,
+            ),
+            "Return the SAME JSON shape with corrected variants. Tighten character counts. Drop any banned phrases.",
+          ].join("\n"),
+        },
+      ],
+      temperature: 0.6,
+      max_tokens: 1800,
+      response_format: { type: "json_object" },
+    });
+    tokensUsed += retry.usage?.total_tokens ?? 0;
+    parsed = parseVariantsPayload(retry.choices[0].message.content);
+    const second = applyValidation(parsed, angles);
+    variants = second.variants;
+    rejected = second.rejected;
+  }
+
+  return { slug: req.slug, variants, rejected, tokensUsed };
+}
+
+function parseVariantsPayload(content: string | null | undefined): unknown[] {
+  if (!content) return [];
+  try {
+    const obj = JSON.parse(content);
+    const arr = Array.isArray(obj) ? obj : obj.variants;
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
+function applyValidation(
+  rawVariants: unknown[],
+  angles: Angle[],
+): { variants: AdVariant[]; rejected: Array<{ angle: Angle; errors: string[] }> } {
+  const variants: AdVariant[] = [];
+  const rejected: Array<{ angle: Angle; errors: string[] }> = [];
+
+  for (let i = 0; i < angles.length; i++) {
+    const expected = angles[i];
+    const candidate = rawVariants[i];
+    const result = validateVariant(candidate, expected);
+    if (result.ok && result.cleaned) {
+      variants.push(result.cleaned);
+    } else {
+      rejected.push({ angle: expected, errors: result.errors });
+    }
+  }
+  return { variants, rejected };
+}
+

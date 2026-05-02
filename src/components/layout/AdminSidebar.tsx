@@ -22,6 +22,8 @@ import {
   Mail,
   Bot,
   Phone,
+  Rocket,
+  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -49,6 +51,9 @@ const navItems = [
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/admin/attribution", label: "Attribution & ROAS", icon: TrendingUp },
   { href: "/admin/ads", label: "AI Ad Manager", icon: Sparkles },
+  { href: "/admin/ads/launch", label: "Launch Engine", icon: Rocket },
+  { href: "/admin/agents/approvals", label: "Approvals", icon: ShieldCheck },
+  { href: "/admin/marketing/meta-catalog", label: "Meta Catalog", icon: Megaphone },
   { href: "/admin/organic", label: "Organic Posts", icon: Share2 },
   { href: "/admin/emails", label: "Email Campaigns", icon: Mail },
   { href: "/admin/marketing", label: "Marketing", icon: Megaphone },

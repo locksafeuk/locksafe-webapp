@@ -197,35 +197,38 @@ export function useMetaPixel() {
     });
   };
 
-  const trackAddToCart = (quoteValue: number, jobId: string) => {
+  const trackAddToCart = (quoteValue: number, jobId: string, contentId?: string) => {
     return trackStandard("AddToCart", {
       value: quoteValue,
       currency: "GBP",
-      content_ids: [jobId],
+      content_ids: contentId ? [contentId] : [jobId],
       content_type: "product",
       content_name: "Locksmith Quote",
+      job_id: jobId,
     });
   };
 
-  const trackInitiateCheckout = (assessmentFee: number, jobId: string) => {
+  const trackInitiateCheckout = (assessmentFee: number, jobId: string, contentId?: string) => {
     return trackStandard("InitiateCheckout", {
       value: assessmentFee,
       currency: "GBP",
-      content_ids: [jobId],
+      content_ids: contentId ? [contentId] : [jobId],
       content_type: "product",
       content_name: "Assessment Fee",
       num_items: 1,
+      job_id: jobId,
     });
   };
 
-  const trackPurchase = (value: number, jobId: string, jobNumber?: string) => {
+  const trackPurchase = (value: number, jobId: string, jobNumber?: string, contentId?: string) => {
     return trackStandard("Purchase", {
       value,
       currency: "GBP",
-      content_ids: [jobId],
+      content_ids: contentId ? [contentId] : [jobId],
       content_type: "product",
       content_name: "Locksmith Service",
       order_id: jobNumber,
+      job_id: jobId,
     });
   };
 

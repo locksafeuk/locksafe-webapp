@@ -147,6 +147,27 @@ export default function AdsPage() {
   // Environment status
   const [envStatus, setEnvStatus] = useState<EnvStatus | null>(null);
 
+  // Per-campaign activation state ("Activate in Meta" button)
+  const [activatingId, setActivatingId] = useState<string | null>(null);
+
+  const activateCampaign = async (id: string) => {
+    setActivatingId(id);
+    try {
+      const res = await fetch(`/api/admin/ads/${id}/activate`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        alert(data?.error || "Failed to activate campaign in Meta");
+        return;
+      }
+      await fetchCampaigns();
+    } catch (err) {
+      console.error("Failed to activate campaign:", err);
+      alert(err instanceof Error ? err.message : "Failed to activate campaign");
+    } finally {
+      setActivatingId(null);
+    }
+  };
+
   useEffect(() => {
     fetchCampaigns();
     fetchSyncStatus();
@@ -927,12 +948,32 @@ export default function AdsPage() {
                     {/* Actions */}
                     <div className="flex gap-2">
                       <button
+                        onClick={() => {
+                          if (campaign.status === "PAUSED" && campaign.metaCampaignId) {
+                            activateCampaign(campaign.id);
+                          }
+                        }}
+                        disabled={
+                          activatingId === campaign.id ||
+                          campaign.status !== "PAUSED" ||
+                          !campaign.metaCampaignId
+                        }
                         className={`p-2 rounded-lg transition-colors ${
                           campaign.status === "ACTIVE"
                             ? "bg-yellow-100 text-yellow-700 hover:bg-yellow-200"
                             : "bg-green-100 text-green-700 hover:bg-green-200"
+                        } ${activatingId === campaign.id ? "opacity-60" : ""} ${
+                          campaign.status !== "PAUSED" || !campaign.metaCampaignId
+                            ? "cursor-not-allowed"
+                            : ""
                         }`}
-                        title={campaign.status === "ACTIVE" ? "Pause" : "Activate"}
+                        title={
+                          campaign.status === "ACTIVE"
+                            ? "Pause"
+                            : campaign.metaCampaignId
+                              ? "Activate in Meta"
+                              : "Publish to Meta first"
+                        }
                       >
                         {campaign.status === "ACTIVE" ? (
                           <Pause className="h-4 w-4" />
