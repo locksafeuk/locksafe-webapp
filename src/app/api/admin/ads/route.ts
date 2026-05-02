@@ -13,6 +13,7 @@ import { verifyToken } from '@/lib/auth';
 import { createMetaClient, OBJECTIVE_MAP, OPTIMIZATION_GOALS, PIXEL_EVENT_MAP } from '@/lib/meta-marketing';
 import { generateAdCopy, suggestAudiences } from '@/lib/openai-ads';
 import { generateAdTrackingUrl } from '@/lib/pixel-events';
+import { getServiceBySlug } from '@/lib/services-catalog';
 
 // Verify admin session
 async function verifyAdmin() {
@@ -325,14 +326,36 @@ export async function POST(request: NextRequest) {
       baseVariations[i % baseVariations.length],
     );
 
-    // Build the image pool the same way (cycle when shorter than numAdSets so
-    // every ad set gets *some* image even if the admin only uploaded one).
-    const imagePool: string[] = (() => {
+    // Build the image pool. Priority:
+    //   1. imageUrls[] from the wizard (admin-uploaded sets)
+    //   2. single imageUrl
+    //   3. ServiceCatalogItem.imageUrl override for the selected service slug
+    //      (admin-managed in /admin/meta-catalog — these are the same images
+    //      Meta sees in the catalog feed)
+    //   4. service.image_link (auto OG)
+    // This guarantees the ad image matches the catalog image when the admin
+    // uploaded one, instead of always falling back to the OG card.
+    const imagePool: string[] = await (async () => {
       const fromList = Array.isArray(imageUrls)
         ? (imageUrls as unknown[]).filter((x): x is string => typeof x === 'string' && x.trim() !== '')
         : [];
       if (fromList.length > 0) return fromList;
       if (typeof imageUrl === 'string' && imageUrl.trim() !== '') return [imageUrl];
+
+      const slug = catalogServiceSlug || serviceSlug || service;
+      if (typeof slug === 'string' && slug.length > 0) {
+        try {
+          const override = await prisma.serviceCatalogItem.findUnique({
+            where: { slug },
+            select: { imageUrl: true },
+          });
+          if (override?.imageUrl) return [override.imageUrl];
+        } catch (err) {
+          console.warn('[ads] failed to load catalog image override:', err);
+        }
+        const entry = getServiceBySlug(slug);
+        if (entry?.image_link) return [entry.image_link];
+      }
       return [];
     })();
     const imageForAdSet = (i: number): string | null =>

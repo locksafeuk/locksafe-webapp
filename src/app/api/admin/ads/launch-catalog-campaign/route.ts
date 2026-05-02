@@ -158,6 +158,19 @@ export async function POST(request: NextRequest) {
       .map((s) => getServiceBySlug(s)?.title ?? s)
       .join(" / ")} – ${new Date().toISOString().slice(0, 10)}`;
 
+    // Pre-load admin-overridden catalog images so each creative's `imageUrl`
+    // matches the actual image Meta serves from the catalog feed (instead of
+    // the auto-generated OG card).
+    const catalogOverrides = await prisma.serviceCatalogItem.findMany({
+      where: { slug: { in: slugs } },
+      select: { slug: true, imageUrl: true },
+    });
+    const overrideImageBySlug = new Map<string, string>(
+      catalogOverrides
+        .filter((r): r is { slug: string; imageUrl: string } => Boolean(r.imageUrl))
+        .map((r) => [r.slug, r.imageUrl]),
+    );
+
     const startDate = new Date();
     const endDate = new Date(startDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
 
@@ -230,11 +243,11 @@ export async function POST(request: NextRequest) {
               headline: variant.headline,
               description: variant.description,
               callToAction: variant.cta,
-              // Use the service-catalog image as a fallback so the local UI
-              // shows a thumbnail; at publish time we route catalog adsets
-              // through DPA which renders product images directly from the
-              // Meta catalog and ignores this field.
-              imageUrl: service.image_link,
+              // Use the admin-managed catalog image override when set
+              // (same image Meta serves from the catalog feed); fall back to
+              // the auto OG image. At publish time, catalog adsets route
+              // through DPA which ignores this field anyway.
+              imageUrl: overrideImageBySlug.get(slug) || service.image_link,
               destinationUrl: `${process.env.NEXT_PUBLIC_SITE_URL || "https://locksafe.uk"}/services/${slug}`,
               aiGenerated: true,
               emotionalAngle: variant.angle,

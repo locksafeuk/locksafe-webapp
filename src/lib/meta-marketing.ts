@@ -132,14 +132,19 @@ export const OPTIMIZATION_GOALS = {
   APP_INSTALLS: 'APP_INSTALLS',
 } as const;
 
-// Pixel event mapping based on objective
+// Pixel event mapping based on objective.
+// NOTE: these are Meta `custom_event_type` enum values (UPPERCASE,
+// underscored — e.g. LEAD, PURCHASE, COMPLETE_REGISTRATION). They are NOT
+// the camel-cased Pixel `event_name` strings (`Lead`, `Purchase`).
+// Sending the wrong casing causes (#100) promoted_object[custom_event_type]
+// must be one of...
 export const PIXEL_EVENT_MAP = {
-  LEADS: 'Lead',
-  SALES: 'Purchase',
-  TRAFFIC: 'PageView',
-  AWARENESS: 'PageView',
-  ENGAGEMENT: 'ViewContent',
-  APP_INSTALLS: 'PageView',
+  LEADS: 'LEAD',
+  SALES: 'PURCHASE',
+  TRAFFIC: 'CONTENT_VIEW',
+  AWARENESS: 'CONTENT_VIEW',
+  ENGAGEMENT: 'CONTENT_VIEW',
+  APP_INSTALLS: 'CONTENT_VIEW',
 } as const;
 
 // Call to action types
@@ -265,6 +270,107 @@ export class MetaMarketingClient {
     return data;
   }
 
+  /**
+   * Resolve an interest / behavior name (e.g. "Home Security") to a Meta
+   * targeting spec object `{ id, name }` via the Targeting Search API. Returns
+   * null when no exact-or-close match is found so the caller can drop it.
+   */
+  private async searchInterest(
+    name: string,
+    type: 'adinterest' | 'adTargetingCategory' = 'adinterest'
+  ): Promise<{ id: string; name: string } | null> {
+    try {
+      const result = await this.request<{ data: Array<{ id: string; name: string }> }>(
+        '/search',
+        'GET',
+        { type, q: name, limit: 1 }
+      );
+      const hit = result.data?.[0];
+      return hit ? { id: hit.id, name: hit.name } : null;
+    } catch (err) {
+      console.warn(`[Meta API] interest search failed for "${name}":`, err);
+      return null;
+    }
+  }
+
+  /**
+   * Normalize a targeting spec for the Marketing API:
+   *   • interests / behaviors must be `{ id, name }` — names alone or raw
+   *     strings cause `(#100) Missing required key "id"`.
+   *   • Names without `id` are resolved via Targeting Search; unresolved
+   *     terms are dropped (empty interests array is valid, an invalid one
+   *     fails the whole publish).
+   *   • Unknown fields (e.g. AI-generated `description`) are stripped — Meta
+   *     rejects the whole adset with subcode 1487079 if any non-spec field
+   *     is present.
+   */
+  private async sanitizeTargeting(targeting: MetaTargeting): Promise<MetaTargeting> {
+    // Only fields Meta accepts on a targeting spec. Anything else (e.g. an
+    // AI-generated `description` blurb) is silently dropped.
+    const ALLOWED_KEYS: ReadonlyArray<keyof MetaTargeting> = [
+      'geo_locations',
+      'age_min',
+      'age_max',
+      'genders',
+      'interests',
+      'behaviors',
+      'custom_audiences',
+      'excluded_custom_audiences',
+      'publisher_platforms',
+      'facebook_positions',
+      'instagram_positions',
+    ];
+    const cleaned: MetaTargeting = {};
+    for (const key of ALLOWED_KEYS) {
+      const value = (targeting as Record<string, unknown>)[key as string];
+      if (value !== undefined && value !== null) {
+        (cleaned as Record<string, unknown>)[key as string] = value;
+      }
+    }
+
+    const resolveList = async (
+      list: Array<{ id?: string; name?: string } | string> | undefined,
+      type: 'adinterest' | 'adTargetingCategory'
+    ): Promise<Array<{ id: string; name: string }> | undefined> => {
+      if (!list || list.length === 0) return undefined;
+      const out: Array<{ id: string; name: string }> = [];
+      for (const raw of list) {
+        const item = typeof raw === 'string' ? { name: raw } : raw;
+        if (item.id && item.name) {
+          out.push({ id: item.id, name: item.name });
+          continue;
+        }
+        if (item.name) {
+          const resolved = await this.searchInterest(item.name, type);
+          if (resolved) out.push(resolved);
+        }
+      }
+      return out.length > 0 ? out : undefined;
+    };
+
+    const interests = await resolveList(
+      cleaned.interests as unknown as Array<{ id?: string; name?: string } | string>,
+      'adinterest'
+    );
+    if (interests) {
+      cleaned.interests = interests;
+    } else {
+      delete cleaned.interests;
+    }
+
+    const behaviors = await resolveList(
+      cleaned.behaviors as unknown as Array<{ id?: string; name?: string } | string>,
+      'adTargetingCategory'
+    );
+    if (behaviors) {
+      cleaned.behaviors = behaviors;
+    } else {
+      delete cleaned.behaviors;
+    }
+
+    return cleaned;
+  }
+
   // ===================
   // ACCOUNT MANAGEMENT
   // ===================
@@ -316,9 +422,14 @@ export class MetaMarketingClient {
 
     if (params.dailyBudget) {
       body.daily_budget = Math.round(params.dailyBudget * 100); // Convert to cents
+      // CBO requires an explicit bid_strategy at the campaign level. Meta's
+      // implicit default can land on a strategy that demands bid_amount
+      // (subcode 1815857). Pin it to lowest-cost so no bid cap is needed.
+      body.bid_strategy = 'LOWEST_COST_WITHOUT_CAP';
     }
     if (params.lifetimeBudget) {
       body.lifetime_budget = Math.round(params.lifetimeBudget * 100);
+      body.bid_strategy = 'LOWEST_COST_WITHOUT_CAP';
     }
     if (params.startTime) {
       body.start_time = params.startTime.toISOString();
@@ -389,15 +500,29 @@ export class MetaMarketingClient {
     /** For retargeting catalog adsets: the pixel event to retarget on. */
     catalogRetargetEvent?: 'ViewContent' | 'AddToCart' | 'InitiateCheckout';
   }): Promise<{ id: string }> {
+    // Meta requires interests/behaviors to be objects with `id`. The AI
+    // generator stores names only ([{ name: "Home Security" }] or even raw
+    // strings), so we must resolve them via the Targeting Search API. Any
+    // term that can't be resolved is dropped silently — empty interests is
+    // valid, an unresolved name is a publish-killing (#100) error.
+    const sanitizedTargeting = await this.sanitizeTargeting(params.targeting);
+
     const body: Record<string, unknown> = {
       campaign_id: params.campaignId,
       name: params.name,
       status: params.status || 'PAUSED',
-      targeting: params.targeting,
+      targeting: sanitizedTargeting,
       optimization_goal: OPTIMIZATION_GOALS[params.objective],
       billing_event: 'IMPRESSIONS',
-      bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
     };
+    // bid_strategy belongs on the campaign when CBO is active. Setting it on
+    // the adset triggers Meta subcode 1815857 ("Bid amount required") even
+    // for LOWEST_COST_WITHOUT_CAP. Omit unless caller passed an explicit
+    // bidAmount (true bid cap).
+    if (params.bidAmount) {
+      body.bid_amount = Math.round(params.bidAmount * 100);
+      body.bid_strategy = 'LOWEST_COST_WITH_BID_CAP';
+    }
 
     // Add promoted object for conversion tracking
     if (params.productSetId) {
@@ -411,11 +536,21 @@ export class MetaMarketingClient {
           : {}),
         ...(this.pixelId ? { pixel_id: this.pixelId } : {}),
       };
-    } else if (params.objective === 'LEADS' || params.objective === 'SALES') {
-      body.promoted_object = {
-        pixel_id: this.pixelId,
-        custom_event_type: PIXEL_EVENT_MAP[params.objective],
-      };
+    } else if (params.objective === 'LEADS') {
+      // LEAD_GENERATION optimization (Facebook lead form) requires the
+      // promoting Page, NOT a pixel event. Sending custom_event_type here
+      // triggers (#100) Invalid parameter on the adset.
+      if (this.pageId) {
+        body.promoted_object = { page_id: this.pageId };
+      }
+    } else if (params.objective === 'SALES') {
+      // OFFSITE_CONVERSIONS optimization → pixel + uppercase event name.
+      if (this.pixelId) {
+        body.promoted_object = {
+          pixel_id: this.pixelId,
+          custom_event_type: PIXEL_EVENT_MAP[params.objective],
+        };
+      }
     }
 
     if (params.dailyBudget) {
@@ -460,7 +595,7 @@ export class MetaMarketingClient {
     if (params.name) body.name = params.name;
     if (params.status) body.status = params.status;
     if (params.dailyBudget) body.daily_budget = Math.round(params.dailyBudget * 100);
-    if (params.targeting) body.targeting = params.targeting;
+    if (params.targeting) body.targeting = await this.sanitizeTargeting(params.targeting);
 
     return this.request(`/${adSetId}`, 'POST', body);
   }
@@ -526,18 +661,19 @@ export class MetaMarketingClient {
       };
     }
 
-    // Add URL parameters for tracking
-    if (params.urlParameters) {
-      linkData.url_tags = params.urlParameters;
-    }
-
-    const body = {
+    const body: Record<string, unknown> = {
       name: params.name,
       object_story_spec: {
         page_id: params.pageId || this.pageId,
         link_data: linkData,
       },
     };
+
+    // url_tags is a top-level creative field, NOT inside link_data
+    // (Meta subcode 1443050).
+    if (params.urlParameters) {
+      body.url_tags = params.urlParameters;
+    }
 
     return this.request(`/${this.adAccountId}/adcreatives`, 'POST', body);
   }
@@ -597,8 +733,6 @@ export class MetaMarketingClient {
         value: { link },
       };
     }
-    if (params.urlParameters) linkData.url_tags = params.urlParameters;
-
     const body: Record<string, unknown> = {
       name: params.name,
       object_story_spec: {
@@ -607,6 +741,8 @@ export class MetaMarketingClient {
       },
       product_set_id: params.productSetId,
     };
+    // url_tags lives on the creative, not on template_data (subcode 1443050).
+    if (params.urlParameters) body.url_tags = params.urlParameters;
 
     return this.request(`/${this.adAccountId}/adcreatives`, 'POST', body);
   }
