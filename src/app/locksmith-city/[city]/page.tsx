@@ -268,7 +268,7 @@ export default async function CityPage({ params }: Props) {
                   </Button>
                 </Link>
                 <a href="tel:07818333989">
-                  <Button variant="outline" className="w-full sm:w-auto border-white/30 text-white hover:bg-white/10 px-8 py-6 text-lg rounded-full backdrop-blur-sm">
+                  <Button variant="outline" className="w-full sm:w-auto bg-transparent border-white/30 text-white hover:bg-white/10 hover:text-white px-8 py-6 text-lg rounded-full backdrop-blur-sm">
                     <Phone className="w-5 h-5 mr-2" />
                     07818 333 989
                   </Button>
@@ -584,7 +584,7 @@ export default async function CityPage({ params }: Props) {
                 </Button>
               </Link>
               <a href="tel:07818333989">
-                <Button variant="outline" className="border-white text-white hover:bg-white/10 px-10 py-6 text-lg rounded-full">
+                <Button variant="outline" className="bg-transparent border-2 border-white text-white hover:bg-white/10 hover:text-white px-10 py-6 text-lg rounded-full">
                   <Phone className="w-5 h-5 mr-2" />
                   Call Now
                 </Button>

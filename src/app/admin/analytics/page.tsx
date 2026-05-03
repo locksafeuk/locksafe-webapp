@@ -634,7 +634,8 @@ export default function AnalyticsDashboard() {
 
           {/* Chart */}
           <div className="p-6">
-            {filteredData.length === 0 || (filteredData.length === 1 && filteredData[0].revenue === 0) ? (
+            {filteredData.length === 0 ||
+            filteredData.every((m) => m.revenue === 0 && m.jobs === 0 && m.customers === 0) ? (
               <div className="h-80 flex items-center justify-center">
                 <div className="text-center">
                   <Briefcase className="w-12 h-12 text-slate-300 mx-auto mb-4" />

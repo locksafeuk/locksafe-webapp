@@ -13,10 +13,19 @@ async function verifyAdminAuth(request: NextRequest): Promise<boolean> {
 // GET - Fetch analytics data
 export async function GET(request: NextRequest) {
   try {
+    // Require admin authentication
+    const isAdmin = await verifyAdminAuth(request);
+    if (!isAdmin) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const timeRange = searchParams.get("timeRange") || "12m";
 
-    // Calculate date ranges
+    // Calculate date ranges (do NOT mutate `now` — Date setters mutate in place)
     const now = new Date();
     let startDate: Date;
 
@@ -28,14 +37,14 @@ export async function GET(request: NextRequest) {
         startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         break;
       case "3m":
-        startDate = new Date(now.setMonth(now.getMonth() - 3));
+        startDate = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
         break;
       case "6m":
-        startDate = new Date(now.setMonth(now.getMonth() - 6));
+        startDate = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
         break;
       case "12m":
       default:
-        startDate = new Date(now.setFullYear(now.getFullYear() - 1));
+        startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
         break;
     }
 
@@ -109,12 +118,26 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const monthlyRevenue = Object.entries(monthlyData).map(([month, data]) => ({
-      month,
-      revenue: Math.round(data.revenue),
-      jobs: data.jobs,
-      customers: data.customers.size,
-    }));
+    // Build a continuous timeline from startDate → now, filling months with no
+    // jobs as zeros so the chart always renders a coherent timeline instead of
+    // showing "No data available" when only some months have activity.
+    const monthlyRevenue: Array<{ month: string; revenue: number; jobs: number; customers: number }> = [];
+    const cursor = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+    const endCursor = new Date(now.getFullYear(), now.getMonth(), 1);
+    while (cursor <= endCursor) {
+      const monthKey = cursor.toLocaleDateString("en-GB", {
+        month: "short",
+        year: "numeric",
+      });
+      const data = monthlyData[monthKey];
+      monthlyRevenue.push({
+        month: monthKey,
+        revenue: data ? Math.round(data.revenue) : 0,
+        jobs: data ? data.jobs : 0,
+        customers: data ? data.customers.size : 0,
+      });
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
 
     // Fetch job types distribution
     const jobTypeStats = await prisma.job.groupBy({

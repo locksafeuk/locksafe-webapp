@@ -38,15 +38,17 @@ if (typeof globalThis !== "undefined") {
 }
 
 // ─── City slug routing ──────────────────────────────────────────────────────
-const validCities = [
-  'london', 'manchester', 'birmingham', 'leeds', 'glasgow', 'liverpool',
-  'bristol', 'edinburgh', 'sheffield', 'newcastle', 'nottingham', 'leicester',
-  'cardiff', 'belfast', 'brighton', 'oxford', 'cambridge', 'york', 'bath',
-  'exeter', 'plymouth', 'southampton', 'portsmouth', 'reading', 'milton-keynes',
-  'coventry', 'wolverhampton', 'bradford', 'hull', 'sunderland', 'middlesbrough',
-  'derby', 'norwich', 'peterborough', 'ipswich', 'bournemouth', 'swansea',
-  'newport', 'aberdeen', 'dundee'
-];
+// All valid city slugs are sourced from `src/lib/uk-cities-data.ts` at build
+// time via `generateStaticParams` on the dynamic `/locksmith-city/[city]`
+// route. Rather than duplicating that list here (which previously led to
+// 404s for newly-added cities such as Lancaster), the middleware rewrites
+// any `/locksmith-{slug}` URL optimistically to the dynamic route and lets
+// the page itself render the "City not found" fallback when the slug is
+// unknown. The carve-outs below protect literal app-router file routes.
+const LITERAL_LOCKSMITH_ROUTES = new Set([
+  '/locksmith-signup',
+  '/locksmith-rickmansworth',
+]);
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -84,14 +86,17 @@ export function middleware(request: NextRequest) {
 
   // ── City slug rewrites ────────────────────────────────────────────────────
   // Handle locksmith-[city] URLs → /locksmith-city/[city]
+  // Optimistic rewrite — matches every slug except literal file routes and
+  // the dynamic-route prefixes themselves. Unknown slugs are handled by the
+  // page's own "City not found" fallback.
   if (
     pathname.startsWith('/locksmith-') &&
     !pathname.startsWith('/locksmith-city') &&
     !pathname.startsWith('/locksmith-area') &&
-    !pathname.startsWith('/locksmith-signup')
+    !LITERAL_LOCKSMITH_ROUTES.has(pathname)
   ) {
     const citySlug = pathname.replace('/locksmith-', '');
-    if (validCities.includes(citySlug)) {
+    if (citySlug && !citySlug.includes('/')) {
       const url = request.nextUrl.clone();
       url.pathname = `/locksmith-city/${citySlug}`;
       return NextResponse.rewrite(url);
