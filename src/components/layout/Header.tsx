@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { RequestCTAButton } from "@/components/onboarding/RequestCTAButton";
 import { Sheet, SheetContent, SheetTitle, SheetDescription, SheetTrigger } from "@/components/ui/sheet";
 import { Menu, Phone, ArrowRight, LogIn, User, LogOut, ChevronDown, AlertCircle } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthContext";
@@ -193,26 +194,22 @@ export function Header() {
                 </>
               )}
 
-              <Link href="/request">
-                <Button className="btn-primary">
-                  Get Emergency Help
-                  <ArrowRight className="w-4 h-4" />
-                </Button>
-              </Link>
+              <RequestCTAButton className="btn-primary">
+                Get Emergency Help
+                <ArrowRight className="w-4 h-4" />
+              </RequestCTAButton>
             </div>
 
             {/* Mobile: Help Now Button + Menu */}
             <div className="flex lg:hidden items-center gap-2">
               {/* Persistent Help Now Button - Always visible on mobile */}
-              <Link href="/request">
-                <Button
-                  size="sm"
-                  className="bg-red-500 hover:bg-red-600 text-white font-semibold px-3 py-2 h-9 text-xs sm:text-sm animate-pulse-subtle"
-                >
-                  <AlertCircle className="w-4 h-4 mr-1" />
-                  Help Now
-                </Button>
-              </Link>
+              <RequestCTAButton
+                size="sm"
+                className="bg-red-500 hover:bg-red-600 text-white font-semibold px-3 py-2 h-9 text-xs sm:text-sm animate-pulse-subtle"
+              >
+                <AlertCircle className="w-4 h-4 mr-1" />
+                Help Now
+              </RequestCTAButton>
 
               {/* Mobile Menu */}
               <Sheet open={isOpen} onOpenChange={setIsOpen}>
@@ -316,12 +313,13 @@ export function Header() {
                         </>
                       )}
 
-                      <Link href="/request" onClick={() => setIsOpen(false)}>
-                        <Button className="w-full btn-primary justify-center">
-                          Get Emergency Help
-                          <ArrowRight className="w-4 h-4" />
-                        </Button>
-                      </Link>
+                      <RequestCTAButton
+                        className="w-full btn-primary justify-center"
+                        onNavigate={() => setIsOpen(false)}
+                      >
+                        Get Emergency Help
+                        <ArrowRight className="w-4 h-4" />
+                      </RequestCTAButton>
                     </div>
                   </div>
                 </SheetContent>

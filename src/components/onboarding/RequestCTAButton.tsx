@@ -11,6 +11,11 @@ import { FirstVisitWalkthrough } from "./FirstVisitWalkthrough";
 interface RequestCTAButtonProps extends Omit<ButtonProps, "onClick"> {
   children: ReactNode;
   href?: string;
+  /**
+   * Fired when the CTA is activated (either to open the walkthrough or to
+   * navigate). Useful for closing parent UI like a mobile menu sheet.
+   */
+  onNavigate?: () => void;
 }
 
 /**
@@ -25,6 +30,7 @@ export function RequestCTAButton({
   children,
   href = "/request",
   className,
+  onNavigate,
   ...buttonProps
 }: RequestCTAButtonProps) {
   const router = useRouter();
@@ -40,16 +46,26 @@ export function RequestCTAButton({
 
       // Auth still resolving — let the Link navigate; cookie check handles repeat
       // visitors so this is a safe fallback.
-      if (isLoading) return;
+      if (isLoading) {
+        onNavigate?.();
+        return;
+      }
 
-      if (isAuthenticated) return;
+      if (isAuthenticated) {
+        onNavigate?.();
+        return;
+      }
 
-      if (typeof window !== "undefined" && hasSeenWalkthrough()) return;
+      if (typeof window !== "undefined" && hasSeenWalkthrough()) {
+        onNavigate?.();
+        return;
+      }
 
       e.preventDefault();
+      onNavigate?.();
       setOpen(true);
     },
-    [isAuthenticated, isLoading],
+    [isAuthenticated, isLoading, onNavigate],
   );
 
   const handleContinue = useCallback(() => {
