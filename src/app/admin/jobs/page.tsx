@@ -1,33 +1,35 @@
 "use client";
-import { useState, useEffect, Suspense } from "react";
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import { NotifyNoLocksmithModal } from "@/components/admin/NotifyNoLocksmithModal";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
-import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/toaster";
+import { useToast } from "@/hooks/use-toast";
 import {
-  Search,
-  MapPin,
-  Clock,
-  Phone,
-  Eye,
-  RefreshCw,
-  CheckCircle2,
-  XCircle,
   AlertCircle,
-  Loader2,
-  PenTool,
+  CheckCircle2,
+  CheckSquare,
   ChevronLeft,
   ChevronRight,
-  CheckSquare,
+  Clock,
+  Edit,
+  Eye,
+  Loader2,
+  MapPin,
+  PenTool,
+  Phone,
+  RefreshCw,
+  Save,
+  Search,
+  Send,
   Square,
   Trash2,
   UserPlus,
-  Edit,
   X,
-  Save,
+  XCircle,
 } from "lucide-react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 
 interface Job {
   id: string;
@@ -49,6 +51,8 @@ interface Job {
   confirmationDeadline?: string | null;
   confirmationRemindersSent?: number;
   totalPaid?: number;
+  noLocksmithNotifiedAt?: string | null;
+  noLocksmithNotifiedChannels?: string[];
 }
 
 interface JobSummary {
@@ -63,16 +67,39 @@ interface Locksmith {
   companyName?: string;
 }
 
-const statusColors: Record<string, { bg: string; text: string; label: string }> = {
+const statusColors: Record<
+  string,
+  { bg: string; text: string; label: string }
+> = {
   PENDING: { bg: "bg-amber-100", text: "text-amber-700", label: "Pending" },
   ACCEPTED: { bg: "bg-blue-100", text: "text-blue-700", label: "Accepted" },
   ARRIVED: { bg: "bg-purple-100", text: "text-purple-700", label: "Arrived" },
-  DIAGNOSING: { bg: "bg-indigo-100", text: "text-indigo-700", label: "Diagnosing" },
+  DIAGNOSING: {
+    bg: "bg-indigo-100",
+    text: "text-indigo-700",
+    label: "Diagnosing",
+  },
   QUOTED: { bg: "bg-cyan-100", text: "text-cyan-700", label: "Quote Sent" },
-  QUOTE_ACCEPTED: { bg: "bg-emerald-100", text: "text-emerald-700", label: "Quote Accepted" },
-  QUOTE_DECLINED: { bg: "bg-red-100", text: "text-red-700", label: "Quote Declined" },
-  IN_PROGRESS: { bg: "bg-orange-100", text: "text-orange-700", label: "In Progress" },
-  PENDING_CUSTOMER_CONFIRMATION: { bg: "bg-yellow-100", text: "text-yellow-700", label: "Awaiting Signature" },
+  QUOTE_ACCEPTED: {
+    bg: "bg-emerald-100",
+    text: "text-emerald-700",
+    label: "Quote Accepted",
+  },
+  QUOTE_DECLINED: {
+    bg: "bg-red-100",
+    text: "text-red-700",
+    label: "Quote Declined",
+  },
+  IN_PROGRESS: {
+    bg: "bg-orange-100",
+    text: "text-orange-700",
+    label: "In Progress",
+  },
+  PENDING_CUSTOMER_CONFIRMATION: {
+    bg: "bg-yellow-100",
+    text: "text-yellow-700",
+    label: "Awaiting Signature",
+  },
   COMPLETED: { bg: "bg-green-100", text: "text-green-700", label: "Completed" },
   SIGNED: { bg: "bg-green-200", text: "text-green-800", label: "Signed" },
   CANCELLED: { bg: "bg-slate-100", text: "text-slate-700", label: "Cancelled" },
@@ -141,7 +168,9 @@ function AdminJobsContent() {
   // Edit modal state
   const [editingJob, setEditingJob] = useState<Job | null>(null);
   const [assignModalJob, setAssignModalJob] = useState<Job | null>(null);
-  const [availableLocksmiths, setAvailableLocksmiths] = useState<Locksmith[]>([]);
+  const [availableLocksmiths, setAvailableLocksmiths] = useState<Locksmith[]>(
+    [],
+  );
   const [selectedLocksmithId, setSelectedLocksmithId] = useState<string>("");
   const [isAssigning, setIsAssigning] = useState(false);
   const [editFormData, setEditFormData] = useState({
@@ -155,6 +184,9 @@ function AdminJobsContent() {
   // Delete modal state
   const [deleteJobId, setDeleteJobId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Notify-no-locksmith modal state
+  const [notifyJob, setNotifyJob] = useState<Job | null>(null);
 
   const fetchJobs = async () => {
     try {
@@ -247,11 +279,20 @@ function AdminJobsContent() {
     if (!deadline) return null;
     try {
       const remaining = new Date(deadline).getTime() - Date.now();
-      if (remaining < 0) return { text: "Overdue", color: "text-red-600 bg-red-50" };
+      if (remaining < 0)
+        return { text: "Overdue", color: "text-red-600 bg-red-50" };
       const hours = Math.floor(remaining / (1000 * 60 * 60));
-      if (hours < 2) return { text: `${Math.floor(remaining / 60000)}m`, color: "text-red-500 bg-red-50" };
-      if (hours < 24) return { text: `${hours}h`, color: "text-amber-500 bg-amber-50" };
-      return { text: `${Math.floor(hours / 24)}d`, color: "text-green-600 bg-green-50" };
+      if (hours < 2)
+        return {
+          text: `${Math.floor(remaining / 60000)}m`,
+          color: "text-red-500 bg-red-50",
+        };
+      if (hours < 24)
+        return { text: `${hours}h`, color: "text-amber-500 bg-amber-50" };
+      return {
+        text: `${Math.floor(hours / 24)}d`,
+        color: "text-green-600 bg-green-50",
+      };
     } catch {
       return null;
     }
@@ -262,7 +303,7 @@ function AdminJobsContent() {
     if (selectedJobs.size === jobs.length) {
       setSelectedJobs(new Set());
     } else {
-      setSelectedJobs(new Set(jobs.map(j => j.id)));
+      setSelectedJobs(new Set(jobs.map((j) => j.id)));
     }
   };
 
@@ -281,12 +322,12 @@ function AdminJobsContent() {
     if (!confirm(`Cancel ${selectedJobs.size} selected jobs?`)) return;
     setIsProcessingBulk(true);
     try {
-      const promises = Array.from(selectedJobs).map(jobId =>
+      const promises = Array.from(selectedJobs).map((jobId) =>
         fetch(`/api/jobs/${jobId}/status`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: "CANCELLED" }),
-        })
+        }),
       );
       await Promise.all(promises);
       setSelectedJobs(new Set());
@@ -342,13 +383,16 @@ function AdminJobsContent() {
     if (!assignModalJob || !selectedLocksmithId) return;
     setIsAssigning(true);
     try {
-      const response = await fetch(`/api/admin/jobs/${assignModalJob.id}/assign`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          locksmithId: selectedLocksmithId,
-        }),
-      });
+      const response = await fetch(
+        `/api/admin/jobs/${assignModalJob.id}/assign`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            locksmithId: selectedLocksmithId,
+          }),
+        },
+      );
 
       const data = await response.json();
 
@@ -356,7 +400,9 @@ function AdminJobsContent() {
         setAssignModalJob(null);
         setSelectedLocksmithId("");
         fetchJobs();
-        alert(`Locksmith has been notified and must accept or decline the assignment for job ${assignModalJob.jobNumber}`);
+        alert(
+          `Locksmith has been notified and must accept or decline the assignment for job ${assignModalJob.jobNumber}`,
+        );
       } else {
         alert(data.error || "Failed to assign locksmith");
       }
@@ -395,7 +441,9 @@ function AdminJobsContent() {
       {/* Page Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl lg:text-2xl font-bold text-slate-900">Job Management</h1>
+          <h1 className="text-xl lg:text-2xl font-bold text-slate-900">
+            Job Management
+          </h1>
           <p className="text-sm text-slate-500">{jobs.length} jobs</p>
         </div>
         <div className="flex items-center gap-2">
@@ -404,7 +452,10 @@ function AdminJobsContent() {
             <span className="hidden sm:inline">Refresh</span>
           </Button>
           <Link href="/admin/jobs/create">
-            <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-white">
+            <Button
+              size="sm"
+              className="bg-orange-500 hover:bg-orange-600 text-white"
+            >
               <UserPlus className="w-4 h-4 mr-2" />
               <span className="hidden sm:inline">Create Job</span>
               <span className="sm:hidden">New</span>
@@ -421,58 +472,76 @@ function AdminJobsContent() {
           <SummaryCardSkeleton />
           <SummaryCardSkeleton />
         </div>
-      ) : summary && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-4 lg:mb-6">
-          <button
-            type="button"
-            onClick={() => setStatusFilter("PENDING_CUSTOMER_CONFIRMATION")}
-            className={`bg-white rounded-xl p-3 lg:p-4 shadow-sm text-left hover:shadow-md transition-shadow ${statusFilter === "PENDING_CUSTOMER_CONFIRMATION" ? "ring-2 ring-orange-500" : ""}`}
-          >
-            <div className="flex items-center gap-2 mb-1">
-              <PenTool className="w-4 h-4 text-amber-500" />
-              <span className="text-xs lg:text-sm text-slate-500">Awaiting Signature</span>
-            </div>
-            <div className="text-xl lg:text-2xl font-bold text-slate-900">{summary.awaitingSignature}</div>
-            {summary.overdueSignature > 0 && (
-              <div className="text-xs text-red-600 mt-1">{summary.overdueSignature} overdue</div>
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilter("PENDING")}
-            className={`bg-white rounded-xl p-3 lg:p-4 shadow-sm text-left hover:shadow-md transition-shadow ${statusFilter === "PENDING" ? "ring-2 ring-orange-500" : ""}`}
-          >
-            <div className="flex items-center gap-2 mb-1">
-              <Clock className="w-4 h-4 text-amber-500" />
-              <span className="text-xs lg:text-sm text-slate-500">Pending</span>
-            </div>
-            <div className="text-xl lg:text-2xl font-bold text-slate-900">{summary.statusCounts.PENDING || 0}</div>
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilter("IN_PROGRESS")}
-            className={`bg-white rounded-xl p-3 lg:p-4 shadow-sm text-left hover:shadow-md transition-shadow ${statusFilter === "IN_PROGRESS" ? "ring-2 ring-orange-500" : ""}`}
-          >
-            <div className="flex items-center gap-2 mb-1">
-              <AlertCircle className="w-4 h-4 text-orange-500" />
-              <span className="text-xs lg:text-sm text-slate-500">In Progress</span>
-            </div>
-            <div className="text-xl lg:text-2xl font-bold text-slate-900">{summary.statusCounts.IN_PROGRESS || 0}</div>
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilter("all")}
-            className={`bg-white rounded-xl p-3 lg:p-4 shadow-sm text-left hover:shadow-md transition-shadow ${statusFilter === "all" ? "ring-2 ring-orange-500" : ""}`}
-          >
-            <div className="flex items-center gap-2 mb-1">
-              <CheckCircle2 className="w-4 h-4 text-green-500" />
-              <span className="text-xs lg:text-sm text-slate-500">All Jobs</span>
-            </div>
-            <div className="text-xl lg:text-2xl font-bold text-slate-900">
-              {Object.values(summary.statusCounts).reduce((a, b) => a + b, 0)}
-            </div>
-          </button>
-        </div>
+      ) : (
+        summary && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-4 lg:mb-6">
+            <button
+              type="button"
+              onClick={() => setStatusFilter("PENDING_CUSTOMER_CONFIRMATION")}
+              className={`bg-white rounded-xl p-3 lg:p-4 shadow-sm text-left hover:shadow-md transition-shadow ${statusFilter === "PENDING_CUSTOMER_CONFIRMATION" ? "ring-2 ring-orange-500" : ""}`}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <PenTool className="w-4 h-4 text-amber-500" />
+                <span className="text-xs lg:text-sm text-slate-500">
+                  Awaiting Signature
+                </span>
+              </div>
+              <div className="text-xl lg:text-2xl font-bold text-slate-900">
+                {summary.awaitingSignature}
+              </div>
+              {summary.overdueSignature > 0 && (
+                <div className="text-xs text-red-600 mt-1">
+                  {summary.overdueSignature} overdue
+                </div>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter("PENDING")}
+              className={`bg-white rounded-xl p-3 lg:p-4 shadow-sm text-left hover:shadow-md transition-shadow ${statusFilter === "PENDING" ? "ring-2 ring-orange-500" : ""}`}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <Clock className="w-4 h-4 text-amber-500" />
+                <span className="text-xs lg:text-sm text-slate-500">
+                  Pending
+                </span>
+              </div>
+              <div className="text-xl lg:text-2xl font-bold text-slate-900">
+                {summary.statusCounts.PENDING || 0}
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter("IN_PROGRESS")}
+              className={`bg-white rounded-xl p-3 lg:p-4 shadow-sm text-left hover:shadow-md transition-shadow ${statusFilter === "IN_PROGRESS" ? "ring-2 ring-orange-500" : ""}`}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <AlertCircle className="w-4 h-4 text-orange-500" />
+                <span className="text-xs lg:text-sm text-slate-500">
+                  In Progress
+                </span>
+              </div>
+              <div className="text-xl lg:text-2xl font-bold text-slate-900">
+                {summary.statusCounts.IN_PROGRESS || 0}
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter("all")}
+              className={`bg-white rounded-xl p-3 lg:p-4 shadow-sm text-left hover:shadow-md transition-shadow ${statusFilter === "all" ? "ring-2 ring-orange-500" : ""}`}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <CheckCircle2 className="w-4 h-4 text-green-500" />
+                <span className="text-xs lg:text-sm text-slate-500">
+                  All Jobs
+                </span>
+              </div>
+              <div className="text-xl lg:text-2xl font-bold text-slate-900">
+                {Object.values(summary.statusCounts).reduce((a, b) => a + b, 0)}
+              </div>
+            </button>
+          </div>
+        )
       )}
 
       {/* Filters */}
@@ -491,12 +560,17 @@ function AdminJobsContent() {
           <div className="flex gap-2">
             <select
               value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setCurrentPage(1);
+              }}
               className="flex-1 lg:flex-none px-3 lg:px-4 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none bg-white"
             >
               <option value="all">All Statuses</option>
               {Object.entries(statusColors).map(([status, { label }]) => (
-                <option key={status} value={status}>{label}</option>
+                <option key={status} value={status}>
+                  {label}
+                </option>
               ))}
             </select>
           </div>
@@ -555,7 +629,8 @@ function AdminJobsContent() {
           {/* Jobs List - Mobile Cards */}
           <div className="lg:hidden space-y-3">
             {jobs.map((job) => {
-              const statusConfig = statusColors[job.status] || statusColors.PENDING;
+              const statusConfig =
+                statusColors[job.status] || statusColors.PENDING;
               const deadline = getDeadlineStatus(job.confirmationDeadline);
 
               return (
@@ -574,15 +649,22 @@ function AdminJobsContent() {
                         )}
                       </button>
                       <div>
-                        <Link href={`/job/${job.id}/report`} className="font-mono text-sm font-semibold text-orange-600 hover:underline">
+                        <Link
+                          href={`/job/${job.id}/report`}
+                          className="font-mono text-sm font-semibold text-orange-600 hover:underline"
+                        >
                           {job.jobNumber}
                         </Link>
-                        <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-medium ${statusConfig.bg} ${statusConfig.text}`}>
+                        <span
+                          className={`ml-2 px-2 py-0.5 rounded-full text-xs font-medium ${statusConfig.bg} ${statusConfig.text}`}
+                        >
                           {statusConfig.label}
                         </span>
                       </div>
                     </div>
-                    <span className="text-xs text-slate-500">{getTimeAgo(job.createdAt)}</span>
+                    <span className="text-xs text-slate-500">
+                      {getTimeAgo(job.createdAt)}
+                    </span>
                   </div>
 
                   <div className="text-sm text-slate-600 mb-2">
@@ -591,22 +673,33 @@ function AdminJobsContent() {
 
                   <div className="flex items-center gap-1 text-xs text-slate-500 mb-3">
                     <MapPin className="w-3 h-3" />
-                    <span className="truncate">{job.address}, {job.postcode}</span>
+                    <span className="truncate">
+                      {job.address}, {job.postcode}
+                    </span>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
-                      <div className="text-xs text-slate-400 mb-0.5">Customer</div>
-                      <div className="font-medium text-slate-900 truncate">{job.customer?.name || "-"}</div>
+                      <div className="text-xs text-slate-400 mb-0.5">
+                        Customer
+                      </div>
+                      <div className="font-medium text-slate-900 truncate">
+                        {job.customer?.name || "-"}
+                      </div>
                       {job.customer?.phone && (
                         <div className="flex items-center gap-1 text-xs text-slate-500">
-                          <Phone className="w-3 h-3" />{job.customer.phone}
+                          <Phone className="w-3 h-3" />
+                          {job.customer.phone}
                         </div>
                       )}
                     </div>
                     <div>
-                      <div className="text-xs text-slate-400 mb-0.5">Locksmith</div>
-                      <div className="font-medium text-slate-900 truncate">{job.locksmith?.name || "Unassigned"}</div>
+                      <div className="text-xs text-slate-400 mb-0.5">
+                        Locksmith
+                      </div>
+                      <div className="font-medium text-slate-900 truncate">
+                        {job.locksmith?.name || "Unassigned"}
+                      </div>
                     </div>
                   </div>
 
@@ -614,12 +707,17 @@ function AdminJobsContent() {
                     <div className="text-sm">
                       <span className="text-slate-500">Total: </span>
                       <span className="font-bold text-slate-900">
-                        £{(job.quote?.total || job.assessmentFee || 0).toFixed(2)}
+                        £
+                        {(job.quote?.total || job.assessmentFee || 0).toFixed(
+                          2,
+                        )}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
                       {deadline && (
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${deadline.color}`}>
+                        <span
+                          className={`px-2 py-1 rounded text-xs font-medium ${deadline.color}`}
+                        >
                           {deadline.text}
                         </span>
                       )}
@@ -639,6 +737,23 @@ function AdminJobsContent() {
                       >
                         <UserPlus className="w-4 h-4" />
                       </button>
+                      {job.noLocksmithNotifiedAt ? (
+                        <span
+                          className="px-2 py-1 text-[10px] font-semibold rounded bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          title={`Notified ${getTimeAgo(job.noLocksmithNotifiedAt)} via ${(job.noLocksmithNotifiedChannels || []).join(" + ")}`}
+                        >
+                          ✉ Notified
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setNotifyJob(job)}
+                          className="p-1.5 text-slate-400 hover:text-orange-500 hover:bg-orange-50 rounded"
+                          title="Notify customer: no locksmith available"
+                        >
+                          <Send className="w-4 h-4" />
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={(e) => {
@@ -650,8 +765,12 @@ function AdminJobsContent() {
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
-                      <Link href={`/job/${job.id}/report`} className="text-orange-600 text-sm font-medium flex items-center gap-1">
-                        View<Eye className="w-4 h-4" />
+                      <Link
+                        href={`/job/${job.id}/report`}
+                        className="text-orange-600 text-sm font-medium flex items-center gap-1"
+                      >
+                        View
+                        <Eye className="w-4 h-4" />
                       </Link>
                     </div>
                   </div>
@@ -672,27 +791,47 @@ function AdminJobsContent() {
                         onClick={toggleSelectAll}
                         className="p-1 hover:bg-slate-200 rounded"
                       >
-                        {selectedJobs.size === jobs.length && jobs.length > 0 ? (
+                        {selectedJobs.size === jobs.length &&
+                        jobs.length > 0 ? (
                           <CheckSquare className="w-5 h-5 text-orange-500" />
                         ) : (
                           <Square className="w-5 h-5 text-slate-300" />
                         )}
                       </button>
                     </th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Job</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Customer</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Locksmith</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Location</th>
-                    <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Status</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Amount</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Created</th>
-                    <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Actions</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">
+                      Job
+                    </th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">
+                      Customer
+                    </th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">
+                      Locksmith
+                    </th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">
+                      Location
+                    </th>
+                    <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">
+                      Status
+                    </th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">
+                      Amount
+                    </th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase">
+                      Created
+                    </th>
+                    <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {jobs.map((job) => {
-                    const statusConfig = statusColors[job.status] || statusColors.PENDING;
-                    const deadline = getDeadlineStatus(job.confirmationDeadline);
+                    const statusConfig =
+                      statusColors[job.status] || statusColors.PENDING;
+                    const deadline = getDeadlineStatus(
+                      job.confirmationDeadline,
+                    );
 
                     return (
                       <tr key={job.id} className="hover:bg-slate-50">
@@ -710,48 +849,80 @@ function AdminJobsContent() {
                           </button>
                         </td>
                         <td className="px-4 py-3">
-                          <Link href={`/job/${job.id}/report`} className="font-mono text-sm font-semibold text-orange-600 hover:underline">
+                          <Link
+                            href={`/job/${job.id}/report`}
+                            className="font-mono text-sm font-semibold text-orange-600 hover:underline"
+                          >
                             {job.jobNumber}
                           </Link>
-                          <div className="text-xs text-slate-500">{problemLabels[job.problemType] || job.problemType}</div>
+                          <div className="text-xs text-slate-500">
+                            {problemLabels[job.problemType] || job.problemType}
+                          </div>
                         </td>
                         <td className="px-4 py-3">
-                          <div className="text-sm font-medium text-slate-900">{job.customer?.name || "-"}</div>
+                          <div className="text-sm font-medium text-slate-900">
+                            {job.customer?.name || "-"}
+                          </div>
                           {job.customer?.phone && (
-                            <div className="text-xs text-slate-500">{job.customer.phone}</div>
+                            <div className="text-xs text-slate-500">
+                              {job.customer.phone}
+                            </div>
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          <div className="text-sm text-slate-900">{job.locksmith?.name || "Unassigned"}</div>
+                          <div className="text-sm text-slate-900">
+                            {job.locksmith?.name || "Unassigned"}
+                          </div>
                           {job.locksmith?.companyName && (
-                            <div className="text-xs text-slate-500">{job.locksmith.companyName}</div>
+                            <div className="text-xs text-slate-500">
+                              {job.locksmith.companyName}
+                            </div>
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          <div className="text-sm text-slate-600 truncate max-w-[150px]">{job.address}</div>
-                          <div className="text-xs text-slate-500">{job.postcode}</div>
+                          <div className="text-sm text-slate-600 truncate max-w-[150px]">
+                            {job.address}
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            {job.postcode}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-center">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${statusConfig.bg} ${statusConfig.text}`}>
+                          <span
+                            className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${statusConfig.bg} ${statusConfig.text}`}
+                          >
                             {statusConfig.label}
                           </span>
                           {deadline && (
-                            <div className={`mt-1 text-xs font-medium ${deadline.color} px-2 py-0.5 rounded`}>
+                            <div
+                              className={`mt-1 text-xs font-medium ${deadline.color} px-2 py-0.5 rounded`}
+                            >
                               {deadline.text}
                             </div>
                           )}
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="text-sm font-semibold text-slate-900">
-                            £{(job.quote?.total || job.assessmentFee || 0).toFixed(2)}
+                            £
+                            {(
+                              job.quote?.total ||
+                              job.assessmentFee ||
+                              0
+                            ).toFixed(2)}
                           </div>
                           {job.totalPaid && job.totalPaid > 0 && (
-                            <div className="text-xs text-green-600">Paid: £{job.totalPaid.toFixed(2)}</div>
+                            <div className="text-xs text-green-600">
+                              Paid: £{job.totalPaid.toFixed(2)}
+                            </div>
                           )}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <div className="text-sm text-slate-600">{formatDate(job.createdAt)}</div>
-                          <div className="text-xs text-slate-400">{getTimeAgo(job.createdAt)}</div>
+                          <div className="text-sm text-slate-600">
+                            {formatDate(job.createdAt)}
+                          </div>
+                          <div className="text-xs text-slate-400">
+                            {getTimeAgo(job.createdAt)}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-center">
                           <div className="flex items-center justify-center gap-1">
@@ -771,6 +942,23 @@ function AdminJobsContent() {
                             >
                               <UserPlus className="w-4 h-4" />
                             </button>
+                            {job.noLocksmithNotifiedAt ? (
+                              <span
+                                className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                title={`Notified ${getTimeAgo(job.noLocksmithNotifiedAt)} via ${(job.noLocksmithNotifiedChannels || []).join(" + ")}`}
+                              >
+                                ✉
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setNotifyJob(job)}
+                                className="p-1.5 text-slate-400 hover:text-orange-500 hover:bg-orange-50 rounded"
+                                title="Notify customer: no locksmith available"
+                              >
+                                <Send className="w-4 h-4" />
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={(e) => {
@@ -782,7 +970,10 @@ function AdminJobsContent() {
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
-                            <Link href={`/job/${job.id}/report`} className="p-1.5 text-orange-600 hover:bg-orange-50 rounded">
+                            <Link
+                              href={`/job/${job.id}/report`}
+                              className="p-1.5 text-orange-600 hover:bg-orange-50 rounded"
+                            >
                               <Eye className="w-4 h-4" />
                             </Link>
                           </div>
@@ -804,7 +995,8 @@ function AdminJobsContent() {
                 onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                 disabled={currentPage === 1}
               >
-                <ChevronLeft className="w-4 h-4 mr-1" />Previous
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                Previous
               </Button>
               <span className="text-sm text-slate-600">
                 Page {currentPage} of {totalPages}
@@ -812,10 +1004,13 @@ function AdminJobsContent() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                onClick={() =>
+                  setCurrentPage(Math.min(totalPages, currentPage + 1))
+                }
                 disabled={currentPage === totalPages}
               >
-                Next<ChevronRight className="w-4 h-4 ml-1" />
+                Next
+                <ChevronRight className="w-4 h-4 ml-1" />
               </Button>
             </div>
           )}
@@ -824,63 +1019,111 @@ function AdminJobsContent() {
 
       {/* Edit Job Modal */}
       {editingJob && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setEditingJob(null)}>
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={() => setEditingJob(null)}
+        >
+          <div
+            className="bg-white rounded-2xl w-full max-w-md shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="p-4 border-b flex items-center justify-between">
-              <h3 className="font-bold text-slate-900">Edit Job {editingJob.jobNumber}</h3>
-              <button type="button" onClick={() => setEditingJob(null)} className="p-1 hover:bg-slate-100 rounded">
+              <h3 className="font-bold text-slate-900">
+                Edit Job {editingJob.jobNumber}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditingJob(null)}
+                className="p-1 hover:bg-slate-100 rounded"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-4 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Status
+                </label>
                 <select
                   value={editFormData.status}
-                  onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value })}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, status: e.target.value })
+                  }
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
                 >
                   {Object.entries(statusColors).map(([status, { label }]) => (
-                    <option key={status} value={status}>{label}</option>
+                    <option key={status} value={status}>
+                      {label}
+                    </option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Problem Type</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Problem Type
+                </label>
                 <select
                   value={editFormData.problemType}
-                  onChange={(e) => setEditFormData({ ...editFormData, problemType: e.target.value })}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      problemType: e.target.value,
+                    })
+                  }
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
                 >
                   {Object.entries(problemLabels).map(([key, label]) => (
-                    <option key={key} value={key}>{label}</option>
+                    <option key={key} value={key}>
+                      {label}
+                    </option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Postcode</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Postcode
+                </label>
                 <input
                   type="text"
                   value={editFormData.postcode}
-                  onChange={(e) => setEditFormData({ ...editFormData, postcode: e.target.value })}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      postcode: e.target.value,
+                    })
+                  }
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Address</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Address
+                </label>
                 <textarea
                   value={editFormData.address}
-                  onChange={(e) => setEditFormData({ ...editFormData, address: e.target.value })}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      address: e.target.value,
+                    })
+                  }
                   rows={2}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none resize-none"
                 />
               </div>
             </div>
             <div className="p-4 border-t flex gap-3">
-              <Button variant="outline" onClick={() => setEditingJob(null)} className="flex-1">
+              <Button
+                variant="outline"
+                onClick={() => setEditingJob(null)}
+                className="flex-1"
+              >
                 Cancel
               </Button>
-              <Button onClick={handleSaveEdit} className="flex-1 bg-orange-500 hover:bg-orange-600 text-white">
+              <Button
+                onClick={handleSaveEdit}
+                className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
+              >
                 <Save className="w-4 h-4 mr-2" />
                 Save Changes
               </Button>
@@ -891,35 +1134,65 @@ function AdminJobsContent() {
 
       {/* Assign Locksmith Modal */}
       {assignModalJob && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setAssignModalJob(null)}>
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={() => setAssignModalJob(null)}
+        >
+          <div
+            className="bg-white rounded-2xl w-full max-w-md shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="p-4 lg:p-6 border-b flex items-center justify-between">
               <div>
-                <h3 className="font-bold text-slate-900 text-lg">Assign Locksmith</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Locksmith will be notified to accept or decline</p>
+                <h3 className="font-bold text-slate-900 text-lg">
+                  Assign Locksmith
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Locksmith will be notified to accept or decline
+                </p>
               </div>
-              <button type="button" onClick={() => setAssignModalJob(null)} className="p-1 hover:bg-slate-100 rounded">
+              <button
+                type="button"
+                onClick={() => setAssignModalJob(null)}
+                className="p-1 hover:bg-slate-100 rounded"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-4 lg:p-6 space-y-4">
               <div className="bg-slate-50 rounded-lg p-3 lg:p-4">
-                <div className="text-sm font-semibold text-slate-900 mb-1">{assignModalJob.jobNumber}</div>
-                <div className="text-xs text-slate-600 mb-1">{problemLabels[assignModalJob.problemType] || assignModalJob.problemType}</div>
-                <div className="text-xs text-slate-500">{assignModalJob.address}, {assignModalJob.postcode}</div>
+                <div className="text-sm font-semibold text-slate-900 mb-1">
+                  {assignModalJob.jobNumber}
+                </div>
+                <div className="text-xs text-slate-600 mb-1">
+                  {problemLabels[assignModalJob.problemType] ||
+                    assignModalJob.problemType}
+                </div>
+                <div className="text-xs text-slate-500">
+                  {assignModalJob.address}, {assignModalJob.postcode}
+                </div>
                 {assignModalJob.customer && (
                   <div className="mt-2 pt-2 border-t border-slate-200">
-                    <div className="text-xs text-slate-500">Customer: <span className="text-slate-700 font-medium">{assignModalJob.customer.name}</span></div>
+                    <div className="text-xs text-slate-500">
+                      Customer:{" "}
+                      <span className="text-slate-700 font-medium">
+                        {assignModalJob.customer.name}
+                      </span>
+                    </div>
                   </div>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Select Locksmith</label>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Select Locksmith
+                </label>
                 {availableLocksmiths.length === 0 ? (
                   <div className="text-center py-8">
                     <AlertCircle className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                    <p className="text-sm text-slate-500">No available locksmiths found</p>
+                    <p className="text-sm text-slate-500">
+                      No available locksmiths found
+                    </p>
                   </div>
                 ) : (
                   <select
@@ -944,7 +1217,9 @@ function AdminJobsContent() {
                     <div className="text-xs text-blue-800">
                       <p className="font-medium mb-1">Assignment Process:</p>
                       <ol className="list-decimal list-inside space-y-0.5 text-blue-700">
-                        <li>Locksmith receives notification (SMS, email, push)</li>
+                        <li>
+                          Locksmith receives notification (SMS, email, push)
+                        </li>
                         <li>They must accept or decline the assignment</li>
                         <li>If accepted, customer gets payment link</li>
                         <li>Job proceeds once payment is received</li>
@@ -955,7 +1230,11 @@ function AdminJobsContent() {
               )}
             </div>
             <div className="p-4 lg:p-6 border-t flex gap-3">
-              <Button variant="outline" onClick={() => setAssignModalJob(null)} className="flex-1">
+              <Button
+                variant="outline"
+                onClick={() => setAssignModalJob(null)}
+                className="flex-1"
+              >
                 Cancel
               </Button>
               <Button
@@ -982,14 +1261,24 @@ function AdminJobsContent() {
 
       {/* Delete Confirmation Modal */}
       {deleteJobId && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setDeleteJobId(null)}>
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={() => setDeleteJobId(null)}
+        >
+          <div
+            className="bg-white rounded-2xl w-full max-w-md shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="p-4 border-b flex items-center justify-between">
               <h3 className="font-bold text-slate-900 flex items-center gap-2">
                 <AlertCircle className="w-5 h-5 text-red-500" />
                 Delete Job
               </h3>
-              <button type="button" onClick={() => setDeleteJobId(null)} className="p-1 hover:bg-slate-100 rounded">
+              <button
+                type="button"
+                onClick={() => setDeleteJobId(null)}
+                className="p-1 hover:bg-slate-100 rounded"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -999,18 +1288,34 @@ function AdminJobsContent() {
                   Are you sure you want to delete this job?
                 </p>
                 <p className="text-sm text-red-600">
-                  This action will permanently delete the job and all associated data including quotes, photos, signatures, and payments. This cannot be undone.
+                  This action will permanently delete the job and all associated
+                  data including quotes, photos, signatures, and payments. This
+                  cannot be undone.
                 </p>
               </div>
               <div className="text-sm text-slate-600">
-                <p>Job ID: <span className="font-mono text-slate-900">{deleteJobId}</span></p>
-                {jobs.find(j => j.id === deleteJobId)?.jobNumber && (
-                  <p>Job Number: <span className="font-semibold text-slate-900">{jobs.find(j => j.id === deleteJobId)?.jobNumber}</span></p>
+                <p>
+                  Job ID:{" "}
+                  <span className="font-mono text-slate-900">
+                    {deleteJobId}
+                  </span>
+                </p>
+                {jobs.find((j) => j.id === deleteJobId)?.jobNumber && (
+                  <p>
+                    Job Number:{" "}
+                    <span className="font-semibold text-slate-900">
+                      {jobs.find((j) => j.id === deleteJobId)?.jobNumber}
+                    </span>
+                  </p>
                 )}
               </div>
             </div>
             <div className="p-4 border-t flex gap-3">
-              <Button variant="outline" onClick={() => setDeleteJobId(null)} className="flex-1">
+              <Button
+                variant="outline"
+                onClick={() => setDeleteJobId(null)}
+                className="flex-1"
+              >
                 Cancel
               </Button>
               <Button
@@ -1030,6 +1335,30 @@ function AdminJobsContent() {
         </div>
       )}
 
+      {/* Notify-No-Locksmith Modal */}
+      <NotifyNoLocksmithModal
+        job={
+          notifyJob
+            ? {
+                id: notifyJob.id,
+                jobNumber: notifyJob.jobNumber,
+                postcode: notifyJob.postcode,
+                problemType: notifyJob.problemType,
+                customer: notifyJob.customer
+                  ? {
+                      name: notifyJob.customer.name,
+                      phone: notifyJob.customer.phone,
+                      email: notifyJob.customer.email ?? null,
+                    }
+                  : null,
+              }
+            : null
+        }
+        onClose={() => setNotifyJob(null)}
+        onSent={() => fetchJobs()}
+        toast={toast}
+      />
+
       {/* Toast Notifications */}
       <Toaster toasts={toasts} dismiss={dismiss} />
     </div>
@@ -1041,7 +1370,9 @@ function AdminJobsLoading() {
     <div className="p-4 lg:p-8">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl lg:text-2xl font-bold text-slate-900">Job Management</h1>
+          <h1 className="text-xl lg:text-2xl font-bold text-slate-900">
+            Job Management
+          </h1>
           <p className="text-sm text-slate-500">Loading...</p>
         </div>
       </div>

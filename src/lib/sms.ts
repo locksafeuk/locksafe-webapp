@@ -147,7 +147,7 @@ export const SMS_TEMPLATES = {
 
   // Follow-up with customer details
   LOCKSMITH_AUTO_DISPATCH_DETAILS: (ctx: JobSMSContext) =>
-    `Job ${ctx.jobNumber}: ${ctx.customerName} needs help at ${ctx.address || ctx.postcode}. Assessment fee: £${ctx.assessmentFee}. Call if needed: ${ctx.customerPhone?.replace('+44', '0')}`,
+    `Job ${ctx.jobNumber}: ${ctx.customerName} needs help at ${ctx.address || ctx.postcode}. Assessment fee: £${ctx.assessmentFee}. Call if needed: ${ctx.customerPhone?.replace("+44", "0")}`,
 
   // Reminder if no response to auto-dispatch
   LOCKSMITH_AUTO_DISPATCH_REMINDER: (ctx: JobSMSContext) =>
@@ -175,47 +175,12 @@ function getTwilioCredentials() {
     accountSid: process.env.TWILIO_ACCOUNT_SID,
     authToken: process.env.TWILIO_AUTH_TOKEN,
     // Use SMS-specific number if available, otherwise fall back to main number
-    phoneNumber: process.env.TWILIO_SMS_PHONE_NUMBER || process.env.TWILIO_PHONE_NUMBER,
+    phoneNumber:
+      process.env.TWILIO_SMS_PHONE_NUMBER || process.env.TWILIO_PHONE_NUMBER,
   };
 }
 
-/**
- * Normalize phone number to E.164 format
- * Handles UK numbers (07...) and international numbers (+XX...)
- */
-function normalizePhoneNumber(phone: string): string {
-  if (!phone) return "";
-
-  // Remove all whitespace
-  let normalized = phone.replace(/\s+/g, "");
-
-  // Remove any non-digit characters except +
-  normalized = normalized.replace(/[^\d+]/g, "");
-
-  // If already in E.164 format (starts with +), return as is
-  if (normalized.startsWith("+")) {
-    return normalized;
-  }
-
-  // Convert UK 07... to +447...
-  if (normalized.startsWith("07") && normalized.length === 11) {
-    normalized = "+44" + normalized.slice(1);
-  }
-  // Convert UK 447... to +447...
-  else if (normalized.startsWith("447")) {
-    normalized = "+" + normalized;
-  }
-  // Convert UK 0044... to +44...
-  else if (normalized.startsWith("0044")) {
-    normalized = "+" + normalized.slice(2);
-  }
-  // If it's a long number without +, assume it needs one
-  else if (normalized.length >= 10 && !normalized.startsWith("0")) {
-    normalized = "+" + normalized;
-  }
-
-  return normalized;
-}
+import { normalizePhoneNumber } from "@/lib/phone";
 
 // ============================================
 // CORE SMS FUNCTION
@@ -227,14 +192,17 @@ function normalizePhoneNumber(phone: string): string {
 export async function sendSMS(
   to: string,
   message: string,
-  options?: { logContext?: string }
+  options?: { logContext?: string },
 ): Promise<SMSResult> {
   const { accountSid, authToken, phoneNumber } = getTwilioCredentials();
 
   // Check if Twilio is configured
   if (!accountSid || !authToken || !phoneNumber) {
     console.warn("[SMS] Twilio not configured - SMS not sent");
-    console.warn("[SMS] Would have sent:", { to, message: message.slice(0, 50) + "..." });
+    console.warn("[SMS] Would have sent:", {
+      to,
+      message: message.slice(0, 50) + "...",
+    });
     return {
       success: false,
       error: "Twilio not configured",
@@ -265,7 +233,7 @@ export async function sendSMS(
           From: phoneNumber,
           Body: message,
         }),
-      }
+      },
     );
 
     const data = await response.json();
@@ -302,97 +270,145 @@ export async function sendSMS(
 /**
  * Notify customer when job is submitted
  */
-export async function notifyCustomerJobSubmitted(ctx: JobSMSContext): Promise<SMSResult> {
+export async function notifyCustomerJobSubmitted(
+  ctx: JobSMSContext,
+): Promise<SMSResult> {
   const message = SMS_TEMPLATES.CUSTOMER_JOB_SUBMITTED(ctx);
-  return sendSMS(ctx.customerPhone, message, { logContext: `job-submitted:${ctx.jobNumber}` });
+  return sendSMS(ctx.customerPhone, message, {
+    logContext: `job-submitted:${ctx.jobNumber}`,
+  });
 }
 
 /**
  * Notify customer when they receive a quote
  */
-export async function notifyCustomerQuoteReceived(ctx: JobSMSContext): Promise<SMSResult> {
+export async function notifyCustomerQuoteReceived(
+  ctx: JobSMSContext,
+): Promise<SMSResult> {
   const message = SMS_TEMPLATES.CUSTOMER_QUOTE_RECEIVED(ctx);
-  return sendSMS(ctx.customerPhone, message, { logContext: `quote-received:${ctx.jobNumber}` });
+  return sendSMS(ctx.customerPhone, message, {
+    logContext: `quote-received:${ctx.jobNumber}`,
+  });
 }
 
 /**
  * Notify customer when locksmith is accepted
  */
-export async function notifyCustomerLocksmithAccepted(ctx: JobSMSContext): Promise<SMSResult> {
+export async function notifyCustomerLocksmithAccepted(
+  ctx: JobSMSContext,
+): Promise<SMSResult> {
   const message = SMS_TEMPLATES.CUSTOMER_LOCKSMITH_ACCEPTED(ctx);
-  return sendSMS(ctx.customerPhone, message, { logContext: `locksmith-accepted:${ctx.jobNumber}` });
+  return sendSMS(ctx.customerPhone, message, {
+    logContext: `locksmith-accepted:${ctx.jobNumber}`,
+  });
 }
 
 /**
  * Notify customer when locksmith is en route
  */
-export async function notifyCustomerLocksmithEnRoute(ctx: JobSMSContext): Promise<SMSResult> {
+export async function notifyCustomerLocksmithEnRoute(
+  ctx: JobSMSContext,
+): Promise<SMSResult> {
   const message = SMS_TEMPLATES.CUSTOMER_LOCKSMITH_EN_ROUTE(ctx);
-  return sendSMS(ctx.customerPhone, message, { logContext: `en-route:${ctx.jobNumber}` });
+  return sendSMS(ctx.customerPhone, message, {
+    logContext: `en-route:${ctx.jobNumber}`,
+  });
 }
 
 /**
  * Notify customer when locksmith arrives
  */
-export async function notifyCustomerLocksmithArrived(ctx: JobSMSContext): Promise<SMSResult> {
+export async function notifyCustomerLocksmithArrived(
+  ctx: JobSMSContext,
+): Promise<SMSResult> {
   const message = SMS_TEMPLATES.CUSTOMER_LOCKSMITH_ARRIVED(ctx);
-  return sendSMS(ctx.customerPhone, message, { logContext: `arrived:${ctx.jobNumber}` });
+  return sendSMS(ctx.customerPhone, message, {
+    logContext: `arrived:${ctx.jobNumber}`,
+  });
 }
 
 /**
  * Notify customer of full quote
  */
-export async function notifyCustomerFullQuote(ctx: JobSMSContext): Promise<SMSResult> {
+export async function notifyCustomerFullQuote(
+  ctx: JobSMSContext,
+): Promise<SMSResult> {
   const message = SMS_TEMPLATES.CUSTOMER_FULL_QUOTE(ctx);
-  return sendSMS(ctx.customerPhone, message, { logContext: `full-quote:${ctx.jobNumber}` });
+  return sendSMS(ctx.customerPhone, message, {
+    logContext: `full-quote:${ctx.jobNumber}`,
+  });
 }
 
 /**
  * Notify customer work has started
  */
-export async function notifyCustomerWorkStarted(ctx: JobSMSContext): Promise<SMSResult> {
+export async function notifyCustomerWorkStarted(
+  ctx: JobSMSContext,
+): Promise<SMSResult> {
   const message = SMS_TEMPLATES.CUSTOMER_WORK_STARTED(ctx);
-  return sendSMS(ctx.customerPhone, message, { logContext: `work-started:${ctx.jobNumber}` });
+  return sendSMS(ctx.customerPhone, message, {
+    logContext: `work-started:${ctx.jobNumber}`,
+  });
 }
 
 /**
  * Notify customer work is completed
  */
-export async function notifyCustomerWorkCompleted(ctx: JobSMSContext): Promise<SMSResult> {
+export async function notifyCustomerWorkCompleted(
+  ctx: JobSMSContext,
+): Promise<SMSResult> {
   const message = SMS_TEMPLATES.CUSTOMER_WORK_COMPLETED(ctx);
-  return sendSMS(ctx.customerPhone, message, { logContext: `work-completed:${ctx.jobNumber}` });
+  return sendSMS(ctx.customerPhone, message, {
+    logContext: `work-completed:${ctx.jobNumber}`,
+  });
 }
 
 /**
  * Send confirmation reminder to customer
  */
-export async function notifyCustomerConfirmationReminder(ctx: JobSMSContext): Promise<SMSResult> {
+export async function notifyCustomerConfirmationReminder(
+  ctx: JobSMSContext,
+): Promise<SMSResult> {
   const message = SMS_TEMPLATES.CUSTOMER_CONFIRMATION_REMINDER(ctx);
-  return sendSMS(ctx.customerPhone, message, { logContext: `confirm-reminder:${ctx.jobNumber}` });
+  return sendSMS(ctx.customerPhone, message, {
+    logContext: `confirm-reminder:${ctx.jobNumber}`,
+  });
 }
 
 /**
  * Request review from customer
  */
-export async function notifyCustomerReviewRequest(ctx: JobSMSContext): Promise<SMSResult> {
+export async function notifyCustomerReviewRequest(
+  ctx: JobSMSContext,
+): Promise<SMSResult> {
   const message = SMS_TEMPLATES.CUSTOMER_REVIEW_REQUEST(ctx);
-  return sendSMS(ctx.customerPhone, message, { logContext: `review-request:${ctx.jobNumber}` });
+  return sendSMS(ctx.customerPhone, message, {
+    logContext: `review-request:${ctx.jobNumber}`,
+  });
 }
 
 /**
  * Notify customer of successful payment
  */
-export async function notifyCustomerPaymentSuccess(ctx: JobSMSContext): Promise<SMSResult> {
+export async function notifyCustomerPaymentSuccess(
+  ctx: JobSMSContext,
+): Promise<SMSResult> {
   const message = SMS_TEMPLATES.CUSTOMER_PAYMENT_SUCCESS(ctx);
-  return sendSMS(ctx.customerPhone, message, { logContext: `payment-success:${ctx.jobNumber}` });
+  return sendSMS(ctx.customerPhone, message, {
+    logContext: `payment-success:${ctx.jobNumber}`,
+  });
 }
 
 /**
  * Notify customer of refund
  */
-export async function notifyCustomerRefund(ctx: JobSMSContext): Promise<SMSResult> {
+export async function notifyCustomerRefund(
+  ctx: JobSMSContext,
+): Promise<SMSResult> {
   const message = SMS_TEMPLATES.CUSTOMER_REFUND_PROCESSED(ctx);
-  return sendSMS(ctx.customerPhone, message, { logContext: `refund:${ctx.jobNumber}` });
+  return sendSMS(ctx.customerPhone, message, {
+    logContext: `refund:${ctx.jobNumber}`,
+  });
 }
 
 // ============================================
@@ -402,78 +418,106 @@ export async function notifyCustomerRefund(ctx: JobSMSContext): Promise<SMSResul
 /**
  * Notify locksmith of new job in area
  */
-export async function notifyLocksmithNewJob(ctx: JobSMSContext): Promise<SMSResult> {
+export async function notifyLocksmithNewJob(
+  ctx: JobSMSContext,
+): Promise<SMSResult> {
   if (!ctx.locksmithPhone) {
     return { success: false, error: "No locksmith phone" };
   }
   const message = SMS_TEMPLATES.LOCKSMITH_NEW_JOB(ctx);
-  return sendSMS(ctx.locksmithPhone, message, { logContext: `new-job:${ctx.jobNumber}` });
+  return sendSMS(ctx.locksmithPhone, message, {
+    logContext: `new-job:${ctx.jobNumber}`,
+  });
 }
 
 /**
  * Notify locksmith their application was accepted
  */
-export async function notifyLocksmithApplicationAccepted(ctx: JobSMSContext): Promise<SMSResult> {
+export async function notifyLocksmithApplicationAccepted(
+  ctx: JobSMSContext,
+): Promise<SMSResult> {
   if (!ctx.locksmithPhone) {
     return { success: false, error: "No locksmith phone" };
   }
   const message = SMS_TEMPLATES.LOCKSMITH_APPLICATION_ACCEPTED(ctx);
-  return sendSMS(ctx.locksmithPhone, message, { logContext: `accepted:${ctx.jobNumber}` });
+  return sendSMS(ctx.locksmithPhone, message, {
+    logContext: `accepted:${ctx.jobNumber}`,
+  });
 }
 
 /**
  * Remind locksmith to update status
  */
-export async function notifyLocksmithUpdateStatus(ctx: JobSMSContext): Promise<SMSResult> {
+export async function notifyLocksmithUpdateStatus(
+  ctx: JobSMSContext,
+): Promise<SMSResult> {
   if (!ctx.locksmithPhone) {
     return { success: false, error: "No locksmith phone" };
   }
   const message = SMS_TEMPLATES.LOCKSMITH_UPDATE_STATUS(ctx);
-  return sendSMS(ctx.locksmithPhone, message, { logContext: `status-reminder:${ctx.jobNumber}` });
+  return sendSMS(ctx.locksmithPhone, message, {
+    logContext: `status-reminder:${ctx.jobNumber}`,
+  });
 }
 
 /**
  * Notify locksmith quote was approved
  */
-export async function notifyLocksmithQuoteApproved(ctx: JobSMSContext): Promise<SMSResult> {
+export async function notifyLocksmithQuoteApproved(
+  ctx: JobSMSContext,
+): Promise<SMSResult> {
   if (!ctx.locksmithPhone) {
     return { success: false, error: "No locksmith phone" };
   }
   const message = SMS_TEMPLATES.LOCKSMITH_QUOTE_APPROVED(ctx);
-  return sendSMS(ctx.locksmithPhone, message, { logContext: `quote-approved:${ctx.jobNumber}` });
+  return sendSMS(ctx.locksmithPhone, message, {
+    logContext: `quote-approved:${ctx.jobNumber}`,
+  });
 }
 
 /**
  * Notify locksmith job was signed off
  */
-export async function notifyLocksmithJobSigned(ctx: JobSMSContext): Promise<SMSResult> {
+export async function notifyLocksmithJobSigned(
+  ctx: JobSMSContext,
+): Promise<SMSResult> {
   if (!ctx.locksmithPhone) {
     return { success: false, error: "No locksmith phone" };
   }
   const message = SMS_TEMPLATES.LOCKSMITH_JOB_SIGNED(ctx);
-  return sendSMS(ctx.locksmithPhone, message, { logContext: `signed:${ctx.jobNumber}` });
+  return sendSMS(ctx.locksmithPhone, message, {
+    logContext: `signed:${ctx.jobNumber}`,
+  });
 }
 
 /**
  * Notify locksmith payment received
  */
-export async function notifyLocksmithPaymentReceived(ctx: JobSMSContext): Promise<SMSResult> {
+export async function notifyLocksmithPaymentReceived(
+  ctx: JobSMSContext,
+): Promise<SMSResult> {
   if (!ctx.locksmithPhone) {
     return { success: false, error: "No locksmith phone" };
   }
   const message = SMS_TEMPLATES.LOCKSMITH_PAYMENT_RECEIVED(ctx);
-  return sendSMS(ctx.locksmithPhone, message, { logContext: `payment:${ctx.jobNumber}` });
+  return sendSMS(ctx.locksmithPhone, message, {
+    logContext: `payment:${ctx.jobNumber}`,
+  });
 }
 
 /**
  * Notify locksmith of new review
  */
-export async function notifyLocksmithNewReview(ctx: JobSMSContext): Promise<SMSResult> {
+export async function notifyLocksmithNewReview(
+  ctx: JobSMSContext,
+): Promise<SMSResult> {
   if (!ctx.locksmithPhone) {
     return { success: false, error: "No locksmith phone" };
   }
   const message = SMS_TEMPLATES.LOCKSMITH_NEW_REVIEW(ctx);
-  return sendSMS(ctx.locksmithPhone, message, { logContext: `review:${ctx.jobNumber}` });
+  return sendSMS(ctx.locksmithPhone, message, {
+    logContext: `review:${ctx.jobNumber}`,
+  });
 }
 
 // ============================================
@@ -483,63 +527,85 @@ export async function notifyLocksmithNewReview(ctx: JobSMSContext): Promise<SMSR
 /**
  * Notify locksmith they've been auto-dispatched to a job
  */
-export async function notifyLocksmithAutoDispatched(ctx: JobSMSContext): Promise<SMSResult> {
+export async function notifyLocksmithAutoDispatched(
+  ctx: JobSMSContext,
+): Promise<SMSResult> {
   if (!ctx.locksmithPhone) {
     return { success: false, error: "No locksmith phone" };
   }
   const message = SMS_TEMPLATES.LOCKSMITH_AUTO_DISPATCHED(ctx);
-  return sendSMS(ctx.locksmithPhone, message, { logContext: `auto-dispatch:${ctx.jobNumber}` });
+  return sendSMS(ctx.locksmithPhone, message, {
+    logContext: `auto-dispatch:${ctx.jobNumber}`,
+  });
 }
 
 /**
  * Send follow-up details after auto-dispatch
  */
-export async function notifyLocksmithAutoDispatchDetails(ctx: JobSMSContext): Promise<SMSResult> {
+export async function notifyLocksmithAutoDispatchDetails(
+  ctx: JobSMSContext,
+): Promise<SMSResult> {
   if (!ctx.locksmithPhone) {
     return { success: false, error: "No locksmith phone" };
   }
   const message = SMS_TEMPLATES.LOCKSMITH_AUTO_DISPATCH_DETAILS(ctx);
-  return sendSMS(ctx.locksmithPhone, message, { logContext: `auto-dispatch-details:${ctx.jobNumber}` });
+  return sendSMS(ctx.locksmithPhone, message, {
+    logContext: `auto-dispatch-details:${ctx.jobNumber}`,
+  });
 }
 
 /**
  * Send reminder for auto-dispatch that hasn't been acknowledged
  */
-export async function notifyLocksmithAutoDispatchReminder(ctx: JobSMSContext): Promise<SMSResult> {
+export async function notifyLocksmithAutoDispatchReminder(
+  ctx: JobSMSContext,
+): Promise<SMSResult> {
   if (!ctx.locksmithPhone) {
     return { success: false, error: "No locksmith phone" };
   }
   const message = SMS_TEMPLATES.LOCKSMITH_AUTO_DISPATCH_REMINDER(ctx);
-  return sendSMS(ctx.locksmithPhone, message, { logContext: `auto-dispatch-reminder:${ctx.jobNumber}` });
+  return sendSMS(ctx.locksmithPhone, message, {
+    logContext: `auto-dispatch-reminder:${ctx.jobNumber}`,
+  });
 }
 
 /**
  * Notify locksmith their auto-dispatch acceptance is confirmed
  */
-export async function notifyLocksmithAutoDispatchConfirmed(ctx: JobSMSContext): Promise<SMSResult> {
+export async function notifyLocksmithAutoDispatchConfirmed(
+  ctx: JobSMSContext,
+): Promise<SMSResult> {
   if (!ctx.locksmithPhone) {
     return { success: false, error: "No locksmith phone" };
   }
   const message = SMS_TEMPLATES.LOCKSMITH_AUTO_DISPATCH_CONFIRMED(ctx);
-  return sendSMS(ctx.locksmithPhone, message, { logContext: `auto-dispatch-confirmed:${ctx.jobNumber}` });
+  return sendSMS(ctx.locksmithPhone, message, {
+    logContext: `auto-dispatch-confirmed:${ctx.jobNumber}`,
+  });
 }
 
 /**
  * Notify locksmith their auto-dispatch expired and was reassigned
  */
-export async function notifyLocksmithAutoDispatchExpired(ctx: JobSMSContext): Promise<SMSResult> {
+export async function notifyLocksmithAutoDispatchExpired(
+  ctx: JobSMSContext,
+): Promise<SMSResult> {
   if (!ctx.locksmithPhone) {
     return { success: false, error: "No locksmith phone" };
   }
   const message = SMS_TEMPLATES.LOCKSMITH_AUTO_DISPATCH_EXPIRED(ctx);
-  return sendSMS(ctx.locksmithPhone, message, { logContext: `auto-dispatch-expired:${ctx.jobNumber}` });
+  return sendSMS(ctx.locksmithPhone, message, {
+    logContext: `auto-dispatch-expired:${ctx.jobNumber}`,
+  });
 }
 
 /**
  * Send complete auto-dispatch notification sequence
  * Sends main alert followed by details after short delay
  */
-export async function sendAutoDispatchNotification(ctx: JobSMSContext): Promise<{ alert: SMSResult; details: SMSResult }> {
+export async function sendAutoDispatchNotification(
+  ctx: JobSMSContext,
+): Promise<{ alert: SMSResult; details: SMSResult }> {
   // Send immediate alert
   const alertResult = await notifyLocksmithAutoDispatched(ctx);
 
@@ -548,7 +614,9 @@ export async function sendAutoDispatchNotification(ctx: JobSMSContext): Promise<
 
   const detailsResult = await notifyLocksmithAutoDispatchDetails(ctx);
 
-  console.log(`[SMS] Auto-dispatch notification sent to ${ctx.locksmithName} for ${ctx.jobNumber}`);
+  console.log(
+    `[SMS] Auto-dispatch notification sent to ${ctx.locksmithName} for ${ctx.jobNumber}`,
+  );
 
   return { alert: alertResult, details: detailsResult };
 }
@@ -562,7 +630,7 @@ export async function sendAutoDispatchNotification(ctx: JobSMSContext): Promise<
  */
 export async function notifyLocksmiths(
   locksmiths: Array<{ phone: string; name: string }>,
-  ctx: Omit<JobSMSContext, "locksmithPhone" | "locksmithName">
+  ctx: Omit<JobSMSContext, "locksmithPhone" | "locksmithName">,
 ): Promise<{ sent: number; failed: number }> {
   let sent = 0;
   let failed = 0;
@@ -584,7 +652,9 @@ export async function notifyLocksmiths(
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
 
-  console.log(`[SMS] Notified ${sent} locksmiths (${failed} failed) for ${ctx.jobNumber}`);
+  console.log(
+    `[SMS] Notified ${sent} locksmiths (${failed} failed) for ${ctx.jobNumber}`,
+  );
   return { sent, failed };
 }
 
@@ -618,7 +688,7 @@ export type JobEventType =
  */
 export async function sendJobNotification(
   event: JobEventType,
-  ctx: JobSMSContext
+  ctx: JobSMSContext,
 ): Promise<{ customer?: SMSResult; locksmith?: SMSResult }> {
   const results: { customer?: SMSResult; locksmith?: SMSResult } = {};
 

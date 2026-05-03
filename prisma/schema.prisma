@@ -201,6 +201,11 @@ model Job {
   notifiedLocksmithIds String[]  // IDs of locksmiths who were notified
   notifiedAt           DateTime? // When locksmiths were notified
 
+  // Admin: "no locksmith available in coverage area" notification
+  noLocksmithNotifiedAt       DateTime?
+  noLocksmithNotifiedChannels String[]  @default([]) // ["sms","email"]
+  noLocksmithNotifiedBy       String?   // admin email/id who triggered it
+
   // Customer info
   customerId       String    @db.ObjectId
   customer         Customer  @relation(fields: [customerId], references: [id])

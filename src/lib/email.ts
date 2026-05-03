@@ -1,5 +1,5 @@
 import { Resend } from "resend";
-import { SITE_URL, SITE_NAME, SUPPORT_EMAIL } from "./config";
+import { SITE_NAME, SITE_URL, SUPPORT_EMAIL } from "./config";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -29,7 +29,10 @@ async function sendEmail(data: EmailData) {
     return { success: true, id: result.data?.id };
   } catch (error) {
     console.error("Failed to send email:", error);
-    return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
   }
 }
 
@@ -42,7 +45,7 @@ export async function sendVerificationEmail(
   data: {
     customerName: string;
     verificationUrl: string;
-  }
+  },
 ) {
   const html = `
     <!DOCTYPE html>
@@ -97,7 +100,7 @@ export async function sendPasswordResetEmail(
   data: {
     customerName: string;
     resetUrl: string;
-  }
+  },
 ) {
   const html = `
     <!DOCTYPE html>
@@ -159,7 +162,7 @@ export async function sendLocksmithWelcomeEmail(
   data: {
     locksmithName: string;
     companyName: string | null;
-  }
+  },
 ) {
   const dashboardUrl = `${SITE_URL}/locksmith/dashboard`;
   const settingsUrl = `${SITE_URL}/locksmith/settings`;
@@ -197,7 +200,7 @@ export async function sendLocksmithWelcomeEmail(
           <p style="font-size:18px;margin:0 0 24px 0;">Hi ${data.locksmithName},</p>
 
           <p style="margin:0 0 20px 0;color:#475569;">
-            Thank you for joining LockSafe UK${data.companyName ? ` with <strong>${data.companyName}</strong>` : ''}!
+            Thank you for joining LockSafe UK${data.companyName ? ` with <strong>${data.companyName}</strong>` : ""}!
             We're excited to have you as part of our network of trusted locksmith professionals.
           </p>
 
@@ -327,7 +330,7 @@ export async function sendJobConfirmationEmail(
     assessmentFee: number;
     eta: number;
     address: string;
-  }
+  },
 ) {
   const html = `
     <!DOCTYPE html>
@@ -407,7 +410,7 @@ export async function sendCustomerPaymentLinkEmail(
     paymentUrl: string;
     problemType: string;
     address: string;
-  }
+  },
 ) {
   const html = `
     <!DOCTYPE html>
@@ -491,7 +494,7 @@ export async function sendQuoteReceivedEmail(
     quoteTotal: number;
     estimatedTime: number;
     diagnosis: string;
-  }
+  },
 ) {
   const html = `
     <!DOCTYPE html>
@@ -562,7 +565,7 @@ export async function sendLocksmithApplicationNotification(
     assessmentFee: number;
     eta: number;
     rating: number;
-  }
+  },
 ) {
   const html = `
     <!DOCTYPE html>
@@ -622,7 +625,7 @@ export async function sendJobCompletionEmail(
     locksmithName: string;
     totalPaid: number;
     reportUrl: string;
-  }
+  },
 ) {
   const html = `
     <!DOCTYPE html>
@@ -697,7 +700,7 @@ export async function sendPayoutNotificationEmail(
     arrivalDate: string;
     bankLast4: string;
     payoutId: string;
-  }
+  },
 ) {
   const html = `
     <!DOCTYPE html>
@@ -779,7 +782,7 @@ export async function sendPayoutFailedEmail(
     failureReason: string;
     failureCode: string;
     payoutId: string;
-  }
+  },
 ) {
   const html = `
     <!DOCTYPE html>
@@ -854,7 +857,7 @@ export async function sendLocksmithAssignmentEmail(
     customerName: string;
     defaultAssessmentFee: number;
     jobDetailsUrl: string;
-  }
+  },
 ) {
   const html = `
     <!DOCTYPE html>
@@ -940,7 +943,7 @@ export async function sendAccountVerifiedEmail(
   data: {
     locksmithName: string;
     accountId: string;
-  }
+  },
 ) {
   const html = `
     <!DOCTYPE html>
@@ -1016,7 +1019,7 @@ export async function sendLocksmithBookedEmail(
     problemType: string;
     assessmentFee: number;
     jobId: string;
-  }
+  },
 ) {
   const html = `
     <!DOCTYPE html>
@@ -1114,7 +1117,7 @@ export async function sendWorkCompletionConfirmationEmail(
     quoteTotal: number;
     address: string;
     confirmationUrl: string;
-  }
+  },
 ) {
   const html = `
     <!DOCTYPE html>
@@ -1209,12 +1212,13 @@ export async function sendTransferNotificationEmail(
     platformFee: number;
     paymentType?: "assessment_fee" | "work_quote";
     totalCharged?: number;
-  }
+  },
 ) {
   // Calculate commission rate based on payment type
   const commissionRate = data.paymentType === "work_quote" ? 25 : 15;
-  const totalCharged = data.totalCharged || (data.amount + data.platformFee);
-  const paymentLabel = data.paymentType === "work_quote" ? "Work Payment" : "Assessment Fee";
+  const totalCharged = data.totalCharged || data.amount + data.platformFee;
+  const paymentLabel =
+    data.paymentType === "work_quote" ? "Work Payment" : "Assessment Fee";
 
   const html = `
     <!DOCTYPE html>
@@ -1322,9 +1326,10 @@ export async function sendPaymentReceiptEmail(
     amountPaid: number;
     paymentDate: Date;
     address: string;
-  }
+  },
 ) {
-  const paymentTypeLabel = data.paymentType === "assessment_fee" ? "Assessment Fee" : "Work Payment";
+  const paymentTypeLabel =
+    data.paymentType === "assessment_fee" ? "Assessment Fee" : "Work Payment";
   const dateStr = data.paymentDate.toLocaleDateString("en-GB", {
     day: "numeric",
     month: "long",
@@ -1365,7 +1370,9 @@ export async function sendPaymentReceiptEmail(
             <p style="margin:8px 0 0 0;color:#64748b;font-size:14px;">${dateStr}</p>
           </div>
 
-          ${data.paymentType === "work_quote" && data.assessmentFeeDeducted > 0 ? `
+          ${
+            data.paymentType === "work_quote" && data.assessmentFeeDeducted > 0
+              ? `
           <div class="box">
             <p style="margin:0 0 16px 0;font-weight:600;color:#1e293b;">Payment Breakdown</p>
             <table style="width:100%;border-collapse:collapse;">
@@ -1383,7 +1390,9 @@ export async function sendPaymentReceiptEmail(
               </tr>
             </table>
           </div>
-          ` : ""}
+          `
+              : ""
+          }
 
           <div class="box">
             <p style="margin:0 0 12px 0;font-weight:600;color:#1e293b;">Job Details</p>
@@ -1445,7 +1454,7 @@ export async function sendQuoteAcceptedEmail(
     quoteTotal: number;
     address: string;
     jobId: string;
-  }
+  },
 ) {
   const html = `
     <!DOCTYPE html>
@@ -1530,7 +1539,7 @@ export async function sendQuoteDeclinedEmail(
     customerName: string;
     quoteTotal: number;
     address: string;
-  }
+  },
 ) {
   const html = `
     <!DOCTYPE html>
@@ -1609,10 +1618,11 @@ export async function sendNewReviewEmail(
     customerName: string;
     rating: number;
     comment: string | null;
-  }
+  },
 ) {
   const stars = "★".repeat(data.rating) + "☆".repeat(5 - data.rating);
-  const ratingColor = data.rating >= 4 ? "#16a34a" : data.rating >= 3 ? "#f97316" : "#dc2626";
+  const ratingColor =
+    data.rating >= 4 ? "#16a34a" : data.rating >= 3 ? "#f97316" : "#dc2626";
 
   const html = `
     <!DOCTYPE html>
@@ -1644,12 +1654,16 @@ export async function sendNewReviewEmail(
             <p style="margin:8px 0 0 0;font-size:24px;font-weight:bold;color:${ratingColor};">${data.rating}/5 Stars</p>
           </div>
 
-          ${data.comment ? `
+          ${
+            data.comment
+              ? `
           <div class="box">
             <p style="margin:0;color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:1px;">Customer Review</p>
             <p style="margin:12px 0 0 0;font-style:italic;color:#475569;">"${data.comment}"</p>
           </div>
-          ` : ""}
+          `
+              : ""
+          }
 
           <p style="text-align:center;margin-top:24px;">
             <a href="${SITE_URL}/locksmith/reviews" class="button">View All Reviews</a>
@@ -1688,7 +1702,7 @@ export async function sendLocksmithArrivedEmail(
     locksmithName: string;
     locksmithPhone: string;
     address: string;
-  }
+  },
 ) {
   const html = `
     <!DOCTYPE html>
@@ -1772,7 +1786,7 @@ export async function sendNewJobInAreaEmail(
     distanceMiles: number;
     propertyType?: string;
     createdAt: string;
-  }
+  },
 ) {
   const problemLabels: Record<string, string> = {
     lockout: "Locked Out",
@@ -1791,7 +1805,9 @@ export async function sendNewJobInAreaEmail(
   };
 
   const problemLabel = problemLabels[data.problemType] || data.problemType;
-  const propertyLabel = data.propertyType ? propertyLabels[data.propertyType] || data.propertyType : "Property";
+  const propertyLabel = data.propertyType
+    ? propertyLabels[data.propertyType] || data.propertyType
+    : "Property";
 
   const html = `
     <!DOCTYPE html>
@@ -1901,7 +1917,7 @@ export async function sendAutoDispatchEmail(
     address: string;
     customerName: string;
     assessmentFee: number;
-  }
+  },
 ) {
   const problemLabels: Record<string, string> = {
     lockout: "Locked Out",
@@ -2008,7 +2024,7 @@ export async function sendSignatureReminderEmail(
     confirmUrl: string;
     timeRemaining: string;
     reminderNumber: number;
-  }
+  },
 ) {
   const isUrgent = data.reminderNumber >= 3;
   const headerBg = isUrgent
@@ -2038,17 +2054,21 @@ export async function sendSignatureReminderEmail(
           <p style="margin:8px 0 0 0;opacity:0.9;font-size:16px;">Job ${data.jobNumber}</p>
         </div>
         <div class="content">
-          ${isUrgent ? `
+          ${
+            isUrgent
+              ? `
           <div class="urgent">
             <p class="timer">⏰ ${data.timeRemaining} remaining</p>
             <p style="margin:8px 0 0 0;color:#991b1b;font-weight:500;">Your job will be auto-completed if not signed</p>
           </div>
-          ` : `
+          `
+              : `
           <div class="box" style="text-align:center;">
             <p style="margin:0;color:#64748b;font-size:14px;">Time Remaining</p>
             <p class="timer">${data.timeRemaining}</p>
           </div>
-          `}
+          `
+          }
 
           <p>Hi ${data.customerName},</p>
           <p>${data.locksmithName} has completed the work on your job and is waiting for your confirmation.</p>
@@ -2097,7 +2117,9 @@ export async function sendSignatureReminderEmail(
     </html>
   `;
 
-  const urgencyLabel = isUrgent ? "⚠️ URGENT" : `Reminder ${data.reminderNumber}`;
+  const urgencyLabel = isUrgent
+    ? "⚠️ URGENT"
+    : `Reminder ${data.reminderNumber}`;
 
   return sendEmail({
     to: customerEmail,
@@ -2114,7 +2136,7 @@ export async function sendAutoCompletionEmail(
     locksmithName: string;
     totalAmount: number;
     reportUrl: string;
-  }
+  },
 ) {
   const html = `
     <!DOCTYPE html>
@@ -2216,7 +2238,7 @@ export async function sendEarningsReversalEmail(
     reversedAmount: number;
     reason: string;
     refundDate: Date;
-  }
+  },
 ) {
   const reportUrl = `${SITE_URL}/job/${data.jobId}/report`;
   const earningsUrl = `${SITE_URL}/locksmith/earnings`;
@@ -2335,7 +2357,7 @@ export async function sendLocksmithJobCompletionEmail(
     workCommission: number;
     totalCustomerPaid: number;
     totalEarnings: number;
-  }
+  },
 ) {
   const reportUrl = `${SITE_URL}/job/${data.jobId}/report`;
   const earningsUrl = `${SITE_URL}/locksmith/earnings`;
@@ -2409,7 +2431,9 @@ export async function sendLocksmithJobCompletionEmail(
               </table>
             </div>
 
-            ${data.workQuoteTotal > 0 ? `
+            ${
+              data.workQuoteTotal > 0
+                ? `
             <!-- Work Quote Section -->
             <div style="background:#f8fafc;padding:16px;border-radius:8px;">
               <p style="margin:0;font-weight:600;color:#475569;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;">Work Quote (25% Commission)</p>
@@ -2428,7 +2452,9 @@ export async function sendLocksmithJobCompletionEmail(
                 </tr>
               </table>
             </div>
-            ` : ""}
+            `
+                : ""
+            }
           </div>
 
           <div class="box">
@@ -2509,7 +2535,7 @@ export async function sendPhoneRequestContinuationEmail(
     customerName: string;
     jobNumber: string;
     continueUrl: string;
-  }
+  },
 ) {
   const html = `
     <!DOCTYPE html>
@@ -2596,7 +2622,7 @@ export async function sendLocksmithVerifiedEmail(
   data: {
     locksmithName: string;
     companyName: string | null;
-  }
+  },
 ) {
   const dashboardUrl = `${SITE_URL}/locksmith/dashboard`;
 
@@ -2636,7 +2662,7 @@ export async function sendLocksmithVerifiedEmail(
         <div class="content">
           <p style="font-size:18px;">Hi ${data.locksmithName},</p>
 
-          <p>Great news! Your LockSafe UK account${data.companyName ? ` for <strong>${data.companyName}</strong>` : ''} has been reviewed and <strong style="color:#16a34a;">verified by our team</strong>.</p>
+          <p>Great news! Your LockSafe UK account${data.companyName ? ` for <strong>${data.companyName}</strong>` : ""} has been reviewed and <strong style="color:#16a34a;">verified by our team</strong>.</p>
 
           <div class="box" style="text-align:center;background:linear-gradient(135deg, #dcfce7, #d1fae5);border:2px solid #16a34a;">
             <p style="margin:0;font-size:16px;color:#166534;font-weight:600;">
@@ -2717,18 +2743,19 @@ export async function sendInsuranceExpiryReminderEmail(
     expiryDate: Date;
     daysUntilExpiry: number;
     renewUrl: string;
-  }
+  },
 ) {
   const isUrgent = data.daysUntilExpiry <= 7;
   const headerBg = isUrgent
     ? "background: linear-gradient(135deg, #dc2626, #b91c1c);"
     : "background: linear-gradient(135deg, #f97316, #ea580c);";
 
-  const urgencyText = data.daysUntilExpiry <= 0
-    ? "has expired"
-    : data.daysUntilExpiry === 1
-    ? "expires tomorrow"
-    : `expires in ${data.daysUntilExpiry} days`;
+  const urgencyText =
+    data.daysUntilExpiry <= 0
+      ? "has expired"
+      : data.daysUntilExpiry === 1
+        ? "expires tomorrow"
+        : `expires in ${data.daysUntilExpiry} days`;
 
   const html = `
     <!DOCTYPE html>
@@ -2763,9 +2790,11 @@ export async function sendInsuranceExpiryReminderEmail(
           <p>Hi ${data.locksmithName},</p>
           <p>
             Your public liability insurance certificate ${urgencyText}.
-            ${data.daysUntilExpiry <= 0
-              ? "Your account has been restricted until you upload a valid insurance document."
-              : "Please renew your insurance and upload the new certificate to continue accepting jobs without interruption."}
+            ${
+              data.daysUntilExpiry <= 0
+                ? "Your account has been restricted until you upload a valid insurance document."
+                : "Please renew your insurance and upload the new certificate to continue accepting jobs without interruption."
+            }
           </p>
 
           <div class="box">
@@ -2774,12 +2803,16 @@ export async function sendInsuranceExpiryReminderEmail(
                 <td style="padding:12px 0;color:#64748b;">Current Expiry Date</td>
                 <td style="padding:12px 0;text-align:right;font-weight:600;${isUrgent ? "color:#dc2626;" : ""}">${data.expiryDate.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</td>
               </tr>
-              ${data.companyName ? `
+              ${
+                data.companyName
+                  ? `
               <tr>
                 <td style="padding:12px 0;color:#64748b;border-top:1px solid #e2e8f0;">Company</td>
                 <td style="padding:12px 0;text-align:right;font-weight:600;border-top:1px solid #e2e8f0;">${data.companyName}</td>
               </tr>
-              ` : ""}
+              `
+                  : ""
+              }
             </table>
           </div>
 
@@ -2800,16 +2833,22 @@ export async function sendInsuranceExpiryReminderEmail(
             <a href="${data.renewUrl}" class="button">Update Insurance Now</a>
           </p>
 
-          ${data.daysUntilExpiry <= 0 ? `
+          ${
+            data.daysUntilExpiry <= 0
+              ? `
           <p style="background:#fef2f2;border:1px solid #fecaca;padding:12px 16px;border-radius:8px;color:#991b1b;font-size:14px;margin-top:24px;">
             <strong>Important:</strong> Your ability to accept new jobs has been suspended until valid insurance is provided.
             Upload your renewed insurance certificate to restore your account.
           </p>
-          ` : data.daysUntilExpiry <= 7 ? `
+          `
+              : data.daysUntilExpiry <= 7
+                ? `
           <p style="background:#fef3c7;border:1px solid #fcd34d;padding:12px 16px;border-radius:8px;color:#92400e;font-size:14px;margin-top:24px;">
             <strong>Note:</strong> If your insurance expires before you renew, your ability to accept new jobs will be temporarily suspended.
           </p>
-          ` : ""}
+          `
+                : ""
+          }
         </div>
         <div class="footer">
           <p>${SITE_NAME} - Locksmith Partner Portal</p>
@@ -2821,9 +2860,10 @@ export async function sendInsuranceExpiryReminderEmail(
   `;
 
   const subjectPrefix = isUrgent ? "🚨 URGENT" : "⚠️ Reminder";
-  const subjectSuffix = data.daysUntilExpiry <= 0
-    ? "Insurance Expired - Action Required"
-    : `Insurance ${urgencyText}`;
+  const subjectSuffix =
+    data.daysUntilExpiry <= 0
+      ? "Insurance Expired - Action Required"
+      : `Insurance ${urgencyText}`;
 
   return sendEmail({
     to: locksmithEmail,
@@ -2847,7 +2887,7 @@ export async function sendCustomerOnboardingEmail(
     jobAddress: string;
     problemType: string;
     onboardingUrl: string;
-  }
+  },
 ) {
   const problemLabels: Record<string, string> = {
     lockout: "Locked Out",
@@ -2976,7 +3016,7 @@ export async function sendOnboardingCompleteEmail(
     customerName: string;
     jobNumber: string;
     jobUrl: string;
-  }
+  },
 ) {
   const html = `
     <!DOCTYPE html>
@@ -3032,6 +3072,107 @@ export async function sendOnboardingCompleteEmail(
   return sendEmail({
     to: customerEmail,
     subject: `You're All Set! Track Job ${data.jobNumber} | ${SITE_NAME}`,
+    html,
+  });
+}
+
+// ============================================
+// ADMIN: NO LOCKSMITH AVAILABLE
+// ============================================
+
+/**
+ * Sent by an admin from /admin/jobs when no verified locksmith is currently
+ * available in the customer's coverage area.
+ *
+ * Copy follows Neil Patel + Ryan Deiss principles:
+ *   - Empathetic open (drop the corporate tone)
+ *   - Honest news (build trust)
+ *   - Immediate value: priority phone line + radius widening
+ *   - Soft urgency with credibility (no fake countdowns)
+ *   - Risk reversal: assessment fee fully refundable
+ */
+export async function sendNoLocksmithAvailableEmail(
+  customerEmail: string,
+  data: {
+    customerName: string;
+    jobNumber: string;
+    postcode: string;
+    problemType?: string;
+    jobUrl: string;
+    priorityPhone: string;
+    priorityPhoneTel: string; // tel: format
+  },
+) {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8" />
+      <style>
+        body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; line-height: 1.6; color: #1e293b; background: #f1f5f9; margin: 0; }
+        .container { max-width: 620px; margin: 0 auto; padding: 24px; }
+        .header { background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); color: white; padding: 36px 28px; border-radius: 16px 16px 0 0; text-align: center; }
+        .header h1 { margin: 0; font-size: 26px; line-height: 1.25; }
+        .header p { margin: 12px 0 0 0; opacity: 0.95; font-size: 15px; }
+        .content { background: #ffffff; padding: 32px 28px; border-radius: 0 0 16px 16px; box-shadow: 0 4px 16px rgba(15,23,42,0.06); }
+        .lede { font-size: 17px; color: #0f172a; margin: 0 0 18px 0; }
+        .box { background: #fff7ed; border: 1px solid #fed7aa; padding: 20px; border-radius: 14px; margin: 22px 0; }
+        .box-title { font-weight: 700; color: #9a3412; margin: 0 0 8px 0; font-size: 15px; letter-spacing: 0.02em; text-transform: uppercase; }
+        .checklist { padding: 0; margin: 14px 0 0 0; list-style: none; }
+        .checklist li { padding: 6px 0 6px 28px; position: relative; color: #334155; font-size: 15px; }
+        .checklist li::before { content: "✓"; position: absolute; left: 0; top: 6px; width: 20px; height: 20px; background: #16a34a; color: white; border-radius: 50%; text-align: center; font-size: 12px; font-weight: 700; line-height: 20px; }
+        .cta-wrap { text-align: center; margin: 30px 0 18px 0; }
+        .cta { display: inline-block; background: #f97316; color: #ffffff !important; padding: 16px 36px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 17px; box-shadow: 0 4px 12px rgba(249,115,22,0.35); }
+        .cta-sub { display: block; margin-top: 10px; color: #64748b; font-size: 13px; }
+        .secondary { display: block; margin-top: 18px; color: #f97316; text-decoration: none; font-weight: 600; font-size: 15px; text-align: center; }
+        .guarantee { background: #ecfdf5; border: 1px solid #a7f3d0; padding: 16px 18px; border-radius: 12px; margin: 26px 0 8px 0; color: #065f46; font-size: 14px; line-height: 1.55; }
+        .signoff { color: #475569; font-size: 14px; margin: 22px 0 0 0; }
+        .footer { text-align: center; color: #94a3b8; font-size: 12px; margin-top: 24px; padding: 0 8px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>An honest update on job ${data.jobNumber}</h1>
+          <p>We'd rather tell you straight than leave you waiting</p>
+        </div>
+        <div class="content">
+          <p class="lede">Hi ${data.customerName},</p>
+          <p>Right now we don't have a verified LockSafe UK locksmith available in <strong>${data.postcode}</strong>${data.problemType ? ` for your ${data.problemType.replace(/-/g, " ")} request` : ""}. I know that's the last thing you want to hear — so here's exactly what we're going to do about it.</p>
+
+          <div class="box">
+            <p class="box-title">Your fastest path to help</p>
+            <ul class="checklist">
+              <li>Call our <strong>priority dispatch line</strong> — we'll hand-match you with a vetted locksmith from our wider partner network, usually within 15 minutes.</li>
+              <li>Expand your search radius from inside your job page (one tap) so locksmiths within a 25-mile range can see your request.</li>
+              <li>Or, if it's no longer urgent, cancel the job in one click and we'll refund the assessment fee in full.</li>
+            </ul>
+          </div>
+
+          <div class="cta-wrap">
+            <a href="tel:${data.priorityPhoneTel}" class="cta">📞 Call priority line: ${data.priorityPhone}</a>
+            <span class="cta-sub">Average pickup time: under 30 seconds, 24/7</span>
+            <a href="${data.jobUrl}" class="secondary">→ Or manage your job online</a>
+          </div>
+
+          <div class="guarantee">
+            <strong>Our promise to you:</strong> if we genuinely can't get a verified locksmith out today, your <strong>£29 assessment fee is refunded in full, no questions asked</strong>. We only win when you win.
+          </div>
+
+          <p class="signoff">Sorry for the inconvenience — we're working on it right now.<br/>The LockSafe UK Dispatch Team</p>
+        </div>
+        <div class="footer">
+          <p style="margin:0;">${SITE_NAME} — UK's First Anti-Fraud Locksmith Platform</p>
+          <p style="margin:6px 0 0 0;">Need anything else? ${SUPPORT_EMAIL}</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to: customerEmail,
+    subject: `Quick update on your locksmith request ${data.jobNumber}`,
     html,
   });
 }
