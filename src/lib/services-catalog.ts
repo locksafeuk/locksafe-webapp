@@ -11,6 +11,10 @@
  */
 
 import { getFullUrl } from "@/lib/config";
+import {
+  EXTENDED_CONTENT,
+  type ExtendedServiceContent,
+} from "@/lib/services-content-extended";
 
 export const SERVICE_SLUGS = [
   "emergency-locksmith",
@@ -58,7 +62,9 @@ export interface ServiceContent {
   priceHint: string;
 }
 
-export type ServiceEntry = CatalogItem & ServiceContent;
+export type ServiceEntry = CatalogItem &
+  ServiceContent &
+  ExtendedServiceContent;
 
 const BRAND = "LockSafe UK" as const;
 const PRICE = "0.00 GBP" as const; // service-intent feed: zero monetary price
@@ -85,6 +91,9 @@ function entry(
     brand: BRAND,
     shortDescription,
     ...content,
+    // Merge in conversion-grade extended content (FAQ, value stack, etc.)
+    // — page-only fields, NOT shipped in the Meta catalog CSV.
+    ...EXTENDED_CONTENT[slug],
   };
 }
 
@@ -121,7 +130,8 @@ const ENTRIES: ServiceEntry[] = [
     "Locked out of your home? Get a fast response from verified locksmiths with clear pricing — agreed before any work starts.",
     {
       hero: "Locked Out? Get Back In — Without the Stitch-Up.",
-      subhead: "Verified locksmiths quote upfront. Non-destructive entry first.",
+      subhead:
+        "Verified locksmiths quote upfront. Non-destructive entry first.",
       longDescription: [
         "Locked out is stressful enough without a £600 invoice on top. Post your job and verified, local locksmiths quote you upfront — non-destructive entry first, drilling only as a last resort.",
         "You see who's coming, when they'll arrive, and the agreed price — before any work begins.",
@@ -147,7 +157,8 @@ const ENTRIES: ServiceEntry[] = [
     "New tenant, lost keys, or upgrade time? Get a BS3621 lock change from verified, insurance-approved locksmiths.",
     {
       hero: "Lock Change — Insurance-Compliant, Fitted Today.",
-      subhead: "British Standard BS3621 locks. Verified locksmiths. Fixed quote.",
+      subhead:
+        "British Standard BS3621 locks. Verified locksmiths. Fixed quote.",
       longDescription: [
         "Whether you've moved house, lost your keys, or want better security, replacing your locks should be simple. We connect you with verified locksmiths who fit insurance-approved British Standard BS3621 locks at a price agreed up front.",
         "Same-day fitting available across most of the UK.",
@@ -173,7 +184,8 @@ const ENTRIES: ServiceEntry[] = [
     "Snapped your key in the lock? Verified locksmiths extract broken keys without damaging your cylinder.",
     {
       hero: "Broken Key in the Lock? We Get It Out Without Damage.",
-      subhead: "Specialist extraction. Cylinder saved where possible. Fixed price.",
+      subhead:
+        "Specialist extraction. Cylinder saved where possible. Fixed price.",
       longDescription: [
         "A snapped key doesn't have to mean a new lock. Our verified locksmiths use specialist extraction tools to remove broken keys cleanly — saving your existing cylinder where the lock is undamaged.",
         "If the cylinder is damaged, we'll quote a like-for-like replacement before any work begins.",
@@ -199,7 +211,8 @@ const ENTRIES: ServiceEntry[] = [
     "UPVC door not locking properly? Multi-point lock failures repaired by verified specialists with upfront pricing.",
     {
       hero: "UPVC Door Won't Lock? Fix the Mechanism, Not the Door.",
-      subhead: "Multi-point lock specialists. Repair before replace. Fixed quote.",
+      subhead:
+        "Multi-point lock specialists. Repair before replace. Fixed quote.",
       longDescription: [
         "A failing UPVC door is almost always the multi-point gearbox or cylinder — not the door itself. Our verified locksmiths diagnose the exact failure and repair it, often saving you the cost of a full door replacement.",
         "Most UPVC repairs are completed same day, with a fixed quote agreed before any work begins.",
@@ -225,7 +238,8 @@ const ENTRIES: ServiceEntry[] = [
     "After a break-in, get your home secure tonight. Verified locksmiths, insurance-friendly paper trail.",
     {
       hero: "Burglary Repair — Secure Tonight, Insurance-Ready Paperwork.",
-      subhead: "Boarding, lock replacement, and a digital report for your insurer.",
+      subhead:
+        "Boarding, lock replacement, and a digital report for your insurer.",
       longDescription: [
         "After a break-in, the priority is getting your home secure tonight. Our verified locksmiths attend rapidly, replace damaged locks with insurance-approved BS3621 hardware, and provide the timestamped photos and digital report your insurer will ask for.",
         "We also coordinate emergency boarding for damaged doors and windows where needed.",
@@ -251,7 +265,8 @@ const ENTRIES: ServiceEntry[] = [
     "Lost your car keys? Auto locksmiths cut and program replacement keys on site — most makes and models.",
     {
       hero: "Lost Car Keys? Replaced On Site — Most Makes & Models.",
-      subhead: "Mobile auto locksmiths. Cut, programmed, and tested at your location.",
+      subhead:
+        "Mobile auto locksmiths. Cut, programmed, and tested at your location.",
       longDescription: [
         "Don't pay dealership prices or wait days for a key. Our verified mobile auto locksmiths come to you, cut and program a new transponder key on site, and test it before you pay.",
         "Covers most petrol, diesel, and hybrid vehicles. Tell us your make, model, and year and we'll match you with a specialist.",
@@ -277,7 +292,8 @@ const ENTRIES: ServiceEntry[] = [
     "Locked out of a safe? Verified safe specialists open most domestic and commercial safes non-destructively.",
     {
       hero: "Safe Locked? Opened Non-Destructively, Where Possible.",
-      subhead: "Specialist safe technicians. Manipulation first, drilling last.",
+      subhead:
+        "Specialist safe technicians. Manipulation first, drilling last.",
       longDescription: [
         "Whether it's a forgotten combination, dead battery, or jammed mechanism, our verified safe specialists open most domestic and commercial safes — manipulation and bypass methods first, drilling only as a last resort.",
         "We also reset combinations and replace lost keys for popular safe brands.",
@@ -329,7 +345,8 @@ const ENTRIES: ServiceEntry[] = [
     "Office lockouts, master key systems, fire-door compliance. Verified commercial locksmiths across the UK.",
     {
       hero: "Commercial Locksmith — Master Keys, Access Control, Compliance.",
-      subhead: "Verified commercial specialists. Restricted profiles. Fire-door compliant.",
+      subhead:
+        "Verified commercial specialists. Restricted profiles. Fire-door compliant.",
       longDescription: [
         "From an office lockout to a multi-site master-key system, our verified commercial locksmiths cover the full range of business security needs — including fire-door compliance, restricted-profile keys that can't be copied without authorisation, and access-control installation.",
         "All work is documented and invoiced for your facilities team.",
@@ -363,7 +380,10 @@ export function getServiceBySlug(slug: string): ServiceEntry | undefined {
 }
 
 export function isServiceSlug(value: unknown): value is ServiceSlug {
-  return typeof value === "string" && (SERVICE_SLUGS as readonly string[]).includes(value);
+  return (
+    typeof value === "string" &&
+    (SERVICE_SLUGS as readonly string[]).includes(value)
+  );
 }
 
 /** Strip the landing-page-only fields, leaving only the Meta feed schema. */
@@ -379,7 +399,17 @@ export function toCatalogItem(entry: ServiceEntry): CatalogItem {
     image_link,
     brand,
   } = entry;
-  return { id, title, description, availability, condition, price, link, image_link, brand };
+  return {
+    id,
+    title,
+    description,
+    availability,
+    condition,
+    price,
+    link,
+    image_link,
+    brand,
+  };
 }
 
 /**
@@ -402,36 +432,36 @@ export function mapJobProblemTypeToCatalogId(
   // job intake form, Bland AI pathway, and Prisma `Job.problemType`.
   const aliases: Record<string, ServiceSlug> = {
     // legacy / intake values
-    "lockout": "locked-out",
+    lockout: "locked-out",
     "locked-out-house": "locked-out",
     "locked-out-home": "locked-out",
     "locked-out-flat": "locked-out",
     "locked-out-office": "commercial-locksmith",
-    "broken": "broken-key-extraction",
+    broken: "broken-key-extraction",
     "broken-lock": "lock-change",
     "broken-key": "broken-key-extraction",
     "key-stuck": "broken-key-extraction",
     "key-snapped": "broken-key-extraction",
     "lost-keys": "lock-change",
     "lost-key": "lock-change",
-    "burglary": "burglary-lock-repair",
+    burglary: "burglary-lock-repair",
     "break-in": "burglary-lock-repair",
-    "upvc": "upvc-door-lock-repair",
+    upvc: "upvc-door-lock-repair",
     "upvc-door": "upvc-door-lock-repair",
     "multi-point": "upvc-door-lock-repair",
     "patio-door": "upvc-door-lock-repair",
-    "car": "car-key-replacement",
+    car: "car-key-replacement",
     "car-key": "car-key-replacement",
-    "auto": "car-key-replacement",
-    "vehicle": "car-key-replacement",
-    "safe": "safe-opening",
-    "landlord": "landlord-lock-change",
+    auto: "car-key-replacement",
+    vehicle: "car-key-replacement",
+    safe: "safe-opening",
+    landlord: "landlord-lock-change",
     "tenant-changeover": "landlord-lock-change",
-    "commercial": "commercial-locksmith",
-    "office": "commercial-locksmith",
-    "business": "commercial-locksmith",
-    "emergency": "emergency-locksmith",
-    "other": "emergency-locksmith",
+    commercial: "commercial-locksmith",
+    office: "commercial-locksmith",
+    business: "commercial-locksmith",
+    emergency: "emergency-locksmith",
+    other: "emergency-locksmith",
   };
 
   return aliases[key];

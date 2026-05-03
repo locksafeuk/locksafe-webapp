@@ -7,9 +7,9 @@
  * Single event, deduplicated browser↔server via a shared `event_id`.
  */
 
-import { useEffect, useRef } from "react";
 import { useMetaPixel } from "@/components/analytics/MetaPixel";
 import type { ServiceSlug } from "@/lib/services-catalog";
+import { useEffect, useRef } from "react";
 
 interface Props {
   slug: ServiceSlug;
