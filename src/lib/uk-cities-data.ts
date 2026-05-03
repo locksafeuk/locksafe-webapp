@@ -25,7 +25,7 @@ export interface CityData {
 // All major UK cities with comprehensive data
 export const ukCitiesData: Record<string, CityData> = {
   // ENGLAND - LONDON & SOUTH EAST
-  "london": {
+  london: {
     slug: "london",
     name: "London",
     region: "Greater London",
@@ -33,29 +33,63 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "9 million",
     postcodeAreas: ["E", "EC", "N", "NW", "SE", "SW", "W", "WC"],
     areas: [
-      "Westminster", "Camden", "Islington", "Hackney", "Tower Hamlets",
-      "Southwark", "Lambeth", "Wandsworth", "Kensington", "Hammersmith",
-      "Greenwich", "Lewisham", "Croydon", "Bromley", "Bexley"
+      "Westminster",
+      "Camden",
+      "Islington",
+      "Hackney",
+      "Tower Hamlets",
+      "Southwark",
+      "Lambeth",
+      "Wandsworth",
+      "Kensington",
+      "Hammersmith",
+      "Greenwich",
+      "Lewisham",
+      "Croydon",
+      "Bromley",
+      "Bexley",
     ],
     landmarks: [
-      "Big Ben", "Tower of London", "Buckingham Palace", "London Eye",
-      "The Shard", "Tower Bridge", "St Paul's Cathedral"
+      "Big Ben",
+      "Tower of London",
+      "Buckingham Palace",
+      "London Eye",
+      "The Shard",
+      "Tower Bridge",
+      "St Paul's Cathedral",
     ],
     description: "the capital city of the United Kingdom",
     emergencyContext: "Central London and all 32 boroughs",
     avgResponseTime: "15-30 minutes",
-    nearbyPostcodes: ["RM", "IG", "EN", "HA", "UB", "TW", "KT", "CR", "BR", "DA"],
+    nearbyPostcodes: [
+      "RM",
+      "IG",
+      "EN",
+      "HA",
+      "UB",
+      "TW",
+      "KT",
+      "CR",
+      "BR",
+      "DA",
+    ],
     coordinates: { lat: 51.5074, lng: -0.1278 },
     localTips: [
       "Coverage across all London boroughs",
       "Zone 1-6 rapid response network",
-      "Familiar with period properties and modern developments"
+      "Familiar with period properties and modern developments",
     ],
-    transportHubs: ["Heathrow", "King's Cross", "Victoria", "Waterloo", "Liverpool Street"]
+    transportHubs: [
+      "Heathrow",
+      "King's Cross",
+      "Victoria",
+      "Waterloo",
+      "Liverpool Street",
+    ],
   },
 
   // NORTH WEST ENGLAND
-  "manchester": {
+  manchester: {
     slug: "manchester",
     name: "Manchester",
     region: "North West England",
@@ -63,13 +97,28 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "2.8 million",
     postcodeAreas: ["M"],
     areas: [
-      "City Centre", "Salford", "Trafford", "Stockport", "Oldham",
-      "Bolton", "Bury", "Rochdale", "Wigan", "Tameside",
-      "Didsbury", "Chorlton", "Ancoats", "Northern Quarter"
+      "City Centre",
+      "Salford",
+      "Trafford",
+      "Stockport",
+      "Oldham",
+      "Bolton",
+      "Bury",
+      "Rochdale",
+      "Wigan",
+      "Tameside",
+      "Didsbury",
+      "Chorlton",
+      "Ancoats",
+      "Northern Quarter",
     ],
     landmarks: [
-      "Old Trafford", "Etihad Stadium", "Manchester Cathedral",
-      "MediaCityUK", "Piccadilly Gardens", "Arndale Centre"
+      "Old Trafford",
+      "Etihad Stadium",
+      "Manchester Cathedral",
+      "MediaCityUK",
+      "Piccadilly Gardens",
+      "Arndale Centre",
     ],
     description: "the vibrant heart of the North West",
     emergencyContext: "Manchester city centre and Greater Manchester",
@@ -79,12 +128,16 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Quick M60 motorway access",
       "Know the student areas well",
-      "Experience with Victorian terraces"
+      "Experience with Victorian terraces",
     ],
-    transportHubs: ["Manchester Airport", "Piccadilly Station", "Victoria Station"]
+    transportHubs: [
+      "Manchester Airport",
+      "Piccadilly Station",
+      "Victoria Station",
+    ],
   },
 
-  "liverpool": {
+  liverpool: {
     slug: "liverpool",
     name: "Liverpool",
     region: "North West England",
@@ -92,13 +145,28 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "900,000",
     postcodeAreas: ["L"],
     areas: [
-      "City Centre", "Anfield", "Everton", "Toxteth", "Wavertree",
-      "Allerton", "Aigburth", "Kirkdale", "Walton", "West Derby",
-      "Crosby", "Bootle", "Huyton", "Kirkby"
+      "City Centre",
+      "Anfield",
+      "Everton",
+      "Toxteth",
+      "Wavertree",
+      "Allerton",
+      "Aigburth",
+      "Kirkdale",
+      "Walton",
+      "West Derby",
+      "Crosby",
+      "Bootle",
+      "Huyton",
+      "Kirkby",
     ],
     landmarks: [
-      "The Cavern Club", "Albert Dock", "Liverpool Cathedral",
-      "Anfield Stadium", "Pier Head", "Royal Liver Building"
+      "The Cavern Club",
+      "Albert Dock",
+      "Liverpool Cathedral",
+      "Anfield Stadium",
+      "Pier Head",
+      "Royal Liver Building",
     ],
     description: "the historic port city with rich cultural heritage",
     emergencyContext: "Liverpool city centre and Merseyside",
@@ -108,13 +176,13 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Know the docklands area",
       "Experience with Georgian properties",
-      "Stadium event day expertise"
+      "Stadium event day expertise",
     ],
-    transportHubs: ["Liverpool John Lennon Airport", "Lime Street Station"]
+    transportHubs: ["Liverpool John Lennon Airport", "Lime Street Station"],
   },
 
   // WEST MIDLANDS
-  "birmingham": {
+  birmingham: {
     slug: "birmingham",
     name: "Birmingham",
     region: "West Midlands",
@@ -122,13 +190,27 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "2.9 million",
     postcodeAreas: ["B"],
     areas: [
-      "City Centre", "Edgbaston", "Moseley", "Solihull", "Sutton Coldfield",
-      "Erdington", "Handsworth", "Selly Oak", "Kings Heath", "Hall Green",
-      "Harborne", "Jewellery Quarter", "Digbeth"
+      "City Centre",
+      "Edgbaston",
+      "Moseley",
+      "Solihull",
+      "Sutton Coldfield",
+      "Erdington",
+      "Handsworth",
+      "Selly Oak",
+      "Kings Heath",
+      "Hall Green",
+      "Harborne",
+      "Jewellery Quarter",
+      "Digbeth",
     ],
     landmarks: [
-      "Bullring", "Birmingham Library", "Cadbury World",
-      "Birmingham Cathedral", "Selfridges Building", "NEC"
+      "Bullring",
+      "Birmingham Library",
+      "Cadbury World",
+      "Birmingham Cathedral",
+      "Selfridges Building",
+      "NEC",
     ],
     description: "the UK's second largest city and industrial powerhouse",
     emergencyContext: "Birmingham city centre and West Midlands",
@@ -138,12 +220,12 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Quick M6 corridor access",
       "Know the Jewellery Quarter",
-      "Experience with canal-side properties"
+      "Experience with canal-side properties",
     ],
-    transportHubs: ["Birmingham Airport", "New Street Station", "Moor Street"]
+    transportHubs: ["Birmingham Airport", "New Street Station", "Moor Street"],
   },
 
-  "coventry": {
+  coventry: {
     slug: "coventry",
     name: "Coventry",
     region: "West Midlands",
@@ -151,12 +233,22 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "370,000",
     postcodeAreas: ["CV"],
     areas: [
-      "City Centre", "Earlsdon", "Coundon", "Stoke", "Wyken",
-      "Walsgrave", "Tile Hill", "Canley", "Cheylesmore"
+      "City Centre",
+      "Earlsdon",
+      "Coundon",
+      "Stoke",
+      "Wyken",
+      "Walsgrave",
+      "Tile Hill",
+      "Canley",
+      "Cheylesmore",
     ],
     landmarks: [
-      "Coventry Cathedral", "Transport Museum", "Coventry University",
-      "Belgrade Theatre", "Ricoh Arena"
+      "Coventry Cathedral",
+      "Transport Museum",
+      "Coventry University",
+      "Belgrade Theatre",
+      "Ricoh Arena",
     ],
     description: "the historic city of motors and innovation",
     emergencyContext: "Coventry city centre and surrounding areas",
@@ -166,12 +258,12 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Know the ring road well",
       "University area specialists",
-      "Experience with post-war architecture"
+      "Experience with post-war architecture",
     ],
-    transportHubs: ["Coventry Station", "Coventry Airport (historical)"]
+    transportHubs: ["Coventry Station", "Coventry Airport (historical)"],
   },
 
-  "wolverhampton": {
+  wolverhampton: {
     slug: "wolverhampton",
     name: "Wolverhampton",
     region: "West Midlands",
@@ -179,28 +271,36 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "260,000",
     postcodeAreas: ["WV"],
     areas: [
-      "City Centre", "Tettenhall", "Penn", "Wednesfield", "Bilston",
-      "Willenhall", "Blakenhall", "Heath Town"
+      "City Centre",
+      "Tettenhall",
+      "Penn",
+      "Wednesfield",
+      "Bilston",
+      "Willenhall",
+      "Blakenhall",
+      "Heath Town",
     ],
     landmarks: [
-      "Molineux Stadium", "Wolverhampton Art Gallery",
-      "Grand Theatre", "Bantock House"
+      "Molineux Stadium",
+      "Wolverhampton Art Gallery",
+      "Grand Theatre",
+      "Bantock House",
     ],
     description: "a proud Black Country city with industrial heritage",
     emergencyContext: "Wolverhampton and the Black Country",
     avgResponseTime: "15-25 minutes",
     nearbyPostcodes: ["B", "DY", "WS"],
-    coordinates: { lat: 52.5870, lng: -2.1288 },
+    coordinates: { lat: 52.587, lng: -2.1288 },
     localTips: [
       "Know Black Country roads",
       "Experience with terraced properties",
-      "Quick M54 access"
+      "Quick M54 access",
     ],
-    transportHubs: ["Wolverhampton Station"]
+    transportHubs: ["Wolverhampton Station"],
   },
 
   // YORKSHIRE & THE HUMBER
-  "leeds": {
+  leeds: {
     slug: "leeds",
     name: "Leeds",
     region: "Yorkshire and the Humber",
@@ -208,13 +308,27 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "800,000",
     postcodeAreas: ["LS"],
     areas: [
-      "City Centre", "Headingley", "Chapel Allerton", "Roundhay", "Horsforth",
-      "Meanwood", "Moortown", "Pudsey", "Morley", "Garforth",
-      "Otley", "Wetherby", "Guiseley"
+      "City Centre",
+      "Headingley",
+      "Chapel Allerton",
+      "Roundhay",
+      "Horsforth",
+      "Meanwood",
+      "Moortown",
+      "Pudsey",
+      "Morley",
+      "Garforth",
+      "Otley",
+      "Wetherby",
+      "Guiseley",
     ],
     landmarks: [
-      "Leeds City Centre", "Roundhay Park", "Leeds Corn Exchange",
-      "Trinity Leeds", "First Direct Arena", "Leeds Castle"
+      "Leeds City Centre",
+      "Roundhay Park",
+      "Leeds Corn Exchange",
+      "Trinity Leeds",
+      "First Direct Arena",
+      "Leeds Castle",
     ],
     description: "Yorkshire's vibrant business and cultural hub",
     emergencyContext: "Leeds city centre and West Yorkshire",
@@ -224,12 +338,12 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Know the student areas",
       "Quick A1/M1 access",
-      "Experience with Victorian architecture"
+      "Experience with Victorian architecture",
     ],
-    transportHubs: ["Leeds Bradford Airport", "Leeds Station"]
+    transportHubs: ["Leeds Bradford Airport", "Leeds Station"],
   },
 
-  "sheffield": {
+  sheffield: {
     slug: "sheffield",
     name: "Sheffield",
     region: "Yorkshire and the Humber",
@@ -237,12 +351,24 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "580,000",
     postcodeAreas: ["S"],
     areas: [
-      "City Centre", "Ecclesall", "Crookes", "Broomhill", "Walkley",
-      "Hillsborough", "Dore", "Fulwood", "Nether Edge", "Sharrow"
+      "City Centre",
+      "Ecclesall",
+      "Crookes",
+      "Broomhill",
+      "Walkley",
+      "Hillsborough",
+      "Dore",
+      "Fulwood",
+      "Nether Edge",
+      "Sharrow",
     ],
     landmarks: [
-      "Sheffield Cathedral", "Winter Garden", "Meadowhall",
-      "Crucible Theatre", "Bramall Lane", "Peak District"
+      "Sheffield Cathedral",
+      "Winter Garden",
+      "Meadowhall",
+      "Crucible Theatre",
+      "Bramall Lane",
+      "Peak District",
     ],
     description: "the Steel City nestled at the edge of the Peak District",
     emergencyContext: "Sheffield city centre and South Yorkshire",
@@ -252,12 +378,12 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Know the hills well",
       "Experience with stone-built properties",
-      "Student area specialists"
+      "Student area specialists",
     ],
-    transportHubs: ["Sheffield Station", "Meadowhall Interchange"]
+    transportHubs: ["Sheffield Station", "Meadowhall Interchange"],
   },
 
-  "bradford": {
+  bradford: {
     slug: "bradford",
     name: "Bradford",
     region: "Yorkshire and the Humber",
@@ -265,27 +391,37 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "540,000",
     postcodeAreas: ["BD"],
     areas: [
-      "City Centre", "Manningham", "Shipley", "Bingley", "Ilkley",
-      "Keighley", "Saltaire", "Thornton", "Heaton"
+      "City Centre",
+      "Manningham",
+      "Shipley",
+      "Bingley",
+      "Ilkley",
+      "Keighley",
+      "Saltaire",
+      "Thornton",
+      "Heaton",
     ],
     landmarks: [
-      "National Science & Media Museum", "Cartwright Hall",
-      "Saltaire Village (UNESCO)", "Bradford Cathedral", "Alhambra Theatre"
+      "National Science & Media Museum",
+      "Cartwright Hall",
+      "Saltaire Village (UNESCO)",
+      "Bradford Cathedral",
+      "Alhambra Theatre",
     ],
     description: "a diverse city with UNESCO heritage and textile history",
     emergencyContext: "Bradford and surrounding West Yorkshire",
     avgResponseTime: "15-25 minutes",
     nearbyPostcodes: ["LS", "HX", "HD"],
-    coordinates: { lat: 53.7960, lng: -1.7594 },
+    coordinates: { lat: 53.796, lng: -1.7594 },
     localTips: [
       "Know the heritage areas",
       "Experience with mill conversions",
-      "Quick Aire Valley access"
+      "Quick Aire Valley access",
     ],
-    transportHubs: ["Bradford Interchange", "Bradford Forster Square"]
+    transportHubs: ["Bradford Interchange", "Bradford Forster Square"],
   },
 
-  "hull": {
+  hull: {
     slug: "hull",
     name: "Hull",
     region: "Yorkshire and the Humber",
@@ -293,12 +429,22 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "260,000",
     postcodeAreas: ["HU"],
     areas: [
-      "City Centre", "Cottingham", "Hessle", "Anlaby", "Bransholme",
-      "Beverley", "Willerby", "Kirk Ella", "Kingswood"
+      "City Centre",
+      "Cottingham",
+      "Hessle",
+      "Anlaby",
+      "Bransholme",
+      "Beverley",
+      "Willerby",
+      "Kirk Ella",
+      "Kingswood",
     ],
     landmarks: [
-      "The Deep", "Humber Bridge", "Hull Marina",
-      "Ferens Art Gallery", "Hull Minster"
+      "The Deep",
+      "Humber Bridge",
+      "Hull Marina",
+      "Ferens Art Gallery",
+      "Hull Minster",
     ],
     description: "the 2017 UK City of Culture with maritime heritage",
     emergencyContext: "Hull and East Yorkshire",
@@ -308,12 +454,12 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Know the dock areas",
       "Experience with period properties",
-      "Quick A63/M62 access"
+      "Quick A63/M62 access",
     ],
-    transportHubs: ["Hull Paragon Station", "Hull Ferry Terminal"]
+    transportHubs: ["Hull Paragon Station", "Hull Ferry Terminal"],
   },
 
-  "york": {
+  york: {
     slug: "york",
     name: "York",
     region: "Yorkshire and the Humber",
@@ -321,12 +467,23 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "210,000",
     postcodeAreas: ["YO"],
     areas: [
-      "City Centre", "Clifton", "Heworth", "Fulford", "Acomb",
-      "Bishopthorpe", "Huntington", "Haxby", "Strensall"
+      "City Centre",
+      "Clifton",
+      "Heworth",
+      "Fulford",
+      "Acomb",
+      "Bishopthorpe",
+      "Huntington",
+      "Haxby",
+      "Strensall",
     ],
     landmarks: [
-      "York Minster", "The Shambles", "York Castle", "Clifford's Tower",
-      "National Railway Museum", "York City Walls"
+      "York Minster",
+      "The Shambles",
+      "York Castle",
+      "Clifford's Tower",
+      "National Railway Museum",
+      "York City Walls",
     ],
     description: "the historic Roman and Viking city",
     emergencyContext: "York city centre and North Yorkshire",
@@ -336,13 +493,13 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Know the medieval streets",
       "Experience with listed buildings",
-      "Familiar with flood-prone areas"
+      "Familiar with flood-prone areas",
     ],
-    transportHubs: ["York Station"]
+    transportHubs: ["York Station"],
   },
 
   // NORTH EAST ENGLAND
-  "newcastle": {
+  newcastle: {
     slug: "newcastle",
     name: "Newcastle upon Tyne",
     region: "North East England",
@@ -350,12 +507,24 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "300,000",
     postcodeAreas: ["NE"],
     areas: [
-      "City Centre", "Jesmond", "Gosforth", "Heaton", "Fenham",
-      "Byker", "Walker", "Elswick", "Kenton", "Gateshead"
+      "City Centre",
+      "Jesmond",
+      "Gosforth",
+      "Heaton",
+      "Fenham",
+      "Byker",
+      "Walker",
+      "Elswick",
+      "Kenton",
+      "Gateshead",
     ],
     landmarks: [
-      "Tyne Bridge", "Newcastle Castle", "St James' Park",
-      "Grey's Monument", "Sage Gateshead", "Angel of the North"
+      "Tyne Bridge",
+      "Newcastle Castle",
+      "St James' Park",
+      "Grey's Monument",
+      "Sage Gateshead",
+      "Angel of the North",
     ],
     description: "the vibrant heart of the North East",
     emergencyContext: "Newcastle and Tyneside",
@@ -365,12 +534,12 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Know the Quayside area",
       "Experience with Tyneside flats",
-      "Quick metro network knowledge"
+      "Quick metro network knowledge",
     ],
-    transportHubs: ["Newcastle Airport", "Central Station"]
+    transportHubs: ["Newcastle Airport", "Central Station"],
   },
 
-  "sunderland": {
+  sunderland: {
     slug: "sunderland",
     name: "Sunderland",
     region: "North East England",
@@ -378,12 +547,22 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "280,000",
     postcodeAreas: ["SR"],
     areas: [
-      "City Centre", "Roker", "Seaburn", "Hendon", "Millfield",
-      "Fulwell", "Southwick", "Washington", "Houghton-le-Spring"
+      "City Centre",
+      "Roker",
+      "Seaburn",
+      "Hendon",
+      "Millfield",
+      "Fulwell",
+      "Southwick",
+      "Washington",
+      "Houghton-le-Spring",
     ],
     landmarks: [
-      "Stadium of Light", "National Glass Centre", "Roker Pier",
-      "Winter Gardens", "Sunderland Museum"
+      "Stadium of Light",
+      "National Glass Centre",
+      "Roker Pier",
+      "Winter Gardens",
+      "Sunderland Museum",
     ],
     description: "a proud coastal city with shipbuilding heritage",
     emergencyContext: "Sunderland and Wearside",
@@ -393,12 +572,12 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Know the coastal areas",
       "Experience with terraced properties",
-      "Quick A19 access"
+      "Quick A19 access",
     ],
-    transportHubs: ["Sunderland Station"]
+    transportHubs: ["Sunderland Station"],
   },
 
-  "middlesbrough": {
+  middlesbrough: {
     slug: "middlesbrough",
     name: "Middlesbrough",
     region: "North East England",
@@ -406,28 +585,36 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "140,000",
     postcodeAreas: ["TS"],
     areas: [
-      "Town Centre", "Linthorpe", "Acklam", "Marton", "Nunthorpe",
-      "Stockton", "Redcar", "Hartlepool"
+      "Town Centre",
+      "Linthorpe",
+      "Acklam",
+      "Marton",
+      "Nunthorpe",
+      "Stockton",
+      "Redcar",
+      "Hartlepool",
     ],
     landmarks: [
-      "Transporter Bridge", "Middlesbrough Town Hall",
-      "Albert Park", "Riverside Stadium"
+      "Transporter Bridge",
+      "Middlesbrough Town Hall",
+      "Albert Park",
+      "Riverside Stadium",
     ],
     description: "Teesside's industrial heart",
     emergencyContext: "Middlesbrough and Teesside",
     avgResponseTime: "15-25 minutes",
     nearbyPostcodes: ["DL"],
-    coordinates: { lat: 54.5742, lng: -1.2350 },
+    coordinates: { lat: 54.5742, lng: -1.235 },
     localTips: [
       "Know the industrial areas",
       "Experience with terraced housing",
-      "Quick A66/A19 access"
+      "Quick A66/A19 access",
     ],
-    transportHubs: ["Middlesbrough Station", "Durham Tees Valley Airport"]
+    transportHubs: ["Middlesbrough Station", "Durham Tees Valley Airport"],
   },
 
   // EAST MIDLANDS
-  "nottingham": {
+  nottingham: {
     slug: "nottingham",
     name: "Nottingham",
     region: "East Midlands",
@@ -435,12 +622,24 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "330,000",
     postcodeAreas: ["NG"],
     areas: [
-      "City Centre", "Beeston", "West Bridgford", "Hucknall", "Arnold",
-      "Carlton", "Mapperley", "Sherwood", "The Park", "Lenton"
+      "City Centre",
+      "Beeston",
+      "West Bridgford",
+      "Hucknall",
+      "Arnold",
+      "Carlton",
+      "Mapperley",
+      "Sherwood",
+      "The Park",
+      "Lenton",
     ],
     landmarks: [
-      "Nottingham Castle", "Old Market Square", "Trent Bridge",
-      "City Ground", "Wollaton Hall", "Caves of Nottingham"
+      "Nottingham Castle",
+      "Old Market Square",
+      "Trent Bridge",
+      "City Ground",
+      "Wollaton Hall",
+      "Caves of Nottingham",
     ],
     description: "Robin Hood's legendary city",
     emergencyContext: "Nottingham city centre and Greater Nottingham",
@@ -450,12 +649,12 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Know the Lace Market",
       "Student area expertise",
-      "Experience with Victorian architecture"
+      "Experience with Victorian architecture",
     ],
-    transportHubs: ["East Midlands Airport", "Nottingham Station"]
+    transportHubs: ["East Midlands Airport", "Nottingham Station"],
   },
 
-  "leicester": {
+  leicester: {
     slug: "leicester",
     name: "Leicester",
     region: "East Midlands",
@@ -463,12 +662,22 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "350,000",
     postcodeAreas: ["LE"],
     areas: [
-      "City Centre", "Oadby", "Wigston", "Beaumont Leys", "Braunstone",
-      "Evington", "Knighton", "Stoneygate", "Clarendon Park"
+      "City Centre",
+      "Oadby",
+      "Wigston",
+      "Beaumont Leys",
+      "Braunstone",
+      "Evington",
+      "Knighton",
+      "Stoneygate",
+      "Clarendon Park",
     ],
     landmarks: [
-      "King Richard III Visitor Centre", "Leicester Cathedral",
-      "King Power Stadium", "New Walk Museum", "Golden Mile"
+      "King Richard III Visitor Centre",
+      "Leicester Cathedral",
+      "King Power Stadium",
+      "New Walk Museum",
+      "Golden Mile",
     ],
     description: "the diverse heart of the East Midlands",
     emergencyContext: "Leicester city centre and Leicestershire",
@@ -478,12 +687,12 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Know the diverse communities",
       "Experience with Victorian terraces",
-      "Quick M1/A46 access"
+      "Quick M1/A46 access",
     ],
-    transportHubs: ["Leicester Station", "East Midlands Airport"]
+    transportHubs: ["Leicester Station", "East Midlands Airport"],
   },
 
-  "derby": {
+  derby: {
     slug: "derby",
     name: "Derby",
     region: "East Midlands",
@@ -491,12 +700,22 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "260,000",
     postcodeAreas: ["DE"],
     areas: [
-      "City Centre", "Allestree", "Spondon", "Mickleover", "Littleover",
-      "Chaddesden", "Oakwood", "Darley Abbey", "Normanton"
+      "City Centre",
+      "Allestree",
+      "Spondon",
+      "Mickleover",
+      "Littleover",
+      "Chaddesden",
+      "Oakwood",
+      "Darley Abbey",
+      "Normanton",
     ],
     landmarks: [
-      "Derby Cathedral", "Derby Silk Mill", "Pride Park Stadium",
-      "Derwent Valley Mills (UNESCO)", "Arboretum"
+      "Derby Cathedral",
+      "Derby Silk Mill",
+      "Pride Park Stadium",
+      "Derwent Valley Mills (UNESCO)",
+      "Arboretum",
     ],
     description: "the gateway to the Peak District",
     emergencyContext: "Derby city centre and Derbyshire",
@@ -506,13 +725,13 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Know the heritage areas",
       "Experience with mill conversions",
-      "Quick A38/A52 access"
+      "Quick A38/A52 access",
     ],
-    transportHubs: ["Derby Station", "East Midlands Airport"]
+    transportHubs: ["Derby Station", "East Midlands Airport"],
   },
 
   // EAST OF ENGLAND
-  "cambridge": {
+  cambridge: {
     slug: "cambridge",
     name: "Cambridge",
     region: "East of England",
@@ -520,12 +739,23 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "145,000",
     postcodeAreas: ["CB"],
     areas: [
-      "City Centre", "Newnham", "Chesterton", "Cherry Hinton", "Trumpington",
-      "Arbury", "Kings Hedges", "Romsey", "Mill Road"
+      "City Centre",
+      "Newnham",
+      "Chesterton",
+      "Cherry Hinton",
+      "Trumpington",
+      "Arbury",
+      "Kings Hedges",
+      "Romsey",
+      "Mill Road",
     ],
     landmarks: [
-      "King's College Chapel", "The Backs", "Fitzwilliam Museum",
-      "Cambridge University", "Mathematical Bridge", "River Cam"
+      "King's College Chapel",
+      "The Backs",
+      "Fitzwilliam Museum",
+      "Cambridge University",
+      "Mathematical Bridge",
+      "River Cam",
     ],
     description: "the world-famous university city",
     emergencyContext: "Cambridge city centre and South Cambridgeshire",
@@ -535,12 +765,12 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Know the college layouts",
       "Experience with listed buildings",
-      "Familiar with the Science Park"
+      "Familiar with the Science Park",
     ],
-    transportHubs: ["Cambridge Station", "Cambridge North"]
+    transportHubs: ["Cambridge Station", "Cambridge North"],
   },
 
-  "norwich": {
+  norwich: {
     slug: "norwich",
     name: "Norwich",
     region: "East of England",
@@ -548,12 +778,22 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "210,000",
     postcodeAreas: ["NR"],
     areas: [
-      "City Centre", "Eaton", "Golden Triangle", "Thorpe St Andrew",
-      "Costessey", "Sprowston", "Hellesdon", "Cringleford"
+      "City Centre",
+      "Eaton",
+      "Golden Triangle",
+      "Thorpe St Andrew",
+      "Costessey",
+      "Sprowston",
+      "Hellesdon",
+      "Cringleford",
     ],
     landmarks: [
-      "Norwich Cathedral", "Norwich Castle", "The Forum",
-      "Elm Hill", "Norwich Market", "Carrow Road"
+      "Norwich Cathedral",
+      "Norwich Castle",
+      "The Forum",
+      "Elm Hill",
+      "Norwich Market",
+      "Carrow Road",
     ],
     description: "England's first UNESCO City of Literature",
     emergencyContext: "Norwich city centre and Norfolk",
@@ -563,12 +803,12 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Know the medieval lanes",
       "Experience with period properties",
-      "Familiar with the Broads area"
+      "Familiar with the Broads area",
     ],
-    transportHubs: ["Norwich Station", "Norwich Airport"]
+    transportHubs: ["Norwich Station", "Norwich Airport"],
   },
 
-  "peterborough": {
+  peterborough: {
     slug: "peterborough",
     name: "Peterborough",
     region: "East of England",
@@ -576,12 +816,20 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "200,000",
     postcodeAreas: ["PE"],
     areas: [
-      "City Centre", "Werrington", "Bretton", "Orton", "Stanground",
-      "Dogsthorpe", "Longthorpe", "Hampton"
+      "City Centre",
+      "Werrington",
+      "Bretton",
+      "Orton",
+      "Stanground",
+      "Dogsthorpe",
+      "Longthorpe",
+      "Hampton",
     ],
     landmarks: [
-      "Peterborough Cathedral", "Queensgate Shopping Centre",
-      "Nene Park", "Flag Fen Bronze Age Centre"
+      "Peterborough Cathedral",
+      "Queensgate Shopping Centre",
+      "Nene Park",
+      "Flag Fen Bronze Age Centre",
     ],
     description: "a cathedral city with excellent transport links",
     emergencyContext: "Peterborough and surroundings",
@@ -591,12 +839,12 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Know the new developments",
       "Quick A1/A47 access",
-      "Experience with diverse housing"
+      "Experience with diverse housing",
     ],
-    transportHubs: ["Peterborough Station"]
+    transportHubs: ["Peterborough Station"],
   },
 
-  "ipswich": {
+  ipswich: {
     slug: "ipswich",
     name: "Ipswich",
     region: "East of England",
@@ -604,12 +852,20 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "140,000",
     postcodeAreas: ["IP"],
     areas: [
-      "Town Centre", "Christchurch Park", "Rushmere", "Kesgrave",
-      "Martlesham", "Felixstowe", "Woodbridge"
+      "Town Centre",
+      "Christchurch Park",
+      "Rushmere",
+      "Kesgrave",
+      "Martlesham",
+      "Felixstowe",
+      "Woodbridge",
     ],
     landmarks: [
-      "Christchurch Mansion", "Ipswich Waterfront", "Willis Building",
-      "Ancient House", "Portman Road Stadium"
+      "Christchurch Mansion",
+      "Ipswich Waterfront",
+      "Willis Building",
+      "Ancient House",
+      "Portman Road Stadium",
     ],
     description: "Suffolk's county town with maritime heritage",
     emergencyContext: "Ipswich and Suffolk",
@@ -619,13 +875,13 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Know the waterfront area",
       "Experience with Tudor buildings",
-      "Quick A14/A12 access"
+      "Quick A14/A12 access",
     ],
-    transportHubs: ["Ipswich Station"]
+    transportHubs: ["Ipswich Station"],
   },
 
   // SOUTH EAST ENGLAND
-  "brighton": {
+  brighton: {
     slug: "brighton",
     name: "Brighton & Hove",
     region: "South East England",
@@ -633,12 +889,24 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "290,000",
     postcodeAreas: ["BN"],
     areas: [
-      "City Centre", "Hove", "Kemptown", "Preston Park", "Portslade",
-      "Hanover", "Seven Dials", "The Lanes", "North Laine"
+      "City Centre",
+      "Hove",
+      "Kemptown",
+      "Preston Park",
+      "Portslade",
+      "Hanover",
+      "Seven Dials",
+      "The Lanes",
+      "North Laine",
     ],
     landmarks: [
-      "Royal Pavilion", "Brighton Pier", "i360", "The Lanes",
-      "Brighton Beach", "North Laine", "Churchill Square"
+      "Royal Pavilion",
+      "Brighton Pier",
+      "i360",
+      "The Lanes",
+      "Brighton Beach",
+      "North Laine",
+      "Churchill Square",
     ],
     description: "the vibrant seaside city by the sea",
     emergencyContext: "Brighton, Hove and surrounding Sussex",
@@ -648,12 +916,12 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Know the narrow Lanes",
       "Experience with Regency properties",
-      "Familiar with beach-front buildings"
+      "Familiar with beach-front buildings",
     ],
-    transportHubs: ["Brighton Station", "Gatwick Airport (nearby)"]
+    transportHubs: ["Brighton Station", "Gatwick Airport (nearby)"],
   },
 
-  "oxford": {
+  oxford: {
     slug: "oxford",
     name: "Oxford",
     region: "South East England",
@@ -661,27 +929,38 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "155,000",
     postcodeAreas: ["OX"],
     areas: [
-      "City Centre", "Cowley", "Headington", "Jericho", "Summertown",
-      "Botley", "Iffley", "Rose Hill", "Marston"
+      "City Centre",
+      "Cowley",
+      "Headington",
+      "Jericho",
+      "Summertown",
+      "Botley",
+      "Iffley",
+      "Rose Hill",
+      "Marston",
     ],
     landmarks: [
-      "Bodleian Library", "Radcliffe Camera", "Christ Church College",
-      "Ashmolean Museum", "Oxford Castle", "Covered Market"
+      "Bodleian Library",
+      "Radcliffe Camera",
+      "Christ Church College",
+      "Ashmolean Museum",
+      "Oxford Castle",
+      "Covered Market",
     ],
     description: "the city of dreaming spires",
     emergencyContext: "Oxford city centre and Oxfordshire",
     avgResponseTime: "15-25 minutes",
     nearbyPostcodes: ["MK", "HP", "SN", "RG"],
-    coordinates: { lat: 51.7520, lng: -1.2577 },
+    coordinates: { lat: 51.752, lng: -1.2577 },
     localTips: [
       "Know the college quads",
       "Experience with historic buildings",
-      "Familiar with the Oxford ring road"
+      "Familiar with the Oxford ring road",
     ],
-    transportHubs: ["Oxford Station", "Oxford Parkway"]
+    transportHubs: ["Oxford Station", "Oxford Parkway"],
   },
 
-  "reading": {
+  reading: {
     slug: "reading",
     name: "Reading",
     region: "South East England",
@@ -689,12 +968,22 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "230,000",
     postcodeAreas: ["RG"],
     areas: [
-      "Town Centre", "Caversham", "Tilehurst", "Woodley", "Earley",
-      "Shinfield", "Whitley", "Coley", "Calcot"
+      "Town Centre",
+      "Caversham",
+      "Tilehurst",
+      "Woodley",
+      "Earley",
+      "Shinfield",
+      "Whitley",
+      "Coley",
+      "Calcot",
     ],
     landmarks: [
-      "The Oracle", "Forbury Gardens", "Reading Abbey Ruins",
-      "Madejski Stadium", "Reading Festival Site"
+      "The Oracle",
+      "Forbury Gardens",
+      "Reading Abbey Ruins",
+      "Madejski Stadium",
+      "Reading Festival Site",
     ],
     description: "a thriving Thames Valley business centre",
     emergencyContext: "Reading and Berkshire",
@@ -704,12 +993,12 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Know the IDR inner ring",
       "Experience with Victorian terraces",
-      "Quick M4 access"
+      "Quick M4 access",
     ],
-    transportHubs: ["Reading Station"]
+    transportHubs: ["Reading Station"],
   },
 
-  "southampton": {
+  southampton: {
     slug: "southampton",
     name: "Southampton",
     region: "South East England",
@@ -717,12 +1006,23 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "260,000",
     postcodeAreas: ["SO"],
     areas: [
-      "City Centre", "Shirley", "Portswood", "Bitterne", "Woolston",
-      "Highfield", "Swaythling", "Lordshill", "Ocean Village"
+      "City Centre",
+      "Shirley",
+      "Portswood",
+      "Bitterne",
+      "Woolston",
+      "Highfield",
+      "Swaythling",
+      "Lordshill",
+      "Ocean Village",
     ],
     landmarks: [
-      "SeaCity Museum", "Southampton Docks", "Mayflower Theatre",
-      "Tudor House", "Bargate", "St Mary's Stadium"
+      "SeaCity Museum",
+      "Southampton Docks",
+      "Mayflower Theatre",
+      "Tudor House",
+      "Bargate",
+      "St Mary's Stadium",
     ],
     description: "the historic cruise and maritime city",
     emergencyContext: "Southampton city centre and Hampshire",
@@ -732,12 +1032,12 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Know the dock areas",
       "Experience with port security",
-      "Quick M3/M27 access"
+      "Quick M3/M27 access",
     ],
-    transportHubs: ["Southampton Central", "Southampton Airport"]
+    transportHubs: ["Southampton Central", "Southampton Airport"],
   },
 
-  "portsmouth": {
+  portsmouth: {
     slug: "portsmouth",
     name: "Portsmouth",
     region: "South East England",
@@ -745,24 +1045,35 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "210,000",
     postcodeAreas: ["PO"],
     areas: [
-      "City Centre", "Southsea", "Fratton", "Cosham", "Hilsea",
-      "Copnor", "North End", "Baffins", "Milton"
+      "City Centre",
+      "Southsea",
+      "Fratton",
+      "Cosham",
+      "Hilsea",
+      "Copnor",
+      "North End",
+      "Baffins",
+      "Milton",
     ],
     landmarks: [
-      "Portsmouth Historic Dockyard", "HMS Victory", "Spinnaker Tower",
-      "Gunwharf Quays", "Southsea Castle", "Fratton Park"
+      "Portsmouth Historic Dockyard",
+      "HMS Victory",
+      "Spinnaker Tower",
+      "Gunwharf Quays",
+      "Southsea Castle",
+      "Fratton Park",
     ],
     description: "Britain's only island city with naval heritage",
     emergencyContext: "Portsmouth and Southsea",
     avgResponseTime: "15-25 minutes",
     nearbyPostcodes: ["SO", "GU", "BN"],
-    coordinates: { lat: 50.8198, lng: -1.0880 },
+    coordinates: { lat: 50.8198, lng: -1.088 },
     localTips: [
       "Know the naval base areas",
       "Experience with dense housing",
-      "Island geography specialist"
+      "Island geography specialist",
     ],
-    transportHubs: ["Portsmouth & Southsea Station", "Portsmouth Harbour"]
+    transportHubs: ["Portsmouth & Southsea Station", "Portsmouth Harbour"],
   },
 
   "milton-keynes": {
@@ -773,12 +1084,22 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "270,000",
     postcodeAreas: ["MK"],
     areas: [
-      "Central Milton Keynes", "Bletchley", "Wolverton", "Stony Stratford",
-      "Newport Pagnell", "Olney", "Woburn Sands", "Kingston"
+      "Central Milton Keynes",
+      "Bletchley",
+      "Wolverton",
+      "Stony Stratford",
+      "Newport Pagnell",
+      "Olney",
+      "Woburn Sands",
+      "Kingston",
     ],
     landmarks: [
-      "The Centre:MK", "Xscape", "Bletchley Park", "The Concrete Cows",
-      "MK Dons Stadium", "Milton Keynes Theatre"
+      "The Centre:MK",
+      "Xscape",
+      "Bletchley Park",
+      "The Concrete Cows",
+      "MK Dons Stadium",
+      "Milton Keynes Theatre",
     ],
     description: "the UK's fastest growing new city",
     emergencyContext: "Milton Keynes and surrounding areas",
@@ -788,13 +1109,13 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Know the grid road system",
       "Experience with modern builds",
-      "Quick M1 access"
+      "Quick M1 access",
     ],
-    transportHubs: ["Milton Keynes Central Station"]
+    transportHubs: ["Milton Keynes Central Station"],
   },
 
   // SOUTH WEST ENGLAND
-  "bristol": {
+  bristol: {
     slug: "bristol",
     name: "Bristol",
     region: "South West England",
@@ -802,13 +1123,27 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "470,000",
     postcodeAreas: ["BS"],
     areas: [
-      "City Centre", "Clifton", "Redland", "Cotham", "Bedminster",
-      "Southville", "Easton", "St Pauls", "Bishopston", "Horfield",
-      "Filton", "Bradley Stoke"
+      "City Centre",
+      "Clifton",
+      "Redland",
+      "Cotham",
+      "Bedminster",
+      "Southville",
+      "Easton",
+      "St Pauls",
+      "Bishopston",
+      "Horfield",
+      "Filton",
+      "Bradley Stoke",
     ],
     landmarks: [
-      "Clifton Suspension Bridge", "SS Great Britain", "Bristol Cathedral",
-      "Cabot Circus", "Harbour", "M Shed", "Ashton Gate Stadium"
+      "Clifton Suspension Bridge",
+      "SS Great Britain",
+      "Bristol Cathedral",
+      "Cabot Circus",
+      "Harbour",
+      "M Shed",
+      "Ashton Gate Stadium",
     ],
     description: "the vibrant South West hub",
     emergencyContext: "Bristol city centre and Greater Bristol",
@@ -818,12 +1153,12 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Know the harbour areas",
       "Experience with Georgian properties",
-      "Familiar with the hills"
+      "Familiar with the hills",
     ],
-    transportHubs: ["Bristol Temple Meads", "Bristol Airport"]
+    transportHubs: ["Bristol Temple Meads", "Bristol Airport"],
   },
 
-  "plymouth": {
+  plymouth: {
     slug: "plymouth",
     name: "Plymouth",
     region: "South West England",
@@ -831,12 +1166,23 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "265,000",
     postcodeAreas: ["PL"],
     areas: [
-      "City Centre", "The Hoe", "Mutley", "Devonport", "Plympton",
-      "Plymstock", "Stonehouse", "Stoke", "Efford"
+      "City Centre",
+      "The Hoe",
+      "Mutley",
+      "Devonport",
+      "Plympton",
+      "Plymstock",
+      "Stonehouse",
+      "Stoke",
+      "Efford",
     ],
     landmarks: [
-      "Plymouth Hoe", "Smeaton's Tower", "Royal Citadel",
-      "Barbican", "National Marine Aquarium", "Home Park Stadium"
+      "Plymouth Hoe",
+      "Smeaton's Tower",
+      "Royal Citadel",
+      "Barbican",
+      "National Marine Aquarium",
+      "Home Park Stadium",
     ],
     description: "Britain's Ocean City",
     emergencyContext: "Plymouth and South Devon",
@@ -846,12 +1192,12 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Know the naval dockyard area",
       "Experience with coastal properties",
-      "Familiar with hilly terrain"
+      "Familiar with hilly terrain",
     ],
-    transportHubs: ["Plymouth Station"]
+    transportHubs: ["Plymouth Station"],
   },
 
-  "exeter": {
+  exeter: {
     slug: "exeter",
     name: "Exeter",
     region: "South West England",
@@ -859,12 +1205,22 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "130,000",
     postcodeAreas: ["EX"],
     areas: [
-      "City Centre", "St Thomas", "Heavitree", "Pinhoe", "Topsham",
-      "Exwick", "Pennsylvania", "St Leonards", "Countess Wear"
+      "City Centre",
+      "St Thomas",
+      "Heavitree",
+      "Pinhoe",
+      "Topsham",
+      "Exwick",
+      "Pennsylvania",
+      "St Leonards",
+      "Countess Wear",
     ],
     landmarks: [
-      "Exeter Cathedral", "Royal Albert Memorial Museum",
-      "Quayside", "Princesshay", "Underground Passages"
+      "Exeter Cathedral",
+      "Royal Albert Memorial Museum",
+      "Quayside",
+      "Princesshay",
+      "Underground Passages",
     ],
     description: "Devon's historic cathedral city",
     emergencyContext: "Exeter city centre and East Devon",
@@ -874,12 +1230,12 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Know the Roman walls",
       "Experience with historic buildings",
-      "Quick M5 access"
+      "Quick M5 access",
     ],
-    transportHubs: ["Exeter St Davids", "Exeter Airport"]
+    transportHubs: ["Exeter St Davids", "Exeter Airport"],
   },
 
-  "bath": {
+  bath: {
     slug: "bath",
     name: "Bath",
     region: "South West England",
@@ -887,27 +1243,38 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "90,000",
     postcodeAreas: ["BA"],
     areas: [
-      "City Centre", "Lansdown", "Widcombe", "Oldfield Park", "Bear Flat",
-      "Bathwick", "Weston", "Twerton", "Larkhall"
+      "City Centre",
+      "Lansdown",
+      "Widcombe",
+      "Oldfield Park",
+      "Bear Flat",
+      "Bathwick",
+      "Weston",
+      "Twerton",
+      "Larkhall",
     ],
     landmarks: [
-      "Roman Baths", "Royal Crescent", "Bath Abbey",
-      "Pulteney Bridge", "Thermae Bath Spa", "The Circus"
+      "Roman Baths",
+      "Royal Crescent",
+      "Bath Abbey",
+      "Pulteney Bridge",
+      "Thermae Bath Spa",
+      "The Circus",
     ],
     description: "the stunning Georgian city and World Heritage Site",
     emergencyContext: "Bath city centre and North Somerset",
     avgResponseTime: "15-25 minutes",
     nearbyPostcodes: ["BS", "SN", "GL"],
-    coordinates: { lat: 51.3811, lng: -2.3590 },
+    coordinates: { lat: 51.3811, lng: -2.359 },
     localTips: [
       "Know the Georgian architecture",
       "Experience with listed buildings",
-      "Familiar with steep streets"
+      "Familiar with steep streets",
     ],
-    transportHubs: ["Bath Spa Station"]
+    transportHubs: ["Bath Spa Station"],
   },
 
-  "bournemouth": {
+  bournemouth: {
     slug: "bournemouth",
     name: "Bournemouth",
     region: "South West England",
@@ -915,12 +1282,22 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "200,000",
     postcodeAreas: ["BH"],
     areas: [
-      "Town Centre", "Westbourne", "Boscombe", "Winton", "Moordown",
-      "Charminster", "Pokesdown", "Southbourne", "Queens Park"
+      "Town Centre",
+      "Westbourne",
+      "Boscombe",
+      "Winton",
+      "Moordown",
+      "Charminster",
+      "Pokesdown",
+      "Southbourne",
+      "Queens Park",
     ],
     landmarks: [
-      "Bournemouth Beach", "Pier", "Lower Gardens",
-      "Russell-Cotes Museum", "BH2 Leisure Complex"
+      "Bournemouth Beach",
+      "Pier",
+      "Lower Gardens",
+      "Russell-Cotes Museum",
+      "BH2 Leisure Complex",
     ],
     description: "the premier South Coast seaside resort",
     emergencyContext: "Bournemouth, Poole and Christchurch",
@@ -930,13 +1307,13 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Know the chines and gardens",
       "Experience with beach properties",
-      "Student area expertise"
+      "Student area expertise",
     ],
-    transportHubs: ["Bournemouth Station", "Bournemouth Airport"]
+    transportHubs: ["Bournemouth Station", "Bournemouth Airport"],
   },
 
   // SCOTLAND
-  "glasgow": {
+  glasgow: {
     slug: "glasgow",
     name: "Glasgow",
     region: "Scotland",
@@ -944,13 +1321,26 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "1.7 million",
     postcodeAreas: ["G"],
     areas: [
-      "City Centre", "West End", "Southside", "East End", "North Glasgow",
-      "Partick", "Hillhead", "Govan", "Dennistoun", "Shawlands",
-      "Pollokshields", "Merchant City"
+      "City Centre",
+      "West End",
+      "Southside",
+      "East End",
+      "North Glasgow",
+      "Partick",
+      "Hillhead",
+      "Govan",
+      "Dennistoun",
+      "Shawlands",
+      "Pollokshields",
+      "Merchant City",
     ],
     landmarks: [
-      "Glasgow Cathedral", "Riverside Museum", "Kelvingrove",
-      "SSE Hydro", "George Square", "Buchanan Street"
+      "Glasgow Cathedral",
+      "Riverside Museum",
+      "Kelvingrove",
+      "SSE Hydro",
+      "George Square",
+      "Buchanan Street",
     ],
     description: "Scotland's largest city",
     emergencyContext: "Glasgow city centre and Greater Glasgow",
@@ -960,12 +1350,16 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Know the West End lanes",
       "Experience with tenement buildings",
-      "Quick M8 motorway access"
+      "Quick M8 motorway access",
     ],
-    transportHubs: ["Glasgow Central", "Glasgow Queen Street", "Glasgow Airport"]
+    transportHubs: [
+      "Glasgow Central",
+      "Glasgow Queen Street",
+      "Glasgow Airport",
+    ],
   },
 
-  "edinburgh": {
+  edinburgh: {
     slug: "edinburgh",
     name: "Edinburgh",
     region: "Scotland",
@@ -973,12 +1367,24 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "540,000",
     postcodeAreas: ["EH"],
     areas: [
-      "Old Town", "New Town", "Leith", "Morningside", "Stockbridge",
-      "Bruntsfield", "Marchmont", "Portobello", "Cramond", "Corstorphine"
+      "Old Town",
+      "New Town",
+      "Leith",
+      "Morningside",
+      "Stockbridge",
+      "Bruntsfield",
+      "Marchmont",
+      "Portobello",
+      "Cramond",
+      "Corstorphine",
     ],
     landmarks: [
-      "Edinburgh Castle", "Royal Mile", "Arthur's Seat",
-      "Holyrood Palace", "Scott Monument", "Princes Street"
+      "Edinburgh Castle",
+      "Royal Mile",
+      "Arthur's Seat",
+      "Holyrood Palace",
+      "Scott Monument",
+      "Princes Street",
     ],
     description: "Scotland's historic capital",
     emergencyContext: "Edinburgh city centre and Lothian",
@@ -988,12 +1394,12 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Know the Old Town closes",
       "Experience with Georgian properties",
-      "Familiar with Festival times"
+      "Familiar with Festival times",
     ],
-    transportHubs: ["Edinburgh Waverley", "Haymarket", "Edinburgh Airport"]
+    transportHubs: ["Edinburgh Waverley", "Haymarket", "Edinburgh Airport"],
   },
 
-  "aberdeen": {
+  aberdeen: {
     slug: "aberdeen",
     name: "Aberdeen",
     region: "Scotland",
@@ -1001,12 +1407,22 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "230,000",
     postcodeAreas: ["AB"],
     areas: [
-      "City Centre", "Old Aberdeen", "Rubislaw", "Rosemount", "Torry",
-      "Cults", "Dyce", "Bridge of Don", "Westhill"
+      "City Centre",
+      "Old Aberdeen",
+      "Rubislaw",
+      "Rosemount",
+      "Torry",
+      "Cults",
+      "Dyce",
+      "Bridge of Don",
+      "Westhill",
     ],
     landmarks: [
-      "Marischal College", "Aberdeen Beach", "His Majesty's Theatre",
-      "Pittodrie Stadium", "Aberdeen Art Gallery"
+      "Marischal College",
+      "Aberdeen Beach",
+      "His Majesty's Theatre",
+      "Pittodrie Stadium",
+      "Aberdeen Art Gallery",
     ],
     description: "the Granite City and oil capital",
     emergencyContext: "Aberdeen city centre and Aberdeenshire",
@@ -1016,12 +1432,12 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Know the granite buildings",
       "Experience with oil industry security",
-      "Familiar with harbour area"
+      "Familiar with harbour area",
     ],
-    transportHubs: ["Aberdeen Station", "Aberdeen Airport"]
+    transportHubs: ["Aberdeen Station", "Aberdeen Airport"],
   },
 
-  "dundee": {
+  dundee: {
     slug: "dundee",
     name: "Dundee",
     region: "Scotland",
@@ -1029,28 +1445,38 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "150,000",
     postcodeAreas: ["DD"],
     areas: [
-      "City Centre", "West End", "Broughty Ferry", "Lochee", "Stobswell",
-      "Douglas", "Menzieshill", "Fintry"
+      "City Centre",
+      "West End",
+      "Broughty Ferry",
+      "Lochee",
+      "Stobswell",
+      "Douglas",
+      "Menzieshill",
+      "Fintry",
     ],
     landmarks: [
-      "V&A Dundee", "RRS Discovery", "The Law", "Dundee Contemporary Arts",
-      "McManus Galleries", "Caird Hall"
+      "V&A Dundee",
+      "RRS Discovery",
+      "The Law",
+      "Dundee Contemporary Arts",
+      "McManus Galleries",
+      "Caird Hall",
     ],
     description: "the City of Discovery and design",
     emergencyContext: "Dundee city centre and Tayside",
     avgResponseTime: "15-25 minutes",
     nearbyPostcodes: ["PH", "AB", "KY"],
-    coordinates: { lat: 56.4620, lng: -2.9707 },
+    coordinates: { lat: 56.462, lng: -2.9707 },
     localTips: [
       "Know the waterfront area",
       "Experience with jute mill conversions",
-      "Familiar with the V&A area"
+      "Familiar with the V&A area",
     ],
-    transportHubs: ["Dundee Station"]
+    transportHubs: ["Dundee Station"],
   },
 
   // WALES
-  "cardiff": {
+  cardiff: {
     slug: "cardiff",
     name: "Cardiff",
     region: "Wales",
@@ -1058,12 +1484,24 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "370,000",
     postcodeAreas: ["CF"],
     areas: [
-      "City Centre", "Canton", "Roath", "Cathays", "Splott",
-      "Llandaff", "Pontcanna", "Riverside", "Grangetown", "Whitchurch"
+      "City Centre",
+      "Canton",
+      "Roath",
+      "Cathays",
+      "Splott",
+      "Llandaff",
+      "Pontcanna",
+      "Riverside",
+      "Grangetown",
+      "Whitchurch",
     ],
     landmarks: [
-      "Cardiff Castle", "Principality Stadium", "Cardiff Bay",
-      "National Museum", "Bute Park", "St David's Centre"
+      "Cardiff Castle",
+      "Principality Stadium",
+      "Cardiff Bay",
+      "National Museum",
+      "Bute Park",
+      "St David's Centre",
     ],
     description: "the vibrant Welsh capital",
     emergencyContext: "Cardiff city centre and South Wales",
@@ -1073,12 +1511,12 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Know the Bay area",
       "Experience with Victorian terraces",
-      "Match day expertise"
+      "Match day expertise",
     ],
-    transportHubs: ["Cardiff Central", "Cardiff Airport"]
+    transportHubs: ["Cardiff Central", "Cardiff Airport"],
   },
 
-  "swansea": {
+  swansea: {
     slug: "swansea",
     name: "Swansea",
     region: "Wales",
@@ -1086,12 +1524,22 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "250,000",
     postcodeAreas: ["SA"],
     areas: [
-      "City Centre", "Uplands", "Sketty", "Mumbles", "Brynmill",
-      "Morriston", "Gorseinon", "Port Tennant", "Marina"
+      "City Centre",
+      "Uplands",
+      "Sketty",
+      "Mumbles",
+      "Brynmill",
+      "Morriston",
+      "Gorseinon",
+      "Port Tennant",
+      "Marina",
     ],
     landmarks: [
-      "Swansea Bay", "Mumbles Pier", "LC2 Waterpark",
-      "National Waterfront Museum", "Liberty Stadium"
+      "Swansea Bay",
+      "Mumbles Pier",
+      "LC2 Waterpark",
+      "National Waterfront Museum",
+      "Liberty Stadium",
     ],
     description: "Wales' coastal city of culture",
     emergencyContext: "Swansea city centre and Gower",
@@ -1101,12 +1549,12 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Know the Marina area",
       "Experience with coastal properties",
-      "Familiar with Gower Peninsula"
+      "Familiar with Gower Peninsula",
     ],
-    transportHubs: ["Swansea Station"]
+    transportHubs: ["Swansea Station"],
   },
 
-  "newport": {
+  newport: {
     slug: "newport",
     name: "Newport",
     region: "Wales",
@@ -1114,12 +1562,21 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "150,000",
     postcodeAreas: ["NP"],
     areas: [
-      "City Centre", "Malpas", "Caerleon", "Rogerstone", "Bassaleg",
-      "Pill", "Allt-yr-yn", "Stow Hill", "Maindee"
+      "City Centre",
+      "Malpas",
+      "Caerleon",
+      "Rogerstone",
+      "Bassaleg",
+      "Pill",
+      "Allt-yr-yn",
+      "Stow Hill",
+      "Maindee",
     ],
     landmarks: [
-      "Newport Transporter Bridge", "Tredegar House",
-      "Caerleon Roman Fortress", "Riverfront Theatre"
+      "Newport Transporter Bridge",
+      "Tredegar House",
+      "Caerleon Roman Fortress",
+      "Riverfront Theatre",
     ],
     description: "the Welsh gateway city",
     emergencyContext: "Newport and Gwent",
@@ -1129,13 +1586,13 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Know the Roman heritage areas",
       "Experience with industrial properties",
-      "Quick M4 access"
+      "Quick M4 access",
     ],
-    transportHubs: ["Newport Station"]
+    transportHubs: ["Newport Station"],
   },
 
   // NORTHERN IRELAND
-  "belfast": {
+  belfast: {
     slug: "belfast",
     name: "Belfast",
     region: "Northern Ireland",
@@ -1143,12 +1600,22 @@ export const ukCitiesData: Record<string, CityData> = {
     population: "340,000",
     postcodeAreas: ["BT"],
     areas: [
-      "City Centre", "Cathedral Quarter", "Titanic Quarter", "Queens Quarter",
-      "South Belfast", "East Belfast", "West Belfast", "North Belfast"
+      "City Centre",
+      "Cathedral Quarter",
+      "Titanic Quarter",
+      "Queens Quarter",
+      "South Belfast",
+      "East Belfast",
+      "West Belfast",
+      "North Belfast",
     ],
     landmarks: [
-      "Titanic Belfast", "Belfast City Hall", "St George's Market",
-      "Botanic Gardens", "Ulster Museum", "SSE Arena"
+      "Titanic Belfast",
+      "Belfast City Hall",
+      "St George's Market",
+      "Botanic Gardens",
+      "Ulster Museum",
+      "SSE Arena",
     ],
     description: "Northern Ireland's vibrant capital",
     emergencyContext: "Belfast city centre and Greater Belfast",
@@ -1158,10 +1625,1609 @@ export const ukCitiesData: Record<string, CityData> = {
     localTips: [
       "Know the quarter areas",
       "Experience with Victorian properties",
-      "Familiar with security requirements"
+      "Familiar with security requirements",
     ],
-    transportHubs: ["Belfast Central", "George Best Airport", "Belfast International"]
-  }
+    transportHubs: [
+      "Belfast Central",
+      "George Best Airport",
+      "Belfast International",
+    ],
+  },
+
+  // ENGLAND - WEST MIDLANDS / STAFFORDSHIRE
+  "stoke-on-trent": {
+    slug: "stoke-on-trent",
+    name: "Stoke-on-Trent",
+    region: "West Midlands",
+    county: "Staffordshire",
+    population: "260,000",
+    postcodeAreas: ["ST"],
+    areas: [
+      "Hanley",
+      "Stoke",
+      "Burslem",
+      "Tunstall",
+      "Longton",
+      "Fenton",
+      "Trentham",
+      "Meir",
+      "Bentilee",
+      "Etruria",
+      "Cobridge",
+      "Smallthorne",
+    ],
+    landmarks: [
+      "Bet365 Stadium",
+      "Trentham Gardens",
+      "Wedgwood World of Wedgwood",
+      "Gladstone Pottery Museum",
+      "Hanley Park",
+      "Potteries Museum",
+    ],
+    description: "the historic Six Towns of the Potteries",
+    emergencyContext: "Stoke-on-Trent and the wider Potteries area",
+    avgResponseTime: "15-25 minutes",
+    nearbyPostcodes: ["CW", "TF", "SK", "DE"],
+    coordinates: { lat: 53.0027, lng: -2.1794 },
+    localTips: [
+      "Know all six town centres",
+      "Experience with terraced kiln cottages",
+      "Quick A500 'D-Road' access",
+    ],
+    transportHubs: ["Stoke-on-Trent Station"],
+  },
+
+  // YORKSHIRE - WAKEFIELD
+  wakefield: {
+    slug: "wakefield",
+    name: "Wakefield",
+    region: "Yorkshire and the Humber",
+    county: "West Yorkshire",
+    population: "100,000",
+    postcodeAreas: ["WF"],
+    areas: [
+      "City Centre",
+      "Sandal",
+      "Outwood",
+      "Lupset",
+      "Horbury",
+      "Ossett",
+      "Pontefract",
+      "Castleford",
+      "Normanton",
+      "Hemsworth",
+    ],
+    landmarks: [
+      "Hepworth Wakefield",
+      "Wakefield Cathedral",
+      "Sandal Castle",
+      "Pugneys Country Park",
+      "Yorkshire Sculpture Park",
+      "Trinity Walk",
+    ],
+    description: "the cathedral city of West Yorkshire",
+    emergencyContext: "Wakefield city centre and the Five Towns",
+    avgResponseTime: "15-25 minutes",
+    nearbyPostcodes: ["LS", "HD", "DN", "S"],
+    coordinates: { lat: 53.6833, lng: -1.4977 },
+    localTips: [
+      "Quick M1/M62 junction access",
+      "Know the former pit village layouts",
+      "Experience with stone-built terraces",
+    ],
+    transportHubs: ["Wakefield Westgate", "Wakefield Kirkgate"],
+  },
+
+  // YORKSHIRE - DONCASTER
+  doncaster: {
+    slug: "doncaster",
+    name: "Doncaster",
+    region: "Yorkshire and the Humber",
+    county: "South Yorkshire",
+    population: "310,000",
+    postcodeAreas: ["DN"],
+    areas: [
+      "Town Centre",
+      "Bessacarr",
+      "Wheatley",
+      "Hyde Park",
+      "Balby",
+      "Bentley",
+      "Armthorpe",
+      "Cantley",
+      "Edenthorpe",
+      "Mexborough",
+      "Thorne",
+    ],
+    landmarks: [
+      "Doncaster Racecourse",
+      "Cusworth Hall",
+      "Doncaster Minster",
+      "Eco-Power Stadium",
+      "Yorkshire Wildlife Park",
+      "Frenchgate Centre",
+    ],
+    description: "the historic market town and racecourse city",
+    emergencyContext: "Doncaster and South Yorkshire",
+    avgResponseTime: "15-25 minutes",
+    nearbyPostcodes: ["S", "HU", "LN", "WF"],
+    coordinates: { lat: 53.5228, lng: -1.1285 },
+    localTips: [
+      "Quick A1(M)/M18 access",
+      "Know the racecourse area on event days",
+      "Experience with new-build estates",
+    ],
+    transportHubs: [
+      "Doncaster Station",
+      "Doncaster Sheffield Airport (former)",
+    ],
+  },
+
+  // NORTH WEST - PRESTON
+  preston: {
+    slug: "preston",
+    name: "Preston",
+    region: "North West England",
+    county: "Lancashire",
+    population: "150,000",
+    postcodeAreas: ["PR"],
+    areas: [
+      "City Centre",
+      "Fulwood",
+      "Ingol",
+      "Penwortham",
+      "Lostock Hall",
+      "Bamber Bridge",
+      "Ribbleton",
+      "Ashton",
+      "Broughton",
+      "Longton",
+    ],
+    landmarks: [
+      "Harris Museum",
+      "Avenham Park",
+      "Preston Minster",
+      "Deepdale Stadium",
+      "UCLan Campus",
+      "Fishergate Shopping Centre",
+    ],
+    description: "Lancashire's cathedral and university city",
+    emergencyContext: "Preston city centre and Central Lancashire",
+    avgResponseTime: "15-25 minutes",
+    nearbyPostcodes: ["BB", "FY", "PR", "LA"],
+    coordinates: { lat: 53.7632, lng: -2.7031 },
+    localTips: [
+      "Quick M6/M55/M61 junction hub",
+      "Know the student housing patches",
+      "Experience with Victorian terraces",
+    ],
+    transportHubs: ["Preston Station"],
+  },
+
+  // NORTH WEST - BLACKPOOL
+  blackpool: {
+    slug: "blackpool",
+    name: "Blackpool",
+    region: "North West England",
+    county: "Lancashire",
+    population: "140,000",
+    postcodeAreas: ["FY"],
+    areas: [
+      "Town Centre",
+      "South Shore",
+      "North Shore",
+      "Bispham",
+      "Marton",
+      "Layton",
+      "Cleveleys",
+      "Fleetwood",
+      "Lytham",
+      "St Annes",
+    ],
+    landmarks: [
+      "Blackpool Tower",
+      "Pleasure Beach",
+      "Blackpool Illuminations",
+      "North Pier",
+      "Winter Gardens",
+      "Sandcastle Waterpark",
+    ],
+    description: "the iconic Lancashire seaside resort",
+    emergencyContext: "Blackpool, the Fylde Coast and surrounding towns",
+    avgResponseTime: "15-25 minutes",
+    nearbyPostcodes: ["PR", "LA", "BB"],
+    coordinates: { lat: 53.8175, lng: -3.0357 },
+    localTips: [
+      "Know the B&B and HMO patches",
+      "Experience with seafront properties",
+      "Familiar with promenade lockouts during illuminations",
+    ],
+    transportHubs: ["Blackpool North", "Blackpool South", "Blackpool Airport"],
+  },
+
+  // NORTH WEST - BOLTON
+  bolton: {
+    slug: "bolton",
+    name: "Bolton",
+    region: "North West England",
+    county: "Greater Manchester",
+    population: "200,000",
+    postcodeAreas: ["BL"],
+    areas: [
+      "Town Centre",
+      "Westhoughton",
+      "Horwich",
+      "Farnworth",
+      "Kearsley",
+      "Halliwell",
+      "Astley Bridge",
+      "Tonge Moor",
+      "Breightmet",
+      "Bromley Cross",
+    ],
+    landmarks: [
+      "Bolton Town Hall",
+      "Toughsheet Community Stadium",
+      "Smithills Hall",
+      "Bolton Market",
+      "Le Mans Crescent",
+      "Queen's Park",
+    ],
+    description: "an historic Lancashire mill town in Greater Manchester",
+    emergencyContext: "Bolton and the West Pennine Moors fringe",
+    avgResponseTime: "15-25 minutes",
+    nearbyPostcodes: ["M", "BB", "WN", "OL"],
+    coordinates: { lat: 53.5769, lng: -2.4282 },
+    localTips: [
+      "Know the millworkers' terraces",
+      "Quick M61 access",
+      "Experience with stone-built farmhouses on the moors edge",
+    ],
+    transportHubs: ["Bolton Station"],
+  },
+
+  // NORTH WEST - STOCKPORT
+  stockport: {
+    slug: "stockport",
+    name: "Stockport",
+    region: "North West England",
+    county: "Greater Manchester",
+    population: "295,000",
+    postcodeAreas: ["SK"],
+    areas: [
+      "Town Centre",
+      "Cheadle",
+      "Cheadle Hulme",
+      "Bramhall",
+      "Heaton Moor",
+      "Heaton Mersey",
+      "Reddish",
+      "Hazel Grove",
+      "Marple",
+      "Romiley",
+      "Edgeley",
+    ],
+    landmarks: [
+      "Stockport Viaduct",
+      "Air Raid Shelters",
+      "Stockport Market",
+      "Edgeley Park",
+      "Bramhall Hall",
+      "Lyme Park (nearby)",
+    ],
+    description: "a thriving Greater Manchester town with strong commuter belt",
+    emergencyContext: "Stockport and the south Manchester suburbs",
+    avgResponseTime: "15-25 minutes",
+    nearbyPostcodes: ["M", "CW", "SK", "OL"],
+    coordinates: { lat: 53.4106, lng: -2.1575 },
+    localTips: [
+      "Know the affluent Bramhall and Hazel Grove streets",
+      "Experience with high-security multipoint locks",
+      "Quick M60 junction access",
+    ],
+    transportHubs: ["Stockport Station"],
+  },
+
+  // NORTH WEST - WARRINGTON
+  warrington: {
+    slug: "warrington",
+    name: "Warrington",
+    region: "North West England",
+    county: "Cheshire",
+    population: "210,000",
+    postcodeAreas: ["WA"],
+    areas: [
+      "Town Centre",
+      "Latchford",
+      "Stockton Heath",
+      "Lymm",
+      "Penketh",
+      "Birchwood",
+      "Westbrook",
+      "Padgate",
+      "Orford",
+      "Great Sankey",
+    ],
+    landmarks: [
+      "Halliwell Jones Stadium",
+      "Warrington Town Hall",
+      "Bridgewater Canal",
+      "Walton Hall Gardens",
+      "Golden Square",
+    ],
+    description: "a major Cheshire town between Liverpool and Manchester",
+    emergencyContext: "Warrington and surrounding north Cheshire",
+    avgResponseTime: "15-25 minutes",
+    nearbyPostcodes: ["WN", "L", "M", "CW", "CH"],
+    coordinates: { lat: 53.39, lng: -2.597 },
+    localTips: [
+      "Quick M6/M62/M56 motorway hub",
+      "Know the new builds in Westbrook and Birchwood",
+      "Experience with canal-side properties in Lymm",
+    ],
+    transportHubs: ["Warrington Bank Quay", "Warrington Central"],
+  },
+
+  // NORTH WEST - CHESTER
+  chester: {
+    slug: "chester",
+    name: "Chester",
+    region: "North West England",
+    county: "Cheshire",
+    population: "90,000",
+    postcodeAreas: ["CH"],
+    areas: [
+      "City Centre",
+      "Hoole",
+      "Handbridge",
+      "Newton",
+      "Boughton",
+      "Saltney",
+      "Upton",
+      "Blacon",
+      "Vicars Cross",
+      "Christleton",
+    ],
+    landmarks: [
+      "Chester Cathedral",
+      "Eastgate Clock",
+      "The Rows",
+      "Chester City Walls",
+      "Chester Zoo",
+      "Chester Racecourse",
+    ],
+    description: "the Roman walled city on the Welsh border",
+    emergencyContext: "Chester city centre and West Cheshire",
+    avgResponseTime: "15-25 minutes",
+    nearbyPostcodes: ["LL", "CW", "WA", "L"],
+    coordinates: { lat: 53.1934, lng: -2.8931 },
+    localTips: [
+      "Know the listed-property restrictions in the walls",
+      "Experience with timber-framed Tudor properties",
+      "Quick A55/M53 access",
+    ],
+    transportHubs: ["Chester Station"],
+  },
+
+  // YORKSHIRE - HUDDERSFIELD
+  huddersfield: {
+    slug: "huddersfield",
+    name: "Huddersfield",
+    region: "Yorkshire and the Humber",
+    county: "West Yorkshire",
+    population: "165,000",
+    postcodeAreas: ["HD"],
+    areas: [
+      "Town Centre",
+      "Lindley",
+      "Marsh",
+      "Fartown",
+      "Newsome",
+      "Almondbury",
+      "Holmfirth",
+      "Meltham",
+      "Slaithwaite",
+      "Golcar",
+    ],
+    landmarks: [
+      "Huddersfield Railway Station",
+      "Castle Hill Tower",
+      "John Smith's Stadium",
+      "University of Huddersfield",
+      "Standedge Tunnel",
+    ],
+    description: "a Pennine town with grand Victorian architecture",
+    emergencyContext: "Huddersfield and the Holme Valley",
+    avgResponseTime: "15-25 minutes",
+    nearbyPostcodes: ["HX", "WF", "OL", "S", "BD"],
+    coordinates: { lat: 53.645, lng: -1.78 },
+    localTips: [
+      "Know the back-to-back terraces",
+      "Experience with stone-built moor cottages",
+      "Quick M62 J23/J24 access",
+    ],
+    transportHubs: ["Huddersfield Station"],
+  },
+
+  // YORKSHIRE - HALIFAX
+  halifax: {
+    slug: "halifax",
+    name: "Halifax",
+    region: "Yorkshire and the Humber",
+    county: "West Yorkshire",
+    population: "90,000",
+    postcodeAreas: ["HX"],
+    areas: [
+      "Town Centre",
+      "Sowerby Bridge",
+      "Hebden Bridge",
+      "Brighouse",
+      "Elland",
+      "Mixenden",
+      "Illingworth",
+      "Pellon",
+      "King Cross",
+    ],
+    landmarks: [
+      "Piece Hall",
+      "Halifax Minster",
+      "Eureka! Museum",
+      "Shibden Hall",
+      "Wainhouse Tower",
+      "The Shay Stadium",
+    ],
+    description: "a Calderdale town with Georgian wool-trade heritage",
+    emergencyContext: "Halifax and the Calder Valley",
+    avgResponseTime: "15-25 minutes",
+    nearbyPostcodes: ["HD", "BD", "OL", "BB"],
+    coordinates: { lat: 53.7218, lng: -1.8565 },
+    localTips: [
+      "Know the steep Pennine streets",
+      "Experience with mill conversions in Hebden Bridge",
+      "Familiar with stone weaver's cottages",
+    ],
+    transportHubs: ["Halifax Station"],
+  },
+
+  // NORTH WEST - LANCASTER
+  lancaster: {
+    slug: "lancaster",
+    name: "Lancaster",
+    region: "North West England",
+    county: "Lancashire",
+    population: "55,000",
+    postcodeAreas: ["LA"],
+    areas: [
+      "City Centre",
+      "Morecambe",
+      "Heysham",
+      "Bowerham",
+      "Scotforth",
+      "Skerton",
+      "Galgate",
+      "Carnforth",
+      "Caton",
+      "Bare",
+    ],
+    landmarks: [
+      "Lancaster Castle",
+      "Williamson Park",
+      "Ashton Memorial",
+      "Lancaster Priory",
+      "Lancaster University",
+      "Morecambe Bay",
+    ],
+    description: "a historic Lancashire city with castle and university",
+    emergencyContext: "Lancaster, Morecambe and North Lancashire",
+    avgResponseTime: "15-30 minutes",
+    nearbyPostcodes: ["PR", "FY", "BB", "CA"],
+    coordinates: { lat: 54.0466, lng: -2.8007 },
+    localTips: [
+      "Know the student halls patterns",
+      "Experience with Georgian properties in city centre",
+      "Quick M6 J33/J34 access",
+    ],
+    transportHubs: ["Lancaster Station"],
+  },
+
+  // WEST MIDLANDS - WORCESTER
+  worcester: {
+    slug: "worcester",
+    name: "Worcester",
+    region: "West Midlands",
+    county: "Worcestershire",
+    population: "105,000",
+    postcodeAreas: ["WR"],
+    areas: [
+      "City Centre",
+      "St John's",
+      "Warndon",
+      "Battenhall",
+      "Barbourne",
+      "Dines Green",
+      "Ronkswood",
+      "Tolladine",
+      "Diglis",
+    ],
+    landmarks: [
+      "Worcester Cathedral",
+      "Royal Worcester Porcelain",
+      "The Commandery",
+      "New Road Cricket Ground",
+      "Worcester Racecourse",
+    ],
+    description: "the cathedral city on the River Severn",
+    emergencyContext: "Worcester city centre and Worcestershire",
+    avgResponseTime: "15-25 minutes",
+    nearbyPostcodes: ["B", "GL", "HR", "DY"],
+    coordinates: { lat: 52.1936, lng: -2.2215 },
+    localTips: [
+      "Know the medieval city alleys",
+      "Experience with Tudor and Georgian properties",
+      "Familiar with flood-prone riverside streets",
+    ],
+    transportHubs: ["Worcester Foregate Street", "Worcester Shrub Hill"],
+  },
+
+  // SOUTH WEST - GLOUCESTER
+  gloucester: {
+    slug: "gloucester",
+    name: "Gloucester",
+    region: "South West England",
+    county: "Gloucestershire",
+    population: "130,000",
+    postcodeAreas: ["GL"],
+    areas: [
+      "City Centre",
+      "Quedgeley",
+      "Hucclecote",
+      "Tuffley",
+      "Barton",
+      "Kingsway",
+      "Longlevens",
+      "Abbeydale",
+      "Robinswood",
+      "Matson",
+    ],
+    landmarks: [
+      "Gloucester Cathedral",
+      "Gloucester Docks",
+      "Kingsholm Stadium",
+      "Soldiers of Gloucestershire Museum",
+      "Llanthony Priory",
+    ],
+    description: "the historic cathedral city and former Roman colonia",
+    emergencyContext: "Gloucester and the Severn Vale",
+    avgResponseTime: "15-25 minutes",
+    nearbyPostcodes: ["GL", "WR", "BS", "HR"],
+    coordinates: { lat: 51.8642, lng: -2.238 },
+    localTips: [
+      "Know the dock conversions",
+      "Experience with cathedral close listed buildings",
+      "Quick M5 J11/J12 access",
+    ],
+    transportHubs: ["Gloucester Station"],
+  },
+
+  // SOUTH WEST - CHELTENHAM
+  cheltenham: {
+    slug: "cheltenham",
+    name: "Cheltenham",
+    region: "South West England",
+    county: "Gloucestershire",
+    population: "120,000",
+    postcodeAreas: ["GL"],
+    areas: [
+      "Town Centre",
+      "Montpellier",
+      "The Suffolks",
+      "Pittville",
+      "Charlton Kings",
+      "Hatherley",
+      "Up Hatherley",
+      "Prestbury",
+      "Leckhampton",
+      "Battledown",
+    ],
+    landmarks: [
+      "Cheltenham Racecourse",
+      "Pittville Pump Room",
+      "Montpellier Gardens",
+      "GCHQ",
+      "Everyman Theatre",
+      "The Promenade",
+    ],
+    description: "the Regency spa town on the edge of the Cotswolds",
+    emergencyContext: "Cheltenham and the Cotswold escarpment",
+    avgResponseTime: "15-25 minutes",
+    nearbyPostcodes: ["GL", "WR", "OX"],
+    coordinates: { lat: 51.8994, lng: -2.0783 },
+    localTips: [
+      "Know the Regency stuccoed terraces",
+      "Experience with high-security GCHQ-area properties",
+      "Familiar with festival-week lockouts",
+    ],
+    transportHubs: ["Cheltenham Spa Station"],
+  },
+
+  // EAST MIDLANDS - LINCOLN
+  lincoln: {
+    slug: "lincoln",
+    name: "Lincoln",
+    region: "East Midlands",
+    county: "Lincolnshire",
+    population: "100,000",
+    postcodeAreas: ["LN"],
+    areas: [
+      "City Centre",
+      "Uphill",
+      "Downhill",
+      "Bracebridge Heath",
+      "North Hykeham",
+      "Birchwood",
+      "Ermine",
+      "Bailgate",
+      "St Catherines",
+    ],
+    landmarks: [
+      "Lincoln Cathedral",
+      "Lincoln Castle",
+      "Steep Hill",
+      "Brayford Pool",
+      "The Collection Museum",
+      "Lincoln University",
+    ],
+    description: "the hilltop cathedral city of Lincolnshire",
+    emergencyContext: "Lincoln and the surrounding Lincolnshire countryside",
+    avgResponseTime: "15-30 minutes",
+    nearbyPostcodes: ["NG", "DN", "PE"],
+    coordinates: { lat: 53.2307, lng: -0.5406 },
+    localTips: [
+      "Know the cobbled Steep Hill",
+      "Experience with listed cathedral-quarter buildings",
+      "Familiar with student housing in West End",
+    ],
+    transportHubs: ["Lincoln Central Station"],
+  },
+
+  // EAST MIDLANDS - NORTHAMPTON
+  northampton: {
+    slug: "northampton",
+    name: "Northampton",
+    region: "East Midlands",
+    county: "Northamptonshire",
+    population: "230,000",
+    postcodeAreas: ["NN"],
+    areas: [
+      "Town Centre",
+      "Abington",
+      "Kingsthorpe",
+      "Far Cotton",
+      "Duston",
+      "Weston Favell",
+      "Wootton",
+      "Hardingstone",
+      "Ecton Brook",
+      "Thorplands",
+    ],
+    landmarks: [
+      "All Saints' Church",
+      "Sixfields Stadium",
+      "Northampton Castle (site)",
+      "Royal & Derngate",
+      "78 Derngate",
+      "Delapré Abbey",
+    ],
+    description: "the historic county town famous for shoe-making heritage",
+    emergencyContext: "Northampton and South Northamptonshire",
+    avgResponseTime: "15-25 minutes",
+    nearbyPostcodes: ["MK", "LE", "OX", "CV", "PE"],
+    coordinates: { lat: 52.2405, lng: -0.9027 },
+    localTips: [
+      "Quick M1 J15/J15A/J16 access",
+      "Know the 1970s estates layout",
+      "Experience with Victorian shoe-trade terraces",
+    ],
+    transportHubs: ["Northampton Station"],
+  },
+
+  // EAST OF ENGLAND - STEVENAGE
+  stevenage: {
+    slug: "stevenage",
+    name: "Stevenage",
+    region: "East of England",
+    county: "Hertfordshire",
+    population: "90,000",
+    postcodeAreas: ["SG"],
+    areas: [
+      "Town Centre",
+      "Old Town",
+      "Bedwell",
+      "Broadwater",
+      "Chells",
+      "Pin Green",
+      "Shephall",
+      "Symonds Green",
+      "Roebuck",
+      "Martins Wood",
+    ],
+    landmarks: [
+      "Stevenage Old Town High Street",
+      "Lister Hospital",
+      "Fairlands Valley Park",
+      "Stevenage Leisure Park",
+      "The Forum",
+    ],
+    description:
+      "the UK's first New Town, built post-war on Hertfordshire farmland",
+    emergencyContext: "Stevenage and North Hertfordshire",
+    avgResponseTime: "15-25 minutes",
+    nearbyPostcodes: ["SG", "AL", "LU", "CM"],
+    coordinates: { lat: 51.9038, lng: -0.2018 },
+    localTips: [
+      "Know the cycleway-only neighbourhood layouts",
+      "Quick A1(M) J7/J8 access",
+      "Experience with prefab and concrete-frame New Town housing",
+    ],
+    transportHubs: ["Stevenage Station"],
+  },
+
+  // EAST OF ENGLAND - CHELMSFORD
+  chelmsford: {
+    slug: "chelmsford",
+    name: "Chelmsford",
+    region: "East of England",
+    county: "Essex",
+    population: "180,000",
+    postcodeAreas: ["CM"],
+    areas: [
+      "City Centre",
+      "Springfield",
+      "Great Baddow",
+      "Galleywood",
+      "Writtle",
+      "Broomfield",
+      "Moulsham",
+      "Chelmer Village",
+      "Beaulieu Park",
+    ],
+    landmarks: [
+      "Chelmsford Cathedral",
+      "Hylands House",
+      "Essex County Cricket Ground",
+      "Riverside Ice & Leisure",
+      "Bond Street shopping",
+    ],
+    description: "the cathedral city and county town of Essex",
+    emergencyContext: "Chelmsford and Mid Essex",
+    avgResponseTime: "15-25 minutes",
+    nearbyPostcodes: ["CO", "SS", "RM", "CB"],
+    coordinates: { lat: 51.7356, lng: 0.4685 },
+    localTips: [
+      "Know the new Beaulieu Park developments",
+      "Quick A12/A130 access",
+      "Experience with riverside flats by the Chelmer",
+    ],
+    transportHubs: ["Chelmsford Station"],
+  },
+
+  // EAST OF ENGLAND - COLCHESTER
+  colchester: {
+    slug: "colchester",
+    name: "Colchester",
+    region: "East of England",
+    county: "Essex",
+    population: "195,000",
+    postcodeAreas: ["CO"],
+    areas: [
+      "Town Centre",
+      "Highwoods",
+      "Mile End",
+      "Stanway",
+      "Tiptree",
+      "Wivenhoe",
+      "Greenstead",
+      "Lexden",
+      "Shrub End",
+      "Prettygate",
+    ],
+    landmarks: [
+      "Colchester Castle",
+      "Roman Walls",
+      "Colchester Zoo",
+      "Mercury Theatre",
+      "Firstsite Gallery",
+      "University of Essex",
+    ],
+    description: "Britain's oldest recorded town and former Roman capital",
+    emergencyContext: "Colchester and North Essex",
+    avgResponseTime: "15-25 minutes",
+    nearbyPostcodes: ["CM", "IP", "SS"],
+    coordinates: { lat: 51.8896, lng: 0.9035 },
+    localTips: [
+      "Know the Dutch Quarter listed buildings",
+      "Experience with garrison-area properties",
+      "Quick A12/A120 access",
+    ],
+    transportHubs: ["Colchester Station", "Colchester Town"],
+  },
+
+  // EAST OF ENGLAND - WATFORD
+  watford: {
+    slug: "watford",
+    name: "Watford",
+    region: "East of England",
+    county: "Hertfordshire",
+    population: "100,000",
+    postcodeAreas: ["WD"],
+    areas: [
+      "Town Centre",
+      "Cassiobury",
+      "Nascot Wood",
+      "Oxhey",
+      "Bushey",
+      "Garston",
+      "North Watford",
+      "Holywell",
+      "Callowland",
+      "Leavesden",
+    ],
+    landmarks: [
+      "Vicarage Road Stadium",
+      "Cassiobury Park",
+      "Warner Bros Studio Tour",
+      "Atria Watford",
+      "Watford Palace Theatre",
+      "Watford Colosseum",
+    ],
+    description: "a major Hertfordshire commuter town on the M25",
+    emergencyContext: "Watford and West Hertfordshire",
+    avgResponseTime: "15-25 minutes",
+    nearbyPostcodes: ["WD", "HA", "AL", "HP"],
+    coordinates: { lat: 51.6565, lng: -0.3903 },
+    localTips: [
+      "Know the M25 J19/J20 routes",
+      "Experience with new high-rise flats near the Junction",
+      "Familiar with Cassiobury conservation area",
+    ],
+    transportHubs: ["Watford Junction", "Watford High Street"],
+  },
+
+  // EAST OF ENGLAND - LUTON
+  luton: {
+    slug: "luton",
+    name: "Luton",
+    region: "East of England",
+    county: "Bedfordshire",
+    population: "225,000",
+    postcodeAreas: ["LU"],
+    areas: [
+      "Town Centre",
+      "Bury Park",
+      "Stopsley",
+      "Leagrave",
+      "Farley Hill",
+      "Wigmore",
+      "Limbury",
+      "Round Green",
+      "Crawley Green",
+      "Marsh Farm",
+    ],
+    landmarks: [
+      "Luton Town FC (Kenilworth Road)",
+      "Stockwood Park",
+      "Wardown Park",
+      "Luton Hoo",
+      "Luton Airport",
+      "The Mall Luton",
+    ],
+    description: "a Bedfordshire town with major airport and football heritage",
+    emergencyContext: "Luton, Dunstable and South Bedfordshire",
+    avgResponseTime: "15-25 minutes",
+    nearbyPostcodes: ["AL", "MK", "SG", "HP"],
+    coordinates: { lat: 51.8787, lng: -0.42 },
+    localTips: [
+      "Know the airport hotel circuit",
+      "Experience with terraced housing in Bury Park",
+      "Quick M1 J10/J11 access",
+    ],
+    transportHubs: [
+      "Luton Station",
+      "Luton Airport Parkway",
+      "London Luton Airport",
+    ],
+  },
+
+  // EAST OF ENGLAND - ST ALBANS
+  "st-albans": {
+    slug: "st-albans",
+    name: "St Albans",
+    region: "East of England",
+    county: "Hertfordshire",
+    population: "90,000",
+    postcodeAreas: ["AL"],
+    areas: [
+      "City Centre",
+      "Marshalswick",
+      "Fleetville",
+      "St Stephens",
+      "Park Street",
+      "Bricket Wood",
+      "London Colney",
+      "Sandridge",
+      "Jersey Farm",
+      "Harpenden Road",
+    ],
+    landmarks: [
+      "St Albans Cathedral",
+      "Verulamium Park",
+      "Roman Theatre",
+      "Clock Tower",
+      "The Maltings shopping",
+      "Sopwell Nunnery",
+    ],
+    description: "the historic Roman cathedral city north of London",
+    emergencyContext: "St Albans and South West Hertfordshire",
+    avgResponseTime: "15-25 minutes",
+    nearbyPostcodes: ["AL", "WD", "HP", "EN"],
+    coordinates: { lat: 51.752, lng: -0.336 },
+    localTips: [
+      "Know the conservation area listed properties",
+      "Quick M25 J21A and M1 J6 access",
+      "Experience with Tudor cathedral-quarter buildings",
+    ],
+    transportHubs: ["St Albans City", "St Albans Abbey"],
+  },
+
+  // SOUTH EAST - SLOUGH
+  slough: {
+    slug: "slough",
+    name: "Slough",
+    region: "South East England",
+    county: "Berkshire",
+    population: "165,000",
+    postcodeAreas: ["SL"],
+    areas: [
+      "Town Centre",
+      "Langley",
+      "Cippenham",
+      "Chalvey",
+      "Manor Park",
+      "Britwell",
+      "Wexham",
+      "Upton",
+      "Colnbrook",
+      "Burnham",
+    ],
+    landmarks: [
+      "Slough Trading Estate",
+      "Herschel Park",
+      "Upton Court Park",
+      "Mars HQ",
+      "Queensmere Observatory shopping centre",
+    ],
+    description:
+      "Berkshire's commercial powerhouse on the Thames Valley corridor",
+    emergencyContext: "Slough and South Buckinghamshire",
+    avgResponseTime: "15-25 minutes",
+    nearbyPostcodes: ["UB", "SL", "TW", "HP"],
+    coordinates: { lat: 51.5105, lng: -0.595 },
+    localTips: [
+      "Quick M4 J5/J6/J7 access",
+      "Know the trading estate units' alarm-and-lock setups",
+      "Experience with HMO conversions in Chalvey",
+    ],
+    transportHubs: ["Slough Station"],
+  },
+
+  // SOUTH EAST - GUILDFORD
+  guildford: {
+    slug: "guildford",
+    name: "Guildford",
+    region: "South East England",
+    county: "Surrey",
+    population: "150,000",
+    postcodeAreas: ["GU"],
+    areas: [
+      "Town Centre",
+      "Burpham",
+      "Merrow",
+      "Stoughton",
+      "Onslow Village",
+      "Park Barn",
+      "Bellfields",
+      "Westborough",
+      "Shalford",
+      "Worplesdon",
+    ],
+    landmarks: [
+      "Guildford Cathedral",
+      "Guildford Castle",
+      "Yvonne Arnaud Theatre",
+      "G Live",
+      "Surrey University",
+      "Guildford High Street cobbles",
+    ],
+    description: "the historic county town of Surrey in the Surrey Hills",
+    emergencyContext: "Guildford and West Surrey",
+    avgResponseTime: "15-25 minutes",
+    nearbyPostcodes: ["GU", "RG", "KT", "RH"],
+    coordinates: { lat: 51.2362, lng: -0.5704 },
+    localTips: [
+      "Quick A3 access",
+      "Experience with Surrey Hills barn conversions",
+      "Know the high-end gated developments",
+    ],
+    transportHubs: ["Guildford Station", "London Road (Guildford)"],
+  },
+
+  // SOUTH EAST - CRAWLEY
+  crawley: {
+    slug: "crawley",
+    name: "Crawley",
+    region: "South East England",
+    county: "West Sussex",
+    population: "120,000",
+    postcodeAreas: ["RH"],
+    areas: [
+      "Town Centre",
+      "Three Bridges",
+      "Northgate",
+      "Pound Hill",
+      "Maidenbower",
+      "Tilgate",
+      "Furnace Green",
+      "Broadfield",
+      "Bewbush",
+      "Ifield",
+      "Gossops Green",
+    ],
+    landmarks: [
+      "K2 Crawley",
+      "Tilgate Park",
+      "Crawley Town FC (Broadfield Stadium)",
+      "Hawth Theatre",
+      "Gatwick Airport (adjacent)",
+    ],
+    description: "a New Town and gateway to Gatwick Airport",
+    emergencyContext: "Crawley, Gatwick and Mid Sussex",
+    avgResponseTime: "15-25 minutes",
+    nearbyPostcodes: ["RH", "BN", "GU", "TN"],
+    coordinates: { lat: 51.1095, lng: -0.1872 },
+    localTips: [
+      "Know the airport hotel quarter",
+      "Quick M23 J9/J10 access",
+      "Experience with neighbourhood-design New Town housing",
+    ],
+    transportHubs: ["Crawley Station", "Three Bridges", "Gatwick Airport"],
+  },
+
+  // SOUTH EAST - MAIDSTONE
+  maidstone: {
+    slug: "maidstone",
+    name: "Maidstone",
+    region: "South East England",
+    county: "Kent",
+    population: "115,000",
+    postcodeAreas: ["ME"],
+    areas: [
+      "Town Centre",
+      "Allington",
+      "Bearsted",
+      "Boxley",
+      "Loose",
+      "Park Wood",
+      "Senacre",
+      "Shepway",
+      "Tovil",
+      "Penenden Heath",
+    ],
+    landmarks: [
+      "Leeds Castle (nearby)",
+      "Maidstone Museum",
+      "Mote Park",
+      "Kent County Cricket Ground",
+      "Hazlitt Theatre",
+    ],
+    description: "the county town of Kent on the River Medway",
+    emergencyContext: "Maidstone and Mid Kent",
+    avgResponseTime: "15-25 minutes",
+    nearbyPostcodes: ["ME", "TN", "CT", "DA"],
+    coordinates: { lat: 51.272, lng: 0.529 },
+    localTips: [
+      "Quick M20 J5-J8 access",
+      "Experience with oast-house conversions",
+      "Know the riverside flats vulnerabilities",
+    ],
+    transportHubs: ["Maidstone East", "Maidstone West", "Maidstone Barracks"],
+  },
+
+  // SOUTH EAST - CANTERBURY
+  canterbury: {
+    slug: "canterbury",
+    name: "Canterbury",
+    region: "South East England",
+    county: "Kent",
+    population: "55,000",
+    postcodeAreas: ["CT"],
+    areas: [
+      "City Centre",
+      "Wincheap",
+      "Thanington",
+      "Hales Place",
+      "Sturry",
+      "Harbledown",
+      "Rough Common",
+      "Blean",
+      "Bridge",
+    ],
+    landmarks: [
+      "Canterbury Cathedral",
+      "St Augustine's Abbey",
+      "Westgate Towers",
+      "The Marlowe Theatre",
+      "Canterbury Tales attraction",
+      "Kent University",
+    ],
+    description: "the UNESCO World Heritage cathedral city",
+    emergencyContext: "Canterbury and East Kent",
+    avgResponseTime: "15-30 minutes",
+    nearbyPostcodes: ["ME", "CT", "TN"],
+    coordinates: { lat: 51.2802, lng: 1.0789 },
+    localTips: [
+      "Know the city wall listed buildings",
+      "Experience with student-let conversions",
+      "Familiar with Tudor and medieval timber-framed properties",
+    ],
+    transportHubs: ["Canterbury East", "Canterbury West"],
+  },
+
+  // SOUTH EAST - EASTBOURNE
+  eastbourne: {
+    slug: "eastbourne",
+    name: "Eastbourne",
+    region: "South East England",
+    county: "East Sussex",
+    population: "100,000",
+    postcodeAreas: ["BN"],
+    areas: [
+      "Town Centre",
+      "Old Town",
+      "Meads",
+      "Hampden Park",
+      "Langney",
+      "Sovereign Harbour",
+      "Roselands",
+      "Ratton",
+      "Willingdon",
+      "Polegate",
+    ],
+    landmarks: [
+      "Eastbourne Pier",
+      "Beachy Head",
+      "Devonshire Park (tennis)",
+      "Towner Gallery",
+      "Sovereign Harbour Marina",
+      "Bandstand",
+    ],
+    description: "the elegant Victorian seaside resort beneath the South Downs",
+    emergencyContext: "Eastbourne and the Sussex coast",
+    avgResponseTime: "15-25 minutes",
+    nearbyPostcodes: ["BN", "TN"],
+    coordinates: { lat: 50.7687, lng: 0.2854 },
+    localTips: [
+      "Know the seafront Victorian terraces",
+      "Experience with Sovereign Harbour gated marina flats",
+      "Familiar with Meads conservation area",
+    ],
+    transportHubs: ["Eastbourne Station"],
+  },
+
+  // SOUTH EAST - WORTHING
+  worthing: {
+    slug: "worthing",
+    name: "Worthing",
+    region: "South East England",
+    county: "West Sussex",
+    population: "110,000",
+    postcodeAreas: ["BN"],
+    areas: [
+      "Town Centre",
+      "Goring-by-Sea",
+      "Tarring",
+      "Durrington",
+      "Salvington",
+      "Findon Valley",
+      "Broadwater",
+      "East Worthing",
+      "Lancing",
+      "Sompting",
+    ],
+    landmarks: [
+      "Worthing Pier",
+      "Connaught Theatre",
+      "Highdown Gardens",
+      "Worthing Museum",
+      "Splashpoint Leisure Centre",
+    ],
+    description: "the West Sussex seaside town beneath the South Downs",
+    emergencyContext: "Worthing and the West Sussex coast",
+    avgResponseTime: "15-25 minutes",
+    nearbyPostcodes: ["BN", "RH", "PO"],
+    coordinates: { lat: 50.8125, lng: -0.3722 },
+    localTips: [
+      "Know the seafront flats",
+      "Experience with bungalow estates in Goring",
+      "Quick A27 access along the coast",
+    ],
+    transportHubs: ["Worthing Station", "West Worthing", "East Worthing"],
+  },
+
+  // SOUTH WEST - POOLE
+  poole: {
+    slug: "poole",
+    name: "Poole",
+    region: "South West England",
+    county: "Dorset",
+    population: "150,000",
+    postcodeAreas: ["BH"],
+    areas: [
+      "Town Centre",
+      "Sandbanks",
+      "Canford Cliffs",
+      "Branksome",
+      "Parkstone",
+      "Oakdale",
+      "Hamworthy",
+      "Creekmoor",
+      "Broadstone",
+      "Lilliput",
+    ],
+    landmarks: [
+      "Poole Harbour",
+      "Sandbanks Beach",
+      "Brownsea Island (NT)",
+      "Poole Quay",
+      "Lighthouse arts centre",
+      "RNLI College",
+    ],
+    description:
+      "a Dorset harbour town home to one of the world's largest natural harbours",
+    emergencyContext: "Poole, Sandbanks and the Purbeck coast",
+    avgResponseTime: "15-25 minutes",
+    nearbyPostcodes: ["BH", "DT", "SP"],
+    coordinates: { lat: 50.7192, lng: -1.9876 },
+    localTips: [
+      "Know the high-security Sandbanks gated estates",
+      "Experience with marina pontoon access",
+      "Familiar with quay conservation area locks",
+    ],
+    transportHubs: ["Poole Station", "Branksome", "Parkstone"],
+  },
+
+  // SOUTH WEST - SALISBURY
+  salisbury: {
+    slug: "salisbury",
+    name: "Salisbury",
+    region: "South West England",
+    county: "Wiltshire",
+    population: "45,000",
+    postcodeAreas: ["SP"],
+    areas: [
+      "City Centre",
+      "Bishopdown",
+      "Harnham",
+      "Bemerton Heath",
+      "Old Sarum",
+      "Stratford-sub-Castle",
+      "Laverstock",
+      "Quidhampton",
+      "Wilton",
+    ],
+    landmarks: [
+      "Salisbury Cathedral",
+      "Old Sarum",
+      "Magna Carta exhibit",
+      "Salisbury Playhouse",
+      "Stonehenge (nearby)",
+      "Cathedral Close",
+    ],
+    description: "the medieval cathedral city with Britain's tallest spire",
+    emergencyContext: "Salisbury and South Wiltshire",
+    avgResponseTime: "15-30 minutes",
+    nearbyPostcodes: ["SP", "BH", "BA", "SO"],
+    coordinates: { lat: 51.0688, lng: -1.7945 },
+    localTips: [
+      "Know the cathedral close listed properties",
+      "Experience with thatched-cottage locks in surrounding villages",
+      "Quick A303/A36 access",
+    ],
+    transportHubs: ["Salisbury Station"],
+  },
+
+  // SOUTH WEST - TRURO
+  truro: {
+    slug: "truro",
+    name: "Truro",
+    region: "South West England",
+    county: "Cornwall",
+    population: "20,000",
+    postcodeAreas: ["TR"],
+    areas: [
+      "City Centre",
+      "Highertown",
+      "Trelander",
+      "Malabar",
+      "Gloweth",
+      "Shortlanesend",
+      "Threemilestone",
+      "Idless",
+      "Kenwyn",
+    ],
+    landmarks: [
+      "Truro Cathedral",
+      "Royal Cornwall Museum",
+      "Lemon Quay",
+      "Hall for Cornwall",
+      "Boscawen Park",
+      "Trelissick Garden (nearby)",
+    ],
+    description: "Cornwall's only city and administrative capital",
+    emergencyContext: "Truro and central Cornwall",
+    avgResponseTime: "20-35 minutes",
+    nearbyPostcodes: ["TR", "PL"],
+    coordinates: { lat: 50.2632, lng: -5.051 },
+    localTips: [
+      "Know the rural lanes for villages off the A30",
+      "Experience with granite cottage locks",
+      "Familiar with holiday-let key handovers",
+    ],
+    transportHubs: ["Truro Station", "Newquay Cornwall Airport (nearby)"],
+  },
+
+  // NORTH WEST - CARLISLE
+  carlisle: {
+    slug: "carlisle",
+    name: "Carlisle",
+    region: "North West England",
+    county: "Cumbria",
+    population: "75,000",
+    postcodeAreas: ["CA"],
+    areas: [
+      "City Centre",
+      "Stanwix",
+      "Botcherby",
+      "Currock",
+      "Harraby",
+      "Belah",
+      "Denton Holme",
+      "Upperby",
+      "Morton",
+      "Brampton",
+    ],
+    landmarks: [
+      "Carlisle Cathedral",
+      "Carlisle Castle",
+      "Tullie House Museum",
+      "Brunton Park (Carlisle United)",
+      "Hadrian's Wall (nearby)",
+    ],
+    description:
+      "the border city at the gateway to the Lake District and Hadrian's Wall",
+    emergencyContext: "Carlisle and North Cumbria",
+    avgResponseTime: "15-30 minutes",
+    nearbyPostcodes: ["CA", "DG", "DH"],
+    coordinates: { lat: 54.8925, lng: -2.9329 },
+    localTips: [
+      "Know the listed cathedral quarter",
+      "Experience with sandstone Victorian terraces",
+      "Quick M6 J42-J44 and A69 access",
+    ],
+    transportHubs: ["Carlisle Station"],
+  },
+
+  // WALES - WREXHAM
+  wrexham: {
+    slug: "wrexham",
+    name: "Wrexham",
+    region: "Wales",
+    county: "Clwyd",
+    population: "65,000",
+    postcodeAreas: ["LL"],
+    areas: [
+      "Town Centre",
+      "Acton",
+      "Rhosddu",
+      "Hightown",
+      "Caia Park",
+      "Borras",
+      "Marford",
+      "Rossett",
+      "Coedpoeth",
+      "Brymbo",
+    ],
+    landmarks: [
+      "Wrexham AFC (Racecourse Ground)",
+      "St Giles' Church",
+      "Wrexham Glyndŵr University",
+      "Erddig Hall",
+      "Tŷ Pawb arts centre",
+    ],
+    description: "the largest town in North Wales, a recently designated city",
+    emergencyContext: "Wrexham and the Welsh-English border",
+    avgResponseTime: "15-30 minutes",
+    nearbyPostcodes: ["LL", "CH", "SY"],
+    coordinates: { lat: 53.0428, lng: -2.9929 },
+    localTips: [
+      "Know the cross-border A483 routes",
+      "Experience with industrial-estate commercial locks",
+      "Familiar with Welsh-language street naming",
+    ],
+    transportHubs: ["Wrexham General", "Wrexham Central"],
+  },
+
+  // SCOTLAND - INVERNESS
+  inverness: {
+    slug: "inverness",
+    name: "Inverness",
+    region: "Scotland",
+    county: "Highland",
+    population: "65,000",
+    postcodeAreas: ["IV"],
+    areas: [
+      "City Centre",
+      "Crown",
+      "Hilton",
+      "Culloden",
+      "Smithton",
+      "Westhill",
+      "Inshes",
+      "Raigmore",
+      "Drakies",
+      "Holm",
+    ],
+    landmarks: [
+      "Inverness Castle",
+      "Loch Ness (nearby)",
+      "Eden Court Theatre",
+      "Inverness Cathedral",
+      "Culloden Battlefield",
+      "Caledonian Canal",
+    ],
+    description: "the capital of the Scottish Highlands",
+    emergencyContext: "Inverness and the wider Highland region",
+    avgResponseTime: "20-35 minutes",
+    nearbyPostcodes: ["IV", "PH"],
+    coordinates: { lat: 57.4778, lng: -4.2247 },
+    localTips: [
+      "Know the loch-side holiday let circuit",
+      "Experience with Highland stone cottages",
+      "Familiar with long rural call-outs",
+    ],
+    transportHubs: ["Inverness Station", "Inverness Airport"],
+  },
+
+  // SCOTLAND - STIRLING
+  stirling: {
+    slug: "stirling",
+    name: "Stirling",
+    region: "Scotland",
+    county: "Stirlingshire",
+    population: "37,000",
+    postcodeAreas: ["FK"],
+    areas: [
+      "City Centre",
+      "Bridge of Allan",
+      "Causewayhead",
+      "Cambusbarron",
+      "St Ninians",
+      "Raploch",
+      "Bannockburn",
+      "Cornton",
+      "Riverside",
+    ],
+    landmarks: [
+      "Stirling Castle",
+      "Wallace Monument",
+      "Bannockburn Centre",
+      "Old Stirling Bridge",
+      "University of Stirling",
+      "Church of the Holy Rude",
+    ],
+    description: "the historic gateway to the Scottish Highlands",
+    emergencyContext: "Stirling and the Forth Valley",
+    avgResponseTime: "15-25 minutes",
+    nearbyPostcodes: ["FK", "G", "PH", "EH"],
+    coordinates: { lat: 56.1165, lng: -3.9369 },
+    localTips: [
+      "Know the cobbled Old Town wynds",
+      "Experience with student halls at the university",
+      "Quick M9/M80 access",
+    ],
+    transportHubs: ["Stirling Station"],
+  },
+
+  // SCOTLAND - PERTH
+  perth: {
+    slug: "perth",
+    name: "Perth",
+    region: "Scotland",
+    county: "Perth and Kinross",
+    population: "47,000",
+    postcodeAreas: ["PH"],
+    areas: [
+      "City Centre",
+      "Bridgend",
+      "Craigie",
+      "Letham",
+      "Tulloch",
+      "Scone",
+      "Bridge of Earn",
+      "Almondbank",
+      "Burghmuir",
+      "Muirton",
+    ],
+    landmarks: [
+      "Scone Palace",
+      "Perth Concert Hall",
+      "Branklyn Garden",
+      "Perth Museum",
+      "Black Watch Castle",
+      "St John's Kirk",
+    ],
+    description: "the historic Fair City and gateway to the Highlands",
+    emergencyContext: "Perth and Perthshire",
+    avgResponseTime: "15-25 minutes",
+    nearbyPostcodes: ["PH", "DD", "KY", "FK"],
+    coordinates: { lat: 56.395, lng: -3.4308 },
+    localTips: [
+      "Quick A9/M90 access",
+      "Experience with riverside Tay Street properties",
+      "Know the rural estate lodge locks",
+    ],
+    transportHubs: ["Perth Station"],
+  },
+
+  // NORTHERN IRELAND - DERRY/LONDONDERRY
+  derry: {
+    slug: "derry",
+    name: "Derry/Londonderry",
+    region: "Northern Ireland",
+    county: "County Londonderry",
+    population: "85,000",
+    postcodeAreas: ["BT"],
+    areas: [
+      "City Centre",
+      "Bogside",
+      "Waterside",
+      "Creggan",
+      "Shantallow",
+      "Galliagh",
+      "Ballynashallog",
+      "Strathfoyle",
+      "Culmore",
+      "Ballyarnett",
+    ],
+    landmarks: [
+      "Derry City Walls",
+      "Peace Bridge",
+      "Guildhall",
+      "Bogside Murals",
+      "St Columb's Cathedral",
+      "Tower Museum",
+    ],
+    description: "Northern Ireland's only fully walled city",
+    emergencyContext: "Derry city and the North West",
+    avgResponseTime: "15-30 minutes",
+    nearbyPostcodes: [],
+    coordinates: { lat: 54.9966, lng: -7.3086 },
+    localTips: [
+      "Know both sides of the Foyle",
+      "Experience with walled-city listed buildings",
+      "Familiar with cross-border County Donegal callouts",
+    ],
+    transportHubs: ["Derry/Londonderry Station", "City of Derry Airport"],
+  },
 };
 
 // Get all city slugs
@@ -1176,28 +3242,28 @@ export const getCityBySlug = (slug: string): CityData | undefined => {
 export const generateCityFAQ = (city: CityData) => [
   {
     question: `How quickly can a locksmith reach me in ${city.name}?`,
-    answer: `Our average response time in ${city.name} is ${city.avgResponseTime}. We have verified locksmiths stationed across ${city.region}, covering ${city.areas.slice(0, 5).join(", ")} and all surrounding areas.`
+    answer: `Our average response time in ${city.name} is ${city.avgResponseTime}. We have verified locksmiths stationed across ${city.region}, covering ${city.areas.slice(0, 5).join(", ")} and all surrounding areas.`,
   },
   {
     question: `What areas of ${city.name} do you cover?`,
-    answer: `We cover all of ${city.name} including ${city.areas.join(", ")}, and neighboring postcode areas ${city.postcodeAreas.join(", ")}.`
+    answer: `We cover all of ${city.name} including ${city.areas.join(", ")}, and neighboring postcode areas ${city.postcodeAreas.join(", ")}.`,
   },
   {
     question: `How much does an emergency locksmith cost in ${city.name}?`,
-    answer: `Locksmiths in ${city.name} set their own assessment fee (typically £25-49) when they apply for your job. This covers travel and initial diagnosis. You'll receive a separate quote for any work needed - no hidden fees guaranteed.`
+    answer: `Locksmiths in ${city.name} set their own assessment fee (typically £25-49) when they apply for your job. This covers travel and initial diagnosis. You'll receive a separate quote for any work needed - no hidden fees guaranteed.`,
   },
   {
     question: `Are your ${city.name} locksmiths available 24/7?`,
-    answer: `Yes, we have DBS-checked, fully insured locksmiths available 24 hours a day, 7 days a week, 365 days a year across ${city.name} and the wider ${city.region} area.`
+    answer: `Yes, we have DBS-checked, fully insured locksmiths available 24 hours a day, 7 days a week, 365 days a year across ${city.name} and the wider ${city.region} area.`,
   },
   {
     question: `What locksmith services do you offer in ${city.name}?`,
-    answer: `We offer emergency lockouts, lock replacement, UPVC mechanism repairs, security upgrades, safe services, and commercial locksmith services across all ${city.name} postcodes. All locksmiths are vetted, insured, and background-checked.`
+    answer: `We offer emergency lockouts, lock replacement, UPVC mechanism repairs, security upgrades, safe services, and commercial locksmith services across all ${city.name} postcodes. All locksmiths are vetted, insured, and background-checked.`,
   },
   {
     question: `Can I get a locksmith in ${city.areas[0]} or ${city.areas[1]}?`,
-    answer: `Absolutely! We have full coverage across ${city.name} including ${city.areas.slice(0, 6).join(", ")} and all surrounding neighborhoods.`
-  }
+    answer: `Absolutely! We have full coverage across ${city.name} including ${city.areas.slice(0, 6).join(", ")} and all surrounding neighborhoods.`,
+  },
 ];
 
 // Generate city LocalBusiness schema
@@ -1215,36 +3281,44 @@ export const generateCitySchema = (city: CityData, siteUrl: string) => ({
     "@type": "PostalAddress",
     addressLocality: city.name,
     addressRegion: city.region,
-    addressCountry: "GB"
+    addressCountry: "GB",
   },
   geo: {
     "@type": "GeoCoordinates",
     latitude: city.coordinates.lat,
-    longitude: city.coordinates.lng
+    longitude: city.coordinates.lng,
   },
   areaServed: [
     {
       "@type": "City",
-      name: city.name
+      name: city.name,
     },
-    ...city.areas.slice(0, 10).map(area => ({
+    ...city.areas.slice(0, 10).map((area) => ({
       "@type": "Place",
-      name: area
-    }))
+      name: area,
+    })),
   ],
   openingHoursSpecification: {
     "@type": "OpeningHoursSpecification",
-    dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+    dayOfWeek: [
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+      "Sunday",
+    ],
     opens: "00:00",
-    closes: "23:59"
+    closes: "23:59",
   },
   aggregateRating: {
     "@type": "AggregateRating",
     ratingValue: "4.9",
     reviewCount: "1247",
     bestRating: "5",
-    worstRating: "1"
-  }
+    worstRating: "1",
+  },
 });
 
 // Generate FAQ schema for city
@@ -1253,19 +3327,22 @@ export const generateCityFAQSchema = (city: CityData) => {
   return {
     "@context": "https://schema.org",
     "@type": "FAQPage",
-    mainEntity: faqs.map(faq => ({
+    mainEntity: faqs.map((faq) => ({
       "@type": "Question",
       name: faq.question,
       acceptedAnswer: {
         "@type": "Answer",
-        text: faq.answer
-      }
-    }))
+        text: faq.answer,
+      },
+    })),
   };
 };
 
 // Generate breadcrumb schema for city
-export const generateCityBreadcrumbSchema = (city: CityData, siteUrl: string) => ({
+export const generateCityBreadcrumbSchema = (
+  city: CityData,
+  siteUrl: string,
+) => ({
   "@context": "https://schema.org",
   "@type": "BreadcrumbList",
   itemListElement: [
@@ -1273,21 +3350,21 @@ export const generateCityBreadcrumbSchema = (city: CityData, siteUrl: string) =>
       "@type": "ListItem",
       position: 1,
       name: "Home",
-      item: siteUrl
+      item: siteUrl,
     },
     {
       "@type": "ListItem",
       position: 2,
       name: "Locksmith Services",
-      item: `${siteUrl}/request`
+      item: `${siteUrl}/request`,
     },
     {
       "@type": "ListItem",
       position: 3,
       name: `Locksmith ${city.name}`,
-      item: `${siteUrl}/locksmith-${city.slug}`
-    }
-  ]
+      item: `${siteUrl}/locksmith-${city.slug}`,
+    },
+  ],
 });
 
 // Generate service schema for city
@@ -1298,15 +3375,15 @@ export const generateCityServiceSchema = (city: CityData, siteUrl: string) => ({
   provider: {
     "@type": "LocalBusiness",
     name: `LockSafe ${city.name}`,
-    url: `${siteUrl}/locksmith-${city.slug}`
+    url: `${siteUrl}/locksmith-${city.slug}`,
   },
   areaServed: {
     "@type": "City",
     name: city.name,
     containedInPlace: {
       "@type": "AdministrativeArea",
-      name: city.region
-    }
+      name: city.region,
+    },
   },
   hasOfferCatalog: {
     "@type": "OfferCatalog",
@@ -1317,35 +3394,35 @@ export const generateCityServiceSchema = (city: CityData, siteUrl: string) => ({
         itemOffered: {
           "@type": "Service",
           name: "Emergency Lockout Service",
-          description: `24/7 emergency lockout assistance in ${city.name}`
-        }
+          description: `24/7 emergency lockout assistance in ${city.name}`,
+        },
       },
       {
         "@type": "Offer",
         itemOffered: {
           "@type": "Service",
           name: "Lock Replacement",
-          description: `British Standard lock installation in ${city.name}`
-        }
+          description: `British Standard lock installation in ${city.name}`,
+        },
       },
       {
         "@type": "Offer",
         itemOffered: {
           "@type": "Service",
           name: "UPVC Lock Repair",
-          description: `UPVC door and window lock repairs in ${city.region}`
-        }
+          description: `UPVC door and window lock repairs in ${city.region}`,
+        },
       },
       {
         "@type": "Offer",
         itemOffered: {
           "@type": "Service",
           name: "Commercial Locksmith",
-          description: `Business locksmith services in ${city.name}`
-        }
-      }
-    ]
-  }
+          description: `Business locksmith services in ${city.name}`,
+        },
+      },
+    ],
+  },
 });
 
 // Get nearby cities for internal linking
@@ -1356,6 +3433,6 @@ export const getNearbyCities = (citySlug: string): CityData[] => {
   // Simple distance-based sorting would go here
   // For now, return cities in the same region
   return Object.values(ukCitiesData)
-    .filter(c => c.slug !== citySlug && c.region === city.region)
+    .filter((c) => c.slug !== citySlug && c.region === city.region)
     .slice(0, 5);
 };
