@@ -32,6 +32,7 @@ import {
   Rocket,
 } from "lucide-react";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
+import { PerformanceChart } from "@/components/admin/PerformanceChart";
 
 interface Ad {
   id: string;
@@ -615,17 +616,20 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           </div>
         </div>
 
-        {/* Performance Chart Placeholder */}
+        {/* Performance Chart */}
         {dailyPerformance.length > 0 && (
           <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm mb-6">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Performance (Last 30 Days)</h2>
-            <div className="h-48 flex items-center justify-center bg-slate-50 rounded-lg">
-              <div className="text-center text-slate-500">
-                <BarChart3 className="h-8 w-8 mx-auto mb-2 text-slate-400" />
-                <p className="text-sm">Chart visualization coming soon</p>
-                <p className="text-xs text-slate-400 mt-1">{dailyPerformance.length} days of data available</p>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">
+                  Performance (Last 30 Days)
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {dailyPerformance.length} day{dailyPerformance.length === 1 ? "" : "s"} of data
+                </p>
               </div>
             </div>
+            <PerformanceChart data={dailyPerformance} />
           </div>
         )}
 

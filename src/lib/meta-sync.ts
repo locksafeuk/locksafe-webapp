@@ -38,25 +38,54 @@ export interface SyncOptions {
  * Calculate derived metrics from raw insights
  */
 function calculateMetrics(insights: MetaInsights) {
-  const impressions = parseInt(insights.impressions || "0");
-  const clicks = parseInt(insights.clicks || "0");
-  const spend = parseFloat(insights.spend || "0");
+  const impressions = Number.parseInt(insights.impressions || "0");
+  const clicks = Number.parseInt(insights.clicks || "0");
+  const spend = Number.parseFloat(insights.spend || "0");
 
-  // Extract conversions from actions array
+  // Extract conversions from actions array. Meta returns very different
+  // action_type values depending on the campaign objective:
+  //
+  //   - Lead Generation (instant forms):  onsite_conversion.lead_grouped,
+  //                                       leadgen.other, lead
+  //   - Lead Generation (messaging):      onsite_conversion.messaging_*
+  //   - Website Leads via Pixel:          offsite_conversion.fb_pixel_lead
+  //   - Sales / Conversions:              purchase, offsite_conversion.fb_pixel_purchase,
+  //                                       offsite_conversion.fb_pixel_complete_registration
+  //   - Sign-ups / Subscriptions:         complete_registration, subscribe,
+  //                                       offsite_conversion.fb_pixel_subscribe
+  //
+  // We whitelist the full set so a Lead Gen campaign doesn't read 0
+  // conversions while leads are actually coming through.
+  const CONVERSION_ACTION_TYPES = new Set<string>([
+    "lead",
+    "leadgen.other",
+    "leadgen_grouped",
+    "onsite_conversion.lead_grouped",
+    "onsite_conversion.lead",
+    "offsite_conversion.fb_pixel_lead",
+    "purchase",
+    "offsite_conversion.fb_pixel_purchase",
+    "complete_registration",
+    "offsite_conversion.fb_pixel_complete_registration",
+    "subscribe",
+    "offsite_conversion.fb_pixel_subscribe",
+    "submit_application",
+    "schedule",
+    "contact",
+  ]);
+  const isMessagingLead = (type: string) =>
+    type.startsWith("onsite_conversion.messaging_");
+
   let conversions = 0;
   let revenue = 0;
 
   if (insights.actions) {
     for (const action of insights.actions) {
-      // Count lead and purchase actions as conversions
       if (
-        action.action_type === "lead" ||
-        action.action_type === "purchase" ||
-        action.action_type === "complete_registration" ||
-        action.action_type === "offsite_conversion.fb_pixel_lead" ||
-        action.action_type === "offsite_conversion.fb_pixel_purchase"
+        CONVERSION_ACTION_TYPES.has(action.action_type) ||
+        isMessagingLead(action.action_type)
       ) {
-        conversions += parseInt(action.value || "0");
+        conversions += Number.parseInt(action.value || "0");
       }
 
       // Sum purchase values for revenue
@@ -64,8 +93,18 @@ function calculateMetrics(insights: MetaInsights) {
         action.action_type === "purchase" ||
         action.action_type === "offsite_conversion.fb_pixel_purchase"
       ) {
-        revenue += parseFloat(action.value || "0");
+        revenue += Number.parseFloat(action.value || "0");
       }
+    }
+  }
+
+  // Fallback: if the actions array yielded nothing but Meta returned a
+  // top-level `conversions` count (older insights schema / aggregated rows),
+  // trust that number.
+  if (conversions === 0 && insights.conversions) {
+    const topLevel = Number.parseInt(insights.conversions);
+    if (Number.isFinite(topLevel) && topLevel > 0) {
+      conversions = topLevel;
     }
   }
 
@@ -278,14 +317,22 @@ export async function syncAllCampaigns(
 
                   result.adsUpdated++;
 
-                  // Create daily snapshot if requested
+                  // Create or update daily snapshot if requested.
+                  // We dedupe on (adId, date) so repeated syncs in the same
+                  // day overwrite the cumulative totals instead of stacking.
+                  // We also clean up any historical duplicates left by
+                  // previous versions of this code so reads return one row.
                   if (options.includeSnapshots) {
+                    const snapshotDate = new Date(dateRange.until);
+                    await prisma.adPerformanceSnapshot.deleteMany({
+                      where: { adId: ad.id, date: snapshotDate },
+                    });
                     await prisma.adPerformanceSnapshot.create({
                       data: {
                         adId: ad.id,
                         adSetId: adSet.id,
                         campaignId: campaign.id,
-                        date: new Date(dateRange.until),
+                        date: snapshotDate,
                         spend: metrics.spend,
                         impressions: metrics.impressions,
                         clicks: metrics.clicks,

@@ -127,6 +127,11 @@ export async function GET(
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
+    // Order by createdAt ASC so later writes overwrite earlier duplicates
+    // for the same (adId, date) bucket. AdPerformanceSnapshot has no unique
+    // constraint on (adId, date), and the live Meta sync inserts a fresh row
+    // every run carrying the day's cumulative totals. Summing every row
+    // would multiply the day's spend by the number of syncs that ran.
     const snapshots = await prisma.adPerformanceSnapshot.findMany({
       where: {
         campaignId: id,
@@ -134,20 +139,28 @@ export async function GET(
           gte: thirtyDaysAgo,
         },
       },
-      orderBy: { date: 'asc' },
+      orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
     });
 
-    // Aggregate snapshots by date
-    const dailyPerformance: Record<string, {
+    // Keep only the latest snapshot per (adId | adSetId | campaignId, date)
+    // so we count each ad's day-cumulative once, then sum across ads per day.
+    type DailyRow = {
       date: string;
       spend: number;
       impressions: number;
       clicks: number;
       conversions: number;
       revenue: number;
-    }> = {};
+    };
+    const latestPerAdDay = new Map<string, typeof snapshots[number]>();
+    for (const s of snapshots) {
+      const dateKey = s.date.toISOString().split('T')[0];
+      const adKey = s.adId || s.adSetId || s.campaignId || 'campaign';
+      latestPerAdDay.set(`${adKey}|${dateKey}`, s);
+    }
 
-    for (const snapshot of snapshots) {
+    const dailyPerformance: Record<string, DailyRow> = {};
+    for (const snapshot of latestPerAdDay.values()) {
       const dateKey = snapshot.date.toISOString().split('T')[0];
       if (!dailyPerformance[dateKey]) {
         dailyPerformance[dateKey] = {
