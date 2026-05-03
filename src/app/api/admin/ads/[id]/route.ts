@@ -11,6 +11,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { prisma } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { syncAllCampaigns } from '@/lib/meta-sync';
+
+// Re-sync from Meta if our cached metrics are older than this (ms)
+const SYNC_FRESHNESS_MS = 60 * 1000;
 
 // Verify admin session
 async function verifyAdmin() {
@@ -41,6 +45,35 @@ export async function GET(
     }
 
     const { id } = await params;
+    const url = new URL(request.url);
+    const skipSync = url.searchParams.get('sync') === 'false';
+    const forceSync = url.searchParams.get('sync') === 'true';
+
+    // Pull fresh metrics from Meta on demand. We only do this for campaigns
+    // already pushed to Meta (have a metaCampaignId), and we throttle by
+    // SYNC_FRESHNESS_MS so rapid revisits don't hammer the API. Failures are
+    // swallowed so the page still renders cached DB values.
+    if (!skipSync) {
+      try {
+        const existing = await prisma.adCampaign.findUnique({
+          where: { id },
+          select: { metaCampaignId: true, lastSyncAt: true },
+        });
+
+        const stale =
+          !existing?.lastSyncAt ||
+          Date.now() - existing.lastSyncAt.getTime() > SYNC_FRESHNESS_MS;
+
+        if (existing?.metaCampaignId && (forceSync || stale)) {
+          await syncAllCampaigns({ campaignId: id, includeSnapshots: true });
+        }
+      } catch (syncError) {
+        console.warn(
+          `[Admin Ads GET] Meta sync failed for campaign ${id}, returning cached data:`,
+          syncError
+        );
+      }
+    }
 
     const campaign = await prisma.adCampaign.findUnique({
       where: { id },

@@ -92,6 +92,7 @@ interface Campaign {
   aiPrompt: string | null;
   createdAt: string;
   updatedAt: string;
+  lastSyncAt: string | null;
   account: {
     name: string;
     pixelId: string | null;
@@ -126,6 +127,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [dailyPerformance, setDailyPerformance] = useState<DailyPerformance[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [publishing, setPublishing] = useState(false);
@@ -138,9 +140,10 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     fetchCampaign();
   }, [id]);
 
-  const fetchCampaign = async () => {
+  const fetchCampaign = async (opts: { force?: boolean } = {}) => {
     try {
-      const res = await fetch(`/api/admin/ads/${id}`);
+      const qs = opts.force ? "?sync=true" : "";
+      const res = await fetch(`/api/admin/ads/${id}${qs}`);
       const data = await res.json();
 
       if (data.error) {
@@ -154,12 +157,22 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
       // Expand first ad set by default
       if (data.campaign?.adSets?.length > 0) {
-        setExpandedAdSet(data.campaign.adSets[0].id);
+        setExpandedAdSet((current) => current ?? data.campaign.adSets[0].id);
       }
     } catch (error) {
       console.error("Error fetching campaign:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const refreshMetrics = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await fetchCampaign({ force: true });
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -386,6 +399,21 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           </div>
 
           <div className="flex flex-wrap gap-2">
+            {campaign.metaCampaignId && (
+              <button
+                onClick={refreshMetrics}
+                disabled={refreshing}
+                title={
+                  campaign.lastSyncAt
+                    ? `Last synced ${new Date(campaign.lastSyncAt).toLocaleString("en-GB")}`
+                    : "Not yet synced from Meta"
+                }
+                className="flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-60 text-slate-700 text-sm font-medium rounded-lg transition-colors"
+              >
+                <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+                <span className="hidden sm:inline">{refreshing ? "Syncing…" : "Refresh"}</span>
+              </button>
+            )}
             {campaign.metaCampaignId ? (
               <a
                 href={`https://business.facebook.com/adsmanager/manage/campaigns?act=${campaign.account.accountId}&selected_campaign_ids=${campaign.metaCampaignId}`}
