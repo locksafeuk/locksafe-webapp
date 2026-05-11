@@ -89,10 +89,16 @@ export function middleware(request: NextRequest) {
   // Optimistic rewrite — matches every slug except literal file routes and
   // the dynamic-route prefixes themselves. Unknown slugs are handled by the
   // page's own "City not found" fallback.
+  //
+  // Keyword-template landings (e.g. /locksmith-near-me-in-london) MUST be
+  // skipped — they're served by the root `[keywordSlug]` SSG route. We
+  // detect them by the `-in-` segment, which is the canonical signature of
+  // a keyword × city URL and never appears in legacy city slugs.
   if (
     pathname.startsWith('/locksmith-') &&
     !pathname.startsWith('/locksmith-city') &&
     !pathname.startsWith('/locksmith-area') &&
+    !pathname.includes('-in-') &&
     !LITERAL_LOCKSMITH_ROUTES.has(pathname)
   ) {
     const rest = pathname.replace('/locksmith-', '');
@@ -105,7 +111,13 @@ export function middleware(request: NextRequest) {
   }
 
   // Handle emergency-locksmith-* URLs → /locksmith-area/*
-  if (pathname.startsWith('/emergency-locksmith-')) {
+  // Skip keyword-template landings (contain `-in-`), e.g.
+  // /emergency-locksmith-near-me-in-london, which are served by the root
+  // `[keywordSlug]` SSG route.
+  if (
+    pathname.startsWith('/emergency-locksmith-') &&
+    !pathname.includes('-in-')
+  ) {
     const slug = pathname.replace('/emergency-locksmith-', '');
     const url = request.nextUrl.clone();
     url.pathname = `/locksmith-area/${slug}`;
