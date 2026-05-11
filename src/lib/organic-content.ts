@@ -24,9 +24,16 @@ import {
   POWER_HEADLINES,
 } from './copywriting-frameworks';
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+// Lazily initialize OpenAI to avoid crashing at module load when key is absent
+let _openai: OpenAI | null = null;
+const openai = new Proxy({} as OpenAI, {
+  get(_t, prop) {
+    if (!_openai) {
+      if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is not set');
+      _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    }
+    return (_openai as unknown as Record<string | symbol, unknown>)[prop];
+  },
 });
 
 // ==========================================
