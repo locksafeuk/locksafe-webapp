@@ -35,6 +35,17 @@ export default function robots(): MetadataRoute.Robots {
           "/forgot-password",
           "/reset-password",
           "/verify-email",
+          // Next.js generated image endpoints — not indexable content
+          "/opengraph-image",
+          "/**/opengraph-image",
+          "/twitter-image",
+          "/**/twitter-image",
+          "/manifest.json",
+          // Legacy Shopify URLs that no longer exist
+          "/products/",
+          "/products/*",
+          "/*/policies/",
+          "/*/policies/*",
         ],
       },
     ],
