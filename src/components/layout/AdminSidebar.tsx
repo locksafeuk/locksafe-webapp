@@ -24,6 +24,7 @@ import {
   Phone,
   Rocket,
   ShieldCheck,
+  Map,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -57,6 +58,7 @@ const navItems = [
   { href: "/admin/organic", label: "Organic Posts", icon: Share2 },
   { href: "/admin/emails", label: "Email Campaigns", icon: Mail },
   { href: "/admin/marketing", label: "Marketing", icon: Megaphone },
+  { href: "/admin/seo", label: "Intent SEO", icon: Map },
 ];
 
 export function AdminSidebar({ children }: AdminSidebarProps) {
