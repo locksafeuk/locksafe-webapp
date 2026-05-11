@@ -95,10 +95,11 @@ export function middleware(request: NextRequest) {
     !pathname.startsWith('/locksmith-area') &&
     !LITERAL_LOCKSMITH_ROUTES.has(pathname)
   ) {
-    const citySlug = pathname.replace('/locksmith-', '');
-    if (citySlug && !citySlug.includes('/')) {
+    const rest = pathname.replace('/locksmith-', '');
+    if (rest) {
+      // Supports both `/locksmith-london` and `/locksmith-london/canary-wharf`
       const url = request.nextUrl.clone();
-      url.pathname = `/locksmith-city/${citySlug}`;
+      url.pathname = `/locksmith-city/${rest}`;
       return NextResponse.rewrite(url);
     }
   }

@@ -12,7 +12,7 @@ const envSchema = z.object({
   NEXT_PUBLIC_SITE_URL: z
     .string()
     .url()
-    .default("https://locksafe.co.uk"),
+    .default("https://locksafe.uk"),
 
   // Auth
   JWT_SECRET: z.string().min(16, "JWT_SECRET must be at least 16 characters").optional(),

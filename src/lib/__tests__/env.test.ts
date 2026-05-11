@@ -9,6 +9,6 @@ describe("Environment Validation", () => {
 
   it("should have a default site URL", () => {
     const env = validateEnv();
-    expect(env.NEXT_PUBLIC_SITE_URL).toBe("https://locksafe.co.uk");
+    expect(env.NEXT_PUBLIC_SITE_URL).toBe("https://locksafe.uk");
   });
 });

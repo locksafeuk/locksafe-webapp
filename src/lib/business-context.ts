@@ -18,7 +18,7 @@ export const BUSINESS_CONTEXT = {
 
 Every job creates: GPS tracking, timestamped photos, digital signatures, and instant PDF reports. Your word is never against theirs again.`,
     founderStory: `"My 78-year-old mother was charged £380 for a job that should have cost £90. The locksmith knew she was vulnerable, alone, and desperate. When she complained, it was her word against his. That's when we decided: never again." - James Thompson, Founder & CEO`,
-    website: "https://locksafe.co.uk",
+    website: "https://locksafe.uk",
     location: "United Kingdom",
   },
 

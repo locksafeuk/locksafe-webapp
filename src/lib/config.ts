@@ -1,7 +1,7 @@
 // Site configuration - uses environment variables for flexibility
 export const siteConfig = {
   // Main site URL - change this in .env when you buy a domain
-  url: process.env.NEXT_PUBLIC_SITE_URL || "https://locksafe.co.uk",
+  url: process.env.NEXT_PUBLIC_SITE_URL || "https://locksafe.uk",
 
   // Site name
   name: "LockSafe UK",
