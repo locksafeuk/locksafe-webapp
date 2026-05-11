@@ -40,6 +40,7 @@ interface LookupResponse {
   longitude: number | null;
   addresses: AddressDTO[];
   source:
+    | "ideal-postcodes"
     | "google-places"
     | "getaddress-find"
     | "getaddress-autocomplete"
@@ -135,7 +136,6 @@ async function tryGooglePlaces(
         input: postcode,
         includedRegionCodes: ["GB"],
         languageCode: "en-GB",
-        includedPrimaryTypes: ["street_address", "premise", "subpremise", "route"],
       }),
     });
 
@@ -323,6 +323,80 @@ async function tryGetAddressAutocomplete(
 }
 
 // ---------------------------------------------------------------------------
+// Ideal Postcodes — PAF address list (500 free lookups on signup)
+// ---------------------------------------------------------------------------
+
+interface IdealPostcodesAddress {
+  line_1?: string;
+  line_2?: string;
+  line_3?: string;
+  post_town?: string;
+  county?: string;
+  postcode?: string;
+}
+
+interface IdealPostcodesResponse {
+  code?: number;
+  message?: string;
+  result?: IdealPostcodesAddress[];
+}
+
+async function tryIdealPostcodes(
+  postcode: string,
+  apiKey: string
+): Promise<{ result: LookupResponse | null; upstream: UpstreamInfo }> {
+  const endpoint = `ideal-postcodes:${postcode}`;
+  const url = `https://api.ideal-postcodes.co.uk/v1/postcodes/${encodeURIComponent(postcode.replace(/\s/g, ""))}?api_key=${encodeURIComponent(apiKey)}`;
+  try {
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    const status = res.status;
+    if (!res.ok) {
+      const body = await res.text().catch(() => undefined);
+      return { result: null, upstream: { status, endpoint, message: body?.slice(0, 200) } };
+    }
+    const data = (await res.json()) as IdealPostcodesResponse;
+    const items = Array.isArray(data.result) ? data.result : [];
+    const addresses: AddressDTO[] = items
+      .map((item): AddressDTO | null => {
+        const line1 = item.line_1?.trim() || "";
+        if (!line1) return null;
+        const town = item.post_town?.trim() || "";
+        const pc = item.postcode?.trim() || postcode;
+        const parts = [line1, item.line_2?.trim(), item.line_3?.trim(), town, pc]
+          .filter((p): p is string => Boolean(p));
+        return {
+          line1,
+          line2: item.line_2?.trim() || undefined,
+          line3: item.line_3?.trim() || undefined,
+          town,
+          county: item.county?.trim() || undefined,
+          formatted: parts.join(", "),
+        };
+      })
+      .filter((a): a is AddressDTO => a !== null);
+    return {
+      result: {
+        postcode,
+        latitude: null,
+        longitude: null,
+        addresses,
+        source: "ideal-postcodes",
+      },
+      upstream: { status, endpoint },
+    };
+  } catch (err) {
+    return {
+      result: null,
+      upstream: {
+        status: 0,
+        endpoint,
+        message: err instanceof Error ? err.message : "fetch failed",
+      },
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // postcodes.io — lat/lng fallback
 // ---------------------------------------------------------------------------
 
@@ -354,21 +428,35 @@ export async function GET(req: NextRequest) {
   const postcode = normalisePostcode(raw);
   const googleKey = process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
   const getAddressKey = process.env.GETADDRESS_API_KEY;
+  const idealPostcodesKey = process.env.IDEAL_POSTCODES_API_KEY;
   const isDev = process.env.NODE_ENV !== "production";
 
   let result: LookupResponse | null = null;
   let lastUpstream: UpstreamInfo | undefined;
 
-  // 1. Google Places (preferred)
-  if (googleKey) {
-    const attempt = await tryGooglePlaces(postcode, googleKey);
+  // 1. Ideal Postcodes — best free PAF data (500 lookups/account on free tier)
+  if (idealPostcodesKey) {
+    const attempt = await tryIdealPostcodes(postcode, idealPostcodesKey);
     lastUpstream = attempt.upstream;
-    if (attempt.result) {
+    if (attempt.result && attempt.result.addresses.length > 0) {
       result = attempt.result;
     }
   }
 
-  // 2. getAddress.io fallback (if Google returned nothing useful)
+  // 2. Google Places (preferred lat/lng + address fallback)
+  if (!result || result.addresses.length === 0) {
+    if (googleKey) {
+      const attempt = await tryGooglePlaces(postcode, googleKey);
+      lastUpstream = attempt.upstream;
+      if (attempt.result && attempt.result.addresses.length > 0) {
+        result = attempt.result;
+      } else if (!result && attempt.result) {
+        result = attempt.result; // keep even with 0 addresses for lat/lng later
+      }
+    }
+  }
+
+  // 3. getAddress.io fallback (if still no addresses)
   if ((!result || result.addresses.length === 0) && getAddressKey) {
     const findAttempt = await tryGetAddressFind(postcode, getAddressKey);
     if (findAttempt.result && findAttempt.result.addresses.length > 0) {
