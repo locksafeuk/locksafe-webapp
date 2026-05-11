@@ -127,6 +127,12 @@ model Locksmith {
   oneSignalPlayerId       String?   // OneSignal player/subscription ID
   oneSignalSubscribedAt   DateTime? // When locksmith subscribed to push
 
+  // Native Push Notifications (APNs / FCM via expo-notifications)
+  nativeDeviceToken       String?   // Raw APNs (iOS) or FCM (Android) device token
+  nativeTokenType         String?   // "apns" | "fcm" | "fcmv1"
+  nativeTokenPlatform     String?   // "ios" | "android"
+  nativeTokenRegisteredAt DateTime? // When the native token was last registered
+
   // Onboarding & Terms
   termsAcceptedAt             DateTime?  // When locksmith accepted T&C
   onboardingCompleted         Boolean    @default(false)

@@ -1780,6 +1780,7 @@ export async function sendNewJobInAreaEmail(
   data: {
     locksmithName: string;
     jobNumber: string;
+    jobId?: string;
     problemType: string;
     postcode: string;
     address: string;
@@ -1876,7 +1877,7 @@ export async function sendNewJobInAreaEmail(
           </p>
 
           <p style="text-align:center;margin-top:24px;">
-            <a href="${SITE_URL}/locksmith/jobs" class="button">View & Apply Now →</a>
+            <a href="${data.jobId ? `${SITE_URL}/locksmith/job/${data.jobId}` : `${SITE_URL}/locksmith/jobs`}" class="button">View & Apply Now →</a>
           </p>
 
           <p style="text-align:center;color:#64748b;font-size:12px;margin-top:16px;">

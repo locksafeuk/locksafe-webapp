@@ -330,9 +330,10 @@ export async function notifyLocksmiths(
     return { errors: ["No player IDs provided"] };
   }
 
+  const SITE = process.env.NEXT_PUBLIC_SITE_URL || "https://www.locksafe.uk";
   const url = options.jobId
-    ? `/locksmith/jobs?highlight=${options.jobId}`
-    : "/locksmith/jobs";
+    ? `${SITE}/locksmith/jobs?highlight=${options.jobId}`
+    : `${SITE}/locksmith/jobs`;
 
   return sendTemplatedNotification(template, oneSignalPlayerIds, {
     url,

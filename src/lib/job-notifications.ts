@@ -8,6 +8,7 @@ import {
   notifyCustomer,
   isOneSignalConfigured,
 } from "@/lib/onesignal";
+import { sendNativePushToMany } from "@/lib/native-push";
 
 interface JobForNotification {
   id: string;
@@ -63,7 +64,10 @@ export async function notifyNearbyLocksmiths(job: JobForNotification): Promise<{
         baseLng: true,
         coverageRadius: true,
         stripeConnectVerified: true,
-        oneSignalPlayerId: true, // For push notifications
+        oneSignalPlayerId: true, // For OneSignal web push
+        nativeDeviceToken: true, // For native APNs/FCM push (mobile app)
+        nativeTokenType: true,
+        nativeTokenPlatform: true,
       },
     });
 
@@ -73,6 +77,9 @@ export async function notifyNearbyLocksmiths(job: JobForNotification): Promise<{
       email: string;
       distance: number;
       oneSignalPlayerId: string | null;
+      nativeDeviceToken: string | null;
+      nativeTokenType: string | null;
+      nativeTokenPlatform: string | null;
     }> = [];
 
     for (const locksmith of locksmiths) {
@@ -94,6 +101,9 @@ export async function notifyNearbyLocksmiths(job: JobForNotification): Promise<{
           email: locksmith.email,
           distance: Math.round(distance * 10) / 10,
           oneSignalPlayerId: locksmith.oneSignalPlayerId,
+          nativeDeviceToken: locksmith.nativeDeviceToken,
+          nativeTokenType: locksmith.nativeTokenType,
+          nativeTokenPlatform: locksmith.nativeTokenPlatform,
         });
         console.log(
           `[Job Notifications] Locksmith ${locksmith.name} (${locksmith.id}) is ${distance.toFixed(1)} miles away - within ${coverageRadius} mile radius`,
@@ -157,6 +167,7 @@ export async function notifyNearbyLocksmiths(job: JobForNotification): Promise<{
       sendNewJobInAreaEmail(locksmith.email, {
         locksmithName: locksmith.name,
         jobNumber: job.jobNumber,
+        jobId: job.id,
         problemType: job.problemType,
         postcode: job.postcode,
         address: job.address,
@@ -219,6 +230,34 @@ export async function notifyNearbyLocksmiths(job: JobForNotification): Promise<{
             console.error("[Job Notifications] Push notification error:", err);
           });
       }
+    }
+
+    // Send native APNs/FCM push notifications to mobile app users
+    const nativeTargets = nearbyLocksmiths.filter(
+      (ls): ls is typeof ls & { nativeDeviceToken: string; nativeTokenType: string; nativeTokenPlatform: string } =>
+        !!ls.nativeDeviceToken && !!ls.nativeTokenType && !!ls.nativeTokenPlatform,
+    );
+
+    if (nativeTargets.length > 0) {
+      const problemLabel = problemLabels[job.problemType] || job.problemType;
+      sendNativePushToMany(nativeTargets, {
+        title: "New Job Available",
+        body: `${problemLabel} near ${job.postcode}`,
+        data: {
+          type: "NEW_JOB_AVAILABLE",
+          jobId: job.id,
+          jobNumber: job.jobNumber,
+          postcode: job.postcode,
+        },
+      })
+        .then((count) => {
+          console.log(
+            `[Job Notifications] Native push sent to ${count}/${nativeTargets.length} locksmiths`,
+          );
+        })
+        .catch((err) => {
+          console.error("[Job Notifications] Native push error:", err);
+        });
     }
 
     return {
@@ -355,6 +394,7 @@ export async function sendJobNotificationEmail(data: {
     const result = await sendNewJobInAreaEmail(data.locksmithEmail, {
       locksmithName: data.locksmithName,
       jobNumber: data.jobNumber,
+      jobId: data.jobId,
       problemType: data.problemType,
       postcode: data.postcode,
       address: data.address,
