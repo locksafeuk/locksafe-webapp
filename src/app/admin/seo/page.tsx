@@ -12,6 +12,11 @@ import {
 } from "lucide-react";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
 import { loadActiveIntentLandings, loadAllIntentLandings } from "@/lib/intent-landings-store";
+import {
+  loadActiveKeywordTemplates,
+  loadAllKeywordTemplates,
+  citiesForTemplate,
+} from "@/lib/keyword-templates-store";
 import { INTENTS, PILLAR_KEYWORDS } from "@/lib/intents-catalog";
 import { ukCitiesData } from "@/lib/uk-cities-data";
 import { postcodeData } from "@/lib/postcode-data";
@@ -26,6 +31,12 @@ const POSTCODE_PILLAR_COUNT = 5; // mirrors /locksmith-area/[slug]/[service] gen
 export default async function AdminSeoPage() {
   const active = await loadActiveIntentLandings();
   const all = await loadAllIntentLandings();
+  const activeKeywords = await loadActiveKeywordTemplates();
+  const allKeywords = await loadAllKeywordTemplates();
+  const keywordPages = activeKeywords.reduce(
+    (n, t) => n + citiesForTemplate(t).length,
+    0,
+  );
   const cityCount = Object.keys(ukCitiesData).length;
   const serviceCount = SERVICE_CATALOG.length;
   const postcodeCount = Object.keys(postcodeData).length;
@@ -37,7 +48,7 @@ export default async function AdminSeoPage() {
   const cityAreaPages = totalAreas;
   const postcodeServicePages = postcodeCount * POSTCODE_PILLAR_COUNT;
   const totalPages =
-    intentPages + intentGeoPages + serviceGeoPages + cityAreaPages + postcodeServicePages;
+    intentPages + intentGeoPages + serviceGeoPages + cityAreaPages + postcodeServicePages + keywordPages;
 
   // Pillar coverage
   const pillarStats = PILLAR_KEYWORDS.map((pk) => ({
@@ -67,9 +78,10 @@ export default async function AdminSeoPage() {
         </div>
 
         {/* KPI row */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-8">
           <KpiCard label="Total SSG pages" value={totalPages.toLocaleString()} icon={Layers} accent="amber" />
           <KpiCard label="Intent landings" value={`${intentPages} active`} sub={`${all.length} total`} icon={FileText} />
+          <KpiCard label="Keyword landings" value={keywordPages.toLocaleString()} sub={`${activeKeywords.length}/${allKeywords.length} templates`} icon={FileText} />
           <KpiCard label="Intent × city" value={intentGeoPages.toLocaleString()} icon={Globe} />
           <KpiCard label="Service × city" value={serviceGeoPages.toLocaleString()} icon={Globe} />
           <KpiCard label="Postcode × service" value={postcodeServicePages.toLocaleString()} sub={`${postcodeCount} postcodes`} icon={Globe} />
@@ -84,6 +96,16 @@ export default async function AdminSeoPage() {
             <FileText className="w-5 h-5 text-amber-500 mb-2" />
             <p className="font-semibold text-slate-900 text-sm">Intent landings</p>
             <p className="text-xs text-slate-500 mt-0.5">Preview, copy, A/B status</p>
+          </Link>
+          <Link
+            href="/admin/seo/keywords"
+            className="block rounded-xl border border-slate-200 bg-white hover:border-amber-400 hover:shadow-sm transition-all p-4"
+          >
+            <FileText className="w-5 h-5 text-amber-500 mb-2" />
+            <p className="font-semibold text-slate-900 text-sm">Keyword landings</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {keywordPages.toLocaleString()} pages — /[keyword]-in-[city]
+            </p>
           </Link>
           <Link
             href="/admin/seo/coverage"

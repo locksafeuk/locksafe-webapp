@@ -5,6 +5,10 @@ import { postcodeData, getAllPostcodes } from "@/lib/postcode-data";
 import { getAllCitySlugs, ukCitiesData } from "@/lib/uk-cities-data";
 import { getAllServiceSlugs } from "@/lib/services-catalog";
 import { loadActiveIntentLandings } from "@/lib/intent-landings-store";
+import {
+  loadActiveKeywordTemplates,
+  citiesForTemplate,
+} from "@/lib/keyword-templates-store";
 import { PILLAR_KEYWORDS } from "@/lib/intents-catalog";
 import { slugify } from "@/lib/seo/url-helpers";
 
@@ -284,6 +288,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   }
 
+  // Keyword template × city landings (e.g. /locksmith-near-me-in-london).
+  // These target the highest-CPC head terms in the UK locksmith vertical;
+  // priority is bumped because they sit on the most expensive keywords.
+  const keywordTemplates = await loadActiveKeywordTemplates();
+  const keywordPages: MetadataRoute.Sitemap = [];
+  for (const tpl of keywordTemplates) {
+    for (const citySlug of citiesForTemplate(tpl)) {
+      keywordPages.push({
+        url: `${baseUrl}/${tpl.slug}-in-${citySlug}`,
+        lastModified: new Date(),
+        changeFrequency: "weekly" as const,
+        priority: 0.85,
+      });
+    }
+  }
+
   return [
     ...staticPages,
     ...servicesIndex,
@@ -296,6 +316,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...cityAreaPages,
     ...postcodePages,
     ...postcodeServicePages,
+    ...keywordPages,
     ...blogPostPages,
     ...blogCategoryPages,
   ];

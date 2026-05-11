@@ -2082,6 +2082,36 @@ model IntentLanding {
   @@index([isActive, position])
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Keyword-driven SEO templates. Each row defines one high-CPC keyword
+// pattern (e.g. "locksmith-near-me", "emergency-locksmith-near-me") and
+// auto-generates one landing page per UK city at
+// `/{keywordSlug}-in-{citySlug}`. Token interpolation: {city}, {region},
+// {county}, {areas}, {landmarks}, {response}, {population}.
+// ─────────────────────────────────────────────────────────────────────────────
+model KeywordTemplate {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  /// Lowercase kebab keyword stem, e.g. "locksmith-near-me".
+  slug            String    @unique
+  /// Human label, e.g. "Locksmith Near Me".
+  label           String
+  /// Pillar keyword grouping (matches PILLAR_KEYWORDS).
+  pillarKeyword   String?
+  intentTags      String[]  @default([])
+  isActive        Boolean   @default(true)
+  position        Int       @default(0)
+  /// "all" → every UK city; "selected" → only `selectedCities`.
+  citiesMode      String    @default("all")
+  selectedCities  String[]  @default([])
+  /// Title / meta / hero / body templates with token placeholders.
+  content         Json
+  updatedBy       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([isActive, position])
+}
+
 // Singleton-ish config for the connected Meta Commerce catalog. The first row
 // with `isActive = true` is treated as the active configuration.
 model MetaCatalogConfig {
