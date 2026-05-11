@@ -1,8 +1,9 @@
-import type { IntentRelatedCluster } from "@/lib/intent-landing";
-import { getIntentLandingBySlug } from "@/lib/intent-landings";
+import type { IntentRelatedCluster, IntentLanding } from "@/lib/intent-landing";
 
 interface Props {
   clusters: IntentRelatedCluster[];
+  /** Pre-resolved landings keyed by slug — passed by the server page. */
+  resolved: Record<string, Pick<IntentLanding, "slug" | "title" | "intro">>;
 }
 
 /**
@@ -10,7 +11,7 @@ interface Props {
  * IntentRelatedClusters — drives topical-authority graph by surfacing
  * sibling landings under the same pillar.
  */
-export function RelatedClusters({ clusters }: Props) {
+export function RelatedClusters({ clusters, resolved }: Props) {
   if (clusters.length === 0) return null;
   return (
     <div>
@@ -26,8 +27,8 @@ export function RelatedClusters({ clusters }: Props) {
             <h3 className="font-semibold text-slate-900 mb-3">{cluster.heading}</h3>
             <ul className="space-y-2">
               {cluster.slugs
-                .map((slug) => getIntentLandingBySlug(slug))
-                .filter((l): l is NonNullable<ReturnType<typeof getIntentLandingBySlug>> => Boolean(l))
+                .map((slug) => resolved[slug])
+                .filter((l): l is NonNullable<typeof l> => Boolean(l))
                 .map((l) => (
                   <li key={l.slug}>
                     <a

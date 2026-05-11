@@ -4,9 +4,9 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
 import {
-  INTENT_LANDINGS,
-  getIntentLandingBySlug,
-} from "@/lib/intent-landings";
+  loadAllIntentLandingSlugs,
+  loadIntentLandingBySlug,
+} from "@/lib/intent-landings-store";
 import { ukCitiesData } from "@/lib/uk-cities-data";
 
 interface Props {
@@ -14,18 +14,19 @@ interface Props {
 }
 
 export async function generateStaticParams() {
-  return INTENT_LANDINGS.map((l) => ({ slug: l.slug }));
+  const slugs = await loadAllIntentLandingSlugs();
+  return slugs.map((slug) => ({ slug }));
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const landing = getIntentLandingBySlug(slug);
+  const landing = await loadIntentLandingBySlug(slug);
   return { title: landing ? `${landing.title} · Intent SEO` : "Intent SEO" };
 }
 
 export default async function AdminIntentDetailPage({ params }: Props) {
   const { slug } = await params;
-  const landing = getIntentLandingBySlug(slug);
+  const landing = await loadIntentLandingBySlug(slug);
   if (!landing) notFound();
 
   const cityCount = Object.keys(ukCitiesData).length;
@@ -67,7 +68,6 @@ export default async function AdminIntentDetailPage({ params }: Props) {
         {/* Hero copy */}
         <Section title="Hero copy">
           <Field label="H1" value={landing.h1} />
-          <Field label="Eyebrow" value={landing.eyebrow || "—"} />
           <Field label="Intro" value={landing.intro || "—"} multiline />
         </Section>
 

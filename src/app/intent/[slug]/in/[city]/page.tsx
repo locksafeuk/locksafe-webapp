@@ -3,9 +3,9 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 
 import {
-  getIntentLandingBySlug,
-  getAllIntentLandingSlugs,
-} from "@/lib/intent-landings";
+  loadIntentLandingBySlug,
+  loadAllIntentLandingSlugs,
+} from "@/lib/intent-landings-store";
 import {
   getCityBySlug,
   getAllCitySlugs,
@@ -37,7 +37,7 @@ interface Props {
  * grows beyond a sensible build budget.
  */
 export async function generateStaticParams() {
-  const intentSlugs = getAllIntentLandingSlugs();
+  const intentSlugs = await loadAllIntentLandingSlugs();
   const citySlugs = getAllCitySlugs();
   const out: { slug: string; city: string }[] = [];
   for (const slug of intentSlugs) {
@@ -50,7 +50,7 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug, city } = await params;
-  const landing = getIntentLandingBySlug(slug);
+  const landing = await loadIntentLandingBySlug(slug);
   const cityData = getCityBySlug(city);
   if (!landing || !cityData) return {};
 
@@ -80,7 +80,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function IntentGeoPage({ params }: Props) {
   const { slug, city } = await params;
-  const landing = getIntentLandingBySlug(slug);
+  const landing = await loadIntentLandingBySlug(slug);
   const cityData = getCityBySlug(city);
   if (!landing || !cityData) notFound();
 

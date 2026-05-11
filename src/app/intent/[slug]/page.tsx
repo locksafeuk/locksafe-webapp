@@ -3,9 +3,10 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 
 import {
-  getIntentLandingBySlug,
-  getAllIntentLandingSlugs,
-} from "@/lib/intent-landings";
+  loadIntentLandingBySlug,
+  loadAllIntentLandingSlugs,
+  loadIntentLandingsBySlugs,
+} from "@/lib/intent-landings-store";
 import {
   breadcrumbJsonLd,
   faqJsonLd,
@@ -31,12 +32,13 @@ interface Props {
 }
 
 export async function generateStaticParams() {
-  return getAllIntentLandingSlugs().map((slug) => ({ slug }));
+  const slugs = await loadAllIntentLandingSlugs();
+  return slugs.map((slug) => ({ slug }));
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const landing = getIntentLandingBySlug(slug);
+  const landing = await loadIntentLandingBySlug(slug);
   if (!landing) return {};
   const title = landing.metaTitle || `${landing.title} | LockSafe UK`;
   const description =
@@ -59,7 +61,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function IntentPage({ params }: Props) {
   const { slug } = await params;
-  const landing = getIntentLandingBySlug(slug);
+  const landing = await loadIntentLandingBySlug(slug);
   if (!landing) notFound();
 
   const hasVariantB = Boolean(landing.emotionalHookB && landing.emotionalHookB.trim().length > 0);
@@ -78,6 +80,17 @@ export default async function IntentPage({ params }: Props) {
   const allServices = (landing.serviceFilter.serviceSlugs ?? [])
     .map((s) => getServiceBySlug(s))
     .filter((s): s is NonNullable<ReturnType<typeof getServiceBySlug>> => Boolean(s));
+
+  // Pre-resolve every slug referenced by relatedClusters so the child
+  // component stays pure / no DB calls inside React.
+  const relatedSlugs = Array.from(
+    new Set(landing.blocks.relatedClusters.flatMap((c) => c.slugs)),
+  );
+  const relatedLandings = await loadIntentLandingsBySlugs(relatedSlugs);
+  const resolvedRelated: Record<string, { slug: string; title: string; intro?: string }> = {};
+  for (const l of relatedLandings) {
+    resolvedRelated[l.slug] = { slug: l.slug, title: l.title, intro: l.intro };
+  }
 
   const breadcrumbs = [
     { name: "Home", url: "/" },
@@ -305,7 +318,7 @@ export default async function IntentPage({ params }: Props) {
       {landing.blocks.relatedClusters.length > 0 && (
         <section className="bg-slate-50 border-t border-slate-200">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-14 sm:py-20">
-            <RelatedClusters clusters={landing.blocks.relatedClusters} />
+            <RelatedClusters clusters={landing.blocks.relatedClusters} resolved={resolvedRelated} />
           </div>
         </section>
       )}

@@ -4,10 +4,7 @@ import { blogPosts, getAllCategories } from "@/lib/blog-data";
 import { postcodeData, getAllPostcodes } from "@/lib/postcode-data";
 import { getAllCitySlugs, ukCitiesData } from "@/lib/uk-cities-data";
 import { getAllServiceSlugs } from "@/lib/services-catalog";
-import {
-  getAllIntentLandingSlugs,
-  getActiveIntentLandings,
-} from "@/lib/intent-landings";
+import { loadActiveIntentLandings } from "@/lib/intent-landings-store";
 import { PILLAR_KEYWORDS } from "@/lib/intents-catalog";
 import { slugify } from "@/lib/seo/url-helpers";
 
@@ -19,7 +16,7 @@ const POSTCODE_PILLAR_SERVICES = [
   "commercial-locksmith",
 ] as const;
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = SITE_URL;
 
   // Static pages
@@ -208,7 +205,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   // ── Intent SEO pages ──────────────────────────────────────────────────────
   // Boost priority for pages aligned to high-volume pillar keywords.
   // If ≥2 active landings share a pillarKeyword, bump that pillar's pages.
-  const landings = getActiveIntentLandings();
+  const landings = await loadActiveIntentLandings();
   const pillarCounts = new Map<string, number>();
   for (const l of landings) {
     if (l.pillarKeyword) {

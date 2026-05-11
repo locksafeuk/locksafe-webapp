@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getActiveIntentLandings } from "@/lib/intent-landings";
+import { loadActiveIntentLandings } from "@/lib/intent-landings-store";
 import { PILLAR_KEYWORDS } from "@/lib/intents-catalog";
 import { breadcrumbJsonLd, itemListJsonLd, ldScript } from "@/lib/seo";
 
@@ -11,8 +11,8 @@ export const metadata: Metadata = {
   alternates: { canonical: "/intent" },
 };
 
-export default function IntentIndexPage() {
-  const landings = getActiveIntentLandings();
+export default async function IntentIndexPage() {
+  const landings = await loadActiveIntentLandings();
 
   // Group by pillar keyword
   const byPillar = new Map<string, typeof landings>();

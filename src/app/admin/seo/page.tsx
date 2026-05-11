@@ -11,7 +11,7 @@ import {
   Layers,
 } from "lucide-react";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
-import { INTENT_LANDINGS, getActiveIntentLandings } from "@/lib/intent-landings";
+import { loadActiveIntentLandings, loadAllIntentLandings } from "@/lib/intent-landings-store";
 import { INTENTS, PILLAR_KEYWORDS } from "@/lib/intents-catalog";
 import { ukCitiesData } from "@/lib/uk-cities-data";
 import { postcodeData } from "@/lib/postcode-data";
@@ -23,8 +23,9 @@ export const metadata: Metadata = {
 
 const POSTCODE_PILLAR_COUNT = 5; // mirrors /locksmith-area/[slug]/[service] generator
 
-export default function AdminSeoPage() {
-  const active = getActiveIntentLandings();
+export default async function AdminSeoPage() {
+  const active = await loadActiveIntentLandings();
+  const all = await loadAllIntentLandings();
   const cityCount = Object.keys(ukCitiesData).length;
   const serviceCount = SERVICE_CATALOG.length;
   const postcodeCount = Object.keys(postcodeData).length;
@@ -68,7 +69,7 @@ export default function AdminSeoPage() {
         {/* KPI row */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-8">
           <KpiCard label="Total SSG pages" value={totalPages.toLocaleString()} icon={Layers} accent="amber" />
-          <KpiCard label="Intent landings" value={`${intentPages} active`} sub={`${INTENT_LANDINGS.length} total`} icon={FileText} />
+          <KpiCard label="Intent landings" value={`${intentPages} active`} sub={`${all.length} total`} icon={FileText} />
           <KpiCard label="Intent × city" value={intentGeoPages.toLocaleString()} icon={Globe} />
           <KpiCard label="Service × city" value={serviceGeoPages.toLocaleString()} icon={Globe} />
           <KpiCard label="Postcode × service" value={postcodeServicePages.toLocaleString()} sub={`${postcodeCount} postcodes`} icon={Globe} />

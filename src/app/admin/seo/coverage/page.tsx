@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, Activity, ExternalLink } from "lucide-react";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
-import { INTENT_LANDINGS } from "@/lib/intent-landings";
+import { loadAllIntentLandings } from "@/lib/intent-landings-store";
 import { ukCitiesData } from "@/lib/uk-cities-data";
 import { SERVICE_CATALOG } from "@/lib/services-catalog";
 import { postcodeData } from "@/lib/postcode-data";
@@ -19,10 +19,11 @@ const POSTCODE_PILLAR_SERVICES = [
   "commercial-locksmith",
 ] as const;
 
-export default function AdminSeoCoveragePage() {
+export default async function AdminSeoCoveragePage() {
+  const landings = await loadAllIntentLandings();
   const cities = Object.values(ukCitiesData);
   const totalCells =
-    INTENT_LANDINGS.length * cities.length +
+    landings.length * cities.length +
     SERVICE_CATALOG.length * cities.length +
     cities.reduce((n, c) => n + c.areas.length, 0) +
     Object.keys(postcodeData).length * POSTCODE_PILLAR_SERVICES.length;
@@ -49,7 +50,7 @@ export default function AdminSeoCoveragePage() {
           <h2 className="text-lg font-bold text-slate-900 mb-3">
             Intent × City
             <span className="text-sm font-normal text-slate-500 ml-2">
-              ({INTENT_LANDINGS.length * cities.length} pages)
+              ({landings.length * cities.length} pages)
             </span>
           </h2>
           <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
@@ -67,7 +68,7 @@ export default function AdminSeoCoveragePage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {INTENT_LANDINGS.map((l) => (
+                {landings.map((l) => (
                   <tr key={l.slug}>
                     <td className="px-3 py-2 font-medium text-slate-900 sticky left-0 bg-white whitespace-nowrap">
                       {l.title}

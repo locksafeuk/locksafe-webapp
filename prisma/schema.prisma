@@ -2057,6 +2057,31 @@ model ServiceCatalogItem {
   updatedAt           DateTime  @updatedAt
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Intent SEO landings — DB-backed CMS overrides for static intent content.
+// Source of truth at runtime: DB rows merged on top of the static seed in
+// `src/lib/intent-landings.ts`. Admin edits write here and call
+// `revalidatePath('/intent/[slug]')` so the SSG page regenerates.
+// ─────────────────────────────────────────────────────────────────────────────
+model IntentLanding {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  slug            String    @unique
+  title           String
+  pillarKeyword   String?
+  intentTags      String[]  @default([])
+  isActive        Boolean   @default(true)
+  position        Int       @default(0)
+  /// Full IntentLanding content (matches src/lib/intent-landing.ts shape).
+  /// Stored as a single JSON document so the admin form can ship blocks/FAQs
+  /// /A-B copy together without flattening to dozens of columns.
+  content         Json
+  updatedBy       String?   // admin id who last touched it
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([isActive, position])
+}
+
 // Singleton-ish config for the connected Meta Commerce catalog. The first row
 // with `isActive = true` is treated as the active configuration.
 model MetaCatalogConfig {

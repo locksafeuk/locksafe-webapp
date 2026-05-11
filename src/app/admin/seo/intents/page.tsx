@@ -1,36 +1,48 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink, Tag, FileText } from "lucide-react";
+import { ArrowLeft, ExternalLink, Tag, FileText, Plus, Pencil } from "lucide-react";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
-import {
-  INTENT_LANDINGS,
-  getIntentLandingBySlug,
-} from "@/lib/intent-landings";
+import { loadAllIntentLandings } from "@/lib/intent-landings-store";
+import { prisma } from "@/lib/db";
 import { ukCitiesData } from "@/lib/uk-cities-data";
 
 export const metadata: Metadata = {
   title: "Intent landings",
 };
 
-export default function AdminIntentsListPage() {
+export const dynamic = "force-dynamic";
+
+export default async function AdminIntentsListPage() {
+  const landings = await loadAllIntentLandings();
+  const dbRows = await prisma.intentLanding.findMany({ select: { slug: true } });
+  const dbSlugs = new Set(dbRows.map((r) => r.slug));
+
   return (
     <AdminSidebar>
       <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
-        <div className="mb-6">
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <Link
+              href="/admin/seo"
+              className="text-sm text-amber-700 hover:text-amber-800 inline-flex items-center gap-1 mb-2"
+            >
+              <ArrowLeft className="w-4 h-4" /> Back to Intent SEO
+            </Link>
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 flex items-center gap-2">
+              <FileText className="w-7 h-7 text-amber-500" />
+              Intent landings
+            </h1>
+            <p className="text-slate-600 mt-1 text-sm">
+              {landings.length} landings — {dbSlugs.size} DB-edited, {landings.length - dbSlugs.size} from static seed.
+            </p>
+          </div>
           <Link
-            href="/admin/seo"
-            className="text-sm text-amber-700 hover:text-amber-800 inline-flex items-center gap-1 mb-2"
+            href="/admin/seo/intents/new"
+            className="inline-flex items-center gap-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium px-3 py-2"
           >
-            <ArrowLeft className="w-4 h-4" /> Back to Intent SEO
+            <Plus className="w-4 h-4" />
+            New landing
           </Link>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 flex items-center gap-2">
-            <FileText className="w-7 h-7 text-amber-500" />
-            Intent landings
-          </h1>
-          <p className="text-slate-600 mt-1 text-sm">
-            {INTENT_LANDINGS.length} landings — preview, inspect blocks, see A/B status.
-          </p>
         </div>
 
         <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
@@ -42,12 +54,13 @@ export default function AdminIntentsListPage() {
                 <th className="text-center px-4 py-3">FAQs</th>
                 <th className="text-center px-4 py-3">Segments</th>
                 <th className="text-center px-4 py-3">A/B</th>
+                <th className="text-center px-4 py-3">Source</th>
                 <th className="text-center px-4 py-3">Status</th>
                 <th className="text-right px-4 py-3">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {INTENT_LANDINGS.map((l) => (
+              {landings.map((l) => (
                 <tr key={l.slug}>
                   <td className="px-4 py-3">
                     <p className="font-medium text-slate-900">{l.title}</p>
@@ -79,6 +92,17 @@ export default function AdminIntentsListPage() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-center">
+                    {dbSlugs.has(l.slug) ? (
+                      <span className="text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
+                        DB
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-500 bg-slate-50 px-2 py-0.5 rounded-full">
+                        Static
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-center">
                     {l.isActive !== false ? (
                       <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
                         Live
@@ -90,12 +114,19 @@ export default function AdminIntentsListPage() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <div className="inline-flex items-center gap-2">
+                    <div className="inline-flex items-center gap-3">
                       <Link
                         href={`/admin/seo/intents/${l.slug}`}
-                        className="text-xs text-amber-700 hover:text-amber-800 font-medium"
+                        className="text-xs text-slate-600 hover:text-slate-900 font-medium"
                       >
                         Inspect
+                      </Link>
+                      <Link
+                        href={`/admin/seo/intents/${l.slug}/edit`}
+                        className="text-xs text-amber-700 hover:text-amber-800 font-medium inline-flex items-center gap-1"
+                      >
+                        <Pencil className="w-3 h-3" />
+                        Edit
                       </Link>
                       <a
                         href={`/intent/${l.slug}`}
