@@ -3177,3 +3177,175 @@ export async function sendNoLocksmithAvailableEmail(
     html,
   });
 }
+
+// ============================================
+// LOCKSMITH PARTNER INVITE EMAIL
+// ============================================
+
+export async function sendLocksmithInviteEmail(
+  locksmithEmail: string,
+  data: {
+    locksmithName: string;
+    city: string;
+  },
+) {
+  const signupUrl = `${SITE_URL}/locksmith/register?utm_source=invite&utm_medium=email&utm_campaign=partner-outreach`;
+  const html = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Join LockSafe UK – Partner Invitation</title>
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1e293b; }
+        .wrapper { max-width: 620px; margin: 32px auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+        .header { background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%); padding: 40px 40px 32px; text-align: center; }
+        .logo-badge { display: inline-block; background: #f97316; color: #fff; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 6px 14px; border-radius: 20px; margin-bottom: 20px; }
+        .header h1 { color: #ffffff; font-size: 26px; font-weight: 700; line-height: 1.3; }
+        .header p { color: #94a3b8; font-size: 15px; margin-top: 10px; }
+        .body { padding: 40px; }
+        .greeting { font-size: 17px; font-weight: 600; color: #0f172a; margin-bottom: 16px; }
+        .intro { font-size: 15px; color: #475569; line-height: 1.7; margin-bottom: 24px; }
+        .highlight-box { background: #fff7ed; border-left: 4px solid #f97316; border-radius: 0 8px 8px 0; padding: 18px 20px; margin-bottom: 28px; }
+        .highlight-box p { font-size: 14px; color: #7c2d12; font-weight: 600; margin-bottom: 4px; }
+        .highlight-box span { font-size: 13px; color: #9a3412; }
+        .benefits { margin-bottom: 32px; }
+        .benefits h3 { font-size: 15px; font-weight: 700; color: #0f172a; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.04em; }
+        .benefit-item { display: flex; align-items: flex-start; margin-bottom: 12px; }
+        .benefit-icon { width: 22px; height: 22px; background: #dcfce7; border-radius: 50%; text-align: center; line-height: 22px; font-size: 12px; flex-shrink: 0; margin-right: 12px; margin-top: 1px; }
+        .benefit-text { font-size: 14px; color: #334155; line-height: 1.5; }
+        .benefit-text strong { color: #0f172a; }
+        .cta-section { text-align: center; background: #f8fafc; border-radius: 12px; padding: 32px 24px; margin-bottom: 28px; }
+        .cta-section p { font-size: 14px; color: #64748b; margin-bottom: 20px; }
+        .cta-button { display: inline-block; background: #f97316; color: #ffffff !important; text-decoration: none; font-size: 16px; font-weight: 700; padding: 16px 40px; border-radius: 10px; letter-spacing: 0.02em; }
+        .cta-sub { font-size: 12px; color: #94a3b8; margin-top: 14px; }
+        .social-proof { border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin-bottom: 28px; }
+        .social-proof h4 { font-size: 13px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+        .stat-row { display: flex; gap: 0; }
+        .stat { flex: 1; text-align: center; padding: 0 8px; border-right: 1px solid #e2e8f0; }
+        .stat:last-child { border-right: none; }
+        .stat-num { font-size: 22px; font-weight: 800; color: #f97316; }
+        .stat-label { font-size: 11px; color: #64748b; margin-top: 2px; }
+        .closing { font-size: 15px; color: #475569; line-height: 1.7; }
+        .footer { background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 24px 40px; text-align: center; }
+        .footer p { font-size: 12px; color: #94a3b8; line-height: 1.6; }
+        .footer a { color: #f97316; text-decoration: none; }
+      </style>
+    </head>
+    <body>
+      <div class="wrapper">
+
+        <!-- Header -->
+        <div class="header">
+          <div class="logo-badge">🔐 LockSafe UK</div>
+          <h1>We'd love to partner with you</h1>
+          <p>An exclusive invitation for independent locksmiths in ${data.city}</p>
+        </div>
+
+        <!-- Body -->
+        <div class="body">
+
+          <p class="greeting">Hi ${data.locksmithName},</p>
+
+          <p class="intro">
+            My name is Alex, co-founder of <strong>LockSafe UK</strong> — the UK's first anti-fraud locksmith platform.
+            We're building a trusted network of <strong>vetted, independent locksmiths</strong> across the country,
+            and your business in ${data.city} caught our eye.
+          </p>
+
+          <div class="highlight-box">
+            <p>🎯 We're actively looking for partners in ${data.city}</p>
+            <span>We receive emergency locksmith jobs in your area that we can't fulfil without a trusted local professional like you.</span>
+          </div>
+
+          <!-- Benefits -->
+          <div class="benefits">
+            <h3>What you get as a LockSafe partner</h3>
+
+            <div class="benefit-item">
+              <div class="benefit-icon">💼</div>
+              <div class="benefit-text"><strong>Guaranteed job leads</strong> — receive verified customer bookings directly from our platform, no cold calls.</div>
+            </div>
+            <div class="benefit-item">
+              <div class="benefit-icon">🛡️</div>
+              <div class="benefit-text"><strong>Fraud-free customers</strong> — every job is pre-screened. We protect you from time-wasters and scammers.</div>
+            </div>
+            <div class="benefit-item">
+              <div class="benefit-icon">💳</div>
+              <div class="benefit-text"><strong>Fast payments</strong> — get paid within 24 hours of job completion via Stripe, no chasing invoices.</div>
+            </div>
+            <div class="benefit-item">
+              <div class="benefit-icon">⭐</div>
+              <div class="benefit-text"><strong>Verified reviews</strong> — build your reputation with genuine customer reviews shown on your public profile.</div>
+            </div>
+            <div class="benefit-item">
+              <div class="benefit-icon">📱</div>
+              <div class="benefit-text"><strong>Simple app</strong> — manage jobs, availability and payments from your phone. No paperwork.</div>
+            </div>
+            <div class="benefit-item">
+              <div class="benefit-icon">🆓</div>
+              <div class="benefit-text"><strong>Free to join</strong> — we take a small platform fee per completed job only. Zero upfront cost, zero monthly subscription.</div>
+            </div>
+          </div>
+
+          <!-- Social Proof Stats -->
+          <div class="social-proof">
+            <h4>LockSafe in numbers</h4>
+            <div class="stat-row">
+              <div class="stat">
+                <div class="stat-num">4.9★</div>
+                <div class="stat-label">Avg. customer rating</div>
+              </div>
+              <div class="stat">
+                <div class="stat-num">£0</div>
+                <div class="stat-label">To join the network</div>
+              </div>
+              <div class="stat">
+                <div class="stat-num">24h</div>
+                <div class="stat-label">Payment guarantee</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- CTA -->
+          <div class="cta-section">
+            <p>Takes less than 5 minutes. No commitment required — see if it's right for your business first.</p>
+            <a href="${signupUrl}" class="cta-button">Apply to Join — It's Free</a>
+            <p class="cta-sub">Or simply reply to this email with any questions — I read every reply personally.</p>
+          </div>
+
+          <p class="closing">
+            Looking forward to hopefully working together, ${data.locksmithName}.<br /><br />
+            Best regards,<br />
+            <strong>Alex Pido</strong><br />
+            Co-founder, LockSafe UK<br />
+            <a href="tel:07818333989" style="color:#f97316;">07818 333 989</a> | <a href="https://locksafe.uk" style="color:#f97316;">locksafe.uk</a>
+          </p>
+
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+          <p>
+            LockSafe UK Ltd — UK's First Anti-Fraud Locksmith Platform<br />
+            <a href="https://locksafe.uk">locksafe.uk</a> · <a href="mailto:contact@locksafe.uk">contact@locksafe.uk</a>
+          </p>
+          <p style="margin-top:10px;">
+            You're receiving this because your business appeared in our search for independent locksmiths in ${data.city}.<br />
+            <a href="https://locksafe.uk/unsubscribe">Unsubscribe</a>
+          </p>
+        </div>
+
+      </div>
+    </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to: locksmithEmail,
+    subject: `${data.locksmithName} — join LockSafe UK's verified locksmith network (free)`,
+    html,
+  });
+}

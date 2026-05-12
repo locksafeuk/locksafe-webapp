@@ -21,6 +21,7 @@ import {
   Users2,
   Edit,
   X,
+  Send,
 } from "lucide-react";
 
 interface Lead {
@@ -67,6 +68,9 @@ export default function AdminLeadsPage() {
   const [cityFilter, setCityFilter] = useState("all");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [inviteSending, setInviteSending] = useState<string | null>(null);
+  const [bulkInviting, setBulkInviting] = useState(false);
+  const [inviteResult, setInviteResult] = useState<{ sent: number; failed: number } | null>(null);
 
   // Notes modal
   const [notesLead, setNotesLead] = useState<Lead | null>(null);
@@ -128,6 +132,43 @@ export default function AdminLeadsPage() {
     }
   };
 
+  const sendInvite = async (id: string) => {
+    setInviteSending(id);
+    setOpenMenu(null);
+    try {
+      const res = await fetch("/api/admin/leads/send-invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json();
+      if (res.ok && data.sent > 0) {
+        setLeads(prev => prev.map(l => l.id === id ? { ...l, status: "contacted", contactedBy: "invite-email" } : l));
+      }
+    } finally {
+      setInviteSending(null);
+    }
+  };
+
+  const sendBulkInvites = async () => {
+    const eligible = leads.filter(l => l.email && l.status === "new");
+    if (eligible.length === 0) return;
+    setBulkInviting(true);
+    setInviteResult(null);
+    try {
+      const res = await fetch("/api/admin/leads/send-invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: eligible.map(l => l.id) }),
+      });
+      const data = await res.json();
+      setInviteResult({ sent: data.sent, failed: data.failed });
+      await fetchLeads();
+    } finally {
+      setBulkInviting(false);
+    }
+  };
+
   const downloadCsv = () => {
     const header = "Name,Email,Phone,City,Address,Website,Rating,Reviews,Status\n";
     const rows = leads.map(l =>
@@ -159,17 +200,37 @@ export default function AdminLeadsPage() {
             </h1>
             <p className="text-sm text-slate-500 mt-0.5">Independent locksmiths to onboard onto LockSafe</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Button variant="outline" size="sm" onClick={fetchLeads} disabled={loading}>
               <RefreshCw className={`w-4 h-4 mr-1.5 ${loading ? "animate-spin" : ""}`} />
               Refresh
             </Button>
-            <Button size="sm" onClick={downloadCsv} className="bg-orange-500 hover:bg-orange-600 text-white">
+            <Button size="sm" onClick={downloadCsv} variant="outline">
               <Download className="w-4 h-4 mr-1.5" />
-              Download CSV
+              CSV
+            </Button>
+            <Button
+              size="sm"
+              onClick={sendBulkInvites}
+              disabled={bulkInviting || leads.filter(l => l.email && l.status === "new").length === 0}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {bulkInviting ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Send className="w-4 h-4 mr-1.5" />}
+              Send Invites ({leads.filter(l => l.email && l.status === "new").length} new)
             </Button>
           </div>
         </div>
+
+        {/* Invite result banner */}
+        {inviteResult && (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 flex items-center justify-between">
+            <p className="text-sm text-emerald-800">
+              ✅ <strong>{inviteResult.sent}</strong> invite emails sent successfully
+              {inviteResult.failed > 0 && <span className="text-red-600 ml-2">· {inviteResult.failed} failed</span>}
+            </p>
+            <button onClick={() => setInviteResult(null)} className="text-emerald-500 hover:text-emerald-700"><X className="w-4 h-4" /></button>
+          </div>
+        )}
 
         {/* Stats */}
         {stats && (
@@ -395,6 +456,19 @@ export default function AdminLeadsPage() {
                                 >
                                   <Edit className="w-3.5 h-3.5" /> Edit Notes
                                 </button>
+                                {lead.email && lead.status === "new" && (
+                                  <>
+                                    <div className="border-t border-slate-100 my-1" />
+                                    <button
+                                      className="w-full text-left px-4 py-2 text-sm hover:bg-blue-50 flex items-center gap-2 text-blue-700 font-medium"
+                                      onClick={() => sendInvite(lead.id)}
+                                      disabled={inviteSending === lead.id}
+                                    >
+                                      {inviteSending === lead.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                                      Send Invite Email
+                                    </button>
+                                  </>
+                                )}
                               </div>
                             )}
                           </div>
