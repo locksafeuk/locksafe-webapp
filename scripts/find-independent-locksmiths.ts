@@ -192,8 +192,8 @@ function isChain(name: string): boolean {
 // ---------------------------------------------------------------------------
 // CSV helpers
 // ---------------------------------------------------------------------------
-function escapeCsv(val: string | undefined | null): string {
-  if (!val) return "";
+function escapeCsv(val: unknown): string {
+  if (val === null || val === undefined || val === "") return "";
   const s = String(val);
   if (s.includes(",") || s.includes('"') || s.includes("\n")) {
     return `"${s.replace(/"/g, '""')}"`;
