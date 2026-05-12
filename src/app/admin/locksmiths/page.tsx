@@ -817,6 +817,11 @@ export default function AdminLocksmithsPage() {
                       <div className="font-bold text-slate-900">£{ls.totalEarnings.toLocaleString()}</div>
                     </td>
                     <td className="px-4 py-4">
+                      {ls.baseAddress && (
+                        <div className="text-xs text-slate-500 mb-1">
+                          {ls.baseAddress.match(/[A-Z]{1,2}[0-9][0-9A-Z]?\s*[0-9][A-Z]{2}/i)?.[0]?.toUpperCase() ?? ""}
+                        </div>
+                      )}
                       {ls.baseLat && ls.baseLng ? (
                         <div className="flex items-center gap-1 text-sm">
                           <MapPin className="w-3.5 h-3.5 text-orange-500" />
