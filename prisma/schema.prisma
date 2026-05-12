@@ -23,6 +23,27 @@ model Admin {
   updatedAt    DateTime @updatedAt
 }
 
+// Prospective locksmith leads (found via Google Places scraper)
+model LocksmithLead {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  googlePlaceId String   @unique
+  name          String
+  city          String
+  address       String
+  phone         String?
+  website       String?
+  email         String?  // Manually added after research
+  rating        Float    @default(0)
+  reviewCount   Int      @default(0)
+  // Outreach tracking
+  status        String   @default("new")  // new | contacted | replied | onboarded | not_interested
+  notes         String?
+  contactedAt   DateTime?
+  contactedBy   String?  // Admin name/id who contacted
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
 // Customer/Client model
 model Customer {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId

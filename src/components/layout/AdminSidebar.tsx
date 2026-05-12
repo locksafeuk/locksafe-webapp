@@ -25,6 +25,7 @@ import {
   Rocket,
   ShieldCheck,
   Map,
+  Users2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -45,6 +46,7 @@ const navItems = [
   { href: "/admin/agents", label: "AI Agents", icon: Bot },
   { href: "/admin/jobs", label: "Jobs", icon: Briefcase },
   { href: "/admin/locksmiths", label: "Locksmiths", icon: Users },
+  { href: "/admin/leads", label: "Leads", icon: Users2 },
   { href: "/admin/customers", label: "Customers", icon: UserCircle },
   { href: "/admin/payments", label: "Payments", icon: CreditCard },
   { href: "/admin/payouts", label: "Payouts", icon: PoundSterling },
