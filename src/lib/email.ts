@@ -9,6 +9,7 @@ interface EmailData {
   to: string;
   subject: string;
   html: string;
+  replyTo?: string;
 }
 
 async function sendEmail(data: EmailData) {
@@ -24,6 +25,7 @@ async function sendEmail(data: EmailData) {
       to: data.to,
       subject: data.subject,
       html: data.html,
+      ...(data.replyTo ? { reply_to: data.replyTo } : {}),
     });
 
     return { success: true, id: result.data?.id };
@@ -3346,6 +3348,7 @@ export async function sendLocksmithInviteEmail(
   return sendEmail({
     to: locksmithEmail,
     subject: `${data.locksmithName} — join LockSafe UK's verified locksmith network (free)`,
+    replyTo: "contact@locksafe.uk",
     html,
   });
 }
