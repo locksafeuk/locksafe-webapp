@@ -114,6 +114,9 @@ export default function AdminLocksmithsPage() {
   // View mode: list or map
   const [viewMode, setViewMode] = useState<"list" | "map">("list");
 
+  // Postcode lookup: locksmith id -> postcode string
+  const [postcodeMap, setPostcodeMap] = useState<Record<string, string>>({});
+
   // Delete state
   const [deleteLocksmithId, setDeleteLocksmithId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -239,6 +242,23 @@ export default function AdminLocksmithsPage() {
   useEffect(() => {
     fetchLocksmiths();
   }, [fetchLocksmiths]);
+
+  // Reverse-geocode lat/lng -> postcode via Google Geocoding API (server-side route)
+  useEffect(() => {
+    const withCoords = locksmiths.filter(ls => ls.baseLat && ls.baseLng);
+    if (withCoords.length === 0) return;
+    const items = withCoords.map(ls => ({ id: ls.id, lat: ls.baseLat!, lng: ls.baseLng! }));
+    fetch("/api/admin/reverse-geocode", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.postcodes) setPostcodeMap(data.postcodes);
+      })
+      .catch(() => { /* silently ignore postcode lookup failures */ });
+  }, [locksmiths]);
 
   // Handle locksmith actions (verify, suspend, etc.)
   const handleLocksmithAction = async (locksmithId: string, action: string) => {
@@ -817,10 +837,8 @@ export default function AdminLocksmithsPage() {
                       <div className="font-bold text-slate-900">£{ls.totalEarnings.toLocaleString()}</div>
                     </td>
                     <td className="px-4 py-4">
-                      {ls.baseAddress && (
-                        <div className="text-xs text-slate-500 mb-1">
-                          {ls.baseAddress.match(/[A-Z]{1,2}[0-9][0-9A-Z]?\s*[0-9][A-Z]{2}/i)?.[0]?.toUpperCase() ?? ""}
-                        </div>
+                      {postcodeMap[ls.id] && (
+                        <div className="text-xs font-medium text-slate-600 mb-1">{postcodeMap[ls.id]}</div>
                       )}
                       {ls.baseLat && ls.baseLng ? (
                         <div className="flex items-center gap-1 text-sm">
