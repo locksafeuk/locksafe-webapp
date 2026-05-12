@@ -22,6 +22,9 @@ import {
   Edit,
   X,
   Send,
+  Smartphone,
+  Trash2,
+  Plus,
 } from "lucide-react";
 
 interface Lead {
@@ -72,10 +75,27 @@ export default function AdminLeadsPage() {
   const [bulkInviting, setBulkInviting] = useState(false);
   const [inviteResult, setInviteResult] = useState<{ sent: number; failed: number } | null>(null);
 
+  // SMS state
+  const [smsSending, setSmsSending] = useState<string | null>(null);
+  const [bulkSmsing, setBulkSmsing] = useState(false);
+  const [smsResult, setSmsResult] = useState<{ sent: number; failed: number } | null>(null);
+
+  // Email edit modal
+  const [emailLead, setEmailLead] = useState<Lead | null>(null);
+  const [emailText, setEmailText] = useState("");
+  const [savingEmail, setSavingEmail] = useState(false);
+
   // Notes modal
   const [notesLead, setNotesLead] = useState<Lead | null>(null);
   const [notesText, setNotesText] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
+
+  /** True for UK mobile numbers: 07xxx, +447xxx, 00447xxx */
+  const isUKMobile = (phone: string | null): boolean => {
+    if (!phone) return false;
+    const clean = phone.replace(/[\s\-().]/g, "");
+    return /^07\d{9}$/.test(clean) || /^\+447\d{9}$/.test(clean) || /^00447\d{9}$/.test(clean);
+  };
 
   const fetchLeads = useCallback(async () => {
     setLoading(true);
@@ -150,6 +170,74 @@ export default function AdminLeadsPage() {
     }
   };
 
+  const sendSms = async (id: string) => {
+    setSmsSending(id);
+    setOpenMenu(null);
+    try {
+      const res = await fetch("/api/admin/leads/send-sms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json();
+      if (res.ok && data.sent > 0) {
+        setLeads(prev => prev.map(l => l.id === id ? { ...l, status: "contacted", contactedBy: "sms" } : l));
+      } else {
+        alert(data.error || "SMS failed");
+      }
+    } finally {
+      setSmsSending(null);
+    }
+  };
+
+  const sendBulkSms = async () => {
+    const eligible = leads.filter(l => isUKMobile(l.phone) && l.status === "new");
+    if (eligible.length === 0) return;
+    setBulkSmsing(true);
+    setSmsResult(null);
+    try {
+      const res = await fetch("/api/admin/leads/send-sms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: eligible.map(l => l.id) }),
+      });
+      const data = await res.json();
+      if (!res.ok) { alert(data.error || "SMS send failed"); return; }
+      setSmsResult({ sent: data.sent, failed: data.failed });
+      await fetchLeads();
+    } finally {
+      setBulkSmsing(false);
+    }
+  };
+
+  const saveEmail = async () => {
+    if (!emailLead) return;
+    setSavingEmail(true);
+    try {
+      const res = await fetch("/api/admin/leads", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: emailLead.id, email: emailText || null }),
+      });
+      if (res.ok) {
+        setLeads(prev => prev.map(l => l.id === emailLead.id ? { ...l, email: emailText || null } : l));
+        setEmailLead(null);
+      }
+    } finally {
+      setSavingEmail(false);
+    }
+  };
+
+  const deleteEmail = async (id: string) => {
+    setOpenMenu(null);
+    const res = await fetch("/api/admin/leads", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, email: null }),
+    });
+    if (res.ok) setLeads(prev => prev.map(l => l.id === id ? { ...l, email: null } : l));
+  };
+
   const sendBulkInvites = async () => {
     const eligible = leads.filter(l => l.email && l.status === "new");
     if (eligible.length === 0) return;
@@ -216,10 +304,30 @@ export default function AdminLeadsPage() {
               className="bg-blue-600 hover:bg-blue-700 text-white"
             >
               {bulkInviting ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Send className="w-4 h-4 mr-1.5" />}
-              Send Invites ({leads.filter(l => l.email && l.status === "new").length} new)
+              Email Invites ({leads.filter(l => l.email && l.status === "new").length} new)
+            </Button>
+            <Button
+              size="sm"
+              onClick={sendBulkSms}
+              disabled={bulkSmsing || leads.filter(l => isUKMobile(l.phone) && l.status === "new").length === 0}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              {bulkSmsing ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Smartphone className="w-4 h-4 mr-1.5" />}
+              SMS ({leads.filter(l => isUKMobile(l.phone) && l.status === "new").length} mobile)
             </Button>
           </div>
         </div>
+
+        {/* SMS result banner */}
+        {smsResult && (
+          <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-center justify-between">
+            <p className="text-sm text-green-800">
+              📱 <strong>{smsResult.sent}</strong> welcome SMS{smsResult.sent !== 1 ? "es" : ""} sent
+              {smsResult.failed > 0 && <span className="text-red-600 ml-2">· {smsResult.failed} failed</span>}
+            </p>
+            <button onClick={() => setSmsResult(null)} className="text-green-500 hover:text-green-700"><X className="w-4 h-4" /></button>
+          </div>
+        )}
 
         {/* Invite result banner */}
         {inviteResult && (
@@ -342,17 +450,41 @@ export default function AdminLeadsPage() {
 
                         {/* Email */}
                         <td className="px-4 py-3">
-                          {lead.email ? (
-                            <a
-                              href={`mailto:${lead.email}`}
-                              className="text-blue-600 hover:underline flex items-center gap-1"
-                            >
-                              <Mail className="w-3.5 h-3.5 flex-shrink-0" />
-                              <span className="truncate max-w-[200px]">{lead.email}</span>
-                            </a>
-                          ) : (
-                            <span className="text-slate-400 text-xs">—</span>
-                          )}
+                          <div className="flex items-center gap-1 group">
+                            {lead.email ? (
+                              <>
+                                <a
+                                  href={`mailto:${lead.email}`}
+                                  className="text-blue-600 hover:underline flex items-center gap-1 min-w-0"
+                                >
+                                  <Mail className="w-3.5 h-3.5 flex-shrink-0" />
+                                  <span className="truncate max-w-[160px]">{lead.email}</span>
+                                </a>
+                                <button
+                                  title="Edit email"
+                                  onClick={() => { setEmailLead(lead); setEmailText(lead.email || ""); }}
+                                  className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-orange-500 transition-opacity ml-1 flex-shrink-0"
+                                >
+                                  <Edit className="w-3 h-3" />
+                                </button>
+                                <button
+                                  title="Delete email"
+                                  onClick={() => deleteEmail(lead.id)}
+                                  className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-opacity flex-shrink-0"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                title="Add email"
+                                onClick={() => { setEmailLead(lead); setEmailText(""); }}
+                                className="text-slate-400 hover:text-orange-500 flex items-center gap-1 text-xs"
+                              >
+                                <Plus className="w-3 h-3" /> Add email
+                              </button>
+                            )}
+                          </div>
                         </td>
 
                         {/* Phone */}
@@ -456,6 +588,20 @@ export default function AdminLeadsPage() {
                                 >
                                   <Edit className="w-3.5 h-3.5" /> Edit Notes
                                 </button>
+                                <button
+                                  className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 flex items-center gap-2 text-slate-700"
+                                  onClick={() => { setEmailLead(lead); setEmailText(lead.email || ""); setOpenMenu(null); }}
+                                >
+                                  <Mail className="w-3.5 h-3.5" /> {lead.email ? "Edit Email" : "Add Email"}
+                                </button>
+                                {lead.email && (
+                                  <button
+                                    className="w-full text-left px-4 py-2 text-sm hover:bg-red-50 flex items-center gap-2 text-red-600"
+                                    onClick={() => deleteEmail(lead.id)}
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" /> Delete Email
+                                  </button>
+                                )}
                                 {lead.email && lead.status === "new" && (
                                   <>
                                     <div className="border-t border-slate-100 my-1" />
@@ -468,6 +614,16 @@ export default function AdminLeadsPage() {
                                       Send Invite Email
                                     </button>
                                   </>
+                                )}
+                                {isUKMobile(lead.phone) && lead.status === "new" && (
+                                  <button
+                                    className="w-full text-left px-4 py-2 text-sm hover:bg-green-50 flex items-center gap-2 text-green-700 font-medium"
+                                    onClick={() => sendSms(lead.id)}
+                                    disabled={smsSending === lead.id}
+                                  >
+                                    {smsSending === lead.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Smartphone className="w-3.5 h-3.5" />}
+                                    Send Welcome SMS
+                                  </button>
                                 )}
                               </div>
                             )}
@@ -489,6 +645,48 @@ export default function AdminLeadsPage() {
           )}
         </div>
       </div>
+
+      {/* Email Edit / Add Modal */}
+      {emailLead && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-slate-900">
+                {emailLead.email ? "Edit Email" : "Add Email"} — {emailLead.name}
+              </h3>
+              <button onClick={() => setEmailLead(null)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <input
+              type="email"
+              value={emailText}
+              onChange={e => setEmailText(e.target.value)}
+              placeholder="locksmith@example.co.uk"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+              autoFocus
+              onKeyDown={e => { if (e.key === "Enter") saveEmail(); }}
+            />
+            <div className="flex gap-2 mt-4 justify-end">
+              <Button variant="outline" size="sm" onClick={() => setEmailLead(null)}>Cancel</Button>
+              {emailLead.email && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => { deleteEmail(emailLead.id); setEmailLead(null); }}
+                  className="border-red-200 text-red-600 hover:bg-red-50"
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete
+                </Button>
+              )}
+              <Button size="sm" onClick={saveEmail} disabled={savingEmail} className="bg-orange-500 hover:bg-orange-600 text-white">
+                {savingEmail ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : null}
+                Save
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Notes Modal */}
       {notesLead && (
