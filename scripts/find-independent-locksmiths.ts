@@ -14,8 +14,6 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import * as https from "https";
-import * as http from "http";
 import { PrismaClient } from "@prisma/client";
 import * as dotenv from "dotenv";
 
@@ -104,34 +102,25 @@ function isJunkEmail(email: string): boolean {
   return EMAIL_BLOCKLIST.some((b) => lower.includes(b));
 }
 
-function fetchHtml(rawUrl: string, timeoutMs = 8000): Promise<string> {
-  return new Promise((resolve) => {
-    let url: string;
+async function fetchHtml(rawUrl: string, timeoutMs = 8000): Promise<string> {
+  try {
+    const url = rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`;
+    new URL(url); // validate
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      url = rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`;
-      new URL(url); // validate
-    } catch {
-      return resolve("");
+      const res = await fetch(url, {
+        signal: controller.signal,
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; LockSafeBot/1.0; +https://locksafe.uk)" },
+      });
+      const text = await res.text();
+      return text.slice(0, 400_000);
+    } finally {
+      clearTimeout(timer);
     }
-    const mod = url.startsWith("https") ? https : http;
-    const req = mod.get(
-      url,
-      { headers: { "User-Agent": "Mozilla/5.0 (compatible; LockSafeBot/1.0; +https://locksafe.uk)" } },
-      (res) => {
-        if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-          fetchHtml(res.headers.location, timeoutMs).then(resolve).catch(() => resolve(""));
-          return;
-        }
-        let body = "";
-        res.setEncoding("utf8");
-        res.on("data", (chunk: string) => { body += chunk; if (body.length > 400_000) res.destroy(); });
-        res.on("end", () => resolve(body));
-        res.on("error", () => resolve(""));
-      }
-    );
-    req.setTimeout(timeoutMs, () => { req.destroy(); resolve(""); });
-    req.on("error", () => resolve(""));
-  });
+  } catch {
+    return "";
+  }
 }
 
 async function extractEmailFromWebsite(websiteUrl: string): Promise<string> {
