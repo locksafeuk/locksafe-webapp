@@ -6,6 +6,7 @@ import { notifyNewJob } from "@/lib/telegram";
 import { notifyCustomerJobSubmitted, notifyLocksmiths, type JobSMSContext } from "@/lib/sms";
 import { generateJobNumber } from "@/lib/job-number";
 import { shouldTriggerAuction, createAuction } from "@/lib/job-auction";
+import { calculateSurgeFee } from "@/lib/surge-pricing";
 
 // Geocode postcode to coordinates
 async function geocodePostcode(postcode: string): Promise<{ lat: number; lng: number } | null> {
@@ -75,6 +76,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Calculate dynamic assessment fee
+    const surge = await calculateSurgeFee(postcode);
+
     // Create job
     const job = await prisma.job.create({
       data: {
@@ -85,7 +89,7 @@ export async function POST(request: NextRequest) {
         postcode: postcode.toUpperCase(),
         address,
         description,
-        assessmentFee: 29.0,
+        assessmentFee: surge.fee,
         // Coordinates for radius filtering
         latitude,
         longitude,
@@ -229,6 +233,10 @@ export async function POST(request: NextRequest) {
       jobNumber: job.jobNumber,
       status: job.status,
       photoCount: job.photos.length,
+      assessmentFee: surge.fee,
+      surgePricing: surge.isSurge
+        ? { multiplier: surge.multiplier, reasons: surge.reasons }
+        : null,
       success: true,
     });
   } catch (error) {
