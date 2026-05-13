@@ -26,6 +26,7 @@ import {
   ShieldCheck,
   Map,
   Users2,
+  Percent,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -51,6 +52,7 @@ const navItems = [
   { href: "/admin/payments", label: "Payments", icon: CreditCard },
   { href: "/admin/payouts", label: "Payouts", icon: PoundSterling },
   { href: "/admin/refunds", label: "Refunds", icon: RotateCcw },
+  { href: "/admin/commission-tiers", label: "Commission Tiers", icon: Percent },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/admin/attribution", label: "Attribution & ROAS", icon: TrendingUp },
   { href: "/admin/ads", label: "AI Ad Manager", icon: Sparkles },
