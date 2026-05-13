@@ -15,6 +15,10 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/cron/sla-monitor",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/sync-commission-tiers",
       "schedule": "0 2 * * *"
     }
