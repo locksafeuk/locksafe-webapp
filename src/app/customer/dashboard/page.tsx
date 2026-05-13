@@ -19,6 +19,9 @@ import {
   Phone,
   FileText,
   Settings,
+  Gift,
+  Copy,
+  Check,
 } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { ClientOnboardingModal } from "@/components/onboarding/ClientOnboardingModal";
@@ -68,6 +71,12 @@ export default function CustomerDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
+  // Referral
+  const [referralCode, setReferralCode] = useState<string | null>(null);
+  const [referralCredits, setReferralCredits] = useState(0);
+  const [referralCopied, setReferralCopied] = useState(false);
+  const [referralStats, setReferralStats] = useState<{ clicks: number; totalReferrals: number; totalEarned: number } | null>(null);
+
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.push("/login?redirect=/customer/dashboard");
@@ -86,6 +95,7 @@ export default function CustomerDashboard() {
 
     if (isAuthenticated && user) {
       fetchJobs();
+      fetchReferral();
       // Check if onboarding is needed
       if (user.onboardingCompleted === false) {
         setShowOnboarding(true);
@@ -110,6 +120,28 @@ export default function CustomerDashboard() {
   const handleLogout = async () => {
     await logout();
     router.push("/");
+  };
+
+  const fetchReferral = async () => {
+    try {
+      const res = await fetch("/api/customer/referral");
+      if (res.ok) {
+        const data = await res.json();
+        setReferralCode(data.code);
+        setReferralCredits(data.availableCredits ?? 0);
+        setReferralStats({ clicks: data.clicks, totalReferrals: data.totalReferrals, totalEarned: data.totalEarned });
+      }
+    } catch {
+      // non-critical
+    }
+  };
+
+  const copyReferralLink = () => {
+    if (!referralCode) return;
+    const url = `${window.location.origin}/ref/${referralCode}`;
+    navigator.clipboard.writeText(url);
+    setReferralCopied(true);
+    setTimeout(() => setReferralCopied(false), 2000);
   };
 
   const handleOnboardingComplete = () => {
@@ -339,6 +371,50 @@ export default function CustomerDashboard() {
             </div>
           </section>
         )}
+
+        {/* Referral Widget */}
+        <section className="mt-8 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl p-6 border border-purple-200">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
+              <Gift className="w-5 h-5 text-purple-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <h3 className="font-semibold text-slate-900">Refer a Friend — Earn £10</h3>
+                {referralCredits > 0 && (
+                  <span className="bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-1 rounded-full">
+                    £{referralCredits.toFixed(2)} credits available
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-slate-600 mt-1">
+                Share your link — your friend gets £10 off their first job, and you earn £10 credit when their job completes.
+              </p>
+              {referralCode && (
+                <div className="mt-3 flex items-center gap-2">
+                  <code className="flex-1 bg-white border border-purple-200 rounded-lg px-3 py-2 text-sm font-mono text-purple-700 truncate">
+                    {typeof window !== "undefined" ? `${window.location.origin}/ref/${referralCode}` : `/ref/${referralCode}`}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={copyReferralLink}
+                    className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium px-3 py-2 rounded-lg transition-colors shrink-0"
+                  >
+                    {referralCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    {referralCopied ? "Copied!" : "Copy"}
+                  </button>
+                </div>
+              )}
+              {referralStats && (referralStats.totalReferrals > 0 || referralStats.clicks > 0) && (
+                <div className="mt-3 flex gap-4 text-xs text-slate-500">
+                  <span>{referralStats.clicks} clicks</span>
+                  <span>{referralStats.totalReferrals} successful referrals</span>
+                  <span className="text-green-700 font-medium">£{referralStats.totalEarned.toFixed(2)} earned</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
 
         {/* Help Section */}
         <section className="mt-8 bg-orange-50 rounded-xl p-6 border border-orange-100">

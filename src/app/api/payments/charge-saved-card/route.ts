@@ -6,6 +6,7 @@ import {
 } from "@/lib/stripe";
 import prisma from "@/lib/db";
 import { sendTransferNotificationEmail } from "@/lib/email";
+import { applyReferralCredit, revertReferralCredit, triggerReferralReward } from "@/lib/referrals";
 
 // POST - Charge a saved card for assessment fee or final payment
 export async function POST(request: NextRequest) {
@@ -101,43 +102,64 @@ export async function POST(request: NextRequest) {
     // Calculate platform fee based on payment type
     // Assessment fee: 15% commission, Work quote: 25% commission
     const commissionRate = getCommissionRate(type as "assessment_fee" | "work_quote");
-    const platformFee = amount * commissionRate;
-    const locksmithShare = amount - platformFee;
+
+    // Apply referral credits (only on assessment fee for first-job discount)
+    let creditApplied = 0;
+    let chargeAmount = amount;
+    if (type === "assessment_fee") {
+      const creditResult = await applyReferralCredit(customerId, amount);
+      creditApplied = creditResult.creditApplied;
+      chargeAmount = creditResult.finalAmount;
+    }
+
+    const platformFee = chargeAmount * commissionRate;
+    const locksmithShare = chargeAmount - platformFee;
 
     console.log("[Charge Saved Card] Charging:", {
-      amount,
+      originalAmount: amount,
+      creditApplied,
+      chargeAmount,
       platformFee,
       locksmithShare,
       stripeCustomerId: customer.stripeCustomerId,
       locksmithStripeAccountId: locksmith.stripeConnectId,
     });
 
-    // Charge the saved card with transfer to locksmith
-    const paymentIntent = await chargeSavedCard(
-      amount,
-      customer.stripeCustomerId,
-      customer.stripePaymentMethodId,
-      locksmith.stripeConnectId,
-      type,
-      {
-        jobId,
-        customerId,
-        locksmithId,
-        applicationId,
-        quoteId,
-      }
-    );
+    // If the entire amount is covered by credits, skip Stripe
+    let paymentIntent: { id: string; status: string } | null = null;
+    if (chargeAmount > 0) {
+      paymentIntent = await chargeSavedCard(
+        chargeAmount,
+        customer.stripeCustomerId!,
+        customer.stripePaymentMethodId!,
+        locksmith.stripeConnectId!,
+        type,
+        {
+          jobId,
+          customerId,
+          locksmithId,
+          applicationId,
+          quoteId,
+        }
+      );
 
-    console.log("[Charge Saved Card] Payment successful:", paymentIntent.id);
+      if (!paymentIntent || paymentIntent.status === "requires_payment_method") {
+        // Revert credit deduction on failure
+        if (creditApplied > 0) await revertReferralCredit(customerId, creditApplied);
+        return NextResponse.json({ error: "Payment failed" }, { status: 402 });
+      }
+    }
+
+    console.log("[Charge Saved Card] Payment successful:", paymentIntent?.id ?? "covered by credits");
 
     // Create payment record in database
     const payment = await prisma.payment.create({
       data: {
         jobId,
         type: type === "assessment_fee" ? "assessment" : "quote",
-        amount,
-        status: paymentIntent.status === "succeeded" ? "succeeded" : "pending",
-        stripePaymentId: paymentIntent.id,
+        amount: chargeAmount,
+        status: paymentIntent ? (paymentIntent.status === "succeeded" ? "succeeded" : "pending") : "succeeded",
+        stripePaymentId: paymentIntent?.id,
       },
     });
 
@@ -147,6 +169,11 @@ export async function POST(request: NextRequest) {
         where: { id: jobId },
         data: { assessmentPaid: true },
       });
+    }
+
+    // Trigger referral reward if this is the first completed payment on this customer's first job
+    if (type === "assessment_fee") {
+      triggerReferralReward(customerId, jobId).catch(console.error);
     }
 
     // Send notification email to locksmith
@@ -159,7 +186,6 @@ export async function POST(request: NextRequest) {
           customerName: customer.name,
           platformFee,
         });
-        console.log("[Charge Saved Card] Sent transfer notification to:", locksmith.email);
       } catch (emailError) {
         console.error("[Charge Saved Card] Failed to send email:", emailError);
       }
@@ -167,10 +193,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      paymentIntentId: paymentIntent.id,
+      paymentIntentId: paymentIntent?.id,
       paymentId: payment.id,
-      status: paymentIntent.status,
-      amount,
+      status: paymentIntent?.status ?? "succeeded",
+      amount: chargeAmount,
+      creditApplied,
       platformFee,
       locksmithShare,
       message: `${type === "assessment_fee" ? "Assessment fee" : "Final payment"} charged successfully`,

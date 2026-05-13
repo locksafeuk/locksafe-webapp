@@ -82,6 +82,11 @@ model Customer {
   oneSignalPlayerId      String?    // OneSignal player/subscription ID
   oneSignalSubscribedAt  DateTime?  // When user subscribed to push
 
+  // Referral system
+  referralCode      String?   @unique  // Their own shareable code (e.g. SARAH-X4K2)
+  referralCredits   Float     @default(0)  // Available £ credits from referrals
+  referredByCode    String?   // Code they signed up with
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   jobs         Job[]
@@ -182,6 +187,10 @@ model Locksmith {
   commissionOverride        Boolean  @default(false)  // If true, cron will not auto-update this locksmith's tier
 
   createdAt         DateTime      @default(now())
+  // Referral system
+  referralCode      String?   @unique  // Their own shareable code
+  referredByCode    String?   // Code they signed up with
+
   updatedAt         DateTime      @updatedAt
 
   jobs              Job[]
@@ -2246,3 +2255,47 @@ model AgentDecision {
   @@index([platform, action, createdAt])
 }
 
+
+// ==========================================
+// REFERRAL SYSTEM
+// ==========================================
+
+// Tracks every referral link / code
+model Referral {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Who made the referral
+  referrerId      String    @db.ObjectId
+  referrerType    String    // "customer" | "locksmith"
+  referrerName    String
+
+  // Unique share code (e.g. SARAH-X4K2)
+  code            String    @unique
+
+  // Who used the code (filled in on conversion)
+  referredId      String?   @db.ObjectId
+  referredType    String?   // "customer" | "locksmith"
+  referredName    String?
+  referredEmail   String?
+
+  // Status lifecycle
+  status          String    @default("active") // active | converted | rewarded | expired
+
+  // Rewards in GBP
+  referrerReward  Float     @default(10.00)    // credit added to referrer after conversion
+  referredReward  Float     @default(10.00)    // discount applied to referred's first job
+
+  // Conversion tracking
+  clickCount      Int       @default(0)
+  convertedAt     DateTime?
+  triggerJobId    String?   @db.ObjectId       // Job that completed and triggered reward
+
+  // Reward paid out
+  rewardedAt      DateTime?
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([referrerId, referrerType])
+  @@index([status])
+}

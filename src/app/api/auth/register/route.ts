@@ -3,6 +3,7 @@ import prisma from "@/lib/db";
 import { generateToken, hashPassword, AUTH_COOKIE_OPTIONS, getRedirectPath } from "@/lib/auth";
 import { sendVerificationEmail } from "@/lib/email";
 import { notifyNewCustomer, notifyNewJob } from "@/lib/telegram";
+import { applyReferralOnRegistration, validateReferralCode } from "@/lib/referrals";
 import { generateJobNumber } from "@/lib/job-number";
 
 // Generate a random token
@@ -18,7 +19,7 @@ function generateRandomToken(): string {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, email, phone, password, pendingRequest } = body;
+    const { name, email, phone, password, pendingRequest, referralCode } = body;
 
     if (!name || !email || !phone || !password) {
       return NextResponse.json(
@@ -59,6 +60,17 @@ export async function POST(request: NextRequest) {
     const verificationToken = generateRandomToken();
     const verificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
+    // Validate referral code if provided
+    let validatedRefCode: string | undefined;
+    let referralDiscount = 0;
+    if (referralCode) {
+      const refValidation = await validateReferralCode(referralCode);
+      if (refValidation.valid) {
+        validatedRefCode = refValidation.code;
+        referralDiscount = refValidation.discount;
+      }
+    }
+
     // Create the customer
     const customer = await prisma.customer.create({
       data: {
@@ -69,8 +81,15 @@ export async function POST(request: NextRequest) {
         emailVerified: false,
         verificationToken,
         verificationTokenExpiry,
+        // Pre-load referral credits if they have a discount code
+        referralCredits: referralDiscount,
       },
     });
+
+    // Link referral after customer created
+    if (validatedRefCode) {
+      await applyReferralOnRegistration(validatedRefCode, customer.id, name, email.toLowerCase());
+    }
 
     // Send verification email
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
