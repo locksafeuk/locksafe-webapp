@@ -97,9 +97,16 @@ export async function GET(request: NextRequest) {
     });
 
     // Remove any placeholder stub account created before real credentials were available.
-    await prisma.googleAdsAccount.deleteMany({
+    // Must cascade-delete associated drafts first (required relation).
+    const placeholders = await prisma.googleAdsAccount.findMany({
       where: { customerId: "0000000000" },
+      select: { id: true },
     });
+    if (placeholders.length > 0) {
+      const ids = placeholders.map((p) => p.id);
+      await prisma.googleAdsCampaignDraft.deleteMany({ where: { accountId: { in: ids } } });
+      await prisma.googleAdsAccount.deleteMany({ where: { id: { in: ids } } });
+    }
 
     const res = redirectToAdmin("connected=1");
     res.cookies.delete("google_ads_oauth_state");
