@@ -38,7 +38,7 @@ async function geocodePostcode(postcode: string): Promise<{ lat: number; lng: nu
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { problemType, propertyType, postcode, address, description, name, phone, customerId, photos, requestGps } = body;
+    const { problemType, propertyType, postcode, address, description, name, phone, customerId, photos, requestGps, scheduledFor } = body;
 
     let customerIdToUse = customerId;
 
@@ -90,6 +90,10 @@ export async function POST(request: NextRequest) {
         address,
         description,
         assessmentFee: surge.fee,
+        // Scheduled booking
+        scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
+        isScheduled: !!scheduledFor,
+        status: scheduledFor ? ("SCHEDULED" as const) : ("PENDING" as const),
         // Coordinates for radius filtering
         latitude,
         longitude,

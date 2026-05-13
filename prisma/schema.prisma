@@ -319,6 +319,10 @@ model Job {
   // Auction (for high-supply areas)
   auction          JobAuction?
 
+  // Scheduled booking support
+  scheduledFor     DateTime?   // If set, job is a pre-booked appointment
+  isScheduled      Boolean     @default(false)
+
   // Confirmation deadline for customer to sign (locksmith safety)
   confirmationDeadline    DateTime?  // When customer must sign by
   confirmationRemindersSent Int      @default(0) // Number of reminders sent
@@ -334,6 +338,7 @@ model Job {
 enum JobStatus {
   PHONE_INITIATED                // Phone call started, awaiting web completion
   PENDING                        // Customer submitted, waiting for locksmith
+  SCHEDULED                      // Pre-booked appointment — not yet dispatched
   ACCEPTED                       // Locksmith accepted the job
   EN_ROUTE                       // Locksmith is on the way
   ARRIVED                        // Locksmith arrived at location
