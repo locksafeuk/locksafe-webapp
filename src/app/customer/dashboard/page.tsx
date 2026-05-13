@@ -77,6 +77,10 @@ export default function CustomerDashboard() {
   const [referralCopied, setReferralCopied] = useState(false);
   const [referralStats, setReferralStats] = useState<{ clicks: number; totalReferrals: number; totalEarned: number } | null>(null);
 
+  // LockSafe Cover subscription
+  const [subscription, setSubscription] = useState<{ status: string; plan: string; freeCallouts: number; currentPeriodEnd: string } | null>(null);
+  const [coverLoading, setCoverLoading] = useState(false);
+
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.push("/login?redirect=/customer/dashboard");
@@ -96,6 +100,7 @@ export default function CustomerDashboard() {
     if (isAuthenticated && user) {
       fetchJobs();
       fetchReferral();
+      fetchSubscription();
       // Check if onboarding is needed
       if (user.onboardingCompleted === false) {
         setShowOnboarding(true);
@@ -143,6 +148,35 @@ export default function CustomerDashboard() {
     setReferralCopied(true);
     setTimeout(() => setReferralCopied(false), 2000);
   };
+
+  const fetchSubscription = async () => {
+    try {
+      if (!user?.id) return;
+      const res = await fetch(`/api/subscriptions/status?customerId=${user.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSubscription(data.subscription ?? null);
+      }
+    } catch {
+      // non-critical
+    }
+  };
+
+  async function startCoverCheckout(plan: "cover_monthly" | "cover_annual") {
+    if (!user?.id) return;
+    setCoverLoading(true);
+    try {
+      const res = await fetch("/api/subscriptions/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ customerId: user.id, plan }),
+      });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+    } finally {
+      setCoverLoading(false);
+    }
+  }
 
   const handleOnboardingComplete = () => {
     setShowOnboarding(false);
@@ -410,6 +444,56 @@ export default function CustomerDashboard() {
                   <span>{referralStats.clicks} clicks</span>
                   <span>{referralStats.totalReferrals} successful referrals</span>
                   <span className="text-green-700 font-medium">£{referralStats.totalEarned.toFixed(2)} earned</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* LockSafe Cover Widget */}
+        <section className="mt-8 bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-6 border border-amber-200">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+              <CheckCircle2 className="w-5 h-5 text-amber-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-slate-900">LockSafe Cover</h3>
+              {subscription && (subscription.status === "active" || subscription.status === "trialing") ? (
+                <div>
+                  <p className="text-sm text-green-700 font-medium mt-1">
+                    Active {subscription.status === "trialing" ? "(Free trial)" : ""}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {subscription.freeCallouts} free callout{subscription.freeCallouts !== 1 ? "s" : ""} remaining · Renews {new Date(subscription.currentPeriodEnd).toLocaleDateString("en-GB")}
+                  </p>
+                  <div className="flex gap-2 mt-3">
+                    <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">50% off all callouts</span>
+                    <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">Priority dispatch</span>
+                    <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">1 free callout/month</span>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-sm text-slate-600 mt-1">
+                    Get 50% off all callouts, priority dispatch, and 1 free callout per month.
+                  </p>
+                  <div className="flex gap-3 mt-3">
+                    <button
+                      onClick={() => startCoverCheckout("cover_monthly")}
+                      disabled={coverLoading}
+                      className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                    >
+                      {coverLoading ? "Loading…" : "£9.99/month"}
+                    </button>
+                    <button
+                      onClick={() => startCoverCheckout("cover_annual")}
+                      disabled={coverLoading}
+                      className="border border-amber-300 hover:bg-amber-50 disabled:opacity-50 text-amber-800 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                    >
+                      {coverLoading ? "…" : "£79.99/year (save 33%)"}
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-2">7-day free trial · Cancel anytime</p>
                 </div>
               )}
             </div>

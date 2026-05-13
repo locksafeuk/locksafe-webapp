@@ -10,6 +10,7 @@ import {
   sendEarningsReversalEmail,
 } from "@/lib/email";
 import { handleDisputeCreated, handleDisputeUpdated, handleDisputeClosed } from "@/lib/disputes";
+import { handleSubscriptionUpsert, handleSubscriptionCanceled } from "@/lib/subscriptions";
 
 // Disable body parsing - we need the raw body for signature verification
 export const runtime = "nodejs";
@@ -738,6 +739,23 @@ export async function POST(request: NextRequest) {
       case "charge.dispute.closed": {
         const dispute = event.data.object;
         await handleDisputeClosed(dispute as Parameters<typeof handleDisputeClosed>[0]);
+        break;
+      }
+
+      // ===========================================
+      // SUBSCRIPTION EVENTS (LockSafe Cover)
+      // ===========================================
+
+      case "customer.subscription.created":
+      case "customer.subscription.updated": {
+        const sub = event.data.object as Parameters<typeof handleSubscriptionUpsert>[0];
+        await handleSubscriptionUpsert(sub);
+        break;
+      }
+
+      case "customer.subscription.deleted": {
+        const sub = event.data.object as Parameters<typeof handleSubscriptionCanceled>[0];
+        await handleSubscriptionCanceled(sub);
         break;
       }
 

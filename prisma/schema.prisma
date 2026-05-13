@@ -87,6 +87,9 @@ model Customer {
   referralCredits   Float     @default(0)  // Available £ credits from referrals
   referredByCode    String?   // Code they signed up with
 
+  // LockSafe Cover subscription
+  subscription      Subscription?
+
   // B2B / Landlord
   orgMemberships    OrgMember[]
 
@@ -2475,4 +2478,46 @@ model Property {
 
   @@index([orgId])
   @@index([postcode])
+}
+
+// ==========================================
+// LOCKSAFE COVER SUBSCRIPTION
+// ==========================================
+
+model Subscription {
+  id                      String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  customerId              String   @unique @db.ObjectId
+  customer                Customer @relation(fields: [customerId], references: [id])
+
+  // Stripe billing
+  stripeSubscriptionId    String   @unique
+  stripeCustomerId        String
+  stripePriceId           String   // Stripe Price ID for the plan
+
+  // Plan details
+  plan                    String   @default("cover_monthly") // "cover_monthly" | "cover_annual"
+  status                  String   @default("active") // active | past_due | canceled | trialing | paused
+
+  // Perks
+  assessmentFeeDiscount   Float    @default(1.0)  // Multiplier on assessment fee (0.5 = 50% off)
+  priorityDispatch        Boolean  @default(true)
+  freeCallouts            Int      @default(0)    // Remaining free callouts this period
+  freeCalloutsTotal       Int      @default(1)    // Free callouts per billing period
+
+  // Billing period
+  currentPeriodStart      DateTime
+  currentPeriodEnd        DateTime
+  cancelAtPeriodEnd       Boolean  @default(false)
+  canceledAt              DateTime?
+
+  // Trial
+  trialStart              DateTime?
+  trialEnd                DateTime?
+
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([status])
+  @@index([currentPeriodEnd])
 }
