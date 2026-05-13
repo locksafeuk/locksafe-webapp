@@ -1,7 +1,7 @@
 import { Resend } from "resend";
 import { SITE_NAME, SITE_URL, SUPPORT_EMAIL } from "./config";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const getResend = () => new Resend(process.env.RESEND_API_KEY);
 
 const FROM_EMAIL = "LockSafe UK <noreply@locksafe.uk>";
 
@@ -20,7 +20,7 @@ async function sendEmail(data: EmailData) {
       return { success: true, mock: true };
     }
 
-    const result = await resend.emails.send({
+    const result = await getResend().emails.send({
       from: FROM_EMAIL,
       to: data.to,
       subject: data.subject,

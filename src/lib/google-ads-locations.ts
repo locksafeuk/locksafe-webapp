@@ -475,7 +475,7 @@ export async function triggerPostOnboardingGeoSync(locksmith: {
           `Campaigns synced: ${result.campaignsSynced}\n` +
           `Coverage: ${coverageSummary.join(", ")}` +
           (result.errors.length > 0 ? `\nErrors: ${result.errors.join("; ")}` : ""),
-        type: "info",
+        severity: "info",
       });
     } catch {
       // Non-fatal
