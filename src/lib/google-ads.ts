@@ -20,7 +20,7 @@
 
 import prisma from "@/lib/db";
 
-const API_BASE = "https://googleads.googleapis.com/v18";
+const API_BASE = "https://googleads.googleapis.com/v24";
 const OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const SCOPE = "https://www.googleapis.com/auth/adwords";
 
