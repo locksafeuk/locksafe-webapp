@@ -13,11 +13,13 @@ import {
   Pencil,
   X,
   Check,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
+import { AdminSidebar } from "@/components/layout/AdminSidebar";
 
 interface LocksmithMini {
   id: string;
@@ -210,6 +212,7 @@ export default function LocksmithTeamsPage() {
   };
 
   return (
+    <AdminSidebar>
     <div className="p-6 max-w-7xl mx-auto">
       <Toaster toasts={toasts} dismiss={dismiss} />
 
@@ -308,6 +311,13 @@ export default function LocksmithTeamsPage() {
                     )}
                   </div>
                   <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => window.open(`/company/dashboard?companyId=${selectedCompany.id}`, "_blank")}
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 mr-1" /> View as Manager
+                    </Button>
                     <Button
                       size="sm"
                       variant="outline"
@@ -588,5 +598,6 @@ export default function LocksmithTeamsPage() {
         </div>
       )}
     </div>
+    </AdminSidebar>
   );
 }

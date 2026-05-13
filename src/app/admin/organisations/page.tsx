@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Building2, Users, Home, Plus, ChevronRight, Mail, Phone, Percent } from "lucide-react";
+import { AdminSidebar } from "@/components/layout/AdminSidebar";
 
 interface OrgRow {
   id: string;
@@ -83,6 +84,7 @@ export default function OrganisationsAdminPage() {
   const totalMembers = orgs.reduce((s, o) => s + o._count.members, 0);
 
   return (
+    <AdminSidebar>
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -219,5 +221,6 @@ export default function OrganisationsAdminPage() {
         </div>
       )}
     </div>
+    </AdminSidebar>
   );
 }

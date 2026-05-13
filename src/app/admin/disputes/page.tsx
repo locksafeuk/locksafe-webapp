@@ -16,6 +16,7 @@ import {
   Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AdminSidebar } from "@/components/layout/AdminSidebar";
 
 interface DisputeRow {
   id: string;
@@ -175,6 +176,7 @@ export default function AdminDisputesPage() {
   }
 
   return (
+    <AdminSidebar>
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Disputes & Chargebacks</h1>
@@ -383,5 +385,6 @@ export default function AdminDisputesPage() {
         )}
       </div>
     </div>
+    </AdminSidebar>
   );
 }

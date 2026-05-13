@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Gift, Users, TrendingUp, Clock, CheckCircle2, Loader2, Copy, Check } from "lucide-react";
+import { AdminSidebar } from "@/components/layout/AdminSidebar";
 
 interface ReferralRow {
   id: string;
@@ -76,6 +77,7 @@ export default function AdminReferralsPage() {
   }
 
   return (
+    <AdminSidebar>
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Referral System</h1>
@@ -215,5 +217,6 @@ export default function AdminReferralsPage() {
         </div>
       </div>
     </div>
+    </AdminSidebar>
   );
 }

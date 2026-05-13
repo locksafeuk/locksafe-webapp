@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
+import { AdminSidebar } from "@/components/layout/AdminSidebar";
 
 interface ValueListItem {
   id: string;
@@ -156,6 +157,7 @@ export default function SecurityRadarPage() {
   };
 
   return (
+    <AdminSidebar>
     <div className="p-6 max-w-5xl mx-auto">
       <Toaster toasts={toasts} dismiss={dismiss} />
 
@@ -407,5 +409,6 @@ export default function SecurityRadarPage() {
         </div>
       )}
     </div>
+    </AdminSidebar>
   );
 }
