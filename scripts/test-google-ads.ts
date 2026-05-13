@@ -171,7 +171,7 @@ async function main() {
   // ── 3. Search Terms ─────────────────────────────────────────────────────────
   section(`Top ${topN} Search Terms  (by spend)`);
 
-  let searchTerms;
+  let searchTerms: Awaited<ReturnType<typeof client.getSearchTermsReport>> = [];
   try {
     searchTerms = await client.getSearchTermsReport(range);
   } catch (err) {
