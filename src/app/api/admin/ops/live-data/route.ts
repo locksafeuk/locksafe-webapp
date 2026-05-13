@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
+import { geocodePostcode } from "@/lib/locksmith-matcher";
 
 async function requireAdmin(request: NextRequest) {
   const cookieStore = await cookies();
@@ -73,7 +74,28 @@ export async function GET(request: NextRequest) {
     });
 
     // Build response with resolved locksmith position
-    const enriched = jobs.map((job) => {
+    // For jobs missing lat/lng, geocode from postcode and persist
+    const enriched = await Promise.all(jobs.map(async (job) => {
+      let latitude = job.latitude;
+      let longitude = job.longitude;
+
+      if ((!latitude || !longitude) && job.postcode) {
+        try {
+          const coords = await geocodePostcode(job.postcode);
+          if (coords) {
+            latitude = coords.lat;
+            longitude = coords.lng;
+            // Persist so future calls don't need to geocode again
+            await prisma.job.update({
+              where: { id: job.id },
+              data: { latitude, longitude },
+            });
+          }
+        } catch {
+          // Geocode failed — job will appear in list without a map pin
+        }
+      }
+
       // Determine best locksmith lat/lng for display
       let locksmithLat: number | null = null;
       let locksmithLng: number | null = null;
@@ -99,8 +121,8 @@ export async function GET(request: NextRequest) {
         propertyType: job.propertyType,
         postcode: job.postcode,
         address: job.address,
-        jobLat: job.latitude,
-        jobLng: job.longitude,
+        jobLat: latitude,
+        jobLng: longitude,
         createdAt: job.createdAt,
         acceptedAt: job.acceptedAt,
         enRouteAt: job.enRouteAt,
@@ -118,7 +140,7 @@ export async function GET(request: NextRequest) {
           : null,
         customer: job.customer,
       };
-    });
+    }));
 
     // Summary stats
     const stats = {
