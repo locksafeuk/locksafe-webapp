@@ -30,6 +30,8 @@ import {
   Gift,
   AlertTriangle,
   Building2,
+  MapPin,
+  Shield,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -49,6 +51,7 @@ const navItems = [
   { href: "/admin/voice-receptionist", label: "Voice AI", icon: Phone },
   { href: "/admin/agents", label: "AI Agents", icon: Bot },
   { href: "/admin/jobs", label: "Jobs", icon: Briefcase },
+  { href: "/admin/ops", label: "Live Ops Map", icon: MapPin },
   { href: "/admin/locksmiths", label: "Locksmiths", icon: Users },
   { href: "/admin/leads", label: "Leads", icon: Users2 },
   { href: "/admin/customers", label: "Customers", icon: UserCircle },
@@ -58,6 +61,7 @@ const navItems = [
   { href: "/admin/commission-tiers", label: "Commission Tiers", icon: Percent },
   { href: "/admin/referrals", label: "Referrals", icon: Gift },
   { href: "/admin/disputes", label: "Disputes", icon: AlertTriangle },
+  { href: "/admin/security", label: "Security / Radar", icon: Shield },
   { href: "/admin/organisations", label: "Organisations", icon: Building2 },
   { href: "/admin/locksmith-teams", label: "Locksmith Teams", icon: Users2 },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
