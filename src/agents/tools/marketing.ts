@@ -14,6 +14,7 @@ import {
   microsToCurrency,
 } from "@/lib/google-ads";
 import { generateGoogleAdsDraftPlan } from "@/lib/openai-google-ads";
+import { getActiveCoverageGeoTargets } from "@/lib/google-ads-locations";
 import { checkAutoAction, getEffectivePolicy } from "@/lib/spend-guard";
 import { isServiceSlug } from "@/lib/services-catalog";
 import { optimiseMetaCampaigns } from "@/lib/meta-optimiser";
@@ -900,6 +901,11 @@ export const createGoogleAdsDraftTool: AgentTool = {
     // requestedBudget (hard cap from the agent's own parameters).
     const dailyBudget = Math.min(plan.recommendedDailyBudget, requestedBudget);
 
+    // Derive geo targets from active locksmith coverage — only advertise
+    // where we actually have locksmiths on the ground.
+    const { geoTargets: activeCoverageGeoTargets, coverageSummary } =
+      await getActiveCoverageGeoTargets();
+
     const draft = await prisma.googleAdsCampaignDraft.create({
       data: {
         accountId: handle.accountId,
@@ -909,7 +915,7 @@ export const createGoogleAdsDraftTool: AgentTool = {
         biddingStrategy,
         targetCpa,
         channel: "SEARCH",
-        geoTargets: ["2826"], // UK
+        geoTargets: activeCoverageGeoTargets,
         languageTargets: ["1000"], // English
         headlines: plan.headlines,
         descriptions: plan.descriptions,
@@ -963,6 +969,8 @@ export const createGoogleAdsDraftTool: AgentTool = {
             negativeCount: plan.negativeKeywords.length,
             finalUrl: plan.finalUrl,
             reasoning: plan.reasoning,
+            geoTargets: activeCoverageGeoTargets,
+            coverageSummary,
           }).slice(0, 8000),
           reason: `New AI-generated Google Ads campaign "${plan.campaignName}" — £${dailyBudget}/day, ${plan.keywords.length} keywords. Review at /admin/integrations/google-ads/drafts/${draft.id} before publishing.`,
           targetType: "google_ads_draft",
@@ -1022,7 +1030,115 @@ export const createGoogleAdsDraftTool: AgentTool = {
         negativeKeywordCount: plan.negativeKeywords.length,
         finalUrl: plan.finalUrl,
         reasoning: plan.reasoning,
+        geoTargets: activeCoverageGeoTargets,
+        coverageSummary,
         reviewUrl: `/admin/integrations/google-ads/drafts/${draft.id}`,
+      },
+    };
+  },
+};
+
+/**
+ * Sync geo targeting on all live (PUBLISHED) Google Ads campaigns to match
+ * the current active locksmith coverage. Removes location criteria for areas
+ * we no longer serve and adds new ones for areas we've expanded into.
+ *
+ * Files an agentApproval if called from an agent context; admins can also
+ * trigger this directly from the integrations dashboard.
+ */
+export const syncGoogleAdsGeoTargetsTool: AgentTool = {
+  name: "syncGoogleAdsGeoTargets",
+  description:
+    "Update the location targeting on all live Google Ads campaigns to match current active locksmith coverage. Excludes areas where we have no active locksmiths.",
+  category: "marketing",
+  permissions: ["cmo", "ads-specialist"],
+  parameters: [
+    {
+      name: "campaignId",
+      type: "string",
+      required: false,
+      description:
+        "Specific Google Ads campaign ID (digits only) to sync. Omit to sync all PUBLISHED drafts.",
+    },
+  ],
+  async execute(params, _context): Promise<ToolResult> {
+    const { syncCampaignGeoTargets, getActiveCoverageGeoTargets } = await import(
+      "@/lib/google-ads-locations"
+    );
+
+    const { geoTargets, coverageSummary, activeLocksmithCount } =
+      await getActiveCoverageGeoTargets();
+
+    if (activeLocksmithCount === 0) {
+      return {
+        success: false,
+        error:
+          "No active locksmiths with set locations found. Cannot determine coverage — geo sync aborted.",
+      };
+    }
+
+    // Collect campaigns to sync
+    const campaignIdFilter = params.campaignId ? String(params.campaignId) : undefined;
+    const publishedDrafts = await prisma.googleAdsCampaignDraft.findMany({
+      where: {
+        status: "PUBLISHED",
+        googleCampaignId: campaignIdFilter ? campaignIdFilter : { not: null },
+      },
+      select: {
+        id: true,
+        accountId: true,
+        name: true,
+        googleCampaignId: true,
+      },
+    });
+
+    if (publishedDrafts.length === 0) {
+      return {
+        success: true,
+        data: {
+          message: "No PUBLISHED campaigns found to sync.",
+          coverageSummary,
+          geoTargets,
+          activeLocksmithCount,
+        },
+      };
+    }
+
+    const results: { campaignName: string; added: string[]; removed: number }[] = [];
+    const errors: string[] = [];
+
+    for (const draft of publishedDrafts) {
+      if (!draft.googleCampaignId) continue;
+      try {
+        const { getGoogleAdsClientForAccount } = await import("@/lib/google-ads");
+        const client = await getGoogleAdsClientForAccount(draft.accountId);
+        if (!client) {
+          errors.push(`No active Google Ads account for draft ${draft.id}`);
+          continue;
+        }
+        const campaignResource = `customers/${client.customerIdPlain}/campaigns/${draft.googleCampaignId}`;
+        const syncResult = await syncCampaignGeoTargets(client, campaignResource);
+        results.push({
+          campaignName: draft.name,
+          added: syncResult.added,
+          removed: syncResult.removed,
+        });
+      } catch (err) {
+        errors.push(
+          `Campaign "${draft.name}": ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+
+    return {
+      success: errors.length === 0,
+      data: {
+        coverageSummary,
+        geoTargets,
+        activeLocksmithCount,
+        campaignsSynced: results.length,
+        results,
+        errors,
       },
     };
   },
@@ -1493,6 +1609,7 @@ export const marketingTools: AgentTool[] = [
   getGoogleAdsSearchTermsTool,
   createGoogleAdsDraftTool,
   listGoogleAdsDraftsTool,
+  syncGoogleAdsGeoTargetsTool,
   optimiseGoogleCampaignsTool,
   launchAcquisitionEngineTool,
   optimiseMetaCampaignsTool,

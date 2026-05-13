@@ -2,7 +2,7 @@
 
 ## Overview
 
-LockSafe UK requires **7 cron jobs** to be fully operational. All endpoints require the `CRON_SECRET` for authentication.
+LockSafe UK requires **7 cron jobs** to be fully operational, plus several optional automation jobs. All endpoints require the `CRON_SECRET` for authentication.
 
 ---
 
@@ -20,6 +20,7 @@ LockSafe UK requires **7 cron jobs** to be fully operational. All endpoints requ
 | 8 | Sync Google Ads Performance | `/api/cron/sync-google-ads-performance` | Every 6 hours | OPTIONAL (CMO autonomous loop) |
 | 9 | CMO Autonomous Optimisation | `/api/cron/cmo-autonomous` | Every 6 hours | OPTIONAL (Phase 3 — adds negative keywords, pauses bad campaigns) |
 | 10 | Agents Weekly Report | `/api/cron/agents-weekly-report` | Mondays 9AM | OPTIONAL (Phase 3 — Telegram weekly summary) |
+| 11 | Sync Google Ads Geo Targets | `/api/cron/sync-google-ads-geo-targets` | Daily (3AM UTC) | OPTIONAL (auto-adjusts location targeting to active locksmith coverage) |
 
 ---
 
@@ -209,6 +210,97 @@ Add to `vercel.json`:
 
 ---
 
+### Cron Job 8: Sync Google Ads Performance (Optional)
+
+**Purpose:** Pulls daily campaign metrics from every connected Google Ads account into the local DB for CMO agent reporting.
+
+| Setting | Value |
+|---------|-------|
+| **Title** | LockSafe Google Ads Performance Sync |
+| **URL** | `https://YOUR_DOMAIN/api/cron/sync-google-ads-performance` |
+| **Method** | POST |
+| **Schedule** | Every 6 hours |
+| **Cron Expression** | `0 */6 * * *` |
+| **Header** | `Authorization: Bearer YOUR_CRON_SECRET` |
+
+**Requires:** Google Ads account connected at `/admin/integrations/google-ads`
+
+---
+
+### Cron Job 9: CMO Autonomous Optimisation (Optional)
+
+**Purpose:** AI-driven campaign hygiene — adds negative keywords from wasted search terms, pauses persistently underperforming campaigns. No-ops when autonomy is disabled in MarketingPolicy.
+
+| Setting | Value |
+|---------|-------|
+| **Title** | LockSafe CMO Autonomous |
+| **URL** | `https://YOUR_DOMAIN/api/cron/cmo-autonomous` |
+| **Method** | POST |
+| **Schedule** | Every 6 hours |
+| **Cron Expression** | `0 */6 * * *` |
+| **Header** | `Authorization: Bearer YOUR_CRON_SECRET` |
+
+**Requires:** Google Ads account connected, `MarketingPolicy.autonomyEnabled = true`
+
+---
+
+### Cron Job 10: Agents Weekly Report (Optional)
+
+**Purpose:** Sends a Telegram summary of all agent activity, ad spend, and campaign performance over the past 7 days.
+
+| Setting | Value |
+|---------|-------|
+| **Title** | LockSafe Agents Weekly Report |
+| **URL** | `https://YOUR_DOMAIN/api/cron/agents-weekly-report` |
+| **Method** | POST |
+| **Schedule** | Mondays at 9:00 AM |
+| **Cron Expression** | `0 9 * * 1` |
+| **Header** | `Authorization: Bearer YOUR_CRON_SECRET` |
+
+**Requires:** Telegram bot configured
+
+---
+
+### Cron Job 11: Sync Google Ads Geo Targets (Optional)
+
+**Purpose:** Daily safety-net that re-syncs location targeting on all live Google Ads campaigns to match the current active locksmith coverage. Automatically **adds** cities where new locksmiths are based and **removes** cities where coverage has dropped.
+
+This complements the real-time trigger that fires whenever a locksmith completes onboarding — the cron catches any drift from manual DB changes or locksmiths who deactivated between onboarding events.
+
+| Setting | Value |
+|---------|-------|
+| **Title** | LockSafe Google Ads Geo Sync |
+| **URL** | `https://YOUR_DOMAIN/api/cron/sync-google-ads-geo-targets` |
+| **Method** | POST |
+| **Schedule** | Daily at 3:00 AM UTC |
+| **Cron Expression** | `0 3 * * *` |
+| **Header** | `Authorization: Bearer YOUR_CRON_SECRET` |
+
+**Expected response:**
+```json
+{
+  "success": true,
+  "campaignsSynced": 3,
+  "coverageSummary": ["London", "Manchester", "Birmingham"],
+  "errors": [],
+  "durationMs": 1240,
+  "timestamp": "2026-05-13T03:00:01.000Z"
+}
+```
+
+**Requires:** Google Ads account connected at `/admin/integrations/google-ads`
+
+**How it works:**
+1. Queries all `Locksmith` records where `isActive=true` and `onboardingCompleted=true`
+2. Resolves each locksmith's `baseAddress` / lat+lng to a Google Ads GeoTargetConstant ID
+3. For every PUBLISHED campaign: removes old location criteria, adds the new set
+4. Sends a Telegram admin alert with the updated coverage summary
+5. Delegates a CMO agent task if coverage changed significantly
+
+> **Note:** Also triggered automatically (real-time) when a locksmith hits `/api/locksmith/accept-terms`. The cron is a reconciliation safety net, not the primary trigger.
+
+---
+
 ## Step 4: Verify Setup
 
 ### Test Each Endpoint Manually
@@ -246,6 +338,22 @@ curl -X POST "https://YOUR_DOMAIN/api/cron/sync-meta-performance" \
   -H "Authorization: Bearer YOUR_CRON_SECRET" \
   -H "Content-Type: application/json" \
   -d '{"includeSnapshots": true}'
+
+# 8. Sync Google Ads Performance
+curl -X POST "https://YOUR_DOMAIN/api/cron/sync-google-ads-performance" \
+  -H "Authorization: Bearer YOUR_CRON_SECRET"
+
+# 9. CMO Autonomous
+curl -X POST "https://YOUR_DOMAIN/api/cron/cmo-autonomous" \
+  -H "Authorization: Bearer YOUR_CRON_SECRET"
+
+# 10. Agents Weekly Report
+curl -X POST "https://YOUR_DOMAIN/api/cron/agents-weekly-report" \
+  -H "Authorization: Bearer YOUR_CRON_SECRET"
+
+# 11. Sync Google Ads Geo Targets
+curl -X POST "https://YOUR_DOMAIN/api/cron/sync-google-ads-geo-targets" \
+  -H "Authorization: Bearer YOUR_CRON_SECRET"
 ```
 
 ### Expected Responses
@@ -360,3 +468,4 @@ The other 3 (organic content, meta sync) are **optional** and only needed if you
 - [ ] All cron jobs tested manually
 - [ ] Execution logs verified in cron service
 - [ ] Email notifications enabled for failures
+- [ ] Google Ads Geo Sync cron created (daily 3AM UTC) — if Google Ads is connected

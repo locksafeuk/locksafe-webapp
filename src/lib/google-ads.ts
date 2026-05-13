@@ -25,6 +25,40 @@ const OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const SCOPE = "https://www.googleapis.com/auth/adwords";
 
 // =========================================================================
+// DB-backed API config (falls back to environment variables)
+// =========================================================================
+
+export interface GoogleAdsApiConfigShape {
+  developerToken: string;
+  oauthClientId: string;
+  oauthClientSecret: string;
+  loginCustomerId: string;
+  redirectUri: string;
+}
+
+/** Returns API credentials, preferring the DB row over env vars. */
+export async function getGoogleAdsApiConfig(): Promise<GoogleAdsApiConfigShape | null> {
+  const row = await prisma.googleAdsApiConfig.findUnique({ where: { key: "default" } }).catch(() => null);
+
+  const developerToken    = row?.developerToken    || process.env.GOOGLE_ADS_DEVELOPER_TOKEN    || "";
+  const oauthClientId     = row?.oauthClientId     || process.env.GOOGLE_ADS_OAUTH_CLIENT_ID     || "";
+  const oauthClientSecret = row?.oauthClientSecret || process.env.GOOGLE_ADS_OAUTH_CLIENT_SECRET || "";
+  const loginCustomerId   = row?.loginCustomerId   || process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID   || "";
+  const redirectUri       = row?.redirectUri       || process.env.GOOGLE_ADS_OAUTH_REDIRECT_URI  || "";
+
+  if (!developerToken || !oauthClientId || !oauthClientSecret || !loginCustomerId || !redirectUri) {
+    return null;
+  }
+  return { developerToken, oauthClientId, oauthClientSecret, loginCustomerId, redirectUri };
+}
+
+/** Returns true when at least the OAuth client creds are available (for the connect button). */
+export async function isGoogleAdsConfigured(): Promise<boolean> {
+  const cfg = await getGoogleAdsApiConfig();
+  return !!(cfg?.oauthClientId && cfg?.oauthClientSecret);
+}
+
+// =========================================================================
 // Types
 // =========================================================================
 
@@ -79,8 +113,9 @@ interface RefreshedToken {
  * token is within 60 s of expiry.
  */
 export async function refreshAccessToken(refreshToken: string): Promise<RefreshedToken> {
-  const clientId = process.env.GOOGLE_ADS_OAUTH_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_ADS_OAUTH_CLIENT_SECRET;
+  const cfg = await getGoogleAdsApiConfig();
+  const clientId     = cfg?.oauthClientId     || process.env.GOOGLE_ADS_OAUTH_CLIENT_ID;
+  const clientSecret = cfg?.oauthClientSecret || process.env.GOOGLE_ADS_OAUTH_CLIENT_SECRET;
   if (!clientId || !clientSecret) {
     throw new Error("Google Ads OAuth client not configured (set GOOGLE_ADS_OAUTH_CLIENT_ID / _SECRET)");
   }
@@ -125,8 +160,9 @@ export async function exchangeAuthCode(code: string, redirectUri: string): Promi
   expiresAt: Date;
   scope?: string;
 }> {
-  const clientId = process.env.GOOGLE_ADS_OAUTH_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_ADS_OAUTH_CLIENT_SECRET;
+  const cfg = await getGoogleAdsApiConfig();
+  const clientId     = cfg?.oauthClientId     || process.env.GOOGLE_ADS_OAUTH_CLIENT_ID;
+  const clientSecret = cfg?.oauthClientSecret || process.env.GOOGLE_ADS_OAUTH_CLIENT_SECRET;
   if (!clientId || !clientSecret) {
     throw new Error("Google Ads OAuth client not configured");
   }
@@ -178,8 +214,9 @@ export async function exchangeAuthCode(code: string, redirectUri: string): Promi
  * Build the consent-screen URL the user is redirected to in order to grant
  * the platform access to their Google Ads account.
  */
-export function buildAuthUrl(redirectUri: string, state: string): string {
-  const clientId = process.env.GOOGLE_ADS_OAUTH_CLIENT_ID;
+export async function buildAuthUrl(redirectUri: string, state: string): Promise<string> {
+  const cfg = await getGoogleAdsApiConfig();
+  const clientId = cfg?.oauthClientId || process.env.GOOGLE_ADS_OAUTH_CLIENT_ID;
   if (!clientId) {
     throw new Error("Google Ads OAuth client not configured");
   }
@@ -255,7 +292,8 @@ export class GoogleAdsClient {
    * widen if a legitimate report needs more).
    */
   async query<T = unknown>(gaql: string): Promise<T[]> {
-    const developerToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
+    const cfg = await getGoogleAdsApiConfig();
+    const developerToken = cfg?.developerToken || process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
     if (!developerToken) {
       throw new Error("GOOGLE_ADS_DEVELOPER_TOKEN not configured");
     }

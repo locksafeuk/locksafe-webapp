@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { cookies } from "next/headers";
 import jwt from "jsonwebtoken";
+import { triggerPostOnboardingGeoSync } from "@/lib/google-ads-locations";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
@@ -106,6 +107,16 @@ export async function POST(request: NextRequest) {
         documentationUploadedAt: new Date(),
       },
     });
+
+    // Fire-and-forget: sync Google Ads geo targets to include the new
+    // locksmith's coverage area. Never awaited so it cannot delay the response.
+    triggerPostOnboardingGeoSync({
+      id: locksmith.id,
+      name: locksmith.name,
+      baseAddress: locksmith.baseAddress,
+      baseLat: locksmith.baseLat,
+      baseLng: locksmith.baseLng,
+    }).catch((err) => console.error("[GeoSync] Post-onboarding sync failed:", err));
 
     return NextResponse.json({
       success: true,

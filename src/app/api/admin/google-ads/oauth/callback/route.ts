@@ -22,7 +22,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth";
-import { exchangeAuthCode } from "@/lib/google-ads";
+import { exchangeAuthCode, getGoogleAdsApiConfig } from "@/lib/google-ads";
 import prisma from "@/lib/db";
 
 async function verifyAdmin(): Promise<boolean> {
@@ -56,12 +56,13 @@ export async function GET(request: NextRequest) {
     return redirectToAdmin("error=state_mismatch");
   }
 
-  const redirectUri = process.env.GOOGLE_ADS_OAUTH_REDIRECT_URI;
+  const apiCfg = await getGoogleAdsApiConfig();
+  const redirectUri = apiCfg?.redirectUri || process.env.GOOGLE_ADS_OAUTH_REDIRECT_URI;
   if (!redirectUri) {
     return redirectToAdmin("error=redirect_uri_not_configured");
   }
 
-  const mccId = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID;
+  const mccId = apiCfg?.loginCustomerId || process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID;
   if (!mccId) {
     return redirectToAdmin("error=login_customer_id_not_configured");
   }
@@ -93,6 +94,11 @@ export async function GET(request: NextRequest) {
         scope: tokens.scope ?? null,
         isActive: true,
       },
+    });
+
+    // Remove any placeholder stub account created before real credentials were available.
+    await prisma.googleAdsAccount.deleteMany({
+      where: { customerId: "0000000000" },
     });
 
     const res = redirectToAdmin("connected=1");

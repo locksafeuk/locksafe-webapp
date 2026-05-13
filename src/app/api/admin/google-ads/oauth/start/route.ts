@@ -9,7 +9,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth";
-import { buildAuthUrl } from "@/lib/google-ads";
+import { buildAuthUrl, getGoogleAdsApiConfig } from "@/lib/google-ads";
 import crypto from "node:crypto";
 
 async function verifyAdmin(): Promise<boolean> {
@@ -25,10 +25,12 @@ export async function GET(_request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const redirectUri = process.env.GOOGLE_ADS_OAUTH_REDIRECT_URI;
+  // Resolve redirect URI from DB config first, fall back to env var.
+  const apiCfg = await getGoogleAdsApiConfig();
+  const redirectUri = apiCfg?.redirectUri || process.env.GOOGLE_ADS_OAUTH_REDIRECT_URI;
   if (!redirectUri) {
     return NextResponse.json(
-      { error: "GOOGLE_ADS_OAUTH_REDIRECT_URI not configured" },
+      { error: "Google Ads not configured — enter credentials at /admin/integrations/google-ads first." },
       { status: 500 },
     );
   }
@@ -36,7 +38,16 @@ export async function GET(_request: NextRequest) {
   // Random state. Stored both in the URL and a short-lived HttpOnly cookie;
   // the callback compares the two to defeat CSRF.
   const state = crypto.randomBytes(24).toString("hex");
-  const url = buildAuthUrl(redirectUri, state);
+
+  let url: string;
+  try {
+    url = await buildAuthUrl(redirectUri, state);
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "buildAuthUrl failed" },
+      { status: 500 },
+    );
+  }
 
   const res = NextResponse.redirect(url);
   res.cookies.set("google_ads_oauth_state", state, {

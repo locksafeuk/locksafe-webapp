@@ -781,6 +781,23 @@ model MetaAdAccount {
   updatedAt       DateTime @updatedAt
 }
 
+// Google Ads API credentials — stored once by an admin and shared across all
+// OAuth flows. Only one row exists (singleton, keyed by key="default").
+// Storing secrets in DB matches the MetaAdAccount pattern already in use here.
+model GoogleAdsApiConfig {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  key               String   @unique @default("default")
+
+  developerToken    String   // Google Ads Developer Token (from API Centre)
+  oauthClientId     String   // Google Cloud Console → OAuth 2.0 Client → Client ID
+  oauthClientSecret String   // Google Cloud Console → OAuth 2.0 Client → Secret
+  loginCustomerId   String   // MCC / Manager account ID (10 digits, no dashes)
+  redirectUri       String   // e.g. https://locksafe.uk/api/admin/google-ads/oauth/callback
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
 // Google Ads account connection (Phase 1 — read-only; tokens stored unencrypted
 // matching MetaAdAccount convention. TODO(security): apply at-rest encryption
 // across both before Phase 3 autonomy ships.)
