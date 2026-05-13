@@ -169,22 +169,21 @@ export default function AdminOpsPage() {
 
       const color = STATUS_COLOR[job.status] ?? "#94a3b8";
 
-      // Job pin
+      // Job pin — teardrop SVG with job number
+      const shortNum = job.jobNumber.slice(-4);
       const el = document.createElement("div");
       el.style.cssText = `
-        width:28px; height:28px; border-radius:50%;
-        background:${color}; border:2px solid white;
-        box-shadow:0 2px 8px rgba(0,0,0,.5);
-        display:flex; align-items:center; justify-content:center;
-        cursor:pointer; font-size:12px; color:white; font-weight:700;
-        transition: transform 0.15s;
+        width:34px; height:44px; cursor:pointer; position:relative;
+        filter:drop-shadow(0 3px 5px rgba(0,0,0,0.55));
+        ${job.status === "PENDING" ? "animation:pinPulse 1.6s ease-in-out infinite;" : ""}
       `;
+      el.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 34 44" width="34" height="44">
+        <path d="M17 1C9.27 1 3 7.27 3 15c0 5.5 3.2 10.3 7.88 12.63L17 43l6.12-15.37C27.8 25.3 31 20.5 31 15 31 7.27 24.73 1 17 1z"
+          fill="${color}" stroke="rgba(255,255,255,0.7)" stroke-width="1.5"/>
+        <text x="17" y="18.5" text-anchor="middle" fill="white" font-size="9.5" font-weight="700"
+          font-family="system-ui,sans-serif" letter-spacing="-0.5">${shortNum}</text>
+      </svg>`;
       el.title = `#${job.jobNumber} — ${STATUS_LABEL[job.status] ?? job.status}`;
-
-      // Pulse for PENDING
-      if (job.status === "PENDING") {
-        el.style.animation = "pulse 1.5s infinite";
-      }
 
       const popup = new mapboxgl.Popup({ offset: 16, closeButton: false, maxWidth: "260px" })
         .setHTML(`
@@ -213,15 +212,26 @@ export default function AdminOpsPage() {
       bounds.extend([job.jobLng, job.jobLat]);
       hasBounds = true;
 
-      // Locksmith position pin (smaller, triangular)
+      // Locksmith car marker — top-down SVG car with direction arrow
       if (job.locksmith?.lat && job.locksmith?.lng) {
+        const isMoving = ["EN_ROUTE", "ACCEPTED"].includes(job.status);
         const lsEl = document.createElement("div");
         lsEl.style.cssText = `
-          width:12px; height:12px; border-radius:50%;
-          background:white; border:2px solid ${color};
-          box-shadow:0 1px 4px rgba(0,0,0,.4);
+          width:38px; height:38px; cursor:pointer;
+          filter:drop-shadow(0 2px 5px rgba(0,0,0,0.55));
+          ${isMoving ? "animation:carBounce 0.7s ease-in-out infinite alternate;" : ""}
         `;
-        lsEl.title = job.locksmith.name;
+        lsEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 38 38" width="38" height="38">
+          <polygon points="19,1 13,10 25,10" fill="${color}" stroke="white" stroke-width="1.2"/>
+          <rect x="6" y="10" width="26" height="19" rx="4" fill="${color}" stroke="white" stroke-width="1.5"/>
+          <rect x="9" y="13" width="20" height="6" rx="2" fill="rgba(255,255,255,0.45)"/>
+          <rect x="9" y="23" width="20" height="4" rx="1.5" fill="rgba(255,255,255,0.3)"/>
+          <rect x="2" y="12" width="5" height="8" rx="2.5" fill="#0f172a" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
+          <rect x="31" y="12" width="5" height="8" rx="2.5" fill="#0f172a" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
+          <rect x="2" y="22" width="5" height="8" rx="2.5" fill="#0f172a" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
+          <rect x="31" y="22" width="5" height="8" rx="2.5" fill="#0f172a" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
+        </svg>`;
+        lsEl.title = `🚗 ${job.locksmith.name} — ${STATUS_LABEL[job.status] ?? job.status}`;
 
         const lsMarker = new mapboxgl.Marker(lsEl)
           .setLngLat([job.locksmith.lng, job.locksmith.lat])
@@ -377,13 +387,25 @@ export default function AdminOpsPage() {
           <div className="grid grid-cols-2 gap-x-3 gap-y-1">
             {Object.entries(STATUS_LABEL).map(([key, label]) => (
               <div key={key} className="flex items-center gap-1.5">
-                <div
-                  className="w-2.5 h-2.5 rounded-full shrink-0"
-                  style={{ background: STATUS_COLOR[key] ?? "#94a3b8" }}
-                />
+                <svg viewBox="0 0 14 18" width="10" height="13" style={{flexShrink:0}}>
+                  <path d="M7 0.5C3.96 0.5 1.5 2.96 1.5 6c0 2.3 1.35 4.3 3.31 5.28L7 17.5l2.19-6.22C11.15 10.3 12.5 8.3 12.5 6 12.5 2.96 10.04 0.5 7 0.5z"
+                    fill={STATUS_COLOR[key] ?? "#94a3b8"} stroke="rgba(255,255,255,0.4)" strokeWidth="0.5"/>
+                </svg>
                 <span className="text-xs text-gray-500">{label}</span>
               </div>
             ))}
+          </div>
+          <div className="mt-2 pt-2 border-t border-gray-800 flex items-center gap-2">
+            <svg viewBox="0 0 24 24" width="22" height="22" style={{flexShrink:0}}>
+              <polygon points="12,0 8,7 16,7" fill="#94a3b8" stroke="white" strokeWidth="0.8"/>
+              <rect x="4" y="7" width="16" height="11" rx="3" fill="#94a3b8" stroke="white" strokeWidth="0.8"/>
+              <rect x="6" y="9" width="12" height="4" rx="1.5" fill="rgba(255,255,255,0.4)"/>
+              <rect x="1" y="8" width="4" height="5" rx="2" fill="#0f172a"/>
+              <rect x="19" y="8" width="4" height="5" rx="2" fill="#0f172a"/>
+              <rect x="1" y="14" width="4" height="5" rx="2" fill="#0f172a"/>
+              <rect x="19" y="14" width="4" height="5" rx="2" fill="#0f172a"/>
+            </svg>
+            <span className="text-xs text-gray-500">Locksmith car (live GPS)</span>
           </div>
         </div>
       </div>
@@ -392,11 +414,15 @@ export default function AdminOpsPage() {
       <div className="flex-1 relative">
         <div ref={mapContainer} className="w-full h-full" />
 
-        {/* Pulse animation style */}
+        {/* Map marker animations */}
         <style>{`
-          @keyframes pulse {
-            0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239,68,68,0.5); }
-            50% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(239,68,68,0); }
+          @keyframes pinPulse {
+            0%, 100% { transform: scale(1) translateY(0); filter: drop-shadow(0 3px 5px rgba(239,68,68,0.5)); }
+            50% { transform: scale(1.18) translateY(-4px); filter: drop-shadow(0 8px 14px rgba(239,68,68,0.7)); }
+          }
+          @keyframes carBounce {
+            0% { transform: translateY(0px) scale(1); }
+            100% { transform: translateY(-3px) scale(1.06); }
           }
         `}</style>
 
