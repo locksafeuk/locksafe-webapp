@@ -192,6 +192,13 @@ model Locksmith {
   commissionTierReasons     String[] // e.g. ["high_earner", "regular_area", "area_saturation"]
   commissionOverride        Boolean  @default(false)  // If true, cron will not auto-update this locksmith's tier
 
+  // Performance scoring
+  acceptanceRate       Float   @default(1.0)   // % of job offers accepted (0.0–1.0)
+  avgResponseMinutes   Float   @default(5.0)   // Historical average response time to new job alerts
+  onTimeRate           Float   @default(1.0)   // % of ETAs met within 15 min buffer
+  performanceScore     Float   @default(75.0)  // Composite score 0–100 fed into dispatch priority
+  performanceScoredAt  DateTime?               // When score was last computed
+
   createdAt         DateTime      @default(now())
   // Referral system
   referralCode      String?   @unique  // Their own shareable code
@@ -337,6 +344,16 @@ model Job {
   // Scheduled booking support
   scheduledFor     DateTime?   // If set, job is a pre-booked appointment
   isScheduled      Boolean     @default(false)
+
+  // Auto re-dispatch tracking
+  dispatchAttempts    Int       @default(1)   // How many notification waves have been sent
+  lastDispatchAt      DateTime?               // When the last dispatch wave was sent
+
+  // Review request automation
+  reviewRequestedAt   DateTime?              // When review request was sent to customer
+
+  // Win-back automation
+  winBackSentAt       DateTime?              // When post-job win-back email was sent
 
   // Confirmation deadline for customer to sign (locksmith safety)
   confirmationDeadline    DateTime?  // When customer must sign by
@@ -2436,6 +2453,9 @@ model Organisation {
   // Jobs raised under this org
   jobs            Job[]    @relation("OrgJobs")
 
+  // Invoices issued to this org
+  invoices        OrgInvoice[]
+
   isActive        Boolean  @default(true)
   notes           String?
 
@@ -2478,6 +2498,44 @@ model Property {
 
   @@index([orgId])
   @@index([postcode])
+}
+
+// ==========================================
+// B2B INVOICING
+// ==========================================
+
+model OrgInvoice {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  orgId           String   @db.ObjectId
+  org             Organisation @relation(fields: [orgId], references: [id])
+
+  invoiceNumber   String   @unique  // e.g. INV-2025-01-0042
+
+  period          String   // ISO month string: "2025-01"
+  periodStart     DateTime
+  periodEnd       DateTime
+
+  jobIds          String[] @db.ObjectId
+  jobCount        Int
+
+  subtotal        Float    // Sum of assessmentFee for all jobs
+  vatAmount       Float    @default(0)
+  total           Float
+
+  dueDate         DateTime // periodEnd + paymentTerms days
+
+  status          String   @default("sent") // "sent" | "paid" | "overdue" | "void"
+
+  paidAt          DateTime?
+  pdfUrl          String?  // URL to stored PDF (future: Cloudflare R2 / S3)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([orgId])
+  @@index([status])
+  @@index([period])
 }
 
 // ==========================================

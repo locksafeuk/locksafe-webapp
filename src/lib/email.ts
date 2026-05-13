@@ -12,7 +12,7 @@ interface EmailData {
   replyTo?: string;
 }
 
-async function sendEmail(data: EmailData) {
+export async function sendEmail(data: EmailData) {
   try {
     // In development, just log the email
     if (!process.env.RESEND_API_KEY) {
@@ -3352,6 +3352,138 @@ export async function sendLocksmithInviteEmail(
     to: locksmithEmail,
     subject: `${data.locksmithName} — join LockSafe UK's verified locksmith network (free)`,
     replyTo: "contact@locksafe.uk",
+    html,
+  });
+}
+
+// ============================================
+// REVIEW REQUEST EMAIL
+// ============================================
+
+export async function sendReviewRequestEmail(data: {
+  customerEmail: string;
+  customerName: string;
+  jobNumber: string;
+  locksmithName: string;
+  reviewUrl: string;
+  isReminder?: boolean;
+}) {
+  const subject = data.isReminder
+    ? `Reminder: How was your locksmith? (Job ${data.jobNumber})`
+    : `How did ${data.locksmithName} do? Leave a quick review`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: system-ui, sans-serif; line-height: 1.6; color: #1e293b; background: #f1f5f9; margin: 0; padding: 20px; }
+        .container { max-width: 560px; margin: 0 auto; }
+        .card { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .header { background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; padding: 32px 24px; text-align: center; }
+        .body { padding: 32px 24px; }
+        .stars { font-size: 32px; letter-spacing: 4px; display: block; text-align: center; margin: 16px 0; }
+        .cta { display: block; background: #6366f1; color: white !important; text-decoration: none; padding: 16px 32px; border-radius: 10px; text-align: center; font-size: 18px; font-weight: 600; margin: 24px auto; width: fit-content; }
+        .footer { text-align: center; padding: 16px 24px; font-size: 12px; color: #94a3b8; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="card">
+          <div class="header">
+            <div style="font-size: 24px; font-weight: 700; margin-bottom: 4px;">🔑 LockSafe UK</div>
+            <div style="opacity: 0.85; font-size: 15px;">Job ${data.jobNumber} Complete</div>
+          </div>
+          <div class="body">
+            <h2 style="margin-top:0; font-size:22px;">Hi ${data.customerName},</h2>
+            <p>Your job with <strong>${data.locksmithName}</strong> is all wrapped up — great!</p>
+            <p>It would mean a lot if you could spare 30 seconds to rate your experience. Your honest feedback helps us maintain quality and helps other customers choose wisely.</p>
+            <span class="stars">⭐⭐⭐⭐⭐</span>
+            <a href="${data.reviewUrl}" class="cta">Leave a Review →</a>
+            <p style="font-size:13px; color:#64748b; text-align:center; margin-top:8px;">Takes less than 30 seconds · No account needed</p>
+          </div>
+          <div class="footer">
+            LockSafe UK · <a href="${SITE_URL}/unsubscribe" style="color:#94a3b8;">Unsubscribe</a>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to: data.customerEmail,
+    subject,
+    html,
+  });
+}
+
+// ============================================
+// WIN-BACK / RETENTION EMAIL
+// ============================================
+
+export async function sendWinBackEmail(data: {
+  customerEmail: string;
+  customerName: string;
+  lastJobDate: string;          // formatted, e.g. "3 January 2025"
+  lastJobType: string;          // e.g. "lockout"
+  bookingUrl: string;
+  referralCode?: string;
+}) {
+  const problemLabels: Record<string, string> = {
+    lockout: "lockout",
+    broken: "broken lock repair",
+    "key-stuck": "stuck key",
+    "lost-keys": "lost key replacement",
+    burglary: "burglary repair",
+    other: "locksmith job",
+  };
+  const jobLabel = problemLabels[data.lastJobType] ?? "locksmith job";
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: system-ui, sans-serif; line-height: 1.6; color: #1e293b; background: #f1f5f9; margin: 0; padding: 20px; }
+        .container { max-width: 560px; margin: 0 auto; }
+        .card { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .header { background: linear-gradient(135deg, #0ea5e9, #0284c7); color: white; padding: 32px 24px; text-align: center; }
+        .body { padding: 32px 24px; }
+        .tip { background: #f0f9ff; border-left: 4px solid #0ea5e9; border-radius: 8px; padding: 16px; margin: 20px 0; }
+        .cta { display: block; background: #0ea5e9; color: white !important; text-decoration: none; padding: 16px 32px; border-radius: 10px; text-align: center; font-size: 17px; font-weight: 600; margin: 24px auto; width: fit-content; }
+        .footer { text-align: center; padding: 16px 24px; font-size: 12px; color: #94a3b8; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="card">
+          <div class="header">
+            <div style="font-size: 24px; font-weight: 700; margin-bottom: 4px;">🔑 LockSafe UK</div>
+            <div style="opacity: 0.85; font-size: 15px;">Annual lock health reminder</div>
+          </div>
+          <div class="body">
+            <h2 style="margin-top:0; font-size:22px;">Hi ${data.customerName}!</h2>
+            <p>It's been a while since your <strong>${jobLabel}</strong> on ${data.lastJobDate}.</p>
+            <div class="tip">
+              <strong>🔒 Did you know?</strong> Locksmiths recommend a lock health check every 12 months — especially for external doors. A quick inspection can prevent an emergency lockout before it happens.
+            </div>
+            <p>If you need any lock work, maintenance, or an upgrade, we've got you covered. Same trusted platform, same transparent pricing, same verified locksmiths.</p>
+            ${data.referralCode ? `<p>🎁 <strong>Refer a friend</strong> using your code <code style="background:#f1f5f9; padding:2px 6px; border-radius:4px;">${data.referralCode}</code> and you'll both get <strong>£10 off</strong> your next job.</p>` : ""}
+            <a href="${data.bookingUrl}" class="cta">Book a Lock Health Check →</a>
+          </div>
+          <div class="footer">
+            LockSafe UK · <a href="${SITE_URL}/unsubscribe" style="color:#94a3b8;">Unsubscribe</a>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to: data.customerEmail,
+    subject: `${data.customerName}, time for your annual lock check? 🔒`,
     html,
   });
 }

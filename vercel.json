@@ -25,6 +25,26 @@
     {
       "path": "/api/cron/sync-commission-tiers",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/auto-redispatch",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/review-requests",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/generate-invoices",
+      "schedule": "0 6 2 * *"
+    },
+    {
+      "path": "/api/cron/performance-scores",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/win-back",
+      "schedule": "0 10 * * *"
     }
   ]
 }
