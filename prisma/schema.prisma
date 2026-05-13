@@ -319,6 +319,9 @@ model Job {
   // Auction (for high-supply areas)
   auction          JobAuction?
 
+  // In-platform chat
+  messages         JobMessage[]
+
   // Scheduled booking support
   scheduledFor     DateTime?   // If set, job is a pre-booked appointment
   isScheduled      Boolean     @default(false)
@@ -2358,4 +2361,34 @@ model Dispute {
 
   @@index([status])
   @@index([jobId])
+}
+
+// ==========================================
+// IN-PLATFORM JOB CHAT
+// ==========================================
+
+model JobMessage {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  jobId       String   @db.ObjectId
+  job         Job      @relation(fields: [jobId], references: [id])
+
+  // Sender details — one of these will be set
+  customerId  String?  @db.ObjectId
+  locksmithId String?  @db.ObjectId
+  isAdminMessage Boolean @default(false)
+
+  // Sender type for display
+  senderType  String   // "customer" | "locksmith" | "admin" | "system"
+  senderName  String
+
+  body        String
+  attachmentUrl String? // Optional image/file
+
+  readAt      DateTime? // When the recipient read it
+
+  createdAt   DateTime @default(now())
+
+  @@index([jobId])
+  @@index([createdAt])
 }
