@@ -9,6 +9,7 @@ import {
   sendTransferNotificationEmail,
   sendEarningsReversalEmail,
 } from "@/lib/email";
+import { handleDisputeCreated, handleDisputeUpdated, handleDisputeClosed } from "@/lib/disputes";
 
 // Disable body parsing - we need the raw body for signature verification
 export const runtime = "nodejs";
@@ -715,6 +716,28 @@ export async function POST(request: NextRequest) {
         const appFee = event.data.object;
         console.log(`[Webhook] Application fee created: ${appFee.id}, amount: £${formatAmountFromStripe(appFee.amount)}`);
         // This is platform revenue from the transfer
+        break;
+      }
+
+      // ===========================================
+      // DISPUTE / CHARGEBACK EVENTS
+      // ===========================================
+
+      case "charge.dispute.created": {
+        const dispute = event.data.object;
+        await handleDisputeCreated(dispute as Parameters<typeof handleDisputeCreated>[0]);
+        break;
+      }
+
+      case "charge.dispute.updated": {
+        const dispute = event.data.object;
+        await handleDisputeUpdated(dispute as Parameters<typeof handleDisputeUpdated>[0]);
+        break;
+      }
+
+      case "charge.dispute.closed": {
+        const dispute = event.data.object;
+        await handleDisputeClosed(dispute as Parameters<typeof handleDisputeClosed>[0]);
         break;
       }
 

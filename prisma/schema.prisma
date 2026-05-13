@@ -2299,3 +2299,58 @@ model Referral {
   @@index([referrerId, referrerType])
   @@index([status])
 }
+
+// ==========================================
+// DISPUTE / CHARGEBACK SYSTEM
+// ==========================================
+
+model Dispute {
+  id                  String    @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Stripe chargeback details
+  stripeDisputeId     String    @unique
+  stripeChargeId      String
+  stripePaymentIntentId String?
+
+  // Linked records
+  jobId               String    @db.ObjectId
+  customerId          String?   @db.ObjectId
+  locksmithId         String?   @db.ObjectId
+
+  // Dispute details
+  amount              Float
+  currency            String    @default("gbp")
+  reason              String    // fraudulent | duplicate | product_not_received | unrecognized | credit_not_processed | general
+  status              String    // warning_needs_response | warning_under_review | warning_closed | needs_response | under_review | charge_refunded | won | lost
+
+  // Evidence we have
+  hasGpsData          Boolean   @default(false)
+  hasPhotos           Boolean   @default(false)
+  hasSignature        Boolean   @default(false)
+  hasReport           Boolean   @default(false)
+
+  // Evidence packet (auto-generated PDF)
+  evidencePacketUrl   String?
+  evidencePacketBuiltAt DateTime?
+
+  // Submission to Stripe
+  submittedAt         DateTime?
+  submittedBy         String?   // Admin name who submitted
+
+  // Response deadline (Stripe gives 7-21 days)
+  dueBy               DateTime?
+
+  // Internal notes
+  notes               String?
+
+  // Outcome
+  outcome             String?   // won | lost | withdrawn
+  outcomeAt           DateTime?
+  outcomeReason       String?
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([status])
+  @@index([jobId])
+}
