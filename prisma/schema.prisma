@@ -87,6 +87,9 @@ model Customer {
   referralCredits   Float     @default(0)  // Available £ credits from referrals
   referredByCode    String?   // Code they signed up with
 
+  // B2B / Landlord
+  orgMemberships    OrgMember[]
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   jobs         Job[]
@@ -315,6 +318,12 @@ model Job {
 
   // Review
   review           Review?
+
+  // B2B / Landlord linkage
+  organisationId   String?   @db.ObjectId
+  organisation     Organisation? @relation("OrgJobs", fields: [organisationId], references: [id])
+  propertyId       String?   @db.ObjectId
+  property         Property? @relation("PropertyJobs", fields: [propertyId], references: [id])
 
   // Auction (for high-supply areas)
   auction          JobAuction?
@@ -2391,4 +2400,79 @@ model JobMessage {
 
   @@index([jobId])
   @@index([createdAt])
+}
+
+// ==========================================
+// B2B / LANDLORD ACCOUNTS
+// ==========================================
+
+model Organisation {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  name            String
+  type            String   @default("landlord") // "landlord" | "letting_agency" | "property_manager" | "business"
+  contactName     String
+  contactEmail    String   @unique
+  contactPhone    String
+
+  // Billing
+  billingEmail    String?
+  vatNumber       String?
+
+  // Contract / pricing
+  contractedRate  Float?   // Fixed assessment fee agreed with org (overrides surge)
+  creditBalance   Float    @default(0)
+  paymentTerms    Int      @default(30) // Days to pay invoice (net-30 default)
+
+  // Properties managed by this org
+  properties      Property[]
+
+  // Members (linked Customer accounts)
+  members         OrgMember[]
+
+  // Jobs raised under this org
+  jobs            Job[]    @relation("OrgJobs")
+
+  isActive        Boolean  @default(true)
+  notes           String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([type])
+}
+
+model OrgMember {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  orgId          String   @db.ObjectId
+  org            Organisation @relation(fields: [orgId], references: [id])
+
+  customerId     String   @db.ObjectId
+  customer       Customer @relation(fields: [customerId], references: [id])
+
+  role           String   @default("member") // "owner" | "manager" | "member"
+  addedAt        DateTime @default(now())
+
+  @@unique([orgId, customerId])
+}
+
+model Property {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  orgId          String   @db.ObjectId
+  org            Organisation @relation(fields: [orgId], references: [id])
+
+  address        String
+  postcode       String
+  type           String   @default("residential") // "residential" | "commercial"
+  reference      String?  // Internal property reference (e.g. flat number, portfolio code)
+
+  // Jobs at this property
+  jobs           Job[]    @relation("PropertyJobs")
+
+  createdAt      DateTime @default(now())
+
+  @@index([orgId])
+  @@index([postcode])
 }

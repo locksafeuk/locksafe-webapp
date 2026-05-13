@@ -38,7 +38,7 @@ async function geocodePostcode(postcode: string): Promise<{ lat: number; lng: nu
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { problemType, propertyType, postcode, address, description, name, phone, customerId, photos, requestGps, scheduledFor } = body;
+    const { problemType, propertyType, postcode, address, description, name, phone, customerId, photos, requestGps, scheduledFor, organisationId, propertyId } = body;
 
     let customerIdToUse = customerId;
 
@@ -76,8 +76,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Calculate dynamic assessment fee
-    const surge = await calculateSurgeFee(postcode);
+    // Calculate dynamic assessment fee (org contracted rate overrides surge)
+    let contractedRate: number | null = null;
+    if (organisationId) {
+      const org = await prisma.organisation.findUnique({
+        where: { id: organisationId },
+        select: { contractedRate: true },
+      });
+      contractedRate = org?.contractedRate ?? null;
+    }
+    const surge = contractedRate
+      ? { fee: contractedRate, multiplier: 1, reasons: ["Contracted rate"], isSurge: false }
+      : await calculateSurgeFee(postcode);
 
     // Create job
     const job = await prisma.job.create({
@@ -94,6 +104,9 @@ export async function POST(request: NextRequest) {
         scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
         isScheduled: !!scheduledFor,
         status: scheduledFor ? ("SCHEDULED" as const) : ("PENDING" as const),
+        // B2B / Organisation linkage
+        organisationId: organisationId ?? null,
+        propertyId: propertyId ?? null,
         // Coordinates for radius filtering
         latitude,
         longitude,
