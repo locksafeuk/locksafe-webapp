@@ -14,6 +14,7 @@ import {
   History,
   Settings,
   Loader2,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/auth/AuthContext";
@@ -25,6 +26,7 @@ const navItems = [
   { href: "/locksmith/jobs", label: "Available Jobs", icon: Briefcase },
   { href: "/locksmith/history", label: "Job History", icon: History },
   { href: "/locksmith/earnings", label: "Earnings", icon: PoundSterling },
+  { href: "/locksmith/team", label: "My Team", icon: Users },
   { href: "/locksmith/settings", label: "Settings", icon: Settings },
 ];
 
@@ -34,6 +36,7 @@ const protectedRoutes = [
   "/locksmith/jobs",
   "/locksmith/history",
   "/locksmith/earnings",
+  "/locksmith/team",
   "/locksmith/settings",
   "/locksmith/job/",
 ];

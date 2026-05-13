@@ -59,6 +59,7 @@ const navItems = [
   { href: "/admin/referrals", label: "Referrals", icon: Gift },
   { href: "/admin/disputes", label: "Disputes", icon: AlertTriangle },
   { href: "/admin/organisations", label: "Organisations", icon: Building2 },
+  { href: "/admin/locksmith-teams", label: "Locksmith Teams", icon: Users2 },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/admin/attribution", label: "Attribution & ROAS", icon: TrendingUp },
   { href: "/admin/ads", label: "AI Ad Manager", icon: Sparkles },

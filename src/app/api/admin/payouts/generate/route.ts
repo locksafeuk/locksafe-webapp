@@ -228,6 +228,30 @@ export async function POST(request: NextRequest) {
     const periodStart = new Date(now);
     periodStart.setDate(periodStart.getDate() - 7); // Last 7 days as default period
 
+    // Pre-fetch team memberships for all locksmiths in this batch
+    const batchLocksmithIds = Array.from(locksmithJobsMap.keys());
+    const teamMemberships = await prisma.locksmithCompanyMember.findMany({
+      where: {
+        locksmithId: { in: batchLocksmithIds },
+        isActive: true,
+        role: "member", // Only sub-members get a split applied; owners pay themselves
+      },
+      include: {
+        company: {
+          select: { id: true, ownerId: true },
+        },
+      },
+    });
+    const membershipByLocksmith = new Map(
+      teamMemberships.map((m) => [m.locksmithId, m])
+    );
+
+    // Accumulate manager top-ups keyed by ownerId
+    const managerTopUps = new Map<
+      string,
+      { grossAmount: number; platformFee: number; netAmount: number; jobIds: string[]; periodStart: Date; periodEnd: Date }
+    >();
+
     for (const [locksmithId, jobs] of locksmithJobsMap) {
       // Calculate total earnings from jobs
       let grossAmount = 0;
@@ -243,9 +267,6 @@ export async function POST(request: NextRequest) {
 
       if (grossAmount <= 0 || jobIds.length === 0) continue;
 
-      const platformFee = grossAmount * PLATFORM_FEE_PERCENTAGE;
-      const netAmount = grossAmount - platformFee;
-
       // Determine actual period from job dates
       const jobDates = jobs
         .map((j) => j.workCompletedAt || j.signedAt || j.createdAt)
@@ -255,16 +276,92 @@ export async function POST(request: NextRequest) {
       const actualPeriodStart = jobDates[0] || periodStart;
       const actualPeriodEnd = jobDates[jobDates.length - 1] || now;
 
+      // Check team membership — apply split if this locksmith is a sub-member
+      const membership = membershipByLocksmith.get(locksmithId);
+      const effectivePlatformRate = membership?.platformCommissionOverride != null
+        ? membership.platformCommissionOverride / 100
+        : PLATFORM_FEE_PERCENTAGE;
+
+      const platformFee = grossAmount * effectivePlatformRate;
+      const netAfterPlatform = grossAmount - platformFee;
+
+      let locksmithNetAmount: number;
+      if (membership) {
+        // Split: locksmith gets locksmithSplit%, manager keeps the rest
+        locksmithNetAmount = netAfterPlatform * (membership.locksmithSplit / 100);
+        const managerCut = netAfterPlatform - locksmithNetAmount;
+
+        if (managerCut > 0 && membership.company.ownerId) {
+          const ownerId = membership.company.ownerId;
+          const existing = managerTopUps.get(ownerId);
+          if (existing) {
+            existing.grossAmount += managerCut;
+            existing.platformFee += 0; // platform fee already deducted above
+            existing.netAmount += managerCut;
+            existing.jobIds.push(...jobIds);
+            if (actualPeriodStart < existing.periodStart) existing.periodStart = actualPeriodStart;
+            if (actualPeriodEnd > existing.periodEnd) existing.periodEnd = actualPeriodEnd;
+          } else {
+            managerTopUps.set(ownerId, {
+              grossAmount: managerCut,
+              platformFee: 0,
+              netAmount: managerCut,
+              jobIds: [...jobIds],
+              periodStart: actualPeriodStart,
+              periodEnd: actualPeriodEnd,
+            });
+          }
+        }
+      } else {
+        locksmithNetAmount = netAfterPlatform;
+      }
+
       const payout = await prisma.payout.create({
         data: {
           locksmithId,
           amount: grossAmount,
           platformFee,
-          netAmount,
+          netAmount: locksmithNetAmount,
           status: "pending",
           periodStart: actualPeriodStart,
           periodEnd: actualPeriodEnd,
           jobIds,
+        },
+        include: {
+          locksmith: {
+            select: {
+              name: true,
+              companyName: true,
+              email: true,
+            },
+          },
+        },
+      });
+
+      createdPayouts.push(payout);
+    }
+
+    // Create manager payouts for accumulated team cuts
+    for (const [ownerId, topUp] of managerTopUps) {
+      // Skip if the owner themselves already has a payout in this batch
+      if (locksmithJobsMap.has(ownerId)) continue;
+
+      const ownerLocksmith = await prisma.locksmith.findUnique({
+        where: { id: ownerId },
+        select: { name: true, companyName: true, email: true },
+      });
+      if (!ownerLocksmith) continue;
+
+      const payout = await prisma.payout.create({
+        data: {
+          locksmithId: ownerId,
+          amount: topUp.grossAmount,
+          platformFee: 0,
+          netAmount: topUp.netAmount,
+          status: "pending",
+          periodStart: topUp.periodStart,
+          periodEnd: topUp.periodEnd,
+          jobIds: topUp.jobIds,
         },
         include: {
           locksmith: {

@@ -99,6 +99,67 @@ model Customer {
   reviews      Review[]
 }
 
+// ==========================================
+// LOCKSMITH TEAM / COMPANY ACCOUNTS
+// ==========================================
+
+model LocksmithCompany {
+  id                   String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  name                 String   // Trading name, e.g. "London Fast Locks Ltd"
+  registrationNumber   String?  // Companies House number (optional)
+  contactEmail         String   @unique
+  contactPhone         String
+
+  // Owner / manager locksmith
+  ownerId              String?  @db.ObjectId
+  owner                Locksmith? @relation("CompanyOwner", fields: [ownerId], references: [id])
+
+  // Shared Stripe Connect (all payouts go here)
+  stripeConnectId        String?
+  stripeConnectOnboarded Boolean @default(false)
+  stripeConnectVerified  Boolean @default(false)
+
+  // Billing
+  billingEmail         String?
+  vatNumber            String?
+
+  // Team members (via join table — allows per-member commission rates)
+  memberships          LocksmithCompanyMember[]
+
+  isActive             Boolean  @default(true)
+  notes                String?
+
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+// Per-member commission agreement within a team
+model LocksmithCompanyMember {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+
+  companyId   String  @db.ObjectId
+  company     LocksmithCompany @relation(fields: [companyId], references: [id])
+
+  locksmithId String  @db.ObjectId
+  locksmith   Locksmith @relation("TeamMemberships", fields: [locksmithId], references: [id])
+
+  // Earnings split: after the platform takes its fee, what % goes to the locksmith?
+  // Manager retains (100 - locksmithSplit)%
+  locksmithSplit Float @default(70.0) // e.g. 70 means locksmith gets 70%, manager gets 30%
+
+  // Override platform commission % for this member's jobs (null = use platform default)
+  platformCommissionOverride Float?
+
+  role        String  @default("member") // "owner" | "member"
+  isActive    Boolean @default(true)
+
+  invitedAt   DateTime @default(now())
+  acceptedAt  DateTime?
+
+  @@unique([companyId, locksmithId])
+}
+
 // Locksmith/Technician model
 model Locksmith {
   id                String        @id @default(auto()) @map("_id") @db.ObjectId
@@ -113,6 +174,11 @@ model Locksmith {
   totalEarnings     Float         @default(0)
   isVerified        Boolean       @default(false)
   isActive          Boolean       @default(true)
+
+  // Team account linkage (via join table)
+  teamMemberships   LocksmithCompanyMember[] @relation("TeamMemberships")
+  ownedCompanies    LocksmithCompany[] @relation("CompanyOwner")
+  teamRole          String   @default("solo") // "solo" | "owner" | "member"
   licenseNumber     String?
   insuranceNumber   String?
   coverageAreas     String[]      // Postcodes they cover (legacy)
