@@ -14,9 +14,9 @@ import prisma from "@/lib/db";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const jobId = params.id;
+  const { id: jobId } = await params;
 
   const messages = await prisma.jobMessage.findMany({
     where: { jobId },
@@ -28,9 +28,9 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const jobId = params.id;
+  const { id: jobId } = await params;
   const body = await request.json();
   const { senderType, senderId, senderName, messageBody, attachmentUrl } = body as {
     senderType: "customer" | "locksmith" | "admin" | "system";

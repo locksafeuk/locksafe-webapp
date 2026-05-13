@@ -9,7 +9,7 @@ function verifyAdminAuth(request: NextRequest): boolean {
   return token === ADMIN_SECRET;
 }
 
-type Params = { params: { id: string } };
+type Params = { params: Promise<{ id: string }> };
 
 /**
  * GET /api/admin/organisations/[id]
@@ -24,8 +24,10 @@ export async function GET(request: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const { id } = await params;
+
   const org = await prisma.organisation.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
       members: {
         include: { customer: { select: { id: true, name: true, email: true, phone: true } } },
@@ -57,6 +59,8 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const { id } = await params;
+
   const body = await request.json();
   const allowed = ["name", "type", "contactName", "contactEmail", "contactPhone",
     "contractedRate", "paymentTerms", "vatNumber", "billingEmail", "creditBalance", "isActive", "notes"];
@@ -66,7 +70,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   }
 
   const org = await prisma.organisation.update({
-    where: { id: params.id },
+    where: { id },
     data,
   });
 
