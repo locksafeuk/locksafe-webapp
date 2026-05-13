@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Users,
@@ -87,7 +87,7 @@ const STATUS_COLORS: Record<string, string> = {
   DISPUTED: "bg-rose-100 text-rose-700",
 };
 
-export default function CompanyDashboardPage() {
+function CompanyDashboardContent() {
   const searchParams = useSearchParams();
   const companyId = searchParams.get("companyId") ?? undefined;
   const { toasts, toast, dismiss } = useToast();
@@ -433,5 +433,13 @@ export default function CompanyDashboardPage() {
         )}
       </div>
     </CompanySidebar>
+  );
+}
+
+export default function CompanyDashboardPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen bg-gray-950 text-white">Loading…</div>}>
+      <CompanyDashboardContent />
+    </Suspense>
   );
 }
