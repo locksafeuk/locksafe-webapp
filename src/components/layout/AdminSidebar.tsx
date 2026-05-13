@@ -32,6 +32,7 @@ import {
   Building2,
   MapPin,
   Shield,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -46,34 +47,80 @@ interface AdminSidebarProps {
   children: React.ReactNode;
 }
 
-const navItems = [
-  { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/voice-receptionist", label: "Voice AI", icon: Phone },
-  { href: "/admin/agents", label: "AI Agents", icon: Bot },
-  { href: "/admin/jobs", label: "Jobs", icon: Briefcase },
-  { href: "/admin/ops", label: "Live Ops Map", icon: MapPin },
-  { href: "/admin/locksmiths", label: "Locksmiths", icon: Users },
-  { href: "/admin/leads", label: "Leads", icon: Users2 },
-  { href: "/admin/customers", label: "Customers", icon: UserCircle },
-  { href: "/admin/payments", label: "Payments", icon: CreditCard },
-  { href: "/admin/payouts", label: "Payouts", icon: PoundSterling },
-  { href: "/admin/refunds", label: "Refunds", icon: RotateCcw },
-  { href: "/admin/commission-tiers", label: "Commission Tiers", icon: Percent },
-  { href: "/admin/referrals", label: "Referrals", icon: Gift },
-  { href: "/admin/disputes", label: "Disputes", icon: AlertTriangle },
-  { href: "/admin/security", label: "Security / Radar", icon: Shield },
-  { href: "/admin/organisations", label: "Organisations", icon: Building2 },
-  { href: "/admin/locksmith-teams", label: "Locksmith Teams", icon: Users2 },
-  { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/admin/attribution", label: "Attribution & ROAS", icon: TrendingUp },
-  { href: "/admin/ads", label: "AI Ad Manager", icon: Sparkles },
-  { href: "/admin/ads/launch", label: "Launch Engine", icon: Rocket },
-  { href: "/admin/agents/approvals", label: "Approvals", icon: ShieldCheck },
-  { href: "/admin/marketing/meta-catalog", label: "Meta Catalog", icon: Megaphone },
-  { href: "/admin/organic", label: "Organic Posts", icon: Share2 },
-  { href: "/admin/emails", label: "Email Campaigns", icon: Mail },
-  { href: "/admin/marketing", label: "Marketing", icon: Megaphone },
-  { href: "/admin/seo", label: "Intent SEO", icon: Map },
+interface NavItem {
+  href: string;
+  label: string;
+  icon: React.ElementType;
+}
+
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
+
+const navGroups: NavGroup[] = [
+  {
+    label: "Overview",
+    items: [
+      { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
+    ],
+  },
+  {
+    label: "Operations",
+    items: [
+      { href: "/admin/jobs", label: "Jobs", icon: Briefcase },
+      { href: "/admin/ops", label: "Live Ops Map", icon: MapPin },
+    ],
+  },
+  {
+    label: "People",
+    items: [
+      { href: "/admin/locksmiths", label: "Locksmiths", icon: Users },
+      { href: "/admin/locksmith-teams", label: "Locksmith Teams", icon: Users2 },
+      { href: "/admin/organisations", label: "Organisations", icon: Building2 },
+      { href: "/admin/customers", label: "Customers", icon: UserCircle },
+      { href: "/admin/leads", label: "Leads", icon: Users2 },
+    ],
+  },
+  {
+    label: "Finance",
+    items: [
+      { href: "/admin/payments", label: "Payments", icon: CreditCard },
+      { href: "/admin/payouts", label: "Payouts", icon: PoundSterling },
+      { href: "/admin/refunds", label: "Refunds", icon: RotateCcw },
+      { href: "/admin/commission-tiers", label: "Commission Tiers", icon: Percent },
+      { href: "/admin/referrals", label: "Referrals", icon: Gift },
+    ],
+  },
+  {
+    label: "Trust & Safety",
+    items: [
+      { href: "/admin/disputes", label: "Disputes", icon: AlertTriangle },
+      { href: "/admin/security", label: "Security / Radar", icon: Shield },
+    ],
+  },
+  {
+    label: "AI & Automation",
+    items: [
+      { href: "/admin/voice-receptionist", label: "Voice AI", icon: Phone },
+      { href: "/admin/agents", label: "AI Agents", icon: Bot },
+      { href: "/admin/agents/approvals", label: "Approvals", icon: ShieldCheck },
+    ],
+  },
+  {
+    label: "Marketing",
+    items: [
+      { href: "/admin/ads", label: "AI Ad Manager", icon: Sparkles },
+      { href: "/admin/ads/launch", label: "Launch Engine", icon: Rocket },
+      { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
+      { href: "/admin/attribution", label: "Attribution & ROAS", icon: TrendingUp },
+      { href: "/admin/marketing", label: "Marketing", icon: Megaphone },
+      { href: "/admin/marketing/meta-catalog", label: "Meta Catalog", icon: Megaphone },
+      { href: "/admin/organic", label: "Organic Posts", icon: Share2 },
+      { href: "/admin/emails", label: "Email Campaigns", icon: Mail },
+      { href: "/admin/seo", label: "Intent SEO", icon: Map },
+    ],
+  },
 ];
 
 export function AdminSidebar({ children }: AdminSidebarProps) {
@@ -82,6 +129,7 @@ export function AdminSidebar({ children }: AdminSidebarProps) {
   const [admin, setAdmin] = useState<AdminUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -113,16 +161,67 @@ export function AdminSidebar({ children }: AdminSidebarProps) {
   };
 
   const isActive = (href: string) => {
-    if (href === "/admin") {
-      return pathname === "/admin";
-    }
+    if (href === "/admin") return pathname === "/admin";
     return pathname.startsWith(href);
   };
 
-  // Close mobile menu when route changes
+  const toggleGroup = (label: string) => {
+    setCollapsed((prev) => ({ ...prev, [label]: !prev[label] }));
+  };
+
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [pathname]);
+
+  const NavGroupSection = ({
+    group,
+    onLinkClick,
+  }: {
+    group: NavGroup;
+    onLinkClick?: () => void;
+  }) => {
+    const isCollapsed = collapsed[group.label] ?? false;
+    const hasActive = group.items.some((item) => isActive(item.href));
+    return (
+      <div className="mb-1">
+        <button
+          type="button"
+          onClick={() => toggleGroup(group.label)}
+          className={`w-full flex items-center justify-between px-3 py-1.5 rounded-md transition-colors ${
+            hasActive ? "text-orange-400" : "text-slate-500 hover:text-slate-300"
+          }`}
+        >
+          <span className="text-[10px] font-semibold uppercase tracking-widest">
+            {group.label}
+          </span>
+          <ChevronDown
+            className={`w-3 h-3 transition-transform duration-200 ${
+              isCollapsed ? "-rotate-90" : ""
+            }`}
+          />
+        </button>
+        {!isCollapsed && (
+          <div className="space-y-0.5 mb-2">
+            {group.items.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onLinkClick}
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm ${
+                  isActive(item.href)
+                    ? "bg-orange-500 text-white"
+                    : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                }`}
+              >
+                <item.icon className="w-4 h-4 shrink-0" />
+                <span className="truncate">{item.label}</span>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   if (loading) {
     return (
@@ -143,7 +242,13 @@ export function AdminSidebar({ children }: AdminSidebarProps) {
       <header className="lg:hidden bg-slate-900 text-white px-4 py-3 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
-            <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-white" stroke="currentColor" strokeWidth="2">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              className="w-5 h-5 text-white"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
             </svg>
           </div>
@@ -161,26 +266,15 @@ export function AdminSidebar({ children }: AdminSidebarProps) {
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (
         <div className="lg:hidden fixed inset-0 top-14 bg-slate-900 z-40 flex flex-col">
-          {/* Scrollable Navigation */}
-          <nav className="flex-1 overflow-y-auto p-4 space-y-1">
-            {navItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setMobileMenuOpen(false)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                  isActive(item.href)
-                    ? "bg-orange-500 text-white"
-                    : "text-slate-300 hover:bg-slate-800"
-                }`}
-              >
-                <item.icon className="w-5 h-5" />
-                {item.label}
-              </Link>
+          <nav className="flex-1 overflow-y-auto p-4">
+            {navGroups.map((group) => (
+              <NavGroupSection
+                key={group.label}
+                group={group}
+                onLinkClick={() => setMobileMenuOpen(false)}
+              />
             ))}
           </nav>
-
-          {/* Fixed User Info & Logout at Bottom */}
           <div className="flex-shrink-0 p-4 border-t border-slate-700 bg-slate-900">
             <div className="text-sm text-slate-400 mb-1">Signed in as</div>
             <div className="font-medium text-white mb-4 truncate">{admin.email}</div>
@@ -197,10 +291,16 @@ export function AdminSidebar({ children }: AdminSidebarProps) {
 
       {/* Desktop Sidebar */}
       <aside className="fixed left-0 top-0 bottom-0 w-64 bg-slate-900 text-white hidden lg:flex flex-col z-40">
-        {/* Logo - Fixed at top */}
+        {/* Logo */}
         <div className="flex-shrink-0 flex items-center gap-3 p-6 border-b border-slate-800">
           <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center">
-            <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6 text-white" stroke="currentColor" strokeWidth="2">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              className="w-6 h-6 text-white"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
             </svg>
           </div>
@@ -211,43 +311,36 @@ export function AdminSidebar({ children }: AdminSidebarProps) {
         </div>
 
         {/* Scrollable Navigation */}
-        <nav className="flex-1 overflow-y-auto p-4 space-y-1">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                isActive(item.href)
-                  ? "bg-orange-500 text-white"
-                  : "text-slate-300 hover:bg-slate-800"
-              }`}
-            >
-              <item.icon className="w-5 h-5" />
-              {item.label}
-            </Link>
+        <nav className="flex-1 overflow-y-auto p-3">
+          {navGroups.map((group) => (
+            <NavGroupSection key={group.label} group={group} />
           ))}
         </nav>
 
-        {/* User Info & Logout - Fixed at bottom */}
-        <div className="flex-shrink-0 border-t border-slate-700 p-4 bg-slate-900">
-          <div className="mb-4">
-            <div className="text-sm text-slate-400">Signed in as</div>
-            <div className="font-medium truncate">{admin.email}</div>
+        {/* User info & logout */}
+        <div className="flex-shrink-0 p-4 border-t border-slate-800">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-8 h-8 bg-slate-700 rounded-full flex items-center justify-center text-sm font-bold text-orange-400 shrink-0">
+              {admin.name?.charAt(0).toUpperCase() ?? "A"}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium text-white truncate">{admin.name}</div>
+              <div className="text-xs text-slate-400 truncate">{admin.email}</div>
+            </div>
           </div>
           <Button
             onClick={handleLogout}
-            className="w-full bg-orange-500 hover:bg-orange-600 text-white border-0"
+            variant="ghost"
+            className="w-full justify-start text-slate-400 hover:text-white hover:bg-slate-800 border-0 gap-2 px-2"
           >
-            <LogOut className="w-4 h-4 mr-2" />
+            <LogOut className="w-4 h-4" />
             Sign Out
           </Button>
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="lg:ml-64 min-h-screen">
-        {children}
-      </main>
+      {/* Main content */}
+      <main className="lg:pl-64">{children}</main>
     </div>
   );
 }
