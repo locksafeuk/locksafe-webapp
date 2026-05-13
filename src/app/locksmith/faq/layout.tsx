@@ -4,7 +4,7 @@ import Script from "next/script";
 
 export const metadata: Metadata = {
   title: `Locksmith FAQ | Partner Help Centre | ${SITE_NAME}`,
-  description: `Everything you need to know as a LockSafe locksmith partner. Learn about commission rates (15% on assessment, 25% on work), getting paid, documentation requirements, and best practices.`,
+  description: `Everything you need to know as a LockSafe locksmith partner. Learn about commission rates (from 15% on assessment, from 25% on work), getting paid, documentation requirements, and best practices.`,
   keywords: [
     "locksmith partner FAQ",
     "LockSafe commission rates",
@@ -37,7 +37,7 @@ const faqStructuredData = {
       name: "What commission does LockSafe charge locksmiths?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "LockSafe charges 15% commission on assessment fees (you keep 85%) and 25% commission on work quotes (you keep 75%). There are no monthly fees or subscriptions.",
+        text: "LockSafe charges from 15% commission on assessment fees and from 25% commission on work quotes. Rates may vary in high-demand areas — you always confirm before accepting. There are no monthly fees or subscriptions.",
       },
     },
     {

@@ -5,6 +5,7 @@ import { notifyNearbyLocksmiths } from "@/lib/job-notifications";
 import { notifyNewJob } from "@/lib/telegram";
 import { notifyCustomerJobSubmitted, notifyLocksmiths, type JobSMSContext } from "@/lib/sms";
 import { generateJobNumber } from "@/lib/job-number";
+import { shouldTriggerAuction, createAuction } from "@/lib/job-auction";
 
 // Geocode postcode to coordinates
 async function geocodePostcode(postcode: string): Promise<{ lat: number; lng: number } | null> {
@@ -104,6 +105,18 @@ export async function POST(request: NextRequest) {
         photos: true,
       },
     });
+
+    // Check if this job should trigger a descending-clock auction (3+ locksmiths in area)
+    shouldTriggerAuction(job.postcode, job.latitude, job.longitude)
+      .then(async (eligibleIds) => {
+        if (eligibleIds) {
+          console.log(`[Auction] Triggering auction for job ${job.jobNumber} — ${eligibleIds.length} eligible locksmiths`);
+          await createAuction(job.id, eligibleIds);
+        }
+      })
+      .catch((err) => {
+        console.error(`[Auction] Failed to evaluate/create auction:`, err);
+      });
 
     // Notify nearby locksmiths about the new job (async, don't await)
     // This sends both real-time SSE notifications and email notifications

@@ -173,6 +173,14 @@ model Locksmith {
   resetToken             String?
   resetTokenExpiry       DateTime?
 
+  // Dynamic commission tier
+  commissionRate            Float    @default(0.25)   // Work quote commission (e.g. 0.25 = 25%)
+  commissionAssessmentRate  Float    @default(0.15)   // Assessment fee commission (e.g. 0.15 = 15%)
+  commissionTier            String   @default("STANDARD") // STANDARD | PREMIUM
+  commissionTierUpdatedAt   DateTime?
+  commissionTierReasons     String[] // e.g. ["high_earner", "regular_area", "area_saturation"]
+  commissionOverride        Boolean  @default(false)  // If true, cron will not auto-update this locksmith's tier
+
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
@@ -181,6 +189,7 @@ model Locksmith {
   applications      LocksmithApplication[]
   payouts           Payout[]
   reviews           Review[]
+  auctionsAccepted  JobAuction[]
 }
 
 // Locksmith application for a job (when locksmith applies with assessment fee)
@@ -298,6 +307,9 @@ model Job {
   // Review
   review           Review?
 
+  // Auction (for high-supply areas)
+  auction          JobAuction?
+
   // Confirmation deadline for customer to sign (locksmith safety)
   confirmationDeadline    DateTime?  // When customer must sign by
   confirmationRemindersSent Int      @default(0) // Number of reminders sent
@@ -398,6 +410,27 @@ model Payment {
 
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+}
+
+// Descending-clock job auction for high-supply areas
+model JobAuction {
+  id                      String    @id @default(auto()) @map("_id") @db.ObjectId
+  jobId                   String    @unique @db.ObjectId
+  job                     Job       @relation(fields: [jobId], references: [id])
+
+  state                   String    @default("RUNNING") // RUNNING | ACCEPTED | EXPIRED | ADMIN_ASSIGNED
+  currentStep             Int       @default(0)         // 0=40% | 1=35% | 2=30% | 3=25%
+  currentRate             Float     @default(0.40)      // Commission rate currently on offer
+  nextDropAt              DateTime                      // When to move to next step
+
+  notifiedLocksmithIds    String[]  @db.ObjectId        // Locksmiths who received the auction offer
+  acceptedByLocksmithId   String?   @db.ObjectId
+  acceptedBy              Locksmith? @relation(fields: [acceptedByLocksmithId], references: [id])
+  acceptedRate            Float?                        // Rate at which the locksmith accepted
+  acceptedAt              DateTime?
+
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 }
 
 // Payout to locksmith

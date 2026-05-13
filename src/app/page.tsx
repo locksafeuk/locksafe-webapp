@@ -67,7 +67,7 @@ const faqStructuredData = {
       name: "Is LockSafe free for customers?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Yes, LockSafe is 100% free for customers. There are no platform fees, booking fees, or hidden charges. You simply pay the locksmith directly for their assessment and work. LockSafe makes money by charging locksmiths a commission (15% on assessment fees, 25% on work quotes) - customers never pay LockSafe anything.",
+        text: "Yes, LockSafe is 100% free for customers. There are no platform fees, booking fees, or hidden charges. You simply pay the locksmith directly for their assessment and work. LockSafe makes money by charging locksmiths a commission (from 15% on assessment fees, from 25% on work quotes) - customers never pay LockSafe anything.",
       },
     },
     {

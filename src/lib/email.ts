@@ -280,11 +280,14 @@ export async function sendLocksmithWelcomeEmail(
             <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
               <tr>
                 <td style="padding:8px 0;color:#166534;">Assessment Fee Commission:</td>
-                <td style="padding:8px 0;text-align:right;font-weight:600;color:#166534;">15% (You keep 85%)</td>
+                <td style="padding:8px 0;text-align:right;font-weight:600;color:#166534;">From 15% (keep up to 85%)</td>
               </tr>
               <tr>
                 <td style="padding:8px 0;color:#166534;border-top:1px solid #bbf7d0;">Work Quote Commission:</td>
-                <td style="padding:8px 0;text-align:right;font-weight:600;color:#166534;border-top:1px solid #bbf7d0;">25% (You keep 75%)</td>
+                <td style="padding:8px 0;text-align:right;font-weight:600;color:#166534;border-top:1px solid #bbf7d0;">From 25% (keep up to 75%)</td>
+              </tr>
+              <tr>
+                <td colspan="2" style="padding:8px 0;color:#166534;font-size:11px;border-top:1px solid #bbf7d0;">In high-demand areas, jobs may be offered at a higher rate via our live auction — you always confirm before accepting.</td>
               </tr>
             </table>
           </div>
@@ -3288,7 +3291,7 @@ export async function sendLocksmithInviteEmail(
             </div>
             <div class="benefit-item">
               <div class="benefit-icon">🆓</div>
-              <div class="benefit-text"><strong>Free to join</strong> — we take a small platform fee per completed job only. Zero upfront cost, zero monthly subscription.</div>
+              <div class="benefit-text"><strong>Free to join</strong> — we take a platform fee from 15% per completed job only. Zero upfront cost, zero monthly subscription.</div>
             </div>
           </div>
 

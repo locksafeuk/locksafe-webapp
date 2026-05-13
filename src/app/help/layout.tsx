@@ -69,7 +69,7 @@ const faqStructuredData = {
       name: "How much commission does LockSafe charge locksmiths?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "LockSafe charges 15% commission on the assessment fee and 25% commission on the work quote. There are no monthly fees, subscription costs, or hidden charges. Locksmiths only pay when they earn.",
+        text: "LockSafe charges from 15% commission on the assessment fee and from 25% commission on the work quote. Rates may vary in high-demand areas — locksmiths always confirm before accepting. There are no monthly fees or subscriptions.",
       },
     },
     {

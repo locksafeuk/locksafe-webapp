@@ -325,14 +325,14 @@ export function LocksmithOnboardingModal({
             <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-6 mb-6">
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div className="text-center">
-                  <div className="text-3xl font-bold text-green-600 mb-1">15%</div>
+                  <div className="text-3xl font-bold text-green-600 mb-1">From 15%</div>
                   <p className="text-green-700 text-sm font-medium">Assessment Fee</p>
-                  <p className="text-green-600 text-xs">You keep 85%</p>
+                  <p className="text-green-600 text-xs">Base rate</p>
                 </div>
                 <div className="text-center">
-                  <div className="text-3xl font-bold text-green-600 mb-1">25%</div>
+                  <div className="text-3xl font-bold text-green-600 mb-1">From 25%</div>
                   <p className="text-green-700 text-sm font-medium">Work Quote</p>
-                  <p className="text-green-600 text-xs">You keep 75%</p>
+                  <p className="text-green-600 text-xs">Base rate</p>
                 </div>
               </div>
               <div className="text-center text-sm text-green-600 border-t border-green-200 pt-3">
@@ -660,7 +660,7 @@ export function LocksmithOnboardingModal({
               <h4 className="font-semibold text-slate-900 mb-2">Summary of Key Terms:</h4>
               <ul className="space-y-2 list-disc pl-5">
                 <li>You are an independent contractor, not an employee of LockSafe.</li>
-                <li>LockSafe charges 15% commission on assessment fees and 25% commission on work quotes.</li>
+                <li>LockSafe charges from 15% commission on assessment fees and from 25% on work quotes. In high-demand areas, jobs may be offered via a live auction at a higher rate — you confirm before accepting.</li>
                 <li>You must complete Stripe Connect onboarding to receive payments.</li>
                 <li>You are required to document all jobs with photos, GPS check-ins, and customer signatures.</li>
                 <li>You must arrive within your quoted ETA. Excessive no-shows may result in account suspension.</li>

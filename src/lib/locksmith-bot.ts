@@ -1081,6 +1081,38 @@ ${assistance.tips.map((t) => `• ${t}`).join("\n")}
 }
 
 // ============================================
+// AUCTION HANDLER
+// ============================================
+
+async function handleAcceptAuction(
+  locksmithId: string,
+  jobId: string,
+): Promise<LocksmithBotMessage> {
+  try {
+    const { acceptAuction } = await import("@/lib/job-auction");
+    const result = await acceptAuction(jobId, locksmithId);
+
+    if (!result.success) {
+      return { text: `❌ ${result.message}` };
+    }
+
+    const commissionPercent = result.rate ? Math.round(result.rate * 100) : 0;
+    const keepPercent = 100 - commissionPercent;
+
+    return {
+      text:
+        `✅ <b>Job Accepted!</b>\n\n` +
+        `You've won the auction at <b>${commissionPercent}% commission</b>.\n` +
+        `You keep <b>${keepPercent}%</b> of all payments for this job.\n\n` +
+        `Head to your app to manage the job.`,
+    };
+  } catch (err) {
+    console.error("[LocksmithBot] handleAcceptAuction error:", err);
+    return { text: "❌ Failed to accept auction. Please try again or contact support." };
+  }
+}
+
+// ============================================
 // CALLBACK HANDLERS
 // ============================================
 
@@ -1093,6 +1125,11 @@ export async function handleLocksmithCallback(
   }
   if (callbackData === "cmd_offline") {
     return handleSetAvailable(ctx.locksmithId, false);
+  }
+  // Auction acceptance — must come BEFORE generic accept_ handler
+  if (callbackData.startsWith("accept_auction:")) {
+    const jobId = callbackData.replace("accept_auction:", "");
+    return handleAcceptAuction(ctx.locksmithId, jobId);
   }
   if (callbackData.startsWith("accept_")) {
     const jobId = callbackData.replace("accept_", "");

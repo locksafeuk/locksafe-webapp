@@ -167,10 +167,12 @@ export async function chargeAssessmentFee(
     customerId: string;
     locksmithId: string;
     applicationId?: string;
-  }
+  },
+  overrideRate?: number, // Optional: use this commission rate instead of the default
 ): Promise<Stripe.PaymentIntent> {
   const amountInPence = formatAmountForStripe(amount);
-  const platformFee = Math.round(amountInPence * PLATFORM_FEE_PERCENT);
+  const rate = overrideRate ?? ASSESSMENT_FEE_COMMISSION;
+  const platformFee = Math.round(amountInPence * rate);
 
   const paymentIntent = await stripe.paymentIntents.create({
     amount: amountInPence,
@@ -206,11 +208,13 @@ export async function chargeFinalPayment(
     customerId: string;
     locksmithId: string;
     quoteId?: string;
-  }
+  },
+  overrideRate?: number, // Optional: use this commission rate instead of the default
 ): Promise<Stripe.PaymentIntent> {
   const amountInPence = formatAmountForStripe(amount);
-  // Work quote uses 25% commission
-  const platformFee = Math.round(amountInPence * WORK_QUOTE_COMMISSION);
+  // Work quote uses 25% commission (or overrideRate)
+  const rate = overrideRate ?? WORK_QUOTE_COMMISSION;
+  const platformFee = Math.round(amountInPence * rate);
 
   const paymentIntent = await stripe.paymentIntents.create({
     amount: amountInPence,
@@ -656,6 +660,7 @@ export async function createCheckoutSession(params: {
   paymentType?: "assessment_fee" | "callout" | "work_quote";
   successUrl?: string;
   cancelUrl?: string;
+  overrideRate?: number; // Optional: use this commission rate instead of the default
 }): Promise<Stripe.Checkout.Session> {
   const {
     amount,
@@ -671,11 +676,13 @@ export async function createCheckoutSession(params: {
     paymentType = "callout",
     successUrl,
     cancelUrl,
+    overrideRate,
   } = params;
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://locksafe.uk";
   const amountInPence = formatAmountForStripe(amount);
-  const commissionRate = paymentType === "work_quote" ? WORK_QUOTE_COMMISSION : ASSESSMENT_FEE_COMMISSION;
+  const defaultRate = paymentType === "work_quote" ? WORK_QUOTE_COMMISSION : ASSESSMENT_FEE_COMMISSION;
+  const commissionRate = overrideRate ?? defaultRate;
   const platformFee = locksmithStripeAccountId
     ? Math.round(amountInPence * commissionRate)
     : 0;

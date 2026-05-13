@@ -790,8 +790,8 @@ export default function LocksmithSettingsPage() {
                 <p className="font-medium mb-1">How assessment fees work:</p>
                 <ul className="space-y-1 text-blue-700">
                   <li>• The assessment fee is a separate payment from the work quote</li>
-                  <li>• You receive 85% of the assessment fee (15% platform commission)</li>
-                  <li>• If the customer accepts your work quote, you receive 75% (25% commission)</li>
+                  <li>• You receive at least 60% of the assessment fee (from 15% platform commission)</li>
+                  <li>• If the customer accepts your work quote, you receive at least 60% (from 25% commission)</li>
                   <li>• Assessment fees and work payments are processed separately</li>
                 </ul>
               </div>

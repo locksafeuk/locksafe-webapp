@@ -467,18 +467,21 @@ export default function TermsPage() {
                     </div>
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div className="bg-slate-800 rounded-lg p-4 text-center">
-                        <div className="text-2xl font-bold text-orange-500 mb-1">15%</div>
+                        <div className="text-2xl font-bold text-orange-500 mb-1">From 15%</div>
                         <div className="text-slate-300 text-sm">Assessment Fee</div>
                         <div className="text-slate-400 text-xs mt-1">Covers travel & diagnosis</div>
                       </div>
                       <div className="bg-slate-800 rounded-lg p-4 text-center">
-                        <div className="text-2xl font-bold text-orange-500 mb-1">25%</div>
+                        <div className="text-2xl font-bold text-orange-500 mb-1">From 25%</div>
                         <div className="text-slate-300 text-sm">Work Quote</div>
                         <div className="text-slate-400 text-xs mt-1">On completed work</div>
                       </div>
                     </div>
                   </div>
 
+                  <p>
+                    Base rates are 15% on assessment fees and 25% on work quotes. In high-demand areas where multiple locksmiths are available, a market-rate auction mechanism may result in a higher commission for a specific job — the locksmith always confirms before accepting that job.
+                  </p>
                   <p>
                     The commission is automatically deducted during payment processing.
                   </p>

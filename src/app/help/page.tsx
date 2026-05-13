@@ -147,7 +147,7 @@ const sections: Section[] = [
     faqs: [
       {
         question: "How much commission does LockSafe charge?",
-        answer: "LockSafe charges 15% commission on the assessment fee and 25% commission on the work quote. There are no monthly fees, subscription costs, or hidden charges. Locksmiths only pay when they earn.",
+        answer: "LockSafe charges from 15% commission on the assessment fee and from 25% commission on the work quote. Rates may vary based on market conditions in high-demand areas — locksmiths always confirm before accepting. There are no monthly fees, subscription costs, or hidden charges. Locksmiths only pay when they earn.",
       },
       {
         question: "How are locksmiths protected on the platform?",

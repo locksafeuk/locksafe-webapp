@@ -306,7 +306,7 @@ function LocksmithEarningsContent() {
           <div className="flex-1">
             <p className="text-blue-800 font-medium">Your Earnings</p>
             <p className="text-blue-700 text-sm">
-              All earnings shown are your share after platform fees: 15% on assessment fees (you keep 85%) and 25% on work quotes (you keep 75%).
+              All earnings shown are your share after platform fees. Base rates: from 15% on assessment fees, from 25% on work quotes. The actual rate for each job is recorded in your transaction history.
               {earnings?.dataSource === "stripe" && (
                 <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs font-medium">
                   <CheckCircle2 className="w-3 h-3" />

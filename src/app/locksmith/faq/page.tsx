@@ -52,15 +52,15 @@ const sections: Section[] = [
     faqs: [
       {
         question: "What commission does LockSafe charge?",
-        answer: "LockSafe charges two different commission rates: 15% on assessment fees and 25% on work quotes. This means you keep 85% of every assessment fee and 75% of every work quote. There are no monthly fees, subscription costs, or hidden charges.",
+        answer: "LockSafe charges two different commission rates: from 15% on assessment fees and from 25% on work quotes. In high-demand areas where multiple locksmiths are active, jobs may be offered via a live auction at a higher rate — you always confirm before accepting. There are no monthly fees, subscription costs, or hidden charges.",
       },
       {
         question: "Why are there different commission rates?",
-        answer: "Assessment fees are lower risk and cover your travel costs, so we charge a lower 15% commission. Work quotes involve larger transactions and more platform infrastructure (payment processing, dispute resolution, documentation), so the commission is 25%. This structure ensures you keep more of the smaller fees.",
+        answer: "Assessment fees are lower risk and cover your travel costs, so our base rate is 15% commission. Work quotes involve larger transactions and more platform infrastructure (payment processing, dispute resolution, documentation), so the base commission is 25%. In high-demand areas, a live auction may offer jobs at a higher rate — you choose whether to accept.",
       },
       {
         question: "How is my commission calculated - can you show an example?",
-        answer: "Example: For a job with £40 assessment fee + £200 work quote = £240 total. Assessment: £40 × 15% = £6 commission, you keep £34. Work Quote: £200 × 25% = £50 commission, you keep £150. Total customer paid: £240. Total you earn: £184 (76.7% of total).",
+        answer: "Example at base rates — £40 assessment fee + £200 work quote = £240 total. Assessment: £40 × 15% = £6 commission, you keep £34. Work Quote: £200 × 25% = £50 commission, you keep £150. Total you earn: £184 (76.7% of total). In high-demand area auctions, the commission rate for that job is shown to you before you accept.",
       },
       {
         question: "Are there any other fees I should know about?",
@@ -356,15 +356,15 @@ export default function LocksmithFAQPage() {
                 <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mb-3">
                   <PoundSterling className="w-6 h-6 text-green-600" />
                 </div>
-                <h3 className="font-semibold text-slate-900 mb-1">15% on Assessment</h3>
-                <p className="text-sm text-slate-500">You keep 85% of call-out fees</p>
+                <h3 className="font-semibold text-slate-900 mb-1">From 15% on Assessment</h3>
+                <p className="text-sm text-slate-500">Base rate — you keep up to 85%</p>
               </div>
               <div className="bg-white rounded-xl p-5 shadow-lg border border-slate-100 hover:shadow-xl transition-shadow">
                 <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center mb-3">
                   <Wrench className="w-6 h-6 text-orange-600" />
                 </div>
-                <h3 className="font-semibold text-slate-900 mb-1">25% on Work Quote</h3>
-                <p className="text-sm text-slate-500">You keep 75% of completed work</p>
+                <h3 className="font-semibold text-slate-900 mb-1">From 25% on Work Quote</h3>
+                <p className="text-sm text-slate-500">Base rate — you keep up to 75%</p>
               </div>
               <div className="bg-white rounded-xl p-5 shadow-lg border border-slate-100 hover:shadow-xl transition-shadow">
                 <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mb-3">

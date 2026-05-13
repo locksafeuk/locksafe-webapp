@@ -91,16 +91,16 @@ const steps: Step[] = [
         <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-5">
           <div className="grid grid-cols-2 gap-4 mb-3">
             <div className="text-center">
-              <div className="text-3xl font-bold text-green-600 mb-1">15%</div>
+              <div className="text-3xl font-bold text-green-600 mb-1">From 15%</div>
               <p className="text-green-700 text-sm font-medium">
                 Assessment Fee
               </p>
-              <p className="text-green-600 text-xs">You keep 85%</p>
+              <p className="text-green-600 text-xs">Base rate</p>
             </div>
             <div className="text-center">
-              <div className="text-3xl font-bold text-green-600 mb-1">25%</div>
+              <div className="text-3xl font-bold text-green-600 mb-1">From 25%</div>
               <p className="text-green-700 text-sm font-medium">Work Quote</p>
-              <p className="text-green-600 text-xs">You keep 75%</p>
+              <p className="text-green-600 text-xs">Base rate</p>
             </div>
           </div>
           <div className="text-center text-xs text-green-700 border-t border-green-200 pt-3">
