@@ -82,6 +82,18 @@ export default function LocksmithTeamsPage() {
   const [addingMember, setAddingMember] = useState(false);
   const [memberForm, setMemberForm] = useState({ locksmithId: "", locksmithSplit: "70" });
 
+  // Locksmith search for owner picker
+  const [ownerSearch, setOwnerSearch] = useState("");
+  const [ownerResults, setOwnerResults] = useState<LocksmithMini[]>([]);
+  const [ownerSearching, setOwnerSearching] = useState(false);
+  const [ownerSelected, setOwnerSelected] = useState<LocksmithMini | null>(null);
+
+  // Locksmith search for add-member picker
+  const [memberSearch, setMemberSearch] = useState("");
+  const [memberResults, setMemberResults] = useState<LocksmithMini[]>([]);
+  const [memberSearching, setMemberSearching] = useState(false);
+  const [memberSelected, setMemberSelected] = useState<LocksmithMini | null>(null);
+
   // Edit split inline
   const [editSplit, setEditSplit] = useState<{ memberId: string; value: string } | null>(null);
   const [savingSplit, setSavingSplit] = useState(false);
@@ -111,6 +123,28 @@ export default function LocksmithTeamsPage() {
     if (data.success) setSelectedCompany(data.company);
   };
 
+  // Search locksmiths by name for owner/member pickers
+  const searchLocksmiths = useCallback(async (query: string, setResults: (r: LocksmithMini[]) => void, setSearching: (b: boolean) => void) => {
+    if (!query.trim()) { setResults([]); return; }
+    setSearching(true);
+    try {
+      const res = await fetch(`/api/locksmiths?search=${encodeURIComponent(query)}&limit=8`);
+      const data = await res.json();
+      setResults(data.locksmiths ?? data.data ?? []);
+    } catch { setResults([]); }
+    finally { setSearching(false); }
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => searchLocksmiths(ownerSearch, setOwnerResults, setOwnerSearching), 300);
+    return () => clearTimeout(t);
+  }, [ownerSearch, searchLocksmiths]);
+
+  useEffect(() => {
+    const t = setTimeout(() => searchLocksmiths(memberSearch, setMemberResults, setMemberSearching), 300);
+    return () => clearTimeout(t);
+  }, [memberSearch, searchLocksmiths]);
+
   const handleCreate = async () => {
     if (!newForm.name || !newForm.contactEmail || !newForm.contactPhone) {
         toast({ title: "Missing fields", description: "Name, email and phone are required", variant: "error" });
@@ -123,7 +157,7 @@ export default function LocksmithTeamsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...newForm,
-          ownerId: newForm.ownerId || undefined,
+          ownerId: ownerSelected?.id || undefined,
         }),
       });
       const data = await res.json();
@@ -131,6 +165,9 @@ export default function LocksmithTeamsPage() {
         toast({ title: "Team created", description: `${data.company.name} is ready` });
         setShowCreate(false);
         setNewForm({ name: "", contactEmail: "", contactPhone: "", ownerId: "", vatNumber: "", registrationNumber: "" });
+        setOwnerSelected(null);
+        setOwnerSearch("");
+        setOwnerResults([]);
         loadCompanies();
       } else {
         toast({ title: "Error", description: data.error, variant: "error" });
@@ -141,7 +178,8 @@ export default function LocksmithTeamsPage() {
   };
 
   const handleAddMember = async () => {
-    if (!selectedCompany || !memberForm.locksmithId) return;
+    const resolvedLocksmithId = memberSelected?.id || memberForm.locksmithId;
+    if (!selectedCompany || !resolvedLocksmithId) return;
     const split = parseFloat(memberForm.locksmithSplit);
     if (Number.isNaN(split) || split < 0 || split > 100) {
       toast({ title: "Invalid split", description: "Must be 0–100", variant: "error" });
@@ -152,13 +190,16 @@ export default function LocksmithTeamsPage() {
       const res = await fetch(`/api/admin/locksmith-companies/${selectedCompany.id}/members`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ locksmithId: memberForm.locksmithId, locksmithSplit: split }),
+        body: JSON.stringify({ locksmithId: resolvedLocksmithId, locksmithSplit: split }),
       });
       const data = await res.json();
       if (data.success) {
         toast({ title: "Member added" });
         setShowAddMember(false);
         setMemberForm({ locksmithId: "", locksmithSplit: "70" });
+        setMemberSelected(null);
+        setMemberSearch("");
+        setMemberResults([]);
         loadCompanyDetail(selectedCompany.id);
       } else {
         toast({ title: "Error", description: data.error, variant: "error" });
@@ -506,13 +547,45 @@ export default function LocksmithTeamsPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Manager Locksmith ID <span className="text-gray-400">(optional)</span>
+                  Manager Locksmith <span className="text-gray-400">(optional)</span>
                 </label>
-                <Input
-                  placeholder="Locksmith MongoDB ID"
-                  value={newForm.ownerId}
-                  onChange={(e) => setNewForm((f) => ({ ...f, ownerId: e.target.value }))}
-                />
+                {ownerSelected ? (
+                  <div className="flex items-center justify-between px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+                    <div>
+                      <span className="font-medium text-blue-900">{ownerSelected.name}</span>
+                      <span className="text-blue-500 ml-2 text-xs">{ownerSelected.email}</span>
+                    </div>
+                    <button onClick={() => { setOwnerSelected(null); setOwnerSearch(""); }} className="text-blue-400 hover:text-red-500 ml-2">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Input
+                        className="pl-9"
+                        placeholder="Search locksmith by name..."
+                        value={ownerSearch}
+                        onChange={(e) => setOwnerSearch(e.target.value)}
+                      />
+                      {ownerSearching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-gray-400" />}
+                    </div>
+                    {ownerResults.length > 0 && (
+                      <div className="absolute z-10 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+                        {ownerResults.map((ls) => (
+                          <button key={ls.id} type="button"
+                            className="w-full text-left px-3 py-2.5 hover:bg-gray-50 flex items-center justify-between gap-2 text-sm border-b last:border-0"
+                            onClick={() => { setOwnerSelected(ls); setOwnerSearch(""); setOwnerResults([]); }}
+                          >
+                            <span className="font-medium text-gray-900">{ls.name}</span>
+                            <span className="text-xs text-gray-400 truncate">{ls.email}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -558,12 +631,44 @@ export default function LocksmithTeamsPage() {
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Locksmith ID</label>
-                <Input
-                  placeholder="MongoDB ID"
-                  value={memberForm.locksmithId}
-                  onChange={(e) => setMemberForm((f) => ({ ...f, locksmithId: e.target.value }))}
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-1">Locksmith</label>
+                {memberSelected ? (
+                  <div className="flex items-center justify-between px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+                    <div>
+                      <span className="font-medium text-blue-900">{memberSelected.name}</span>
+                      <span className="text-blue-500 ml-2 text-xs">{memberSelected.email}</span>
+                    </div>
+                    <button onClick={() => { setMemberSelected(null); setMemberSearch(""); }} className="text-blue-400 hover:text-red-500 ml-2">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Input
+                        className="pl-9"
+                        placeholder="Search locksmith by name..."
+                        value={memberSearch}
+                        onChange={(e) => setMemberSearch(e.target.value)}
+                      />
+                      {memberSearching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-gray-400" />}
+                    </div>
+                    {memberResults.length > 0 && (
+                      <div className="absolute z-10 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+                        {memberResults.map((ls) => (
+                          <button key={ls.id} type="button"
+                            className="w-full text-left px-3 py-2.5 hover:bg-gray-50 flex items-center justify-between gap-2 text-sm border-b last:border-0"
+                            onClick={() => { setMemberSelected(ls); setMemberSearch(""); setMemberResults([]); }}
+                          >
+                            <span className="font-medium text-gray-900">{ls.name}</span>
+                            <span className="text-xs text-gray-400 truncate">{ls.email}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">

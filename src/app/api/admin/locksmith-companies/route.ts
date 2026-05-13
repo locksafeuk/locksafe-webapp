@@ -77,6 +77,10 @@ export async function POST(request: NextRequest) {
 
     // Verify owner exists if provided
     if (ownerId) {
+      // Validate MongoDB ObjectId format (24 hex chars)
+      if (!/^[0-9a-fA-F]{24}$/.test(ownerId)) {
+        return NextResponse.json({ error: "Invalid Manager Locksmith ID — please select a locksmith from the search" }, { status: 400 });
+      }
       const owner = await prisma.locksmith.findUnique({ where: { id: ownerId } });
       if (!owner) return NextResponse.json({ error: "Owner locksmith not found" }, { status: 404 });
     }
