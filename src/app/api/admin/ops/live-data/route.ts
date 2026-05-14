@@ -83,8 +83,8 @@ export async function GET(request: NextRequest) {
         try {
           const coords = await geocodePostcode(job.postcode);
           if (coords) {
-            latitude = coords.lat;
-            longitude = coords.lng;
+            latitude = coords.latitude;
+            longitude = coords.longitude;
             // Persist so future calls don't need to geocode again
             await prisma.job.update({
               where: { id: job.id },
