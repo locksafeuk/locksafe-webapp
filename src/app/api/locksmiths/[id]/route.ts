@@ -10,6 +10,14 @@ export async function GET(
   try {
     const { id } = await params;
 
+    // Validate MongoDB ObjectId format before querying
+    if (!/^[0-9a-fA-F]{24}$/.test(id)) {
+      return NextResponse.json(
+        { success: false, error: "Locksmith not found" },
+        { status: 404 }
+      );
+    }
+
     const locksmith = await prisma.locksmith.findUnique({
       where: { id },
       select: {

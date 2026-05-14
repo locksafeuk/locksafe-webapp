@@ -144,9 +144,13 @@ export default function LocksmithDashboard() {
     if (!user?.id) return;
 
     try {
-      // Fetch jobs
-      const jobsResponse = await fetch("/api/jobs");
+      // Fetch my assigned jobs (active/completed)
+      const jobsResponse = await fetch(`/api/jobs?locksmithId=${user.id}`);
       const jobsData = await jobsResponse.json();
+
+      // Fetch available jobs within coverage radius (geographic filter)
+      const availableJobsResponse = await fetch(`/api/jobs?status=PENDING&availableForLocksmith=${user.id}`);
+      const availableJobsData = await availableJobsResponse.json();
 
       // Fetch applications
       const appsResponse = await fetch(`/api/locksmith/applications?locksmithId=${user.id}`);
@@ -199,7 +203,7 @@ export default function LocksmithDashboard() {
       }
 
       if (jobsData.success) {
-        const allJobs = jobsData.jobs || [];
+        const myJobs = jobsData.jobs || [];
         const allApplications = appsData.applications || [];
         const appliedJobIds = new Set(allApplications.map((a: any) => a.jobId));
 
@@ -208,19 +212,19 @@ export default function LocksmithDashboard() {
         setAdminAssignedJobs(adminAssigned);
 
         // Filter jobs assigned to this locksmith
-        const myActiveJobs = allJobs.filter(
+        const myActiveJobs = myJobs.filter(
           (job: any) =>
-            job.locksmithId === user.id &&
             ["ACCEPTED", "ARRIVED", "DIAGNOSING", "IN_PROGRESS", "QUOTED", "QUOTE_ACCEPTED"].includes(job.status)
         );
 
-        const myCompletedJobs = allJobs.filter(
-          (job: any) => job.locksmithId === user.id && ["COMPLETED", "SIGNED"].includes(job.status)
+        const myCompletedJobs = myJobs.filter(
+          (job: any) => ["COMPLETED", "SIGNED"].includes(job.status)
         );
 
-        // Available jobs (PENDING and not applied)
-        const availableJobs = allJobs.filter(
-          (job: any) => job.status === "PENDING" && !appliedJobIds.has(job.id)
+        // Available jobs in coverage area, not yet applied
+        const allAvailableJobs = availableJobsData.jobs || [];
+        const availableJobs = allAvailableJobs.filter(
+          (job: any) => !appliedJobIds.has(job.id)
         );
 
         // Calculate earnings from completed jobs
