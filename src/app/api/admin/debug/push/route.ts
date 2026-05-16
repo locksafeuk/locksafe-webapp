@@ -139,6 +139,7 @@ export async function POST(request: NextRequest) {
   const result = await sendNativePush(
     locksmith.nativeDeviceToken,
     locksmith.nativeTokenType,
+    locksmith.nativeTokenPlatform ?? "",
     {
       title: "🔔 LockSafe Test",
       body: "Push notifications are working! This is a test from admin.",
