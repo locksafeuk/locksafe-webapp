@@ -63,9 +63,21 @@ interface ApprovalItem {
   createdAt: string;
 }
 
+interface ExecutionItem {
+  id: string;
+  actionType: string;
+  actionName: string;
+  status: string;
+  costUsd: number;
+  durationMs: number | null;
+  startedAt: string;
+  agent: { name: string; displayName: string };
+}
+
 export default function AgentDashboardPage() {
   const [agents, setAgents] = useState<AgentData[]>([]);
   const [approvals, setApprovals] = useState<ApprovalItem[]>([]);
+  const [executions, setExecutions] = useState<ExecutionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [runningHeartbeat, setRunningHeartbeat] = useState(false);
   const [heartbeatResults, setHeartbeatResults] = useState<HeartbeatResult[]>([]);
@@ -95,14 +107,26 @@ export default function AgentDashboardPage() {
     }
   }, []);
 
+  const fetchExecutions = useCallback(async () => {
+    try {
+      const res = await fetch("/api/agents/executions");
+      if (res.ok) {
+        const data = await res.json();
+        setExecutions(data.executions || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch executions:", error);
+    }
+  }, []);
+
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      await Promise.all([fetchAgents(), fetchApprovals()]);
+      await Promise.all([fetchAgents(), fetchApprovals(), fetchExecutions()]);
       setLoading(false);
     };
     loadData();
-  }, [fetchAgents, fetchApprovals]);
+  }, [fetchAgents, fetchApprovals, fetchExecutions]);
 
   const runHeartbeats = async (force = false) => {
     setRunningHeartbeat(true);
@@ -129,6 +153,7 @@ export default function AgentDashboardPage() {
           }]);
         }
         await fetchAgents();
+        await fetchExecutions();
       } else {
         console.error("Heartbeat API error:", data);
         setHeartbeatResults([{
@@ -555,11 +580,56 @@ export default function AgentDashboardPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Execution log coming soon</p>
-                <p className="text-sm">Run heartbeats to see agent activity</p>
-              </div>
+              {executions.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No executions yet</p>
+                  <p className="text-sm">Run heartbeats to see agent activity</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-muted-foreground">
+                        <th className="text-left pb-2 pr-4">Agent</th>
+                        <th className="text-left pb-2 pr-4">Action</th>
+                        <th className="text-left pb-2 pr-4">Status</th>
+                        <th className="text-right pb-2 pr-4">Cost</th>
+                        <th className="text-right pb-2 pr-4">Duration</th>
+                        <th className="text-right pb-2">Time</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {executions.map((ex) => (
+                        <tr key={ex.id} className="border-b last:border-0 hover:bg-muted/30">
+                          <td className="py-2 pr-4 font-medium">{ex.agent.displayName}</td>
+                          <td className="py-2 pr-4">
+                            <span className="text-xs text-muted-foreground">{ex.actionType}</span>
+                            <div>{ex.actionName}</div>
+                          </td>
+                          <td className="py-2 pr-4">
+                            <Badge
+                              variant={ex.status === "success" ? "default" : ex.status === "failed" ? "destructive" : "secondary"}
+                              className="text-xs"
+                            >
+                              {ex.status}
+                            </Badge>
+                          </td>
+                          <td className="py-2 pr-4 text-right font-mono text-xs">
+                            {ex.costUsd > 0 ? `$${ex.costUsd.toFixed(4)}` : "—"}
+                          </td>
+                          <td className="py-2 pr-4 text-right text-xs text-muted-foreground">
+                            {ex.durationMs != null ? `${ex.durationMs}ms` : "—"}
+                          </td>
+                          <td className="py-2 text-right text-xs text-muted-foreground">
+                            {new Date(ex.startedAt).toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

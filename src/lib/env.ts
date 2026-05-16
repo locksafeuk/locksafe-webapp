@@ -50,6 +50,10 @@ const envSchema = z.object({
   // Vercel Blob
   BLOB_READ_WRITE_TOKEN: z.string().optional(),
 
+  // Agent Operating System
+  AGENTS_ENABLED: z.enum(["true", "false"]).optional().default("false"),
+  CRON_SECRET: z.string().optional(),
+
   // Node environment
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
 });

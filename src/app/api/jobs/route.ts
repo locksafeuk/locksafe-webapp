@@ -173,6 +173,19 @@ export async function POST(request: NextRequest) {
       console.error(`[Job Created] Failed to send Telegram notification:`, err);
     });
 
+    // Wake COO agent immediately for instant dispatch (fire-and-forget)
+    if (process.env.AGENTS_ENABLED === "true") {
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://locksafe.uk";
+      fetch(`${siteUrl}/api/agents/heartbeat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(process.env.CRON_SECRET ? { Authorization: `Bearer ${process.env.CRON_SECRET}` } : {}),
+        },
+        body: JSON.stringify({ agentId: "coo", reason: "new_job" }),
+      }).catch(() => {});
+    }
+
     // Send SMS notification to customer confirming job submission
     if (job.customer?.phone) {
       const smsContext: JobSMSContext = {

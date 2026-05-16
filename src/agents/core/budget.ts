@@ -1,34 +1,8 @@
-// Agent Budget System - tracks per-agent monthly budgets with cost recording
+// Agent Budget System - DB-persisted per-agent monthly budgets
 
+import { prisma } from '@/lib/prisma';
+import { sendAdminAlert } from '@/lib/telegram';
 import type { BudgetStatus } from './types';
-
-interface BudgetEntry {
-  agentId: string;
-  agentName: string;
-  monthlyBudget: number;
-  budgetUsed: number;
-  resetsAt: Date;
-  costs: { amount: number; description: string; timestamp: Date }[];
-}
-
-// In-memory budget store
-const budgetStore = new Map<string, BudgetEntry>();
-
-function getOrCreateBudget(agentId: string): BudgetEntry {
-  if (!budgetStore.has(agentId)) {
-    const now = new Date();
-    const resetsAt = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-    budgetStore.set(agentId, {
-      agentId,
-      agentName: agentId,
-      monthlyBudget: 50,
-      budgetUsed: 0,
-      resetsAt,
-      costs: [],
-    });
-  }
-  return budgetStore.get(agentId)!;
-}
 
 export async function getBudgetStatus(agentId: string): Promise<{
   agentName: string;
@@ -39,22 +13,27 @@ export async function getBudgetStatus(agentId: string): Promise<{
   isWarning: boolean;
   resetsAt: Date;
 }> {
-  const budget = getOrCreateBudget(agentId);
-  const percentageUsed = (budget.budgetUsed / budget.monthlyBudget) * 100;
+  const agent = await prisma.agent.findUnique({ where: { name: agentId } });
+  const budgetUsed = agent?.budgetUsedUsd ?? 0;
+  const monthlyBudget = agent?.monthlyBudgetUsd ?? 50;
+  const percentageUsed = monthlyBudget > 0 ? (budgetUsed / monthlyBudget) * 100 : 0;
+  const now = new Date();
+  const resetsAt = new Date(now.getFullYear(), now.getMonth() + 1, 1);
   return {
-    agentName: budget.agentName,
-    budgetUsed: budget.budgetUsed,
-    monthlyBudget: budget.monthlyBudget,
+    agentName: agent?.displayName ?? agentId,
+    budgetUsed,
+    monthlyBudget,
     percentageUsed,
     isPaused: percentageUsed >= 100,
     isWarning: percentageUsed >= 80,
-    resetsAt: budget.resetsAt,
+    resetsAt,
   };
 }
 
 export async function checkBudget(agentId: string, estimatedCost: number): Promise<boolean> {
-  const budget = getOrCreateBudget(agentId);
-  return budget.budgetUsed + estimatedCost <= budget.monthlyBudget;
+  const agent = await prisma.agent.findUnique({ where: { name: agentId } });
+  if (!agent) return true; // allow if agent not yet seeded
+  return agent.budgetUsedUsd + estimatedCost <= agent.monthlyBudgetUsd;
 }
 
 export async function recordCost(
@@ -62,13 +41,35 @@ export async function recordCost(
   cost: number,
   description: string
 ): Promise<void> {
-  const budget = getOrCreateBudget(agentId);
-  budget.budgetUsed += cost;
-  budget.costs.push({ amount: cost, description, timestamp: new Date() });
+  const agent = await prisma.agent.findUnique({ where: { name: agentId } });
+  if (!agent) return;
+
+  const newUsed = agent.budgetUsedUsd + cost;
+  await prisma.agent.update({
+    where: { name: agentId },
+    data: { budgetUsedUsd: { increment: cost } },
+  });
+
+  // Fire Telegram alert when crossing 80% threshold
+  const prevPct = agent.monthlyBudgetUsd > 0 ? (agent.budgetUsedUsd / agent.monthlyBudgetUsd) * 100 : 0;
+  const newPct = agent.monthlyBudgetUsd > 0 ? (newUsed / agent.monthlyBudgetUsd) * 100 : 0;
+  if (prevPct < 80 && newPct >= 80) {
+    sendAdminAlert({
+      title: `⚠️ Agent Budget Warning: ${agent.displayName}`,
+      message: `${agent.displayName} has used $${newUsed.toFixed(2)} of $${agent.monthlyBudgetUsd.toFixed(2)} monthly budget (${newPct.toFixed(0)}%).\n\nLast charge: ${description} ($${cost.toFixed(4)})`,
+      severity: 'warning',
+    }).catch(() => {});
+  }
+  if (prevPct < 100 && newPct >= 100) {
+    sendAdminAlert({
+      title: `🚨 Agent Budget Exhausted: ${agent.displayName}`,
+      message: `${agent.displayName} has exceeded its $${agent.monthlyBudgetUsd.toFixed(2)} monthly budget and is now PAUSED.\n\nTotal used: $${newUsed.toFixed(2)}`,
+      severity: 'error',
+    }).catch(() => {});
+  }
 }
 
 export function estimateCost(operation: string, params: Record<string, unknown>): number {
-  // Simple cost estimation based on operation type
   const baseCosts: Record<string, number> = {
     'openai-gpt4': 0.03,
     'openai-gpt3.5': 0.002,
@@ -82,37 +83,46 @@ export function estimateCost(operation: string, params: Record<string, unknown>)
 }
 
 export async function resetBudget(agentId: string): Promise<void> {
-  const budget = getOrCreateBudget(agentId);
-  budget.budgetUsed = 0;
-  budget.costs = [];
-  const now = new Date();
-  budget.resetsAt = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  await prisma.agent.update({
+    where: { name: agentId },
+    data: { budgetUsedUsd: 0 },
+  });
 }
 
 export async function resetAllBudgets(): Promise<void> {
-  for (const [agentId] of budgetStore) {
-    await resetBudget(agentId);
-  }
+  await prisma.agent.updateMany({
+    data: { budgetUsedUsd: 0 },
+  });
 }
 
 export async function getAllBudgetStatus(): Promise<BudgetStatus[]> {
-  const statuses: BudgetStatus[] = [];
-  for (const [agentId] of budgetStore) {
-    const status = await getBudgetStatus(agentId);
-    statuses.push(status);
-  }
-  return statuses;
+  const agents = await prisma.agent.findMany();
+  return agents.map((agent) => {
+    const percentageUsed = agent.monthlyBudgetUsd > 0
+      ? (agent.budgetUsedUsd / agent.monthlyBudgetUsd) * 100
+      : 0;
+    const now = new Date();
+    return {
+      agentName: agent.displayName,
+      budgetUsed: agent.budgetUsedUsd,
+      monthlyBudget: agent.monthlyBudgetUsd,
+      percentageUsed,
+      isPaused: percentageUsed >= 100,
+      isWarning: percentageUsed >= 80,
+      resetsAt: new Date(now.getFullYear(), now.getMonth() + 1, 1),
+    };
+  });
 }
 
 export async function updateBudget(agentId: string, newMonthlyBudget: number): Promise<void> {
-  const budget = getOrCreateBudget(agentId);
-  budget.monthlyBudget = newMonthlyBudget;
+  await prisma.agent.update({
+    where: { name: agentId },
+    data: { monthlyBudgetUsd: newMonthlyBudget },
+  });
 }
 
 export async function getTotalCost(): Promise<number> {
-  let total = 0;
-  for (const [, budget] of budgetStore) {
-    total += budget.budgetUsed;
-  }
-  return total;
+  const result = await prisma.agent.aggregate({ _sum: { budgetUsedUsd: true } });
+  return result._sum.budgetUsedUsd ?? 0;
 }
+

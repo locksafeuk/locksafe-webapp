@@ -7,6 +7,7 @@
 import prisma from "@/lib/db";
 import { executeHeartbeat, delegateTask } from "@/agents/core/orchestrator";
 import { storeDecision, storePattern } from "@/agents/core/memory";
+import { sendAdminAlert } from "@/lib/telegram";
 import type { AgentConfig } from "@/agents/core/types";
 
 // Agent configuration
@@ -183,6 +184,15 @@ export async function getCTOStatus(): Promise<{
   let databaseHealth: "healthy" | "degraded" | "critical" = "healthy";
   if (errorRate > 0.05) databaseHealth = "degraded";
   if (errorRate > 0.1) databaseHealth = "critical";
+
+  // Fire Telegram alert if system health degrades
+  if (errorRate > 0.005 || databaseHealth !== "healthy") {
+    sendAdminAlert({
+      title: `🚨 CTO Alert: System Health ${databaseHealth === "critical" ? "Critical" : "Degraded"}`,
+      message: `Error rate: ${(errorRate * 100).toFixed(2)}% (${recentErrors} errors in last hour)\nDB health: ${databaseHealth}\n\nThreshold: >0.5% error rate or DB not healthy.`,
+      severity: databaseHealth === "critical" ? "error" : "warning",
+    }).catch(() => {});
+  }
 
   return {
     status: agent.status,

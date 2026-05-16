@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { runAgentHeartbeats, initializeAgentSystem } from "@/agents";
 import { verifyToken } from "@/lib/auth";
 import prisma from "@/lib/db";
+import { sendAdminAlert } from "@/lib/telegram";
 
 // Verify cron secret
 const CRON_SECRET = process.env.CRON_SECRET;
@@ -82,6 +83,15 @@ export async function POST(req: NextRequest) {
 
     // Run heartbeats
     const result = await runAgentHeartbeats();
+
+    // Alert on errors via Telegram
+    if (result.errors && result.errors.length > 0) {
+      sendAdminAlert({
+        title: "🚨 Agent Heartbeat Error",
+        message: `${result.errors.length} agent(s) failed during heartbeat:\n\n${result.errors.slice(0, 5).join("\n")}`,
+        severity: "error",
+      }).catch(() => {});
+    }
 
     return NextResponse.json({
       success: result.success,
