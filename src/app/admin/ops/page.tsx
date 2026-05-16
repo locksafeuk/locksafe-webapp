@@ -219,7 +219,7 @@ export default function AdminOpsPage() {
           width:38px; height:38px; cursor:pointer;
         `;
         const carStyle = isMoving ? `style="filter:drop-shadow(0 2px 5px rgba(0,0,0,0.55)); animation:carBounce 0.7s ease-in-out infinite alternate;"` : `style="filter:drop-shadow(0 2px 5px rgba(0,0,0,0.55));"` ;
-        lsEl.innerHTML = `<svg ${carStyle} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 38 38" width="38" height="38">`
+        lsEl.innerHTML = `<svg ${carStyle} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 38 38" width="38" height="38">
           <polygon points="19,1 13,10 25,10" fill="${color}" stroke="white" stroke-width="1.2"/>
           <rect x="6" y="10" width="26" height="19" rx="4" fill="${color}" stroke="white" stroke-width="1.5"/>
           <rect x="9" y="13" width="20" height="6" rx="2" fill="rgba(255,255,255,0.45)"/>
