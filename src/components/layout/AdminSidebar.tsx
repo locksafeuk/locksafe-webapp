@@ -299,12 +299,12 @@ export function AdminSidebar({ children }: AdminSidebarProps) {
                   className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-sm font-medium ${
                     active
                       ? `${group.activeBg} ${group.activeText} border border-white/10 shadow-sm`
-                      : "text-slate-400 hover:text-white hover:bg-white/8"
+                      : `text-slate-400 hover:${group.activeText} hover:bg-white/8`
                   }`}
                 >
                   <item.icon
                     className={`w-4 h-4 shrink-0 transition-colors ${
-                      active ? group.activeText : "text-slate-500 group-hover:text-white"
+                      active ? group.color : `${group.color} opacity-50 group-hover:opacity-100`
                     }`}
                   />
                   <span className="truncate">{item.label}</span>
