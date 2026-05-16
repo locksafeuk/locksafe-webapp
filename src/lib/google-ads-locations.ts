@@ -418,7 +418,7 @@ export async function triggerPostOnboardingGeoSync(locksmith: {
 
   try {
     // 1. Resolve the full coverage set across all active locksmiths
-    const { coverageSummary, activeLocksmithCount } =
+    const { geoTargets, coverageSummary, activeLocksmithCount } =
       await getActiveCoverageGeoTargets();
     result.coverageSummary = coverageSummary;
 
@@ -427,6 +427,20 @@ export async function triggerPostOnboardingGeoSync(locksmith: {
       where: { status: "PUBLISHED", googleCampaignId: { not: null } },
       select: { id: true, accountId: true, name: true, googleCampaignId: true },
     });
+
+    // 2b. Also update geoTargets on all pending/approved drafts that haven't
+    //     been published yet, so when they are published they target the right areas.
+    const pendingDrafts = await prisma.googleAdsCampaignDraft.findMany({
+      where: { status: { in: ["DRAFT", "PENDING_APPROVAL", "APPROVED"] } },
+      select: { id: true, name: true },
+    });
+
+    if (pendingDrafts.length > 0) {
+      await prisma.googleAdsCampaignDraft.updateMany({
+        where: { id: { in: pendingDrafts.map((d) => d.id) } },
+        data: { geoTargets },
+      });
+    }
 
     // 3. Sync each campaign in-place
     const { getGoogleAdsClientForAccount } = await import("./google-ads");
