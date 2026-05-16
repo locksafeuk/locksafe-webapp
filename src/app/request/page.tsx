@@ -27,7 +27,6 @@ import { ImageUploader } from "@/components/ui/ImageUploader";
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import { captureGPS } from "@/hooks/useGPS";
 import { useTrackingEvents } from "@/hooks/useTrackingEvents";
-import { triggerNotificationPrompt } from "@/components/notifications/PushNotificationBanner";
 
 const problemTypes = [
   { id: "lockout", label: "Locked Out", icon: "🔒", description: "Can't get into your property" },
@@ -275,9 +274,6 @@ function RequestPageContent() {
             serviceType: formData.problemType,
           });
 
-          // Trigger notification prompt after successful submission
-          triggerNotificationPrompt();
-
           // Redirect to job page
           router.push(`/customer/job/${data.id}`);
           return;
@@ -303,9 +299,6 @@ function RequestPageContent() {
     };
 
     sessionStorage.setItem("pending_request", JSON.stringify(pendingRequest));
-
-    // Trigger notification prompt after successful submission
-    triggerNotificationPrompt();
 
     // Redirect to login page with register tab active
     router.push("/login?tab=register");

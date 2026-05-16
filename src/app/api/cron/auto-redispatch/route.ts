@@ -151,7 +151,6 @@ async function notifyWithExpandedRadius(
 
   const { calculateDistanceMiles } = await import("@/lib/utils");
   const { sendNewJobInAreaEmail } = await import("@/lib/email");
-  const { notifyLocksmiths, isOneSignalConfigured } = await import("@/lib/onesignal");
   const { sendNativePushToMany } = await import("@/lib/native-push");
 
   const locksmiths = await prisma.locksmith.findMany({
@@ -168,7 +167,6 @@ async function notifyWithExpandedRadius(
       baseLat: true,
       baseLng: true,
       coverageRadius: true,
-      oneSignalPlayerId: true,
       nativeDeviceToken: true,
       nativeTokenType: true,
       nativeTokenPlatform: true,
@@ -179,7 +177,6 @@ async function notifyWithExpandedRadius(
     id: string;
     name: string;
     email: string;
-    oneSignalPlayerId: string | null;
     nativeDeviceToken: string | null;
     nativeTokenType: string | null;
     nativeTokenPlatform: string | null;
@@ -212,16 +209,6 @@ async function notifyWithExpandedRadius(
     }).catch((e) => console.error(`[ReDispatch] Email to ${ls.name} failed:`, e))
   );
   await Promise.allSettled(emailPromises);
-
-  // OneSignal push
-  if (isOneSignalConfigured()) {
-    const playerIds = newNotifications
-      .map((ls) => ls.oneSignalPlayerId)
-      .filter(Boolean) as string[];
-    if (playerIds.length > 0) {
-      await notifyLocksmiths(playerIds, "NEW_JOB_AVAILABLE", { jobId: job.id }).catch(console.error);
-    }
-  }
 
   // Native push (mobile)
   const nativeCandidates = newNotifications

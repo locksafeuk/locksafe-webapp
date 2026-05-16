@@ -2,12 +2,6 @@ import prisma from "@/lib/db";
 import { sendAutoDispatchEmail, sendNewJobInAreaEmail } from "@/lib/email";
 import { sendSMS } from "@/lib/sms";
 import { calculateDistanceMiles } from "@/lib/utils";
-import {
-  notifyLocksmith,
-  notifyLocksmiths,
-  notifyCustomer,
-  isOneSignalConfigured,
-} from "@/lib/onesignal";
 import { sendNativePushToMany } from "@/lib/native-push";
 
 interface JobForNotification {
@@ -64,7 +58,6 @@ export async function notifyNearbyLocksmiths(job: JobForNotification): Promise<{
         baseLng: true,
         coverageRadius: true,
         stripeConnectVerified: true,
-        oneSignalPlayerId: true, // For OneSignal web push
         nativeDeviceToken: true, // For native APNs/FCM push (mobile app)
         nativeTokenType: true,
         nativeTokenPlatform: true,
@@ -76,7 +69,6 @@ export async function notifyNearbyLocksmiths(job: JobForNotification): Promise<{
       name: string;
       email: string;
       distance: number;
-      oneSignalPlayerId: string | null;
       nativeDeviceToken: string | null;
       nativeTokenType: string | null;
       nativeTokenPlatform: string | null;
@@ -100,7 +92,6 @@ export async function notifyNearbyLocksmiths(job: JobForNotification): Promise<{
           name: locksmith.name,
           email: locksmith.email,
           distance: Math.round(distance * 10) / 10,
-          oneSignalPlayerId: locksmith.oneSignalPlayerId,
           nativeDeviceToken: locksmith.nativeDeviceToken,
           nativeTokenType: locksmith.nativeTokenType,
           nativeTokenPlatform: locksmith.nativeTokenPlatform,
@@ -198,39 +189,6 @@ export async function notifyNearbyLocksmiths(job: JobForNotification): Promise<{
     console.log(
       `[Job Notifications] Sending emails to ${nearbyLocksmiths.length} locksmiths`,
     );
-
-    // Send OneSignal push notifications to locksmiths with subscriptions
-    if (isOneSignalConfigured()) {
-      const playerIds = nearbyLocksmiths
-        .filter((ls) => ls.oneSignalPlayerId)
-        .map((ls) => ls.oneSignalPlayerId as string);
-
-      if (playerIds.length > 0) {
-        notifyLocksmiths(playerIds, "NEW_JOB_AVAILABLE", {
-          jobId: job.id,
-          variables: {
-            jobNumber: job.jobNumber,
-            postcode: job.postcode,
-            problemType: problemLabels[job.problemType] || job.problemType,
-          },
-        })
-          .then((result) => {
-            if (result.id) {
-              console.log(
-                `[Job Notifications] Push sent to ${playerIds.length} locksmiths (OneSignal ID: ${result.id})`,
-              );
-            } else if (result.errors) {
-              console.log(
-                `[Job Notifications] Push errors:`,
-                result.errors,
-              );
-            }
-          })
-          .catch((err) => {
-            console.error("[Job Notifications] Push notification error:", err);
-          });
-      }
-    }
 
     // Send native APNs/FCM push notifications to mobile app users
     const nativeTargets = nearbyLocksmiths.filter(
@@ -406,107 +364,6 @@ export async function sendJobNotificationEmail(data: {
     return result;
   } catch (error) {
     console.error("[Job Notifications] Email send error:", error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-    };
-  }
-}
-
-// ==========================================
-// ONESIGNAL PUSH NOTIFICATION HELPERS
-// ==========================================
-
-/**
- * Send push notification to a customer about their job
- */
-export async function sendCustomerPushNotification(
-  customerId: string,
-  template:
-    | "LOCKSMITH_ASSIGNED"
-    | "LOCKSMITH_EN_ROUTE"
-    | "LOCKSMITH_ARRIVED"
-    | "QUOTE_READY"
-    | "WORK_COMPLETE"
-    | "SIGNATURE_REMINDER",
-  options: {
-    jobId?: string;
-    variables?: Record<string, string>;
-  } = {}
-): Promise<{ success: boolean; error?: string }> {
-  if (!isOneSignalConfigured()) {
-    return { success: false, error: "OneSignal not configured" };
-  }
-
-  try {
-    // Get customer's OneSignal player ID
-    const customer = await prisma.customer.findUnique({
-      where: { id: customerId },
-      select: { oneSignalPlayerId: true },
-    });
-
-    if (!customer?.oneSignalPlayerId) {
-      return { success: false, error: "Customer has no push subscription" };
-    }
-
-    const result = await notifyCustomer(customer.oneSignalPlayerId, template, options);
-
-    if (result.errors?.length) {
-      return { success: false, error: result.errors.join(", ") };
-    }
-
-    return { success: true };
-  } catch (error) {
-    console.error("[Job Notifications] Customer push error:", error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-    };
-  }
-}
-
-/**
- * Send push notification to a locksmith about their job
- */
-export async function sendLocksmithPushNotification(
-  locksmithId: string,
-  template:
-    | "NEW_JOB_AVAILABLE"
-    | "JOB_ACCEPTED"
-    | "JOB_ASSIGNED"
-    | "QUOTE_ACCEPTED"
-    | "QUOTE_DECLINED"
-    | "CUSTOMER_SIGNED"
-    | "PAYOUT_SENT",
-  options: {
-    jobId?: string;
-    variables?: Record<string, string>;
-  } = {}
-): Promise<{ success: boolean; error?: string }> {
-  if (!isOneSignalConfigured()) {
-    return { success: false, error: "OneSignal not configured" };
-  }
-
-  try {
-    // Get locksmith's OneSignal player ID
-    const locksmith = await prisma.locksmith.findUnique({
-      where: { id: locksmithId },
-      select: { oneSignalPlayerId: true },
-    });
-
-    if (!locksmith?.oneSignalPlayerId) {
-      return { success: false, error: "Locksmith has no push subscription" };
-    }
-
-    const result = await notifyLocksmith(locksmith.oneSignalPlayerId, template, options);
-
-    if (result.errors?.length) {
-      return { success: false, error: result.errors.join(", ") };
-    }
-
-    return { success: true };
-  } catch (error) {
-    console.error("[Job Notifications] Locksmith push error:", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",

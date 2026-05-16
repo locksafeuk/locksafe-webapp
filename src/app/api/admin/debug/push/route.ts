@@ -46,13 +46,6 @@ export async function GET(req: NextRequest) {
     projectId: process.env.FCM_PROJECT_ID || "(not set)",
   };
 
-  const oneSignal = {
-    NEXT_PUBLIC_ONESIGNAL_APP_ID: !!process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID,
-    ONESIGNAL_REST_API_KEY: !!process.env.ONESIGNAL_REST_API_KEY,
-    ready: !!(process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID && process.env.ONESIGNAL_REST_API_KEY),
-    appId: process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID || "(not set)",
-  };
-
   // --- Locksmith device token state ---
   const locksmiths = await prisma.locksmith.findMany({
     where: { isActive: true },
@@ -64,7 +57,6 @@ export async function GET(req: NextRequest) {
       nativeTokenType: true,
       nativeTokenPlatform: true,
       nativeTokenRegisteredAt: true,
-      oneSignalPlayerId: true,
     },
     orderBy: { name: "asc" },
   });
@@ -81,22 +73,16 @@ export async function GET(req: NextRequest) {
     tokenPreview: ls.nativeDeviceToken
       ? ls.nativeDeviceToken.substring(0, 12) + "…" + ls.nativeDeviceToken.slice(-6)
       : null,
-    hasOneSignal: !!ls.oneSignalPlayerId,
-    oneSignalPreview: ls.oneSignalPlayerId
-      ? ls.oneSignalPlayerId.substring(0, 8) + "…"
-      : null,
   }));
 
   const withNativeToken = tokenSummary.filter((ls) => ls.hasNativeToken);
-  const withOneSignal = tokenSummary.filter((ls) => ls.hasOneSignal);
-  const noTokenAtAll = tokenSummary.filter((ls) => !ls.hasNativeToken && !ls.hasOneSignal);
+  const noTokenAtAll = tokenSummary.filter((ls) => !ls.hasNativeToken);
 
   return NextResponse.json({
-    env: { apns, fcm, oneSignal },
+    env: { apns, fcm },
     locksmiths: {
       total: locksmiths.length,
       withNativeToken: withNativeToken.length,
-      withOneSignal: withOneSignal.length,
       noTokenAtAll: noTokenAtAll.length,
       list: tokenSummary,
     },

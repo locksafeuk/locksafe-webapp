@@ -9,10 +9,6 @@ import {
   notifyCustomerLocksmithEnRoute,
   type JobSMSContext,
 } from "@/lib/sms";
-import {
-  sendCustomerPushNotification,
-  sendLocksmithPushNotification,
-} from "@/lib/job-notifications";
 
 // PATCH - Update job status
 export async function PATCH(
@@ -156,16 +152,6 @@ export async function PATCH(
         console.error("[SMS] Failed to send en-route notification:", err)
       );
 
-      // Send OneSignal push notification to customer
-      sendCustomerPushNotification(job.customerId, "LOCKSMITH_EN_ROUTE", {
-        jobId: job.id,
-        variables: {
-          jobNumber: job.jobNumber,
-          eta: eta || job.estimatedArrival || "soon",
-        },
-      }).catch((err) =>
-        console.error("[Push] Failed to send en-route push notification:", err)
-      );
     }
 
     // Send notification to customer when locksmith arrives
@@ -214,13 +200,6 @@ export async function PATCH(
         address: job.address,
       }).catch((err) => console.error("[Telegram] Failed to send arrival notification:", err));
 
-      // Send OneSignal push notification to customer
-      sendCustomerPushNotification(job.customerId, "LOCKSMITH_ARRIVED", {
-        jobId: job.id,
-        variables: { jobNumber: job.jobNumber },
-      }).catch((err) =>
-        console.error("[Push] Failed to send arrival push notification:", err)
-      );
     }
 
     // Send SMS when work starts
@@ -304,13 +283,6 @@ export async function PATCH(
         total: quoteTotal,
       }).catch((err) => console.error("[Telegram] Failed to send work completed notification:", err));
 
-      // Send OneSignal push notification to customer
-      sendCustomerPushNotification(job.customerId, "WORK_COMPLETE", {
-        jobId: job.id,
-        variables: { jobNumber: job.jobNumber },
-      }).catch((err) =>
-        console.error("[Push] Failed to send work complete push notification:", err)
-      );
     }
 
     // Send SMS when customer signs/confirms
@@ -318,16 +290,6 @@ export async function PATCH(
       sendJobNotification("job_signed", smsContext).catch((err) =>
         console.error("[SMS] Failed to send job signed notification:", err)
       );
-
-      // Send OneSignal push notification to locksmith
-      if (job.locksmithId) {
-        sendLocksmithPushNotification(job.locksmithId, "CUSTOMER_SIGNED", {
-          jobId: job.id,
-          variables: { jobNumber: job.jobNumber },
-        }).catch((err) =>
-          console.error("[Push] Failed to send customer signed push notification:", err)
-        );
-      }
     }
 
     return NextResponse.json({ success: true, job });

@@ -2,8 +2,7 @@
 
 import { useEffect } from "react";
 import dynamic from "next/dynamic";
-import { AuthProvider, useAuth } from "@/components/auth/AuthContext";
-import { OneSignalProvider } from "@/components/notifications/OneSignalProvider";
+import { AuthProvider } from "@/components/auth/AuthContext";
 import { UserTracker } from "@/components/marketing";
 
 // Defer non-critical overlays so they don't block LCP / hydration on
@@ -20,24 +19,6 @@ const CookieConsent = dynamic(
   () => import("@/components/gdpr/CookieConsent").then((m) => ({ default: m.CookieConsent })),
   { ssr: false, loading: () => null },
 );
-const PushNotificationBanner = dynamic(
-  () => import("@/components/notifications/PushNotificationBanner"),
-  { ssr: false, loading: () => null },
-);
-
-// Component that uses auth context to show push notification banner
-function PushNotificationWrapper() {
-  const { user, isAuthenticated } = useAuth();
-
-  if (!isAuthenticated || !user) return null;
-
-  return (
-    <PushNotificationBanner
-      userId={user.id}
-      userType={user.type as "customer" | "locksmith"}
-    />
-  );
-}
 
 export default function ClientBody({
   children,
@@ -49,8 +30,6 @@ export default function ClientBody({
     // This runs only on the client after hydration
     document.body.className = "antialiased";
 
-    // Note: OneSignal handles its own service worker registration
-    // We check if there's already a service worker controlling the page
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.ready.then((registration) => {
         console.log("[PWA] Service Worker ready:", registration.scope);
@@ -77,15 +56,12 @@ export default function ClientBody({
 
   return (
     <AuthProvider>
-      <OneSignalProvider>
-        <UserTracker>
-          <div className="antialiased">{children}</div>
-          <ModalSystem />
-        </UserTracker>
-        <PushNotificationWrapper />
-        <PWAInstallPrompt />
-        <CookieConsent />
-      </OneSignalProvider>
+      <UserTracker>
+        <div className="antialiased">{children}</div>
+        <ModalSystem />
+      </UserTracker>
+      <PWAInstallPrompt />
+      <CookieConsent />
     </AuthProvider>
   );
 }

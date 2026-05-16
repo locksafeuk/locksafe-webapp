@@ -3,7 +3,6 @@ import prisma from "@/lib/db";
 import { sendSMS } from "@/lib/sms";
 import { sendCustomerPaymentLinkEmail } from "@/lib/email";
 import { createNotification } from "@/lib/notifications";
-import { sendCustomerPushNotification } from "@/lib/job-notifications";
 import { SITE_URL } from "@/lib/config";
 
 /**
@@ -133,19 +132,6 @@ Questions? Call us: 0800 123 4567`;
         },
       }).catch((err) => {
         console.error("[Locksmith Accept] Failed to create customer notification:", err);
-      });
-    }
-
-    // Send push notification to customer
-    if (application.job.customerId) {
-      sendCustomerPushNotification(application.job.customerId, "LOCKSMITH_ASSIGNED", {
-        jobId: application.job.id,
-        variables: {
-          locksmithName: application.locksmith.name,
-          eta: `${application.eta} minutes`,
-        },
-      }).catch((err) => {
-        console.error("[Locksmith Accept] Failed to send customer push notification:", err);
       });
     }
 

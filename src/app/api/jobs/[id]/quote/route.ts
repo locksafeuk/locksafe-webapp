@@ -7,10 +7,6 @@ import {
 } from "@/lib/email";
 import { notifyQuoteSubmitted, notifyQuoteAccepted, notifyQuoteDeclined } from "@/lib/telegram";
 import { sendJobNotification, type JobSMSContext } from "@/lib/sms";
-import {
-  sendCustomerPushNotification,
-  sendLocksmithPushNotification,
-} from "@/lib/job-notifications";
 
 // POST - Create a quote for a job
 export async function POST(
@@ -149,16 +145,6 @@ export async function POST(
       };
       sendJobNotification("full_quote", smsContext).catch((err) =>
         console.error("[SMS] Failed to send quote notification:", err)
-      );
-    }
-
-    // Send OneSignal push notification to customer
-    if (job.customer) {
-      sendCustomerPushNotification(job.customerId, "QUOTE_READY", {
-        jobId: job.id,
-        variables: { jobNumber: job.jobNumber },
-      }).catch((err) =>
-        console.error("[Push] Failed to send quote ready push notification:", err)
       );
     }
 
@@ -311,15 +297,6 @@ export async function PATCH(
         );
       }
 
-      // Send OneSignal push notification to locksmith
-      if (job?.locksmithId) {
-        sendLocksmithPushNotification(job.locksmithId, "QUOTE_ACCEPTED", {
-          jobId: job.id,
-          variables: { jobNumber: job.jobNumber },
-        }).catch((err) =>
-          console.error("[Push] Failed to send quote accepted push notification:", err)
-        );
-      }
     } else {
       await prisma.quote.update({
         where: { jobId: id },
@@ -358,15 +335,6 @@ export async function PATCH(
         }).catch((err) => console.error("[Telegram] Failed to send quote declined notification:", err));
       }
 
-      // Send OneSignal push notification to locksmith
-      if (job?.locksmithId) {
-        sendLocksmithPushNotification(job.locksmithId, "QUOTE_DECLINED", {
-          jobId: job.id,
-          variables: { jobNumber: job.jobNumber },
-        }).catch((err) =>
-          console.error("[Push] Failed to send quote declined push notification:", err)
-        );
-      }
     }
 
     return NextResponse.json({

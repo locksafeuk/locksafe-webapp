@@ -78,10 +78,6 @@ model Customer {
   whatsappChatId         String?    // WhatsApp chat ID for support
   whatsappVerified       Boolean    @default(false)
 
-  // OneSignal Push Notifications
-  oneSignalPlayerId      String?    // OneSignal player/subscription ID
-  oneSignalSubscribedAt  DateTime?  // When user subscribed to push
-
   // Referral system
   referralCode      String?   @unique  // Their own shareable code (e.g. SARAH-X4K2)
   referralCredits   Float     @default(0)  // Available £ credits from referrals
@@ -220,10 +216,6 @@ model Locksmith {
   telegramChatId          String?   // Telegram chat ID for bot notifications
   whatsappChatId          String?   // WhatsApp chat ID for bot notifications
   preferredBotPlatform    String?   // "telegram" or "whatsapp"
-
-  // OneSignal Push Notifications
-  oneSignalPlayerId       String?   // OneSignal player/subscription ID
-  oneSignalSubscribedAt   DateTime? // When locksmith subscribed to push
 
   // Native Push Notifications (APNs / FCM via expo-notifications)
   nativeDeviceToken       String?   // Raw APNs (iOS) or FCM (Android) device token
@@ -2184,42 +2176,6 @@ model TokenBlacklist {
   createdAt DateTime @default(now())
 
   @@index([expiresAt])
-}
-
-// ==========================================
-// PUSH NOTIFICATION SUBSCRIPTIONS
-// ==========================================
-
-// Push subscription storage for guest users
-// Links to user when they register/login
-model PushSubscription {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
-  playerId     String   @unique  // OneSignal player ID (UUID)
-  userType     String   @default("guest") // guest, customer, locksmith
-
-  // Linked user (populated when guest converts)
-  customerId   String?  @db.ObjectId
-  locksmithId  String?  @db.ObjectId
-
-  // Subscription metadata
-  subscribedAt DateTime @default(now())
-  linkedAt     DateTime? // When subscription was linked to a user
-
-  // Device info (for debugging)
-  deviceType   String?  // mobile, desktop, tablet
-  browser      String?  // chrome, safari, firefox, edge
-  os           String?  // ios, android, windows, macos
-
-  // Status
-  isActive     Boolean  @default(true)
-  unsubscribedAt DateTime?
-
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  @@index([customerId])
-  @@index([locksmithId])
-  @@index([isActive])
 }
 
 // ============================================================================

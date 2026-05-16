@@ -5,7 +5,6 @@ import { verifyToken } from "@/lib/auth";
 import { sendSMS } from "@/lib/sms";
 import { sendLocksmithAssignmentEmail } from "@/lib/email";
 import { createNotification } from "@/lib/notifications";
-import { sendLocksmithPushNotification } from "@/lib/job-notifications";
 import { SITE_URL } from "@/lib/config";
 
 // Verify admin session
@@ -187,20 +186,6 @@ Reply STOP to opt out.`;
     }).catch((err) => {
       console.error("[Admin Assign] Failed to create notification:", err);
     });
-
-    // Send push notification
-    if (locksmith.pushNotifications !== false) {
-      sendLocksmithPushNotification(locksmithId, "JOB_ASSIGNED", {
-        jobId,
-        variables: {
-          jobNumber: job.jobNumber,
-          problemType: formatProblemType(job.problemType),
-          postcode: job.postcode,
-        },
-      }).catch((err) => {
-        console.error("[Admin Assign] Failed to send push notification:", err);
-      });
-    }
 
     console.log(`[Admin Assign] Admin assigned locksmith ${locksmith.name} to job ${job.jobNumber}`);
 

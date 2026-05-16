@@ -21,7 +21,6 @@ import {
   Bell,
   X,
 } from "lucide-react";
-import NotificationSettings from "@/components/notifications/NotificationSettings";
 
 interface Profile {
   id: string;
@@ -531,11 +530,10 @@ export default function CustomerSettingsPage() {
               )}
 
               {/* Notifications Tab */}
-              {activeTab === "notifications" && profile && (
-                <NotificationSettings
-                  userId={profile.id}
-                  userType="customer"
-                />
+              {activeTab === "notifications" && (
+                <div className="text-sm text-slate-600 py-4">
+                  Notifications are sent via email and SMS. You can manage your preferences on your profile.
+                </div>
               )}
             </div>
           </div>

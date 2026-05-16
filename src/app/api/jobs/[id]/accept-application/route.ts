@@ -4,10 +4,6 @@ import { JobStatus } from "@prisma/client";
 import { sendJobConfirmationEmail, sendLocksmithBookedEmail } from "@/lib/email";
 import { notifyApplicationAccepted, notifyAssessmentFeePaid } from "@/lib/telegram";
 import { sendJobNotification, type JobSMSContext } from "@/lib/sms";
-import {
-  sendCustomerPushNotification,
-  sendLocksmithPushNotification,
-} from "@/lib/job-notifications";
 
 // Problem type labels for email
 const problemLabels: Record<string, string> = {
@@ -223,27 +219,6 @@ export async function POST(
     sendJobNotification("locksmith_accepted", smsContext).catch((err) =>
       console.error("[SMS] Failed to send locksmith accepted notifications:", err)
     );
-
-    // Send OneSignal push notifications
-    // Notify customer that locksmith has been assigned
-    if (updatedJob.customer) {
-      sendCustomerPushNotification(updatedJob.customerId, "LOCKSMITH_ASSIGNED", {
-        jobId: updatedJob.id,
-        variables: { jobNumber: updatedJob.jobNumber },
-      }).catch((err) =>
-        console.error("[Push] Failed to send locksmith assigned push notification:", err)
-      );
-    }
-
-    // Notify locksmith that they've been selected
-    if (updatedJob.locksmithId) {
-      sendLocksmithPushNotification(updatedJob.locksmithId, "JOB_ACCEPTED", {
-        jobId: updatedJob.id,
-        variables: { jobNumber: updatedJob.jobNumber },
-      }).catch((err) =>
-        console.error("[Push] Failed to send job accepted push notification:", err)
-      );
-    }
 
     return NextResponse.json({
       success: true,

@@ -9,10 +9,6 @@ import prisma from "@/lib/db";
 import { calculateDistanceMiles } from "@/lib/utils";
 import { sendSMS } from "@/lib/sms";
 import { sendNewJobInAreaEmail } from "@/lib/email";
-import {
-  notifyLocksmiths as pushNotifyLocksmiths,
-  isOneSignalConfigured,
-} from "@/lib/onesignal";
 
 // ============================================
 // TYPES
@@ -30,7 +26,6 @@ export interface NearbyLocksmith {
   defaultAssessmentFee: number | null;
   coverageRadius: number;
   stripeConnectVerified: boolean;
-  oneSignalPlayerId: string | null;
   insuranceStatus: string;
   isVerified: boolean;
 }
@@ -137,7 +132,6 @@ export async function findNearbyLocksmiths(
       defaultAssessmentFee: true,
       stripeConnectVerified: true,
       stripeConnectId: true,
-      oneSignalPlayerId: true,
       smsNotifications: true,
       emailNotifications: true,
       pushNotifications: true,
@@ -177,7 +171,6 @@ export async function findNearbyLocksmiths(
         defaultAssessmentFee: locksmith.defaultAssessmentFee,
         coverageRadius,
         stripeConnectVerified: locksmith.stripeConnectVerified,
-        oneSignalPlayerId: locksmith.oneSignalPlayerId,
         insuranceStatus: locksmith.insuranceStatus,
         isVerified: locksmith.isVerified,
       });
@@ -292,25 +285,6 @@ export async function notifyLocksmitheEmergency(params: {
       console.error(
         `[Locksmith Matcher] Error notifying ${locksmith.name}:`,
         error
-      );
-    }
-  }
-
-  // Push notifications (batch)
-  if (isOneSignalConfigured()) {
-    const playerIds = locksmiths
-      .filter((ls) => ls.oneSignalPlayerId)
-      .map((ls) => ls.oneSignalPlayerId as string);
-
-    if (playerIds.length > 0) {
-      pushNotifyLocksmiths(playerIds, "NEW_JOB_AVAILABLE", {
-        jobId: job.id,
-        variables: {
-          postcode: job.postcode,
-          problemType: problemLabel,
-        },
-      }).catch((err) =>
-        console.error("[Locksmith Matcher] Push notification error:", err)
       );
     }
   }

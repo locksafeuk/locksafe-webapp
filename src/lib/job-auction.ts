@@ -11,12 +11,11 @@
  *   EXPIRED → admin Telegram alert for manual assignment
  *
  * The first locksmith to tap "Accept" wins and the job is assigned at that rate.
- * Notifications are sent via Telegram inline buttons + OneSignal push.
+ * Notifications are sent via Telegram inline buttons.
  */
 
 import prisma from "@/lib/db";
 import { sendAdminAlert } from "@/lib/telegram";
-import { notifyLocksmiths } from "@/lib/onesignal";
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const AUCTION_STEP_MINUTES = 2;
@@ -144,7 +143,7 @@ export async function createAuction(
 }
 
 /**
- * Send Telegram inline-button + OneSignal push notifications to locksmiths
+ * Send Telegram inline-button notifications to locksmiths
  * for the current auction step.
  */
 export async function sendAuctionNotifications(
@@ -186,7 +185,6 @@ export async function sendAuctionNotifications(
     select: {
       id: true,
       telegramChatId: true,
-      oneSignalPlayerId: true,
     },
   });
 
@@ -202,23 +200,7 @@ export async function sendAuctionNotifications(
       sendTelegramToChat(ls.telegramChatId!, text, [button]),
     );
 
-  // Send OneSignal push notifications
-  const playerIds = locksmiths
-    .filter((ls) => ls.oneSignalPlayerId)
-    .map((ls) => ls.oneSignalPlayerId as string);
-
-  const pushPromise =
-    playerIds.length > 0
-      ? notifyLocksmiths(playerIds, "NEW_JOB_AVAILABLE", {
-          jobId,
-          variables: {
-            jobNumber: job.jobNumber,
-            commissionPercent: String(commissionPercent),
-          },
-        }).catch(() => {})
-      : Promise.resolve();
-
-  await Promise.all([...telegramPromises, pushPromise]);
+  await Promise.all(telegramPromises);
 }
 
 /**
