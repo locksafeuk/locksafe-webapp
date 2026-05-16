@@ -174,10 +174,9 @@ export default function AdminOpsPage() {
       const el = document.createElement("div");
       el.style.cssText = `
         width:34px; height:44px; cursor:pointer;
-        filter:drop-shadow(0 3px 5px rgba(0,0,0,0.55));
-        ${job.status === "PENDING" ? "animation:pinPulse 1.6s ease-in-out infinite;" : ""}
       `;
-      el.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 34 44" width="34" height="44">
+      const pulseStyle = job.status === "PENDING" ? `style="filter:drop-shadow(0 3px 5px rgba(0,0,0,0.55)); animation:pinPulse 1.6s ease-in-out infinite;"` : `style="filter:drop-shadow(0 3px 5px rgba(0,0,0,0.55));"`;
+      el.innerHTML = `<svg ${pulseStyle} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 34 44" width="34" height="44">
         <path d="M17 1C9.27 1 3 7.27 3 15c0 5.5 3.2 10.3 7.88 12.63L17 43l6.12-15.37C27.8 25.3 31 20.5 31 15 31 7.27 24.73 1 17 1z"
           fill="${color}" stroke="rgba(255,255,255,0.7)" stroke-width="1.5"/>
         <text x="17" y="18.5" text-anchor="middle" fill="white" font-size="9.5" font-weight="700"
@@ -218,10 +217,9 @@ export default function AdminOpsPage() {
         const lsEl = document.createElement("div");
         lsEl.style.cssText = `
           width:38px; height:38px; cursor:pointer;
-          filter:drop-shadow(0 2px 5px rgba(0,0,0,0.55));
-          ${isMoving ? "animation:carBounce 0.7s ease-in-out infinite alternate;" : ""}
         `;
-        lsEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 38 38" width="38" height="38">
+        const carStyle = isMoving ? `style="filter:drop-shadow(0 2px 5px rgba(0,0,0,0.55)); animation:carBounce 0.7s ease-in-out infinite alternate;"` : `style="filter:drop-shadow(0 2px 5px rgba(0,0,0,0.55));"` ;
+        lsEl.innerHTML = `<svg ${carStyle} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 38 38" width="38" height="38">`
           <polygon points="19,1 13,10 25,10" fill="${color}" stroke="white" stroke-width="1.2"/>
           <rect x="6" y="10" width="26" height="19" rx="4" fill="${color}" stroke="white" stroke-width="1.5"/>
           <rect x="9" y="13" width="20" height="6" rx="2" fill="rgba(255,255,255,0.45)"/>
