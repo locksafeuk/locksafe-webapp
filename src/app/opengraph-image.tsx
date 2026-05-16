@@ -152,6 +152,8 @@ export default async function Image() {
           {/* Main Headline */}
           <div
             style={{
+              display: "flex",
+              flexDirection: "column",
               fontSize: "54px",
               fontWeight: "800",
               color: "white",
@@ -159,23 +161,23 @@ export default async function Image() {
               marginBottom: "20px",
             }}
           >
-            The Only Platform That
-            <br />
+            <span>The Only Platform That</span>
             <span style={{ color: "#f97316" }}>Prevents Locksmith Scams</span>
           </div>
 
           {/* Value Prop */}
           <div
             style={{
+              display: "flex",
+              flexDirection: "column",
               fontSize: "24px",
               color: "#94a3b8",
               lineHeight: 1.5,
               maxWidth: "800px",
             }}
           >
-            Every job creates a legally-binding digital paper trail.
-            <br />
-            GPS tracking • Timestamped photos • Digital signatures • Instant PDF reports
+            <span>Every job creates a legally-binding digital paper trail.</span>
+            <span>GPS tracking • Timestamped photos • Digital signatures • Instant PDF reports</span>
           </div>
         </div>
 
