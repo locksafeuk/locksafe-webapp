@@ -173,7 +173,7 @@ export default function AdminOpsPage() {
       const shortNum = job.jobNumber.slice(-4);
       const el = document.createElement("div");
       el.style.cssText = `
-        width:34px; height:44px; cursor:pointer; position:relative;
+        width:34px; height:44px; cursor:pointer;
         filter:drop-shadow(0 3px 5px rgba(0,0,0,0.55));
         ${job.status === "PENDING" ? "animation:pinPulse 1.6s ease-in-out infinite;" : ""}
       `;
