@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import prisma from "@/lib/db";
 import { verifyToken } from "@/lib/auth";
+import { sendAdminAlert } from "@/lib/telegram";
 
 async function requireAdmin() {
   const cookieStore = await cookies();
@@ -83,6 +84,29 @@ export async function POST(
         },
       });
     }
+
+    // Cascade approval to linked Google Ads draft
+    if (approval.targetType === "google_ads_draft" && approval.targetId) {
+      const now = new Date();
+      await prisma.googleAdsCampaignDraft.updateMany({
+        where: { id: approval.targetId, status: { in: ["PENDING_APPROVAL", "DRAFT"] } },
+        data: {
+          status: approved ? "APPROVED" : "REJECTED",
+          approvedBy: approved ? admin.id : null,
+          approvedAt: approved ? now : null,
+          rejectedReason: approved ? null : resolution || "Rejected by admin",
+        },
+      }).catch(() => {});
+    }
+
+    // Telegram notification
+    sendAdminAlert({
+      title: approved
+        ? `✅ Approval Resolved: ${approval.actionType}`
+        : `❌ Approval Rejected: ${approval.actionType}`,
+      message: `${approved ? "Approved" : "Rejected"} by admin.\n\nReason: ${approval.reason}\nResolution: ${resolution || (approved ? "Approved by admin" : "Rejected by admin")}`,
+      severity: approved ? "info" : "warning",
+    }).catch(() => {});
 
     return NextResponse.json({
       success: true,

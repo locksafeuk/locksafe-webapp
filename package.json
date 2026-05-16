@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -H 0.0.0.0 --turbopack",
-    "build": "bun prisma generate && next build",
+    "build": "npx prisma generate && next build",
     "start": "next start",
     "lint": "tsc --noEmit && eslint src",
     "test": "jest",
@@ -19,7 +19,7 @@
     "db:seed-dev": "FORCE_SEED=true bun prisma/seed.ts",
     "db:reset": "echo '⚠️ DISABLED - Use db:seed-dev with FORCE_SEED=true for dev reset'",
     "holding:metrics": "bun run scripts/send-holding-metrics.ts",
-    "postinstall": "bun run db:generate"
+    "postinstall": "npx prisma generate"
   },
   "prisma": {
     "seed": "npx ts-node --compiler-options {\"module\":\"CommonJS\",\"strict\":false} prisma/seed-production.ts"
