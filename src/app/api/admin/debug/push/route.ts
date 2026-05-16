@@ -10,7 +10,13 @@ import { verifyToken } from "@/lib/auth";
 import prisma from "@/lib/db";
 import { sendNativePush } from "@/lib/native-push";
 
-async function requireAdmin() {
+async function requireAdmin(req?: NextRequest) {
+  // Allow CRON_SECRET bearer token for CLI/cron testing
+  if (req) {
+    const auth = req.headers.get("authorization");
+    const cronSecret = process.env.CRON_SECRET;
+    if (cronSecret && auth === `Bearer ${cronSecret}`) return { type: "admin" as const };
+  }
   const cookieStore = await cookies();
   const token = cookieStore.get("auth_token")?.value;
   if (!token) return null;
@@ -19,8 +25,8 @@ async function requireAdmin() {
   return payload;
 }
 
-export async function GET() {
-  const admin = await requireAdmin();
+export async function GET(req: NextRequest) {
+  const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   // --- Env var check ---
@@ -106,7 +112,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const admin = await requireAdmin();
+  const admin = await requireAdmin(request);
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { locksmithId } = await request.json();
