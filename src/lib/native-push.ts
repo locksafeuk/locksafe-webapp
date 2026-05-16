@@ -22,6 +22,7 @@
 
 import "server-only";
 import * as jose from "jose";
+import { fetch as undiciFetch, Agent } from "undici";
 
 const APNS_KEY_ID = process.env.APNS_KEY_ID || "";
 const APNS_TEAM_ID = process.env.APNS_TEAM_ID || "";
@@ -100,9 +101,10 @@ async function sendApns(
   };
 
   try {
-    const response = await fetch(
+    const response = await undiciFetch(
       `https://api.push.apple.com/3/device/${deviceToken}`,
       {
+        dispatcher: new Agent({ allowH2: true }),
         method: "POST",
         headers: {
           authorization: `bearer ${jwt}`,
