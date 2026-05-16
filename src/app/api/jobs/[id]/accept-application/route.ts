@@ -4,6 +4,7 @@ import { JobStatus } from "@prisma/client";
 import { sendJobConfirmationEmail, sendLocksmithBookedEmail } from "@/lib/email";
 import { notifyApplicationAccepted, notifyAssessmentFeePaid } from "@/lib/telegram";
 import { sendJobNotification, type JobSMSContext } from "@/lib/sms";
+import { sendNativePush } from "@/lib/native-push";
 
 // Problem type labels for email
 const problemLabels: Record<string, string> = {
@@ -219,6 +220,24 @@ export async function POST(
     sendJobNotification("locksmith_accepted", smsContext).catch((err) =>
       console.error("[SMS] Failed to send locksmith accepted notifications:", err)
     );
+
+    // Send native push to locksmith (if they have a device token)
+    if (updatedJob.locksmith?.nativeDeviceToken && updatedJob.locksmith?.nativeTokenType) {
+      sendNativePush(
+        updatedJob.locksmith.nativeDeviceToken,
+        updatedJob.locksmith.nativeTokenType,
+        updatedJob.locksmith.nativeTokenPlatform ?? "",
+        {
+          title: "Job Confirmed! 🔑",
+          body: `You've been booked for job ${updatedJob.jobNumber} in ${updatedJob.postcode}`,
+          data: {
+            type: "JOB_ACCEPTED",
+            jobId: updatedJob.id,
+            jobNumber: updatedJob.jobNumber,
+          },
+        }
+      ).catch((err) => console.error("[NativePush] Failed to notify locksmith on accept:", err));
+    }
 
     return NextResponse.json({
       success: true,

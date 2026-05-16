@@ -6,6 +6,7 @@ import { sendSMS } from "@/lib/sms";
 import { sendLocksmithAssignmentEmail } from "@/lib/email";
 import { createNotification } from "@/lib/notifications";
 import { SITE_URL } from "@/lib/config";
+import { sendNativePush } from "@/lib/native-push";
 
 // Verify admin session
 async function verifyAdmin() {
@@ -186,6 +187,24 @@ Reply STOP to opt out.`;
     }).catch((err) => {
       console.error("[Admin Assign] Failed to create notification:", err);
     });
+
+    // Send native push to locksmith (if they have a device token)
+    if (locksmith.nativeDeviceToken && locksmith.nativeTokenType) {
+      sendNativePush(
+        locksmith.nativeDeviceToken,
+        locksmith.nativeTokenType,
+        locksmith.nativeTokenPlatform ?? "",
+        {
+          title: "New Job Assignment 🔔",
+          body: `You've been assigned job ${job.jobNumber} in ${job.postcode}. Tap to accept.`,
+          data: {
+            type: "JOB_ASSIGNED",
+            jobId: job.id,
+            jobNumber: job.jobNumber,
+          },
+        }
+      ).catch((err) => console.error("[NativePush] Failed to notify locksmith on admin assign:", err));
+    }
 
     console.log(`[Admin Assign] Admin assigned locksmith ${locksmith.name} to job ${job.jobNumber}`);
 
