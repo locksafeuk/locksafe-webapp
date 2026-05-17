@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// ─── Rate Limiting (in-memory, edge-compatible) ─────────────────────────────
+// Rate limiting (in-memory, edge-compatible)
 const ipRequestCounts = new Map<string, { count: number; resetTime: number }>();
 const RATE_LIMIT_MAX = 100; // requests per window
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
@@ -24,7 +24,7 @@ function getRateLimitResult(ip: string) {
 }
 
 // Periodic cleanup of expired entries (edge-safe)
-if (typeof globalThis !== "undefined") {
+if (typeof globalThis !== 'undefined') {
   const cleanup = () => {
     const now = Date.now();
     for (const [key, entry] of ipRequestCounts) {
@@ -37,23 +37,16 @@ if (typeof globalThis !== "undefined") {
   setInterval(cleanup, 5 * 60 * 1000);
 }
 
-// ─── City slug routing ──────────────────────────────────────────────────────
-// All valid city slugs are sourced from `src/lib/uk-cities-data.ts` at build
-// time via `generateStaticParams` on the dynamic `/locksmith-city/[city]`
-// route. Rather than duplicating that list here (which previously led to
-// 404s for newly-added cities such as Lancaster), the middleware rewrites
-// any `/locksmith-{slug}` URL optimistically to the dynamic route and lets
-// the page itself render the "City not found" fallback when the slug is
-// unknown. The carve-outs below protect literal app-router file routes.
+// City slug routing
 const LITERAL_LOCKSMITH_ROUTES = new Set([
   '/locksmith-signup',
   '/locksmith-rickmansworth',
 ]);
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // ── Rate limiting for API routes ──────────────────────────────────────────
+  // Rate limiting for API routes
   if (pathname.startsWith('/api/')) {
     const ip =
       request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
@@ -84,16 +77,7 @@ export function middleware(request: NextRequest) {
     return response;
   }
 
-  // ── City slug rewrites ────────────────────────────────────────────────────
-  // Handle locksmith-[city] URLs → /locksmith-city/[city]
-  // Optimistic rewrite — matches every slug except literal file routes and
-  // the dynamic-route prefixes themselves. Unknown slugs are handled by the
-  // page's own "City not found" fallback.
-  //
-  // Keyword-template landings (e.g. /locksmith-near-me-in-london) MUST be
-  // skipped — they're served by the root `[keywordSlug]` SSG route. We
-  // detect them by the `-in-` segment, which is the canonical signature of
-  // a keyword × city URL and never appears in legacy city slugs.
+  // Handle locksmith-[city] URLs -> /locksmith-city/[city]
   if (
     pathname.startsWith('/locksmith-') &&
     !pathname.startsWith('/locksmith-city') &&
@@ -110,10 +94,9 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // Handle emergency-locksmith-* URLs → /locksmith-area/*
+  // Handle emergency-locksmith-* URLs -> /locksmith-area/*
   // Skip keyword-template landings (contain `-in-`), e.g.
-  // /emergency-locksmith-near-me-in-london, which are served by the root
-  // `[keywordSlug]` SSG route.
+  // /emergency-locksmith-near-me-in-london.
   if (
     pathname.startsWith('/emergency-locksmith-') &&
     !pathname.includes('-in-')

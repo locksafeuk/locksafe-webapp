@@ -14,15 +14,15 @@ const nextConfig = {
       { protocol: 'https', hostname: '*.public.blob.vercel-storage.com' },
     ],
   },
+  // Include agent SKILL.md files in serverless bundle so the orchestrator
+  // can read them at runtime via fs.readFile.
+  outputFileTracingIncludes: {
+    '/api/**': ['./src/agents/**/*.md'],
+  },
   // Reduce client bundle size by tree-shaking large icon/utility libs
   // and inline critical CSS to remove render-blocking stylesheet.
   experimental: {
-    optimizeCss: true,
-    // Include agent SKILL.md files in Vercel serverless bundle so the
-    // orchestrator can read them at runtime via fs.readFile.
-    outputFileTracingIncludes: {
-      '/api/**': ['./src/agents/**/*.md'],
-    },
+    optimizeCss: false,
     optimizePackageImports: [
       'lucide-react',
       '@radix-ui/react-dialog',

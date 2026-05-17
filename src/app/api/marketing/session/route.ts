@@ -32,8 +32,21 @@ export async function GET(request: NextRequest) {
 // POST - Create or get session
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { visitorId, userAgent, referrer, utmSource, utmMedium, utmCampaign, landingPage } = body;
+    let body: Record<string, unknown> = {};
+    try {
+      body = await request.json();
+    } catch {
+      // Ignore invalid/empty JSON payloads and return a validation error below.
+      body = {};
+    }
+
+    const visitorId = typeof body.visitorId === "string" ? body.visitorId : "";
+    const userAgent = typeof body.userAgent === "string" ? body.userAgent : undefined;
+    const referrer = typeof body.referrer === "string" ? body.referrer : undefined;
+    const utmSource = typeof body.utmSource === "string" ? body.utmSource : undefined;
+    const utmMedium = typeof body.utmMedium === "string" ? body.utmMedium : undefined;
+    const utmCampaign = typeof body.utmCampaign === "string" ? body.utmCampaign : undefined;
+    const landingPage = typeof body.landingPage === "string" ? body.landingPage : "/";
 
     if (!visitorId) {
       return NextResponse.json(
@@ -48,7 +61,7 @@ export async function POST(request: NextRequest) {
       utmSource,
       utmMedium,
       utmCampaign,
-      landingPage: landingPage || "/",
+      landingPage,
     });
 
     return NextResponse.json({ session });
