@@ -241,7 +241,7 @@ async function runHeartbeatVerbose(agentName: string) {
     console.log(`\n  ${C.bold}${C.white}── Iteration ${iter + 1} ──${C.reset}`);
 
     const resp = await patchedChat(Models.HERMES, messages as Parameters<typeof chat>[1], {
-      tools:       toolDefs as Parameters<typeof chat>[2]['tools'],
+      tools:       toolDefs as NonNullable<Parameters<typeof chat>[2]>['tools'],
       temperature: 0.2,
       timeoutMs:   120_000,
     });
@@ -335,12 +335,12 @@ async function main() {
     const memories = await prisma.agentMemory.findMany({
       orderBy: { createdAt: 'desc' },
       take: 5,
-      select: { content: true, memoryType: true, createdAt: true },
+      select: { content: true, type: true, createdAt: true },
     });
     if (memories.length) {
       banner('Latest Agent Memories');
       for (const m of memories) {
-        console.log(`  ${C.dim}[${m.memoryType}]${C.reset} ${m.content.slice(0, 120)}`);
+        console.log(`  ${C.dim}[${m.type}]${C.reset} ${m.content.slice(0, 120)}`);
       }
     }
   } catch {
