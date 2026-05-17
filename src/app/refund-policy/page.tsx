@@ -40,12 +40,14 @@ const sections: Section[] = [
   { id: "disputes", number: "6", title: "Dispute Resolution", icon: <AlertCircle className="w-4 h-4" /> },
   { id: "locksmiths", number: "7", title: "Information for Locksmiths", icon: <Wrench className="w-4 h-4" /> },
   { id: "contact", number: "8", title: "Contact Us", icon: <Phone className="w-4 h-4" /> },
-  { id: "related", number: "9", title: "Related Policies", icon: <HelpCircle className="w-4 h-4" /> },
+  { id: "cover-cancellation", number: "9", title: "LockSafe Cover Cancellation", icon: <Shield className="w-4 h-4" /> },
+  { id: "referral-credits", number: "10", title: "Referral Credits", icon: <HelpCircle className="w-4 h-4" /> },
+  { id: "related", number: "11", title: "Related Policies", icon: <HelpCircle className="w-4 h-4" /> },
 ];
 
 export default function RefundPolicyPage() {
   const [activeSection, setActiveSection] = useState("overview");
-  const lastUpdated = "March 2026";
+  const lastUpdated = "May 2026";
 
   useEffect(() => {
     const handleScroll = () => {
@@ -557,13 +559,102 @@ export default function RefundPolicyPage() {
                   </div>
                 </section>
 
-                {/* Section 9: Related Policies */}
+                {/* Section 9: Cover Cancellation */}
+                <section id="cover-cancellation" className="scroll-mt-28 mb-12">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
+                      <Shield className="w-5 h-5 text-orange-600" />
+                    </div>
+                    <h2 className="!mb-0">9. LockSafe Cover Subscription Cancellation</h2>
+                  </div>
+
+                  <h3>9.1 Right to Cancel a New Subscription (14-Day Cooling-Off)</h3>
+                  <p>
+                    When you purchase a new LockSafe Cover subscription, you have the right to cancel within <strong>14 days</strong> of your subscription start date under the Consumer Contracts Regulations 2013 and receive a full refund, unless you have expressly requested that access to subscription benefits begins immediately. If you have used Cover benefits (such as a free callout or discounted rate) during the 14-day period, we may deduct a proportional amount for the value of benefits used before refunding the remainder.
+                  </p>
+
+                  <h3>9.2 Cancellation After the Cooling-Off Period</h3>
+                  <p>
+                    After the 14-day cooling-off period, you may cancel your subscription at any time through your account dashboard. Cancellation takes effect at the end of your current billing period — you retain access to all Cover benefits until then. <strong>No refund</strong> is issued for the remaining days of the current billing period.
+                  </p>
+
+                  <h3>9.3 Annual Subscriptions</h3>
+                  <p>
+                    For annual subscriptions cancelled after the cooling-off period, no pro-rata refund is provided for the unused months. If we materially reduce Cover benefits, we will notify you at least 30 days in advance and offer a pro-rata refund for the unused portion if you choose to cancel.
+                  </p>
+
+                  <h3>9.4 Free Trial Cancellation</h3>
+                  <p>
+                    If you are within a free trial period, you may cancel at any time before the trial ends at no charge. If you do not cancel before the trial ends, you will be billed for the first full subscription period and the standard cancellation policy applies.
+                  </p>
+
+                  <div className="not-prose my-6">
+                    <div className="overflow-hidden rounded-xl border border-slate-200">
+                      <table className="w-full text-left">
+                        <thead className="bg-orange-50">
+                          <tr>
+                            <th className="px-5 py-3 text-sm font-semibold text-slate-900">Scenario</th>
+                            <th className="px-5 py-3 text-sm font-semibold text-slate-900">Refund</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          <tr className="bg-white">
+                            <td className="px-5 py-4 text-slate-700">Cancel within 14 days, no benefits used</td>
+                            <td className="px-5 py-4 text-green-600 font-medium">Full refund</td>
+                          </tr>
+                          <tr className="bg-white">
+                            <td className="px-5 py-4 text-slate-700">Cancel within 14 days, some benefits used</td>
+                            <td className="px-5 py-4 text-amber-600 font-medium">Proportional refund (benefits deducted)</td>
+                          </tr>
+                          <tr className="bg-white">
+                            <td className="px-5 py-4 text-slate-700">Cancel during free trial</td>
+                            <td className="px-5 py-4 text-green-600 font-medium">No charge</td>
+                          </tr>
+                          <tr className="bg-white">
+                            <td className="px-5 py-4 text-slate-700">Cancel after cooling-off period (monthly)</td>
+                            <td className="px-5 py-4 text-red-600 font-medium">No refund — access continues to period end</td>
+                          </tr>
+                          <tr className="bg-white">
+                            <td className="px-5 py-4 text-slate-700">Cancel after cooling-off period (annual)</td>
+                            <td className="px-5 py-4 text-red-600 font-medium">No pro-rata refund</td>
+                          </tr>
+                          <tr className="bg-white">
+                            <td className="px-5 py-4 text-slate-700">We reduce benefits materially (any plan)</td>
+                            <td className="px-5 py-4 text-green-600 font-medium">Pro-rata refund if you choose to cancel</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Section 10: Referral Credits */}
+                <section id="referral-credits" className="scroll-mt-28 mb-12">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center">
+                      <HelpCircle className="w-5 h-5 text-indigo-600" />
+                    </div>
+                    <h2 className="!mb-0">10. Referral Credits</h2>
+                  </div>
+
+                  <p>
+                    Referral credits earned through the LockSafe referral programme are <strong>not refundable as cash</strong> and have no monetary value outside of the Platform.
+                  </p>
+
+                  <ul>
+                    <li>Credits are applied automatically to reduce the cost of a job at checkout.</li>
+                    <li>If a job where credits were applied is subsequently refunded, the credits used will be reinstated to your account rather than refunded as cash.</li>
+                    <li>Credits obtained through fraudulent referrals will be voided. Any job payment discount that was applied using those credits will not be reimbursed.</li>
+                    <li>Credits expire 12 months from the date of issue if unused.</li>
+                    <li>We reserve the right to modify the referral programme with 14 days' notice. Credits already earned prior to any programme change are honoured for their stated validity period.</li>
+                  </ul>
+                </section>
                 <section id="related" className="scroll-mt-28 mb-12">
                   <div className="flex items-center gap-3 mb-6">
                     <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center">
                       <HelpCircle className="w-5 h-5 text-slate-600" />
                     </div>
-                    <h2 className="!mb-0">9. Related Policies</h2>
+                    <h2 className="!mb-0">11. Related Policies</h2>
                   </div>
 
                   <div className="not-prose flex flex-wrap gap-3">

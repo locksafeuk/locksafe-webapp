@@ -46,12 +46,13 @@ const sections: Section[] = [
   { id: "children", number: "10", title: "Children's Privacy", icon: <Baby className="w-4 h-4" /> },
   { id: "changes", number: "11", title: "Changes to This Policy", icon: <RefreshCw className="w-4 h-4" /> },
   { id: "complaints", number: "12", title: "Complaints", icon: <AlertTriangle className="w-4 h-4" /> },
-  { id: "contact", number: "13", title: "Contact Us", icon: <Phone className="w-4 h-4" /> },
+  { id: "automated-decisions", number: "13", title: "Automated Decision-Making", icon: <Database className="w-4 h-4" /> },
+  { id: "contact", number: "14", title: "Contact Us", icon: <Phone className="w-4 h-4" /> },
 ];
 
 export default function PrivacyPage() {
   const [activeSection, setActiveSection] = useState("introduction");
-  const lastUpdated = "March 2026";
+  const lastUpdated = "May 2026";
 
   useEffect(() => {
     const handleScroll = () => {
@@ -299,6 +300,31 @@ export default function PrivacyPage() {
                     <li><strong>Verification Services:</strong> DBS check results for locksmiths</li>
                     <li><strong>Mapping Services:</strong> Location data from Mapbox</li>
                   </ul>
+
+                  <h3>2.4 Referral and Subscription Data</h3>
+                  <p>If you participate in the referral programme or subscribe to LockSafe Cover, we additionally collect and process:</p>
+                  <ul>
+                    <li><strong>Referral codes:</strong> The code you generate or use, linked to your account</li>
+                    <li><strong>Referral credit balance:</strong> Credits earned and applied to your account</li>
+                    <li><strong>Subscription status:</strong> Plan type, start date, renewal date, cancellation status</li>
+                    <li><strong>Billing history:</strong> Subscription payments processed through Stripe</li>
+                  </ul>
+
+                  <h3>2.5 Device and Push Notification Data</h3>
+                  <p>If you use our mobile app or grant notification permissions on our website, we collect:</p>
+                  <ul>
+                    <li><strong>Push notification tokens:</strong> Device-specific tokens issued by Apple (APNs) or Google (FCM) via OneSignal, used to send you job alerts and service updates</li>
+                    <li><strong>App version and device OS:</strong> For compatibility and support purposes</li>
+                  </ul>
+
+                  <h3>2.6 Error and Performance Monitoring</h3>
+                  <p>We use Sentry to monitor application errors and performance. Sentry may collect:</p>
+                  <ul>
+                    <li>Stack traces and error context (which may include limited user session information)</li>
+                    <li>Browser type, OS, and app version</li>
+                    <li>URL of the page where the error occurred</li>
+                  </ul>
+                  <p>We configure Sentry to minimise collection of personal data. Full Sentry privacy details are at <a href="https://sentry.io/privacy/" target="_blank" rel="noopener noreferrer">sentry.io/privacy</a>.</p>
                 </section>
 
                 {/* Section 3: How We Use Information */}
@@ -447,11 +473,15 @@ export default function PrivacyPage() {
                   <div className="not-prose my-6 grid gap-3">
                     {[
                       { name: "Customers & Locksmiths", desc: "Job-related information shared between parties (name, phone, address, job details)" },
-                      { name: "Stripe", desc: "For secure payment processing" },
+                      { name: "Stripe", desc: "For secure payment processing and subscription billing (PCI DSS compliant)" },
                       { name: "Mapbox", desc: "For mapping and location services" },
                       { name: "Resend", desc: "For sending transactional emails" },
-                      { name: "Vercel", desc: "For hosting our services" },
-                      { name: "Legal Authorities", desc: "If required by law or to protect rights" },
+                      { name: "Vercel", desc: "For hosting our web services (servers in the USA — protected by Standard Contractual Clauses)" },
+                      { name: "MongoDB Atlas", desc: "For database storage (AWS infrastructure; EU region preferred where available)" },
+                      { name: "Bland.ai", desc: "For automated AI-assisted phone intake — voice call audio and transcript data may be processed. US-based provider; protected by Standard Contractual Clauses." },
+                      { name: "OneSignal", desc: "For push notification delivery on web and mobile. Receives your device push token and delivery metadata. Privacy policy: onesignal.com/privacy" },
+                      { name: "Sentry", desc: "For application error monitoring. May receive anonymised error context including URL and browser type. Privacy policy: sentry.io/privacy" },
+                      { name: "Legal Authorities", desc: "If required by law, court order, or to protect the rights and safety of LockSafe UK or its users" },
                     ].map((item, i) => (
                       <div key={i} className="flex items-start gap-4 bg-white rounded-xl p-4 border border-slate-200">
                         <div className="w-8 h-8 bg-violet-100 rounded-lg flex items-center justify-center text-violet-600 font-bold text-sm shrink-0">
@@ -657,17 +687,53 @@ export default function PrivacyPage() {
                     <div className="text-slate-600 text-sm space-y-1">
                       <p>Website: <a href="https://ico.org.uk" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">ico.org.uk</a></p>
                       <p>Phone: 0303 123 1113</p>
+                      <p className="text-slate-500 text-xs mt-2">You can also report concerns at <a href="https://ico.org.uk/make-a-complaint/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">ico.org.uk/make-a-complaint</a>.</p>
                     </div>
                   </div>
                 </section>
 
-                {/* Section 13: Contact */}
+                {/* Section 13: Automated Decision-Making */}
+                <section id="automated-decisions" className="scroll-mt-28 mb-12">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
+                      <Database className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <h2 className="!mb-0">13. Automated Decision-Making & AI</h2>
+                  </div>
+
+                  <p>
+                    Under UK GDPR Article 22, you have the right not to be subject to decisions based solely on automated processing that produce legal or similarly significant effects.
+                  </p>
+
+                  <h3>Intelligent Dispatch Algorithm</h3>
+                  <p>
+                    LockSafe uses an automated algorithm to match and dispatch locksmiths to jobs. This algorithm considers factors including distance, availability, rating, and response history. It does not produce a legal or similarly significant effect on any individual — locksmiths can still accept or decline jobs, and customers can choose from multiple presented options.
+                  </p>
+
+                  <h3>AI Voice Processing (Bland.ai)</h3>
+                  <p>
+                    If you call our phone line, your call may be handled by an AI voice system. The system may transcribe and analyse speech to extract job details (address, problem type, urgency). No automated legal decisions are made based solely on voice call content. You may request to speak to a human at any point.
+                  </p>
+
+                  <h3>Fraud Detection</h3>
+                  <p>
+                    We use automated checks to detect potentially fraudulent activity (e.g., self-referrals, duplicate accounts). Where an automated check flags your account, a human review is conducted before any significant action (such as account suspension) is taken.
+                  </p>
+
+                  <div className="not-prose bg-blue-50 border border-blue-200 rounded-xl p-4 my-6">
+                    <p className="text-blue-800 text-sm">
+                      <strong>Your Right to Human Review:</strong> If you believe an automated decision has significantly affected you, contact us at {SUPPORT_EMAIL || "privacy@locksafe.uk"} to request a human review.
+                    </p>
+                  </div>
+                </section>
+
+                {/* Section 14: Contact */}
                 <section id="contact" className="scroll-mt-28 mb-12">
                   <div className="flex items-center gap-3 mb-6">
                     <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
                       <Phone className="w-5 h-5 text-green-600" />
                     </div>
-                    <h2 className="!mb-0">13. Contact Us</h2>
+                    <h2 className="!mb-0">14. Contact Us</h2>
                   </div>
 
                   <p>For any privacy-related questions or to exercise your rights:</p>

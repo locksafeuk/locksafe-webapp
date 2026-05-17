@@ -24,6 +24,7 @@ const footerLinks = {
     { label: "Cooling-Off Rights", href: "/cooling-off" },
     { label: "Vulnerable Customers", href: "/vulnerable-customers" },
     { label: "Accessibility", href: "/accessibility" },
+    { label: "Legal Notice", href: "/legal-notice" },
   ],
 };
 

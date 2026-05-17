@@ -42,7 +42,7 @@ const sections: Section[] = [
 
 export default function CookiesPage() {
   const [activeSection, setActiveSection] = useState("introduction");
-  const lastUpdated = "March 2026";
+  const lastUpdated = "May 2026";
 
   useEffect(() => {
     const handleScroll = () => {
@@ -390,16 +390,32 @@ export default function CookiesPage() {
                       <div className="p-5">
                         <p className="text-slate-600 mb-3 text-sm">
                           These cookies are used to track visitors across websites to display relevant
-                          advertisements. They are set by advertising partners and may be used to build a
-                          profile of your interests.
+                          advertisements based on interests and browsing behaviour.
                         </p>
-                        <div className="bg-white rounded-lg p-4 border border-orange-100 flex items-start gap-3">
-                          <HelpCircle className="w-5 h-5 text-orange-500 mt-0.5" />
-                          <p className="text-slate-700 text-sm">
-                            <strong>We currently do not use marketing cookies.</strong> If this changes, we will
-                            update this policy and request your consent.
-                          </p>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm border border-slate-200 rounded-lg overflow-hidden">
+                            <thead className="bg-slate-50">
+                              <tr>
+                                <th className="text-left px-4 py-3 font-semibold text-slate-900">Provider</th>
+                                <th className="text-left px-4 py-3 font-semibold text-slate-900">Cookie / Pixel</th>
+                                <th className="text-left px-4 py-3 font-semibold text-slate-900">Purpose</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200 bg-white">
+                              <tr>
+                                <td className="px-4 py-3 text-slate-700">Meta (Facebook)</td>
+                                <td className="px-4 py-3 font-mono text-xs text-slate-700">_fbp, _fbc</td>
+                                <td className="px-4 py-3 text-slate-600">Conversion tracking and retargeting via Meta Pixel</td>
+                              </tr>
+                              <tr>
+                                <td className="px-4 py-3 text-slate-700">Google Ads</td>
+                                <td className="px-4 py-3 font-mono text-xs text-slate-700">_gcl_au, _gcl_aw</td>
+                                <td className="px-4 py-3 text-slate-600">Conversion tracking via Google Tag Manager</td>
+                              </tr>
+                            </tbody>
+                          </table>
                         </div>
+                        <p className="text-sm text-slate-500 mt-3">These cookies are only set with your consent. You can withdraw consent at any time by updating your cookie preferences.</p>
                       </div>
                     </div>
                   </div>
@@ -418,17 +434,21 @@ export default function CookiesPage() {
 
                   <div className="not-prose my-6 grid gap-3">
                     {[
-                      { name: "Stripe", desc: "Payment processing (essential for checkout)" },
-                      { name: "Mapbox", desc: "Map functionality (displays locksmith coverage areas)" },
-                      { name: "Google Analytics", desc: "Website analytics (with your consent)" },
+                      { name: "Stripe", desc: "Payment processing (essential for checkout)", privacy: "https://stripe.com/privacy" },
+                      { name: "Mapbox", desc: "Map functionality (displays locksmith coverage areas)", privacy: "https://www.mapbox.com/privacy" },
+                      { name: "Google Analytics / GTM", desc: "Website analytics and conversion tracking (with your consent)", privacy: "https://policies.google.com/privacy" },
+                      { name: "Meta Pixel", desc: "Advertising conversion tracking and retargeting (with your consent)", privacy: "https://www.facebook.com/privacy/policy/" },
+                      { name: "OneSignal", desc: "Push notification delivery. If you subscribe to browser push notifications, OneSignal stores a device token.", privacy: "https://onesignal.com/privacy" },
+                      { name: "Sentry", desc: "Error monitoring. May store a session identifier in local storage to correlate error reports.", privacy: "https://sentry.io/privacy/" },
                     ].map((item, i) => (
                       <div key={i} className="flex items-start gap-4 bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
                         <div className="w-8 h-8 bg-sky-100 rounded-lg flex items-center justify-center text-sky-600 font-bold text-sm shrink-0">
                           {i + 1}
                         </div>
-                        <div>
+                        <div className="flex-1">
                           <div className="font-semibold text-slate-900">{item.name}</div>
                           <div className="text-slate-600 text-sm">{item.desc}</div>
+                          <a href={item.privacy} target="_blank" rel="noopener noreferrer" className="text-xs text-sky-600 hover:underline mt-1 inline-block">Privacy Policy →</a>
                         </div>
                       </div>
                     ))}
@@ -439,15 +459,12 @@ export default function CookiesPage() {
                   </p>
 
                   <div className="not-prose flex flex-wrap gap-3 my-6">
-                    <a href="https://stripe.com/privacy" target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700 text-sm font-medium transition-colors">
-                      Stripe Privacy Policy
-                    </a>
-                    <a href="https://www.mapbox.com/privacy" target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700 text-sm font-medium transition-colors">
-                      Mapbox Privacy Policy
-                    </a>
-                    <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700 text-sm font-medium transition-colors">
-                      Google Privacy Policy
-                    </a>
+                    <a href="https://stripe.com/privacy" target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700 text-sm font-medium transition-colors">Stripe Privacy Policy</a>
+                    <a href="https://www.mapbox.com/privacy" target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700 text-sm font-medium transition-colors">Mapbox Privacy Policy</a>
+                    <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700 text-sm font-medium transition-colors">Google Privacy Policy</a>
+                    <a href="https://www.facebook.com/privacy/policy/" target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700 text-sm font-medium transition-colors">Meta Privacy Policy</a>
+                    <a href="https://onesignal.com/privacy" target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700 text-sm font-medium transition-colors">OneSignal Privacy Policy</a>
+                    <a href="https://sentry.io/privacy/" target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700 text-sm font-medium transition-colors">Sentry Privacy Policy</a>
                   </div>
                 </section>
 

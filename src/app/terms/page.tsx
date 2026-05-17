@@ -55,11 +55,14 @@ const sections: Section[] = [
   { id: "governing-law", number: "14", title: "Governing Law", icon: <Gavel className="w-4 h-4" /> },
   { id: "changes", number: "15", title: "Changes to These Terms", icon: <RefreshCw className="w-4 h-4" /> },
   { id: "contact", number: "16", title: "Contact", icon: <Phone className="w-4 h-4" /> },
+  { id: "consumer-rights", number: "17", title: "Consumer Rights & Service Standards", icon: <Shield className="w-4 h-4" /> },
+  { id: "cover-subscription", number: "18", title: "LockSafe Cover Subscription Terms", icon: <Briefcase className="w-4 h-4" /> },
+  { id: "referral-programme", number: "19", title: "Referral Programme", icon: <Users className="w-4 h-4" /> },
 ];
 
 export default function TermsPage() {
   const [activeSection, setActiveSection] = useState("introduction");
-  const lastUpdated = "March 2026";
+  const lastUpdated = "May 2026";
 
   useEffect(() => {
     const handleScroll = () => {
@@ -204,6 +207,22 @@ export default function TermsPage() {
                     By accessing or using the Platform, you agree to be bound by these Terms. If you do
                     not agree to these Terms, you must not use the Services.
                   </p>
+
+                  <div className="not-prose bg-blue-50 rounded-xl p-5 border border-blue-200 my-6">
+                    <p className="text-sm font-semibold text-slate-800 mb-2">Company Information</p>
+                    <p className="text-slate-600 text-sm">LockSafe UK is a trading name operated in England and Wales. Registered office: [TO BE INSERTED]. Company registration number: [TO BE REGISTERED AT COMPANIES HOUSE]. VAT number: [IF APPLICABLE]. ICO Registration: [ICO REGISTRATION NUMBER]. Contact: contact@locksafe.uk</p>
+                    <p className="text-slate-500 text-xs mt-2">Note: These details are pending formal registration. The platform is operational and obligations under the Consumer Contracts Regulations 2013 and UK GDPR are fully applied.</p>
+                  </div>
+
+                  <div className="not-prose bg-amber-50 rounded-xl p-5 border border-amber-200 my-4">
+                    <p className="text-sm font-semibold text-amber-800 mb-1">Age Requirement</p>
+                    <p className="text-amber-700 text-sm">You must be at least 18 years of age to use the Platform or enter into any contract through it. By using the Platform, you confirm that you are 18 or older.</p>
+                  </div>
+
+                  <div className="not-prose bg-slate-50 rounded-xl p-5 border border-slate-200 my-4">
+                    <p className="text-sm font-semibold text-slate-800 mb-1">AI-Assisted Phone Service</p>
+                    <p className="text-slate-600 text-sm">Some inbound and outbound telephone interactions with LockSafe may be handled by an automated AI voice system. Callers will be informed if their call is AI-assisted. All AI calls are recorded for training and quality purposes.</p>
+                  </div>
 
                   <div className="bg-slate-50 rounded-xl p-6 border-l-4 border-orange-500 not-prose my-6">
                     <p className="text-slate-700 font-medium mb-3">
@@ -734,6 +753,164 @@ export default function TermsPage() {
                       </div>
                     </a>
                   </div>
+                </section>
+                {/* Section 17: Consumer Rights */}
+                <section id="consumer-rights" className="scroll-mt-28 mb-12">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
+                      <Shield className="w-5 h-5 text-green-600" />
+                    </div>
+                    <h2 className="!mb-0">17. Consumer Rights & Service Standards</h2>
+                  </div>
+
+                  <p>
+                    Nothing in these Terms affects your statutory rights as a consumer under English law.
+                  </p>
+
+                  <h3>Consumer Rights Act 2015</h3>
+                  <p>Under the Consumer Rights Act 2015, any services performed through the Platform must be carried out:</p>
+                  <ul>
+                    <li><strong>With reasonable skill and care</strong> — the locksmith must perform the work to the standard of a reasonably competent locksmith.</li>
+                    <li><strong>Within a reasonable time</strong> — where no time is agreed, services must be provided within a reasonable time.</li>
+                    <li><strong>At a reasonable price</strong> — where no price is pre-agreed, only a reasonable price may be charged.</li>
+                    <li><strong>Using satisfactory materials</strong> — any parts installed must be of satisfactory quality and fit for purpose.</li>
+                  </ul>
+
+                  <p>
+                    If the locksmith fails to carry out services with reasonable skill and care, you may be entitled to require a repeat performance or, if that is not practical, a price reduction.
+                  </p>
+
+                  <h3>Consumer Contracts Regulations 2013</h3>
+                  <p>
+                    As services are booked at a distance (online), you have a right to cancel a booking within 14 days without giving any reason, except where:
+                  </p>
+                  <ul>
+                    <li>You have expressly requested that the service begins during the 14-day period (e.g., for emergency lockout services), in which case you may lose the right to cancel once the service has been fully performed; or</li>
+                    <li>The service has been fully performed before the end of the 14-day period with your prior express consent.</li>
+                  </ul>
+                  <p>
+                    Please see our <a href="/cooling-off">Cooling-Off Rights</a> page for full details.
+                  </p>
+
+                  <h3>Consumer Protection from Unfair Trading Regulations 2008</h3>
+                  <p>We will not engage in misleading or aggressive commercial practices. Prices shown are the total amounts payable by the customer, inclusive of all fees, before Stripe payment processing charges where applicable.</p>
+
+                  <div className="not-prose bg-green-50 border border-green-200 rounded-xl p-4 my-6">
+                    <p className="text-green-800 text-sm">
+                      <strong>Your statutory rights are not affected by anything in these Terms.</strong> If you have a dispute about services, you may also contact Citizens Advice (citizensadvice.org.uk) or Trading Standards.
+                    </p>
+                  </div>
+                </section>
+
+                {/* Section 18: LockSafe Cover */}
+                <section id="cover-subscription" className="scroll-mt-28 mb-12">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
+                      <Briefcase className="w-5 h-5 text-orange-600" />
+                    </div>
+                    <h2 className="!mb-0">18. LockSafe Cover Subscription Terms</h2>
+                  </div>
+
+                  <div className="not-prose bg-red-50 border border-red-200 rounded-xl p-5 my-6">
+                    <p className="text-sm font-bold text-red-800 mb-2">Important: LockSafe Cover is NOT Insurance</p>
+                    <p className="text-red-700 text-sm">LockSafe Cover is a paid membership subscription providing priority service benefits and fee discounts. It is <strong>not</strong> an insurance product, is not regulated by the Financial Conduct Authority (FCA), and does not provide any guarantee of cover against loss, damage, or liability. Nothing in LockSafe Cover constitutes an insurance contract or financial product as defined under the Financial Services and Markets Act 2000.</p>
+                  </div>
+
+                  <h3>18.1 What LockSafe Cover Provides</h3>
+                  <p>A LockSafe Cover subscription gives you access to:</p>
+                  <ul>
+                    <li>Priority dispatch — your job is elevated in the dispatch queue for faster response</li>
+                    <li>Extended locksmith search radius (up to 20 miles)</li>
+                    <li>Free callout allowances each billing period (as stated at time of purchase)</li>
+                    <li>Discounted rates on assessment fees while actively subscribed</li>
+                  </ul>
+
+                  <h3>18.2 Subscription Plans and Pricing</h3>
+                  <p>
+                    Subscriptions are available on a monthly or annual basis. Current prices are displayed on the <a href="/customer/cover">Cover page</a> before checkout. Prices include VAT where applicable.
+                  </p>
+
+                  <h3>18.3 Auto-Renewal</h3>
+                  <p>
+                    <strong>Your subscription will automatically renew</strong> at the end of each billing period (monthly or annually) at the then-current price unless you cancel before the renewal date. You will receive a reminder email at least 3 days before your annual renewal date.
+                  </p>
+
+                  <h3>18.4 Free Trial</h3>
+                  <p>
+                    If a free trial is offered, your card will not be charged during the trial period. If you do not cancel before the trial ends, you will be charged for the first full billing period. You may cancel at any time during the trial without charge.
+                  </p>
+
+                  <h3>18.5 Cancellation</h3>
+                  <p>
+                    You may cancel your subscription at any time through your account dashboard or by contacting us. Cancellation takes effect at the end of your current billing period — you retain access to Cover benefits until then. We do not provide pro-rata refunds for unused portions of a billing period, except where required by law.
+                  </p>
+
+                  <h3>18.6 14-Day Cooling-Off Right (Subscriptions)</h3>
+                  <p>
+                    Under the Consumer Contracts Regulations 2013, you have a right to cancel a new subscription within 14 days of signing up without giving any reason and receive a full refund. However, if you have expressly requested that subscription benefits begin immediately (and have used them), you may lose the right to a full refund, and we may deduct an amount proportional to the time and benefits used before cancellation.
+                  </p>
+
+                  <h3>18.7 Changes to Cover Benefits</h3>
+                  <p>
+                    We reserve the right to change the benefits included in LockSafe Cover. We will provide at least 30 days' notice of any material reduction in benefits. If you choose not to accept the change, you may cancel your subscription and receive a pro-rata refund for the unused portion of your current billing period.
+                  </p>
+
+                  <h3>18.8 Cover Credits</h3>
+                  <p>
+                    Any free callout credits included in your plan reset at the start of each billing period. Unused credits do not carry over, are not transferable, and have no cash value.
+                  </p>
+                </section>
+
+                {/* Section 19: Referral Programme */}
+                <section id="referral-programme" className="scroll-mt-28 mb-12">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center">
+                      <Users className="w-5 h-5 text-indigo-600" />
+                    </div>
+                    <h2 className="!mb-0">19. Referral Programme</h2>
+                  </div>
+
+                  <p>LockSafe operates a referral programme that allows existing customers to invite friends. This section governs participation in the programme.</p>
+
+                  <h3>19.1 Eligibility</h3>
+                  <ul>
+                    <li>You must have a verified LockSafe customer account to generate a referral code.</li>
+                    <li>You cannot refer yourself. Self-referrals are automatically detected and voided.</li>
+                    <li>Referral codes are personal and may not be published on coupon websites or used for mass distribution without our prior written consent.</li>
+                  </ul>
+
+                  <h3>19.2 Reward Conditions</h3>
+                  <p>A referral reward is only issued when:</p>
+                  <ul>
+                    <li>A new customer registers using your unique referral code; and</li>
+                    <li>That customer completes their first paid job through the Platform.</li>
+                  </ul>
+                  <p>
+                    Rewards are issued as platform credits applied to your account, not as cash. The credit value is as displayed in the referral section of your account at the time of the referral.
+                  </p>
+
+                  <h3>19.3 Credits</h3>
+                  <ul>
+                    <li>Referral credits are non-transferable and have no cash value.</li>
+                    <li>Credits cannot be combined with other promotional offers unless otherwise stated.</li>
+                    <li>Credits expire 12 months from the date of issue if unused.</li>
+                    <li>Credits are applied automatically at checkout before payment is charged.</li>
+                  </ul>
+
+                  <h3>19.4 Fraud Prevention</h3>
+                  <p>
+                    We monitor referrals for fraudulent activity including, but not limited to: fake accounts, self-referrals, duplicate registrations, and bulk distribution of referral codes. We reserve the right to:
+                  </p>
+                  <ul>
+                    <li>Void any referral credits obtained through suspected fraud;</li>
+                    <li>Suspend or permanently ban accounts engaged in referral fraud;</li>
+                    <li>Recover credits already applied to an account where fraud is confirmed.</li>
+                  </ul>
+
+                  <h3>19.5 Programme Changes</h3>
+                  <p>
+                    We reserve the right to modify or terminate the referral programme at any time with 14 days' notice. Credits already earned prior to termination will remain valid for their stated expiry period.
+                  </p>
                 </section>
               </div>
             </article>
