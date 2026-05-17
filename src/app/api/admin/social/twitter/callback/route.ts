@@ -1,10 +1,10 @@
 /**
  * GET /api/admin/social/twitter/callback
  *
- * Twitter OAuth 1.0a callback. Exchanges oauth_token + oauth_verifier for
- * permanent access tokens. Saves to SocialAccount DB record.
+ * Twitter OAuth 2.0 PKCE callback. Exchanges code for access + refresh tokens.
+ * Saves to SocialAccount DB record.
  *
- * Query params: oauth_token, oauth_verifier
+ * Query params: code, state
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -29,69 +29,72 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/admin/login", request.url));
   }
 
-  const url = new URL(request.url);
-  const oauthToken    = url.searchParams.get("oauth_token");
-  const oauthVerifier = url.searchParams.get("oauth_verifier");
-  const denied        = url.searchParams.get("denied");
+  const url   = new URL(request.url);
+  const code  = url.searchParams.get("code");
+  const state = url.searchParams.get("state");
+  const error = url.searchParams.get("error");
 
-  if (denied) {
-    return redirect(request, "error=twitter_denied&platform=twitter");
+  if (error) {
+    return redirect(request, `error=${encodeURIComponent(error)}&platform=twitter`);
   }
-  if (!oauthToken || !oauthVerifier) {
+  if (!code || !state) {
     return redirect(request, "error=twitter_missing_params&platform=twitter");
   }
 
   const cookieStore = await cookies();
-  const oauthTokenSecret = cookieStore.get("twitter_oauth_token_secret")?.value;
-  if (!oauthTokenSecret) {
-    return redirect(request, "error=twitter_session_expired&platform=twitter");
+  const codeVerifier   = cookieStore.get("twitter_code_verifier")?.value;
+  const expectedState  = cookieStore.get("twitter_oauth_state")?.value;
+
+  if (!codeVerifier || !expectedState || expectedState !== state) {
+    return redirect(request, "error=twitter_state_mismatch&platform=twitter");
   }
 
-  const apiKey    = process.env.TWITTER_API_KEY;
-  const apiSecret = process.env.TWITTER_API_SECRET;
-  if (!apiKey || !apiSecret) {
+  const clientId     = process.env.TWITTER_CLIENT_ID;
+  const clientSecret = process.env.TWITTER_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
     return redirect(request, "error=twitter_app_not_configured&platform=twitter");
   }
 
+  const callbackUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://www.locksafe.uk"}/api/admin/social/twitter/callback`;
+
   try {
     const { TwitterApi } = require("twitter-api-v2") as typeof import("twitter-api-v2");
-    const tempClient = new TwitterApi({
-      appKey: apiKey,
-      appSecret,
-      accessToken: oauthToken,
-      accessSecret: oauthTokenSecret,
-    });
+    const client = new TwitterApi({ clientId, clientSecret });
 
-    const { client: loggedClient, accessToken, accessSecret } = await tempClient.login(oauthVerifier);
+    const { client: loggedClient, accessToken, refreshToken, expiresIn } =
+      await client.loginWithOAuth2({ code, codeVerifier, redirectUri: callbackUrl });
 
-    // Get authenticated user info
     const me = await loggedClient.v2.me({ "user.fields": ["profile_image_url", "username", "name"] });
     const userId   = me.data.id;
     const username = me.data.username;
     const name     = me.data.name;
 
-    // Upsert SocialAccount in DB
+    const tokenExpiresAt = expiresIn
+      ? new Date(Date.now() + expiresIn * 1000)
+      : new Date(Date.now() + 2 * 60 * 60 * 1000); // 2h default
+
     await prisma.socialAccount.upsert({
       where: { platform_accountId: { platform: "TWITTER", accountId: userId } },
       create: {
-        platform:     "TWITTER",
-        accountId:    userId,
-        accountName:  name,
+        platform:      "TWITTER",
+        accountId:     userId,
+        accountName:   name,
         accountHandle: `@${username}`,
         accessToken,
-        refreshToken: accessSecret, // Store access secret in refreshToken field
-        isActive:     true,
+        refreshToken:  refreshToken ?? null,
+        tokenExpiresAt,
+        isActive:      true,
       },
       update: {
-        accountName:  name,
+        accountName:   name,
         accountHandle: `@${username}`,
         accessToken,
-        refreshToken: accessSecret,
-        isActive:     true,
+        refreshToken:  refreshToken ?? null,
+        tokenExpiresAt,
+        isActive:      true,
       },
     });
 
-    // Deactivate any placeholder records for Twitter
     await prisma.socialAccount.updateMany({
       where: { platform: "TWITTER", accountId: "PLACEHOLDER" },
       data: { isActive: false },
@@ -99,9 +102,9 @@ export async function GET(request: NextRequest) {
 
     console.log(`[Twitter Connect] Connected @${username} (${userId})`);
 
-    // Clear the temp cookie
     const res = redirect(request, `success=twitter&platform=twitter&handle=${encodeURIComponent("@" + username)}`);
-    res.cookies.delete("twitter_oauth_token_secret");
+    res.cookies.delete("twitter_code_verifier");
+    res.cookies.delete("twitter_oauth_state");
     return res;
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Twitter OAuth callback failed";

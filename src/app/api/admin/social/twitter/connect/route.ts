@@ -1,16 +1,14 @@
 /**
  * GET /api/admin/social/twitter/connect
  *
- * Initiates Twitter OAuth 1.0a 3-legged flow.
- * Requires TWITTER_API_KEY + TWITTER_API_SECRET env vars (from Twitter Dev Portal).
+ * Initiates Twitter OAuth 2.0 PKCE flow.
+ * Requires TWITTER_CLIENT_ID + TWITTER_CLIENT_SECRET env vars.
  * Redirects admin to Twitter authorization page.
- * Sets an HttpOnly cookie with the oauth_token_secret for the callback.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth";
-import crypto from "node:crypto";
 
 async function verifyAdmin(): Promise<boolean> {
   const cookieStore = await cookies();
@@ -25,10 +23,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/admin/login", request.url));
   }
 
-  const apiKey = process.env.TWITTER_API_KEY;
-  const apiSecret = process.env.TWITTER_API_SECRET;
+  const clientId = process.env.TWITTER_CLIENT_ID;
+  const clientSecret = process.env.TWITTER_CLIENT_SECRET;
 
-  if (!apiKey || !apiSecret) {
+  if (!clientId || !clientSecret) {
     return NextResponse.redirect(
       new URL("/admin/social-connect?error=twitter_app_not_configured&platform=twitter", request.url)
     );
@@ -38,16 +36,25 @@ export async function GET(request: NextRequest) {
 
   try {
     const { TwitterApi } = require("twitter-api-v2") as typeof import("twitter-api-v2");
-    const client = new TwitterApi({ appKey: apiKey, appSecret });
-    const authLink = await client.generateAuthLink(callbackUrl, { linkMode: "authorize" });
+    const client = new TwitterApi({ clientId, clientSecret });
+    const { url, codeVerifier, state } = client.generateOAuth2AuthLink(callbackUrl, {
+      scope: ["tweet.read", "tweet.write", "users.read", "offline.access"],
+    });
 
-    // Store the oauth_token_secret in an HttpOnly cookie (needed for the callback)
-    const res = NextResponse.redirect(authLink.url);
-    res.cookies.set("twitter_oauth_token_secret", authLink.oauth_token_secret, {
+    const res = NextResponse.redirect(url);
+    // Store codeVerifier + state in HttpOnly cookies for callback verification
+    res.cookies.set("twitter_code_verifier", codeVerifier, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 600, // 10 minutes
+      maxAge: 600,
+      path: "/",
+    });
+    res.cookies.set("twitter_oauth_state", state, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 600,
       path: "/",
     });
     return res;

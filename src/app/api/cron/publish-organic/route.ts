@@ -245,12 +245,8 @@ export async function GET(request: NextRequest) {
           // Use DB credentials if available (from OAuth connect), else fall back to env vars
           if (twitterDbAccount) {
             const { TwitterApi } = require("twitter-api-v2") as typeof import("twitter-api-v2");
-            const twitterClient = new TwitterApi({
-              appKey:     process.env.TWITTER_API_KEY!,
-              appSecret:  process.env.TWITTER_API_SECRET!,
-              accessToken: twitterDbAccount.accessToken,
-              accessSecret: twitterDbAccount.refreshToken!, // stored in refreshToken field
-            });
+            // OAuth 2.0: use the access token directly
+            const twitterClient = new TwitterApi(twitterDbAccount.accessToken);
             if (threadParts && threadParts.length > 1) {
               const tweets = await twitterClient.v2.tweetThread(threadParts);
               platformResults.twitter = { success: true, postId: tweets[0]?.data?.id };
