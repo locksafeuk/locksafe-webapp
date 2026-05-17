@@ -45,7 +45,7 @@ export async function getOrCreateCustomerReferralCode(customerId: string): Promi
   // Generate a unique code (retry on collision)
   let code = buildReferralCode(customer.name);
   for (let attempt = 0; attempt < 10; attempt++) {
-    const existing = await prisma.customer.findUnique({ where: { referralCode: code } });
+    const existing = await prisma.customer.findFirst({ where: { referralCode: code } });
     if (!existing) break;
     code = buildReferralCode(customer.name);
   }
@@ -86,7 +86,7 @@ export async function getOrCreateLocksmithReferralCode(locksmithId: string): Pro
 
   let code = buildReferralCode(locksmith.name);
   for (let attempt = 0; attempt < 10; attempt++) {
-    const existing = await prisma.locksmith.findUnique({ where: { referralCode: code } });
+    const existing = await prisma.locksmith.findFirst({ where: { referralCode: code } });
     if (!existing) break;
     code = buildReferralCode(locksmith.name);
   }
