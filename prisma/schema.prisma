@@ -79,7 +79,7 @@ model Customer {
   whatsappVerified       Boolean    @default(false)
 
   // Referral system
-  referralCode      String?   @unique  // Their own shareable code (e.g. SARAH-X4K2)
+  referralCode      String?   // Their own shareable code (e.g. SARAH-X4K2) - sparse unique index managed in Atlas
   referralCredits   Float     @default(0)  // Available £ credits from referrals
   referredByCode    String?   // Code they signed up with
 
@@ -259,7 +259,7 @@ model Locksmith {
 
   createdAt         DateTime      @default(now())
   // Referral system
-  referralCode      String?   @unique  // Their own shareable code
+  referralCode      String?   // Their own shareable code - sparse unique index managed in Atlas
   referredByCode    String?   // Code they signed up with
 
   updatedAt         DateTime      @updatedAt
