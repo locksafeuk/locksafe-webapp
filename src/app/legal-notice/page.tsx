@@ -58,19 +58,19 @@ export default function LegalNoticePage() {
                 </div>
                 <div>
                   <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Legal Entity</p>
-                  <p className="font-semibold text-slate-900">LockSafe UK Ltd <span className="text-slate-400 font-normal text-sm">(pending registration)</span></p>
+                  <p className="font-semibold text-slate-900">LOCKSAFEUK LTD</p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Companies House Number</p>
-                  <p className="font-semibold text-slate-900 text-amber-600">[REGISTRATION PENDING — to be inserted upon completion of Companies House registration]</p>
+                  <p className="font-semibold text-slate-900">17091123</p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">VAT Registration Number</p>
-                  <p className="font-semibold text-slate-900 text-amber-600">[VAT registration number — insert when registered]</p>
+                  <p className="font-semibold text-slate-900">Not currently VAT registered</p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Registered Office Address</p>
-                  <p className="font-semibold text-slate-900 text-amber-600">[Registered office address — insert upon Companies House registration]</p>
+                  <p className="font-semibold text-slate-900">71-75 Shelton Street, Covent Garden, London, WC2H 9JQ</p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Place of Incorporation</p>
