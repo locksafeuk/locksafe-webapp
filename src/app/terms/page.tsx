@@ -210,7 +210,7 @@ export default function TermsPage() {
 
                   <div className="not-prose bg-blue-50 rounded-xl p-5 border border-blue-200 my-6">
                     <p className="text-sm font-semibold text-slate-800 mb-2">Company Information</p>
-                    <p className="text-slate-600 text-sm">LockSafe UK is a trading name of LOCKSAFEUK LTD, registered in England and Wales. Registered office: 71-75 Shelton Street, Covent Garden, London, WC2H 9JQ. Company number: 17091123. Not currently VAT registered. ICO Registration: [ICO REGISTRATION NUMBER — apply at ico.org.uk]. Contact: contact@locksafe.uk</p>
+                    <p className="text-slate-600 text-sm">LockSafe UK is a trading name of LOCKSAFEUK LTD, registered in England and Wales. Registered office: 71-75 Shelton Street, Covent Garden, London, WC2H 9JQ. Company number: 17091123. Not currently VAT registered. ICO Registration: C1935410. Contact: contact@locksafe.uk</p>
                     <p className="text-slate-500 text-xs mt-2">Note: These details are pending formal registration. The platform is operational and obligations under the Consumer Contracts Regulations 2013 and UK GDPR are fully applied.</p>
                   </div>
 

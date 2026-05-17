@@ -114,7 +114,7 @@ export default function LegalNoticePage() {
               <div className="p-6 space-y-5">
                 <div>
                   <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">ICO Registration (Data Protection)</p>
-                  <p className="text-slate-700 text-sm">LockSafe UK processes personal data and is subject to registration with the Information Commissioner&apos;s Office (ICO) under the UK GDPR and Data Protection Act 2018. ICO registration number: <span className="text-amber-600 font-medium">[ICO registration number — insert when registered]</span></p>
+                  <p className="text-slate-700 text-sm">LockSafe UK processes personal data and is registered with the Information Commissioner&apos;s Office (ICO) under the UK GDPR and Data Protection Act 2018. ICO registration number: <span className="font-semibold text-slate-900">C1935410</span></p>
                   <p className="text-slate-500 text-xs mt-1">ICO register: <a href="https://ico.org.uk/about-the-ico/what-we-do/register-of-fee-payers/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">ico.org.uk/register</a></p>
                 </div>
                 <div className="border-t border-slate-100 pt-5">
@@ -182,7 +182,6 @@ export default function LegalNoticePage() {
                         { provider: "Resend Inc.", purpose: "Transactional email", location: "USA (SCCs apply)" },
                         { provider: "Mapbox Inc.", purpose: "Mapping & geolocation", location: "USA (SCCs apply)" },
                         { provider: "Bland AI", purpose: "AI voice phone system", location: "USA (SCCs apply)" },
-                        { provider: "OneSignal Inc.", purpose: "Push notifications", location: "USA (SCCs apply)" },
                         { provider: "Sentry Inc.", purpose: "Error monitoring", location: "USA (SCCs apply)" },
                       ].map((row, i) => (
                         <tr key={i} className="bg-white">

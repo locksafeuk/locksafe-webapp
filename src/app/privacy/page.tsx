@@ -313,7 +313,7 @@ export default function PrivacyPage() {
                   <h3>2.5 Device and Push Notification Data</h3>
                   <p>If you use our mobile app or grant notification permissions on our website, we collect:</p>
                   <ul>
-                    <li><strong>Push notification tokens:</strong> Device-specific tokens issued by Apple (APNs) or Google (FCM) via OneSignal, used to send you job alerts and service updates</li>
+                    <li><strong>Push notification tokens:</strong> Device-specific tokens issued by Apple (APNs) or Google (FCM), used to send you job alerts and service updates</li>
                     <li><strong>App version and device OS:</strong> For compatibility and support purposes</li>
                   </ul>
 
@@ -479,7 +479,6 @@ export default function PrivacyPage() {
                       { name: "Vercel", desc: "For hosting our web services (servers in the USA — protected by Standard Contractual Clauses)" },
                       { name: "MongoDB Atlas", desc: "For database storage (AWS infrastructure; EU region preferred where available)" },
                       { name: "Bland.ai", desc: "For automated AI-assisted phone intake — voice call audio and transcript data may be processed. US-based provider; protected by Standard Contractual Clauses." },
-                      { name: "OneSignal", desc: "For push notification delivery on web and mobile. Receives your device push token and delivery metadata. Privacy policy: onesignal.com/privacy" },
                       { name: "Sentry", desc: "For application error monitoring. May receive anonymised error context including URL and browser type. Privacy policy: sentry.io/privacy" },
                       { name: "Legal Authorities", desc: "If required by law, court order, or to protect the rights and safety of LockSafe UK or its users" },
                     ].map((item, i) => (

@@ -438,7 +438,6 @@ export default function CookiesPage() {
                       { name: "Mapbox", desc: "Map functionality (displays locksmith coverage areas)", privacy: "https://www.mapbox.com/privacy" },
                       { name: "Google Analytics / GTM", desc: "Website analytics and conversion tracking (with your consent)", privacy: "https://policies.google.com/privacy" },
                       { name: "Meta Pixel", desc: "Advertising conversion tracking and retargeting (with your consent)", privacy: "https://www.facebook.com/privacy/policy/" },
-                      { name: "OneSignal", desc: "Push notification delivery. If you subscribe to browser push notifications, OneSignal stores a device token.", privacy: "https://onesignal.com/privacy" },
                       { name: "Sentry", desc: "Error monitoring. May store a session identifier in local storage to correlate error reports.", privacy: "https://sentry.io/privacy/" },
                     ].map((item, i) => (
                       <div key={i} className="flex items-start gap-4 bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
@@ -463,7 +462,6 @@ export default function CookiesPage() {
                     <a href="https://www.mapbox.com/privacy" target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700 text-sm font-medium transition-colors">Mapbox Privacy Policy</a>
                     <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700 text-sm font-medium transition-colors">Google Privacy Policy</a>
                     <a href="https://www.facebook.com/privacy/policy/" target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700 text-sm font-medium transition-colors">Meta Privacy Policy</a>
-                    <a href="https://onesignal.com/privacy" target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700 text-sm font-medium transition-colors">OneSignal Privacy Policy</a>
                     <a href="https://sentry.io/privacy/" target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700 text-sm font-medium transition-colors">Sentry Privacy Policy</a>
                   </div>
                 </section>
