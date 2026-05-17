@@ -141,7 +141,7 @@ export const findBestMatchTool: AgentTool = {
  */
 export const autoDispatchTool: AgentTool = {
   name: "autoDispatch",
-  description: "Automatically dispatch a job to the best available locksmith",
+  description: "Automatically dispatch a job to the best available locksmith. If jobId is omitted, dispatches the oldest pending job.",
   category: "dispatch",
   permissions: ["coo", "dispatch-optimizer"],
   requiresApproval: false, // COO can auto-dispatch
@@ -149,8 +149,8 @@ export const autoDispatchTool: AgentTool = {
     {
       name: "jobId",
       type: "string",
-      required: true,
-      description: "The job ID to dispatch",
+      required: false,
+      description: "The job ID to dispatch. Omit to auto-select the oldest pending job.",
     },
     {
       name: "minScore",
@@ -161,8 +161,21 @@ export const autoDispatchTool: AgentTool = {
     },
   ],
   async execute(params, context): Promise<ToolResult> {
-    const jobId = params.jobId as string;
     const minScore = (params.minScore as number) || 70;
+
+    // If no jobId provided, find the oldest pending job
+    let jobId = params.jobId as string | undefined;
+    if (!jobId) {
+      const oldest = await prisma.job.findFirst({
+        where: { status: JobStatus.PENDING },
+        orderBy: { createdAt: "asc" },
+        select: { id: true },
+      });
+      if (!oldest) {
+        return { success: false, error: "No pending jobs found to dispatch" };
+      }
+      jobId = oldest.id;
+    }
 
     const job = await prisma.job.findUnique({
       where: { id: jobId },
