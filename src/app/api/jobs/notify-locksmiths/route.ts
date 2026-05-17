@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
-import { isAdminAuthenticated } from "@/lib/auth";
-import {
-  findNearbyLocksmiths,
-  notifyLocksmitheEmergency,
-  geocodePostcode,
-} from "@/lib/locksmith-matcher";
+import { geocodePostcode } from "@/lib/locksmith-matcher";
+import { notifyNearbyLocksmiths } from "@/lib/job-notifications";
 
 /**
  * POST /api/jobs/notify-locksmiths
@@ -28,14 +24,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Fetch job with customer
+    // Fetch job
     const job = await prisma.job.findUnique({
       where: { id: jobId },
-      include: {
-        customer: {
-          select: { id: true, name: true, phone: true, email: true },
-        },
-      },
     });
 
     if (!job) {
@@ -73,12 +64,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find nearby locksmiths
-    const nearbyLocksmiths = await findNearbyLocksmiths(latitude, longitude, {
-      sortBy: "distance",
+    // Notify nearby locksmiths (SMS + email + native APNs/FCM push)
+    const result = await notifyNearbyLocksmiths({
+      id: job.id,
+      jobNumber: job.jobNumber,
+      problemType: job.problemType,
+      propertyType: job.propertyType ?? undefined,
+      postcode: job.postcode,
+      address: job.address,
+      latitude,
+      longitude,
+      createdAt: job.createdAt.toISOString(),
     });
 
-    if (nearbyLocksmiths.length === 0) {
+    if (result.notifiedCount === 0) {
       return NextResponse.json({
         success: true,
         notifiedCount: 0,
@@ -87,21 +86,6 @@ export async function POST(request: NextRequest) {
         message: "No locksmiths found within range",
       });
     }
-
-    // Notify them
-    const result = await notifyLocksmitheEmergency({
-      locksmiths: nearbyLocksmiths,
-      job: {
-        id: job.id,
-        jobNumber: job.jobNumber,
-        problemType: job.problemType,
-        propertyType: job.propertyType,
-        postcode: job.postcode,
-        address: job.address,
-        customerName: job.customer.name,
-        isEmergency: job.isEmergency,
-      },
-    });
 
     // Update job with notified locksmiths
     await prisma.job.update({
@@ -116,13 +100,6 @@ export async function POST(request: NextRequest) {
       success: true,
       notifiedCount: result.notifiedCount,
       locksmithIds: result.locksmithIds,
-      locksmiths: nearbyLocksmiths.map((ls) => ({
-        id: ls.id,
-        name: ls.name,
-        distance: ls.distance,
-        rating: ls.rating,
-        defaultAssessmentFee: ls.defaultAssessmentFee,
-      })),
     });
   } catch (error) {
     console.error("[API] Notify locksmiths error:", error);
