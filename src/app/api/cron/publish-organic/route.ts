@@ -265,12 +265,24 @@ export async function GET(request: NextRequest) {
       }
 
       // Determine final status
+      const anyAttempted = Object.keys(platformResults).length > 0;
       const anySuccess = Boolean(
         platformResults.facebook?.success ||
         platformResults.instagram?.success ||
         platformResults.twitter?.success ||
         platformResults.linkedin?.success
       );
+
+      // If no platforms were attempted (all accounts inactive), keep SCHEDULED
+      // so the post retries once tokens are refreshed
+      if (!anyAttempted) {
+        await prisma.socialPost.update({
+          where: { id: post.id },
+          data: { status: "SCHEDULED", publishError: null },
+        });
+        results.push({ postId: post.id, success: false, platforms: platformResults });
+        continue;
+      }
 
       // Update post with results
       await prisma.socialPost.update({
