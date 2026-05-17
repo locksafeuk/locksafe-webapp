@@ -16,16 +16,17 @@ const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 /**
  * Send a message via Telegram Bot API (with rate limiting)
  */
-async function sendTelegramMessage(message: string): Promise<boolean> {
+async function sendTelegramMessage(message: string): Promise<{ sent: boolean; reason?: string }> {
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
-    console.warn("[Telegram] Missing bot token or chat ID");
-    return false;
+    // Graceful degradation: log locally, don't fail the agent action
+    console.log("[Telegram] Message logged (no token configured):", message.slice(0, 120));
+    return { sent: false, reason: "TELEGRAM_BOT_TOKEN not configured — message logged locally only" };
   }
 
   // Check rate limit
   if (!canSendTelegramMessage()) {
     console.warn("[Telegram] Rate limited - too many messages this hour");
-    return false;
+    return { sent: false, reason: "rate_limited" };
   }
 
   try {
@@ -50,10 +51,10 @@ async function sendTelegramMessage(message: string): Promise<boolean> {
       recordTelegramMessage();
     }
 
-    return data.ok;
+    return { sent: data.ok, reason: data.ok ? undefined : data.description };
   } catch (error) {
     console.error("[Telegram] Failed to send message:", error);
-    return false;
+    return { sent: false, reason: error instanceof Error ? error.message : "network error" };
   }
 }
 
@@ -101,11 +102,13 @@ ${message}
 <i>Sent at ${new Date().toLocaleTimeString()}</i>`;
 
     try {
-      const sent = await sendTelegramMessage(formattedMessage);
+      const result = await sendTelegramMessage(formattedMessage);
+      // Treat missing-token as a graceful success so agents don't retry in loops
+      const isSuccess = result.sent || result.reason?.includes("not configured");
       return {
-        success: sent,
-        data: { sent, priority, timestamp: new Date() },
-        error: sent ? undefined : "Failed to send Telegram message",
+        success: true,
+        data: { sent: result.sent, priority, timestamp: new Date(), note: result.reason },
+        error: isSuccess ? undefined : result.reason,
       };
     } catch (error) {
       return {

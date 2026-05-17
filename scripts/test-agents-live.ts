@@ -179,12 +179,24 @@ async function runAgent(agentName: string, taskContext: string): Promise<{
     { role: 'user',   content: taskContext },
   ];
 
-  info(`Starting reasoning loop (max 6 iterations) …\n`);
+  info(`Starting reasoning loop (max 8 iterations) …\n`);
+
+  // Build a map from text patterns → canonical tool names (catches "auto-dispatch" → "autoDispatch")
+  const toolNameMap = new Map<string, string>();
+  for (const td of toolDefs as Array<{ function: { name: string } }>) {
+    const name = td.function.name;
+    toolNameMap.set(name.toLowerCase(), name);
+    const hyphenated = name.replace(/([A-Z])/g, (c) => `-${c.toLowerCase()}`);
+    if (hyphenated !== name.toLowerCase()) toolNameMap.set(hyphenated, name);
+  }
 
   let actionsExecuted = 0;
   let totalCost = 0;
   let usedFallback = false;
-  const MAX_ITER = 6;
+  let telegramCalled = false;
+  const nudgedTools = new Set<string>(); // prevent nudging the same tool twice
+  const calledTools  = new Set<string>(); // tools actually executed this run
+  const MAX_ITER = 8;
 
   for (let iter = 0; iter < MAX_ITER; iter++) {
     console.log(`  ${C.bold}${C.white}── Iteration ${iter + 1} / ${MAX_ITER} ──${C.reset}`);
@@ -211,17 +223,40 @@ async function runAgent(agentName: string, taskContext: string): Promise<{
     }
 
     if (!resp.toolCalls || resp.toolCalls.length === 0) {
-      // If agent described a tool call in text without executing it, give one nudge
       const content = resp.content ?? '';
-      const mentionedTool = content.match(/(?:call|calling|use|execute)\s+`?(\w+)\(\)`?/i)?.[1];
-      if (mentionedTool && iter < MAX_ITER - 1) {
-        warn(`Agent described "${mentionedTool}" but didn't call it — nudging`);
+
+      // Detect any tool name mentioned in text that hasn't actually been called yet —
+      // catches "auto-dispatch" / "autoDispatch" without requiring "()" syntax
+      let mentionedTool: string | undefined;
+      for (const [pattern, canonical] of toolNameMap.entries()) {
+        if (!calledTools.has(canonical) && !nudgedTools.has(canonical) && content.toLowerCase().includes(pattern)) {
+          mentionedTool = canonical;
+          break;
+        }
+      }
+      const agentIsDone = !mentionedTool; // no uncalled tools mentioned in remaining text
+
+      if (mentionedTool && !nudgedTools.has(mentionedTool) && iter < MAX_ITER - 2) {
+        nudgedTools.add(mentionedTool);
+        warn(`Agent mentioned "${mentionedTool}" but didn't call it — nudging once`);
         messages.push({
           role: 'user',
-          content: `You described calling ${mentionedTool}() but did not execute it. Call the tool NOW — emit a tool call, do not write more text.`,
+          content: `You mentioned ${mentionedTool} but did not call the tool. Call ${mentionedTool}() NOW — emit a tool_call, do not write more text.`,
         });
         continue;
       }
+
+      // Enforce mandatory sendTelegramAlert if agent finished work without reporting
+      // agentIsDone = no uncalled tools remain; fires even on early iterations for summary-only agents
+      if (!telegramCalled && actionsExecuted > 0 && agentIsDone && iter < MAX_ITER - 1) {
+        warn(`Agent completed work without calling sendTelegramAlert — forcing final step`);
+        messages.push({
+          role: 'user',
+          content: `You have completed your analysis. Now call sendTelegramAlert() with a brief summary of what you found and what actions you took. This is mandatory — do not write the summary in text, call the tool.`,
+        });
+        continue;
+      }
+
       info(`Agent finished — no more tool calls`);
       break;
     }
@@ -232,6 +267,8 @@ async function runAgent(agentName: string, taskContext: string): Promise<{
       printResult(call.name, result.success, result.success ? result.data : result.error);
       actionsExecuted++;
       totalCost += 0.001;
+      if (call.name === 'sendTelegramAlert') telegramCalled = true;
+      calledTools.add(call.name);
       messages.push({
         role: 'user',
         content: `Tool "${call.name}" result: ${JSON.stringify(result.success ? result.data : { error: result.error })}`,
