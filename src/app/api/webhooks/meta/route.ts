@@ -278,7 +278,6 @@ async function handleSpendCapReached(value: MetaChangeValue) {
       },
     });
 
-    // TODO: Send notification to admin
     sendAdminAlert({
       title: `💰 Meta Campaign Spend Cap Reached`,
       message: `Campaign ${campaign.id} has reached its spend cap and has been marked COMPLETED.`,

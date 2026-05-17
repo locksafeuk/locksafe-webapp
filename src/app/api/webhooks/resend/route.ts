@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHmac, timingSafeEqual } from "crypto";
 import prisma from "@/lib/db";
 
 // Resend webhook events
@@ -30,13 +31,74 @@ interface ResendWebhookEvent {
   };
 }
 
+/**
+ * Verify Resend webhook signature using Svix signing protocol.
+ * Resend sets RESEND_WEBHOOK_SECRET in the dashboard (Settings → Webhooks → Signing Secret).
+ * Returns true if valid or if no secret is configured (dev mode).
+ */
+async function verifyResendSignature(
+  request: NextRequest,
+  body: string
+): Promise<boolean> {
+  const secret = process.env.RESEND_WEBHOOK_SECRET;
+  if (!secret) {
+    // No secret configured — allow in development, warn in production
+    if (process.env.NODE_ENV === "production") {
+      console.warn("RESEND_WEBHOOK_SECRET not set — skipping signature verification");
+    }
+    return true;
+  }
+
+  const msgId = request.headers.get("svix-id");
+  const msgTimestamp = request.headers.get("svix-timestamp");
+  const msgSignature = request.headers.get("svix-signature");
+
+  if (!msgId || !msgTimestamp || !msgSignature) {
+    return false;
+  }
+
+  // Reject timestamps older than 5 minutes (replay attack protection)
+  const timestampSeconds = parseInt(msgTimestamp, 10);
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  if (Math.abs(nowSeconds - timestampSeconds) > 300) {
+    return false;
+  }
+
+  // Svix signed content: "{msg-id}.{timestamp}.{body}"
+  const signedContent = `${msgId}.${msgTimestamp}.${body}`;
+
+  // The secret is prefixed with "whsec_" and base64 encoded
+  const secretBytes = Buffer.from(secret.replace(/^whsec_/, ""), "base64");
+  const computedSig = createHmac("sha256", secretBytes)
+    .update(signedContent)
+    .digest("base64");
+
+  // Svix may send multiple signatures (for rotation), e.g. "v1,sig1 v1,sig2"
+  const receivedSigs = msgSignature.split(" ").map((s) => s.split(",")[1]).filter(Boolean);
+  for (const sig of receivedSigs) {
+    try {
+      if (timingSafeEqual(Buffer.from(computedSig), Buffer.from(sig))) {
+        return true;
+      }
+    } catch {
+      // Buffers of different lengths — not a match
+    }
+  }
+
+  return false;
+}
+
 export async function POST(request: NextRequest) {
   try {
-    // Verify webhook signature (optional but recommended)
-    // const signature = request.headers.get("resend-signature");
-    // TODO: Implement signature verification
+    const body = await request.text();
 
-    const event: ResendWebhookEvent = await request.json();
+    // Verify webhook signature to prevent spoofed events
+    const isValid = await verifyResendSignature(request, body);
+    if (!isValid) {
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    }
+
+    const event: ResendWebhookEvent = JSON.parse(body);
     const { type, data } = event;
 
     console.log(`Resend webhook received: ${type}`, data.email_id);

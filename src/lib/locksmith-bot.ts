@@ -519,6 +519,52 @@ export async function getEarningsSummary(locksmithId: string): Promise<{
 }
 
 /**
+ * Calculate average response time in minutes from the locksmith's recent jobs.
+ * Measures time from job creation to the locksmith's first message.
+ * Falls back to 15 minutes if no data is available.
+ */
+async function getAvgResponseTime(locksmithId: string): Promise<number> {
+  try {
+    // Get the locksmith's 20 most recent jobs that have messages
+    const recentJobs = await prisma.job.findMany({
+      where: { locksmithId },
+      select: { id: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    });
+
+    if (recentJobs.length === 0) return 15;
+
+    const jobIds = recentJobs.map((j) => j.id);
+    const jobCreatedAtMap = new Map(recentJobs.map((j) => [j.id, j.createdAt]));
+
+    // Get the first locksmith message for each job
+    const firstMessages = await prisma.jobMessage.findMany({
+      where: {
+        jobId: { in: jobIds },
+        locksmithId,
+        senderType: "locksmith",
+      },
+      select: { jobId: true, createdAt: true },
+      orderBy: { createdAt: "asc" },
+      distinct: ["jobId"],
+    });
+
+    if (firstMessages.length === 0) return 15;
+
+    const totalMinutes = firstMessages.reduce((sum, msg) => {
+      const jobCreated = jobCreatedAtMap.get(msg.jobId);
+      if (!jobCreated) return sum;
+      return sum + (msg.createdAt.getTime() - jobCreated.getTime()) / 60_000;
+    }, 0);
+
+    return Math.round(totalMinutes / firstMessages.length);
+  } catch {
+    return 15; // Safe default
+  }
+}
+
+/**
  * Get locksmith's performance stats
  */
 export async function getPerformanceStats(locksmithId: string): Promise<{
@@ -558,7 +604,7 @@ export async function getPerformanceStats(locksmithId: string): Promise<{
     rating: locksmith?.rating || 5.0,
     totalReviews: await prisma.review.count({ where: { locksmithId } }),
     acceptanceRate: recentApplications > 0 ? (acceptedApplications / recentApplications) * 100 : 100,
-    avgResponseTime: 15, // TODO: Calculate from actual data
+    avgResponseTime: await getAvgResponseTime(locksmithId),
     completionRate: totalJobs > 0 ? (completedJobs / totalJobs) * 100 : 100,
   };
 }

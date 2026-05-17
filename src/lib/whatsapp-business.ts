@@ -573,8 +573,17 @@ ${request.jobId ? `Job: ${request.jobId}` : ""}
 ${request.description}
   `.trim();
 
-  // TODO: Send to admin Telegram/Slack/Email
-  console.log("[WhatsApp] Admin notification:", adminMessage);
+  // Send to admin via Telegram
+  try {
+    const { sendAdminAlert } = await import("@/lib/telegram");
+    await sendAdminAlert({
+      title: `🚨 WhatsApp Escalation: ${ticketId}`,
+      message: adminMessage,
+      severity: request.priority === "urgent" ? "error" : "warning",
+    });
+  } catch (err) {
+    console.error("[WhatsApp] Failed to send admin alert:", err);
+  }
 
   return { success: true, ticketId };
 }
