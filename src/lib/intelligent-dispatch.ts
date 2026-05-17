@@ -364,14 +364,6 @@ export async function autoDispatchJob(
       return { success: false, message: "Locksmith is not verified/active" };
     }
 
-    // Check if locksmith has set their assessment fee (required for auto-dispatch)
-    if (!locksmith.defaultAssessmentFee || locksmith.defaultAssessmentFee <= 0) {
-      return {
-        success: false,
-        message: "Locksmith has not set their assessment fee",
-      };
-    }
-
     // Check if application already exists
     const existingApp = await prisma.locksmithApplication.findUnique({
       where: {

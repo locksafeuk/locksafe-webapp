@@ -10,6 +10,7 @@
  * 3. Get page information
  * 4. Optionally post a test message
  */
+export {};
 
 const META_API_VERSION = 'v18.0';
 const META_BASE_URL = `https://graph.facebook.com/${META_API_VERSION}`;
