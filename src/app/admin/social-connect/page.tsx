@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
 import {
@@ -61,7 +61,7 @@ const connectPaths: Record<string, string | null> = {
 
 const ALL_PLATFORMS = ["TWITTER", "LINKEDIN", "INSTAGRAM", "FACEBOOK"];
 
-export default function SocialConnectPage() {
+function SocialConnectContent() {
   const searchParams = useSearchParams();
   const [accounts, setAccounts] = useState<SocialAccountData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -247,5 +247,13 @@ export default function SocialConnectPage() {
         </div>
       </div>
     </AdminSidebar>
+  );
+}
+
+export default function SocialConnectPage() {
+  return (
+    <Suspense fallback={null}>
+      <SocialConnectContent />
+    </Suspense>
   );
 }
