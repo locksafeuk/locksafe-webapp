@@ -1,11 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
 import {
   Bot,
@@ -21,28 +20,56 @@ import {
   Zap,
   Target,
   TrendingUp,
-  Users,
   Briefcase,
   ListChecks,
   Trophy,
   Server,
   Code,
+  Cpu,
+  Wifi,
+  WifiOff,
+  CircleDot,
 } from "lucide-react";
 import Link from "next/link";
 
-interface AgentData {
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface AgentStatus {
   id: string;
   name: string;
   displayName: string;
-  role: string;
   status: string;
   lastHeartbeat: string | null;
-  nextHeartbeat: string | null;
+  pulseStatus: "green" | "amber" | "red";
   budgetUsed: number;
   budgetTotal: number;
+  budgetPct: number;
   pendingTasks: number;
-  totalExecutions: number;
   successRate: number;
+}
+
+interface SystemStatus {
+  hermesModeEnabled: boolean;
+  ollamaUrl: string | null;
+  pendingApprovals: number;
+  todayExecutions: number;
+  totalBudgetUsed: number;
+  totalBudget: number;
+  activeAgents: number;
+  totalAgents: number;
+}
+
+interface ActivityItem {
+  id: string;
+  agentName: string;
+  agentDisplayName: string;
+  actionType: string;
+  actionName: string;
+  status: string;
+  costUsd: number;
+  durationMs: number | null;
+  model: string | null;
+  startedAt: string;
 }
 
 interface HeartbeatResult {
@@ -53,588 +80,561 @@ interface HeartbeatResult {
   errors: string[];
 }
 
-interface ApprovalItem {
-  id: string;
-  agentName: string;
-  actionType: string;
-  actionDetails: string;
-  reason: string;
-  estimatedCost: number;
-  createdAt: string;
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function formatTimeAgo(date: string | null): string {
+  if (!date) return "Never";
+  const diff = Date.now() - new Date(date).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
 }
 
-interface ExecutionItem {
-  id: string;
-  actionType: string;
-  actionName: string;
-  status: string;
-  costUsd: number;
-  durationMs: number | null;
-  startedAt: string;
-  agent: { name: string; displayName: string };
+function getAgentIcon(name: string) {
+  const cls = "h-4 w-4";
+  switch (name) {
+    case "ceo": return <Briefcase className={cls} />;
+    case "cto": return <Server className={cls} />;
+    case "cmo": return <TrendingUp className={cls} />;
+    case "coo": return <Target className={cls} />;
+    case "copywriter": return <Code className={cls} />;
+    case "ads-specialist": return <TrendingUp className={cls} />;
+    default: return <Bot className={cls} />;
+  }
 }
 
-export default function AgentDashboardPage() {
-  const [agents, setAgents] = useState<AgentData[]>([]);
-  const [approvals, setApprovals] = useState<ApprovalItem[]>([]);
-  const [executions, setExecutions] = useState<ExecutionItem[]>([]);
+function PulseDot({ status }: { status: "green" | "amber" | "red" }) {
+  const colors = { green: "bg-green-500", amber: "bg-yellow-500", red: "bg-red-500" };
+  return (
+    <span className="relative flex h-2.5 w-2.5">
+      {status === "green" && (
+        <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${colors[status]} opacity-60`} />
+      )}
+      <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${colors[status]}`} />
+    </span>
+  );
+}
+
+function BudgetRing({ pct }: { pct: number }) {
+  const radius = 18;
+  const circ = 2 * Math.PI * radius;
+  const filled = circ * (Math.min(pct, 100) / 100);
+  const color = pct >= 90 ? "#ef4444" : pct >= 70 ? "#f59e0b" : "#22c55e";
+  return (
+    <svg width="44" height="44" viewBox="0 0 44 44" className="rotate-[-90deg]">
+      <circle cx="22" cy="22" r={radius} fill="none" stroke="currentColor" strokeWidth="3.5" className="text-muted/20" />
+      <circle cx="22" cy="22" r={radius} fill="none" stroke={color} strokeWidth="3.5"
+        strokeDasharray={`${filled} ${circ}`} strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+
+export default function MissionControlPage() {
+  const [agents, setAgents] = useState<AgentStatus[]>([]);
+  const [system, setSystem] = useState<SystemStatus | null>(null);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [runningHeartbeat, setRunningHeartbeat] = useState(false);
-  const [heartbeatResults, setHeartbeatResults] = useState<HeartbeatResult[]>([]);
-  const [activeTab, setActiveTab] = useState("overview");
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [testing, setTesting] = useState(false);
+  const [testResults, setTestResults] = useState<HeartbeatResult[]>([]);
+  const [showTestPanel, setShowTestPanel] = useState(false);
+  const activityRef = useRef<HTMLDivElement>(null);
 
-  const fetchAgents = useCallback(async () => {
+  const fetchStatus = useCallback(async () => {
     try {
-      const res = await fetch("/api/agents");
+      const res = await fetch("/api/agents/status");
       if (res.ok) {
         const data = await res.json();
-        setAgents(data.agents || []);
+        setAgents(data.agents ?? []);
+        setSystem(data.system ?? null);
+        setLastRefresh(new Date());
       }
-    } catch (error) {
-      console.error("Failed to fetch agents:", error);
-    }
+    } catch { /* silent */ }
   }, []);
 
-  const fetchApprovals = useCallback(async () => {
+  const fetchActivity = useCallback(async () => {
     try {
-      const res = await fetch("/api/agents/approvals");
+      const res = await fetch("/api/agents/activity?limit=30");
       if (res.ok) {
         const data = await res.json();
-        setApprovals(data.approvals || []);
+        setActivity(data.activity ?? []);
       }
-    } catch (error) {
-      console.error("Failed to fetch approvals:", error);
-    }
-  }, []);
-
-  const fetchExecutions = useCallback(async () => {
-    try {
-      const res = await fetch("/api/agents/executions");
-      if (res.ok) {
-        const data = await res.json();
-        setExecutions(data.executions || []);
-      }
-    } catch (error) {
-      console.error("Failed to fetch executions:", error);
-    }
+    } catch { /* silent */ }
   }, []);
 
   useEffect(() => {
-    const loadData = async () => {
+    const load = async () => {
       setLoading(true);
-      await Promise.all([fetchAgents(), fetchApprovals(), fetchExecutions()]);
+      await Promise.all([fetchStatus(), fetchActivity()]);
       setLoading(false);
     };
-    loadData();
-  }, [fetchAgents, fetchApprovals, fetchExecutions]);
+    load();
+  }, [fetchStatus, fetchActivity]);
 
-  const runHeartbeats = async (force = false) => {
-    setRunningHeartbeat(true);
-    setHeartbeatResults([]);
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const s = setInterval(fetchStatus, 15000);
+    const a = setInterval(fetchActivity, 10000);
+    return () => { clearInterval(s); clearInterval(a); };
+  }, [autoRefresh, fetchStatus, fetchActivity]);
+
+  const toggleAgent = async (agentId: string, currentStatus: string) => {
+    const newStatus = currentStatus === "active" ? "paused" : "active";
+    await fetch(`/api/agents/${agentId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: newStatus }),
+    });
+    await fetchStatus();
+  };
+
+  const runSingleAgent = async (agentId: string) => {
+    await fetch("/api/agents/heartbeat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ force: true, agentId }),
+    });
+    await Promise.all([fetchStatus(), fetchActivity()]);
+  };
+
+  const runFullTest = async () => {
+    setTesting(true);
+    setTestResults([]);
+    setShowTestPanel(true);
     try {
       const res = await fetch("/api/agents/heartbeat", {
         method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ force }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ force: true }),
       });
       const data = await res.json();
-      if (res.ok) {
-        setHeartbeatResults(data.results || []);
-        if (data.results?.length === 0) {
-          setHeartbeatResults([{
-            agentName: "System",
-            success: true,
-            actionsExecuted: 0,
-            costUsd: 0,
-            errors: ["No agents due for heartbeat. Use 'Force Run All' to run all agents now."],
-          }]);
-        }
-        await fetchAgents();
-        await fetchExecutions();
-      } else {
-        console.error("Heartbeat API error:", data);
-        setHeartbeatResults([{
-          agentName: "System",
-          success: false,
-          actionsExecuted: 0,
-          costUsd: 0,
-          errors: [data.error || data.details || "Failed to run heartbeats"],
-        }]);
-      }
-    } catch (error) {
-      console.error("Failed to run heartbeats:", error);
-      setHeartbeatResults([{
-        agentName: "System",
-        success: false,
-        actionsExecuted: 0,
-        costUsd: 0,
-        errors: [error instanceof Error ? error.message : "Network error"],
-      }]);
+      setTestResults(data.results ?? []);
+      await Promise.all([fetchStatus(), fetchActivity()]);
+    } catch (err) {
+      setTestResults([{ agentName: "System", success: false, actionsExecuted: 0, costUsd: 0,
+        errors: [err instanceof Error ? err.message : "Network error"] }]);
     }
-    setRunningHeartbeat(false);
+    setTesting(false);
   };
-
-  const toggleAgentStatus = async (agentId: string, currentStatus: string) => {
-    const newStatus = currentStatus === "active" ? "paused" : "active";
-    try {
-      const res = await fetch(`/api/agents/${agentId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      if (res.ok) {
-        await fetchAgents();
-      }
-    } catch (error) {
-      console.error("Failed to toggle agent status:", error);
-    }
-  };
-
-  const handleApproval = async (approvalId: string, approved: boolean) => {
-    try {
-      const res = await fetch(`/api/agents/approvals/${approvalId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ approved }),
-      });
-      if (res.ok) {
-        await fetchApprovals();
-      }
-    } catch (error) {
-      console.error("Failed to handle approval:", error);
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "active": return "bg-green-500";
-      case "paused": return "bg-yellow-500";
-      case "terminated": return "bg-red-500";
-      default: return "bg-gray-500";
-    }
-  };
-
-  const getAgentIcon = (name: string) => {
-    switch (name) {
-      case "ceo": return <Briefcase className="h-5 w-5" />;
-      case "cto": return <Server className="h-5 w-5" />;
-      case "cmo": return <TrendingUp className="h-5 w-5" />;
-      case "coo": return <Target className="h-5 w-5" />;
-      case "copywriter": return <Code className="h-5 w-5" />;
-      case "ads-specialist": return <TrendingUp className="h-5 w-5" />;
-      default: return <Bot className="h-5 w-5" />;
-    }
-  };
-
-  const formatTimeAgo = (date: string | null) => {
-    if (!date) return "Never";
-    const diff = Date.now() - new Date(date).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 60) return `${mins}m ago`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h ago`;
-    return `${Math.floor(hours / 24)}d ago`;
-  };
-
-  const totalBudgetUsed = agents.reduce((sum, a) => sum + a.budgetUsed, 0);
-  const totalBudget = agents.reduce((sum, a) => sum + a.budgetTotal, 0);
-  const activeAgents = agents.filter(a => a.status === "active").length;
 
   if (loading) {
     return (
       <AdminSidebar>
         <div className="flex items-center justify-center min-h-screen">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500" />
+          <div className="flex flex-col items-center gap-3">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500" />
+            <p className="text-sm text-muted-foreground">Initialising Mission Control…</p>
+          </div>
         </div>
       </AdminSidebar>
     );
   }
 
+  const budgetPct = system && system.totalBudget > 0
+    ? Math.round((system.totalBudgetUsed / system.totalBudget) * 100) : 0;
+  const allGreen = agents.length > 0 && agents.every(a => a.pulseStatus === "green" && a.status === "active");
+
   return (
     <AdminSidebar>
-    <div className="container mx-auto py-8 px-4">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3">
-            <Brain className="h-8 w-8 text-orange-500" />
-            AI Agent Operating System
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Autonomous agents managing LockSafe UK operations
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => { fetchAgents(); fetchApprovals(); }}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
-          <Button variant="outline" onClick={() => runHeartbeats(false)} disabled={runningHeartbeat}>
-            {runningHeartbeat ? (
-              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Zap className="h-4 w-4 mr-2" />
-            )}
-            Run Due
-          </Button>
-          <Button onClick={() => runHeartbeats(true)} disabled={runningHeartbeat}>
-            {runningHeartbeat ? (
-              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Zap className="h-4 w-4 mr-2" />
-            )}
-            Force Run All
-          </Button>
-        </div>
-      </div>
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto py-6 px-4 max-w-[1600px]">
 
-      {/* Quick Navigation */}
-      <div className="flex items-center gap-3 mb-6">
-        <Link href="/admin/agents/tasks">
-          <Button variant="outline" size="sm">
-            <ListChecks className="h-4 w-4 mr-2" />
-            Task Management
-          </Button>
-        </Link>
-        <Link href="/admin/agents/goals">
-          <Button variant="outline" size="sm">
-            <Trophy className="h-4 w-4 mr-2" />
-            Company Goals
-          </Button>
-        </Link>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Active Agents</p>
-                <p className="text-3xl font-bold">{activeAgents}/{agents.length}</p>
-              </div>
-              <Bot className="h-10 w-10 text-green-500 opacity-50" />
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-2xl font-bold flex items-center gap-2.5">
+                <Brain className="h-7 w-7 text-orange-500" />
+                Mission Control
+              </h1>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                {lastRefresh ? `Last updated ${formatTimeAgo(lastRefresh.toISOString())}` : "LockSafe AI Agent Operating System"}
+              </p>
             </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Budget Used</p>
-                <p className="text-3xl font-bold">${totalBudgetUsed.toFixed(2)}</p>
-                <p className="text-xs text-muted-foreground">of ${totalBudget.toFixed(2)}</p>
-              </div>
-              <DollarSign className="h-10 w-10 text-orange-500 opacity-50" />
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setAutoRefresh(v => !v)}
+                className={autoRefresh ? "text-green-600 border-green-600/50" : ""}>
+                <CircleDot className={`h-3.5 w-3.5 mr-1.5 ${autoRefresh ? "animate-pulse text-green-500" : ""}`} />
+                {autoRefresh ? "Live" : "Paused"}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => Promise.all([fetchStatus(), fetchActivity()])}>
+                <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                Refresh
+              </Button>
+              <Button size="sm" onClick={runFullTest} disabled={testing}
+                className="bg-orange-500 hover:bg-orange-600 text-white">
+                {testing
+                  ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                  : <Zap className="h-3.5 w-3.5 mr-1.5" />}
+                {testing ? "Running…" : "Run Full Test"}
+              </Button>
             </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Pending Approvals</p>
-                <p className="text-3xl font-bold">{approvals.length}</p>
-              </div>
-              <AlertTriangle className="h-10 w-10 text-yellow-500 opacity-50" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Executions</p>
-                <p className="text-3xl font-bold">
-                  {agents.reduce((sum, a) => sum + a.totalExecutions, 0)}
-                </p>
-              </div>
-              <Activity className="h-10 w-10 text-blue-500 opacity-50" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Heartbeat Results */}
-      {heartbeatResults.length > 0 && (
-        <Card className="mb-8 border-green-500/50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-green-500">
-              <CheckCircle className="h-5 w-5" />
-              Heartbeat Results
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {heartbeatResults.map((result, i) => (
-                <div key={i} className="flex items-center justify-between p-2 bg-muted rounded">
-                  <div className="flex items-center gap-2">
-                    {result.success ? (
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                    ) : (
-                      <AlertTriangle className="h-4 w-4 text-red-500" />
-                    )}
-                    <span className="font-medium">{result.agentName}</span>
-                  </div>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <span>{result.actionsExecuted} actions</span>
-                    <span>${result.costUsd.toFixed(4)}</span>
-                    {result.errors.length > 0 && (
-                      <span className="text-red-500">{result.errors.length} errors</span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="mb-4">
-          <TabsTrigger value="overview">Agents</TabsTrigger>
-          <TabsTrigger value="approvals">
-            Approvals
-            {approvals.length > 0 && (
-              <Badge variant="destructive" className="ml-2">{approvals.length}</Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="executions">Execution Log</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview">
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-            {agents.map((agent) => (
-              <Card key={agent.id} className="relative overflow-hidden">
-                <div className={`absolute top-0 left-0 w-1 h-full ${getStatusColor(agent.status)}`} />
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="p-2 bg-orange-100 rounded-lg">
-                        {getAgentIcon(agent.name)}
-                      </div>
-                      <div>
-                        <CardTitle className="text-lg">{agent.displayName}</CardTitle>
-                        <CardDescription className="text-xs">{agent.role}</CardDescription>
-                      </div>
-                    </div>
-                    <Badge variant={agent.status === "active" ? "default" : "secondary"}>
-                      {agent.status}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {/* Budget Progress */}
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-muted-foreground">Budget</span>
-                        <span className="font-medium">
-                          ${agent.budgetUsed.toFixed(2)} / ${agent.budgetTotal.toFixed(2)}
-                        </span>
-                      </div>
-                      <Progress
-                        value={(agent.budgetUsed / agent.budgetTotal) * 100}
-                        className="h-2"
-                      />
-                    </div>
-
-                    {/* Stats */}
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">Last Beat:</span>
-                        <span className="font-medium">{formatTimeAgo(agent.lastHeartbeat)}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Activity className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">Tasks:</span>
-                        <span className="font-medium">{agent.pendingTasks}</span>
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex gap-2 pt-2">
-                      <Button
-                        size="sm"
-                        variant={agent.status === "active" ? "outline" : "default"}
-                        onClick={() => toggleAgentStatus(agent.id, agent.status)}
-                        className="flex-1"
-                      >
-                        {agent.status === "active" ? (
-                          <>
-                            <Pause className="h-4 w-4 mr-1" /> Pause
-                          </>
-                        ) : (
-                          <>
-                            <Play className="h-4 w-4 mr-1" /> Resume
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => window.location.href = `/admin/agents/${agent.id}`}
-                      >
-                        Details
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-
-            {agents.length === 0 && (
-              <Card className="col-span-full">
-                <CardContent className="py-12 text-center">
-                  <Bot className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium mb-2">No Agents Initialized</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Run heartbeats to initialize the agent system
-                  </p>
-                  <Button onClick={() => runHeartbeats(true)}>
-                    <Zap className="h-4 w-4 mr-2" />
-                    Initialize Agents
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
           </div>
-        </TabsContent>
 
-        <TabsContent value="approvals">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-yellow-500" />
-                Pending Approvals
-              </CardTitle>
-              <CardDescription>
-                Actions requiring human approval before execution
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {approvals.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <CheckCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No pending approvals</p>
+          {/* System Health Bar */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+            <Card className={`border ${system?.hermesModeEnabled ? "border-purple-500/40 bg-purple-500/5" : "border-orange-500/40 bg-orange-500/5"}`}>
+              <CardContent className="p-3 flex items-center gap-2.5">
+                <Cpu className={`h-5 w-5 shrink-0 ${system?.hermesModeEnabled ? "text-purple-500" : "text-orange-400"}`} />
+                <div className="min-w-0">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">LLM</p>
+                  <p className={`text-xs font-semibold truncate ${system?.hermesModeEnabled ? "text-purple-400" : "text-orange-400"}`}>
+                    {system?.hermesModeEnabled ? "🟣 Hermes (Tailscale)" : "🟠 OpenAI Fallback"}
+                  </p>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {approvals.map((approval) => (
-                    <div
-                      key={approval.id}
-                      className="p-4 border rounded-lg space-y-3"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline">{approval.agentName}</Badge>
-                            <span className="font-medium">{approval.actionType}</span>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-3 flex items-center gap-2.5">
+                <Bot className="h-5 w-5 text-green-500 shrink-0" />
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Agents</p>
+                  <p className="text-sm font-bold">
+                    {system?.activeAgents ?? 0}
+                    <span className="font-normal text-muted-foreground">/{system?.totalAgents ?? 0}</span>
+                    <span className="ml-1 text-xs font-normal text-muted-foreground">active</span>
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-3 flex items-center gap-2.5">
+                <DollarSign className="h-5 w-5 text-emerald-500 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Monthly Cost</p>
+                  <p className="text-sm font-bold">
+                    ${system?.totalBudgetUsed.toFixed(2) ?? "0.00"}
+                    <span className="text-xs font-normal text-muted-foreground"> / ${system?.totalBudget.toFixed(0) ?? "0"}</span>
+                  </p>
+                  <Progress value={budgetPct} className="h-1 mt-1" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className={system?.pendingApprovals ? "border-yellow-500/40" : ""}>
+              <CardContent className="p-3 flex items-center gap-2.5">
+                <AlertTriangle className={`h-5 w-5 shrink-0 ${system?.pendingApprovals ? "text-yellow-500" : "text-muted-foreground"}`} />
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Pending</p>
+                  <p className="text-sm font-bold">{system?.pendingApprovals ?? 0}
+                    <span className="text-xs font-normal text-muted-foreground ml-1">approvals</span>
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-3 flex items-center gap-2.5">
+                <Activity className="h-5 w-5 text-blue-500 shrink-0" />
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Today</p>
+                  <p className="text-sm font-bold">{system?.todayExecutions ?? 0}
+                    <span className="text-xs font-normal text-muted-foreground ml-1">actions</span>
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Test Results Panel */}
+          {showTestPanel && (
+            <Card className={`mb-6 ${testing ? "border-orange-500/40" : testResults.every(r => r.success) ? "border-green-500/40" : "border-red-500/40"}`}>
+              <CardHeader className="pb-2 pt-4 px-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    {testing ? <RefreshCw className="h-4 w-4 animate-spin text-orange-500" />
+                      : testResults.every(r => r.success) ? <CheckCircle className="h-4 w-4 text-green-500" />
+                      : <AlertTriangle className="h-4 w-4 text-red-500" />}
+                    {testing ? "Running agents…"
+                      : `Test complete — ${testResults.filter(r => r.success).length}/${testResults.length} succeeded`}
+                  </CardTitle>
+                  {!testing && (
+                    <Button variant="ghost" size="sm" onClick={() => setShowTestPanel(false)} className="h-6 text-xs">
+                      Dismiss
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="px-4 pb-4">
+                {testing && testResults.length === 0 ? (
+                  <div className="flex gap-1.5 flex-wrap">
+                    {agents.map(a => (
+                      <Badge key={a.id} variant="outline" className="text-xs gap-1">
+                        <RefreshCw className="h-2.5 w-2.5 animate-spin" />
+                        {a.displayName}
+                      </Badge>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                    {testResults.map((r, i) => (
+                      <div key={i} className={`text-xs rounded-md p-2.5 flex items-start gap-2 ${r.success ? "bg-green-500/10" : "bg-red-500/10"}`}>
+                        {r.success
+                          ? <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0 mt-0.5" />
+                          : <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />}
+                        <div className="min-w-0">
+                          <p className="font-semibold truncate">{r.agentName}</p>
+                          <p className="text-muted-foreground">{r.actionsExecuted} actions · ${r.costUsd.toFixed(4)}</p>
+                          {r.errors.length > 0 && <p className="text-red-400 truncate">{r.errors[0]}</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Quick Nav */}
+          <div className="flex items-center gap-2 mb-5">
+            <Link href="/admin/agents/tasks">
+              <Button variant="outline" size="sm">
+                <ListChecks className="h-3.5 w-3.5 mr-1.5" />Tasks
+              </Button>
+            </Link>
+            <Link href="/admin/agents/goals">
+              <Button variant="outline" size="sm">
+                <Trophy className="h-3.5 w-3.5 mr-1.5" />Goals
+              </Button>
+            </Link>
+            <Link href="/admin/agents/approvals">
+              <Button variant="outline" size="sm" className={system?.pendingApprovals ? "border-yellow-500/50 text-yellow-600" : ""}>
+                <AlertTriangle className="h-3.5 w-3.5 mr-1.5" />
+                Approvals
+                {(system?.pendingApprovals ?? 0) > 0 && (
+                  <Badge variant="destructive" className="ml-1.5 h-4 text-[10px]">{system?.pendingApprovals}</Badge>
+                )}
+              </Button>
+            </Link>
+          </div>
+
+          {/* Main Grid */}
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+
+            {/* Agent Cards (2/3) */}
+            <div className="xl:col-span-2">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Agents</h2>
+                {allGreen && (
+                  <span className="text-xs text-green-500 flex items-center gap-1">
+                    <CheckCircle className="h-3 w-3" /> All systems operational
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {agents.map((agent) => {
+                  const budgetColor = agent.budgetPct >= 90 ? "text-red-500"
+                    : agent.budgetPct >= 70 ? "text-yellow-500" : "text-green-500";
+                  return (
+                    <Card key={agent.id} className="relative overflow-hidden hover:shadow-md transition-shadow">
+                      <div className={`absolute top-0 left-0 w-1 h-full ${
+                        agent.status === "active" ? "bg-green-500"
+                        : agent.status === "paused" ? "bg-yellow-500" : "bg-red-500"}`} />
+                      <CardContent className="pt-4 pb-3 pl-5 pr-4">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-orange-100 dark:bg-orange-900/30 shrink-0">
+                              {getAgentIcon(agent.name)}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <PulseDot status={agent.pulseStatus} />
+                                <span className="font-semibold text-sm truncate">{agent.displayName}</span>
+                              </div>
+                              <p className="text-[11px] text-muted-foreground">
+                                {formatTimeAgo(agent.lastHeartbeat)}
+                                {agent.pendingTasks > 0 && (
+                                  <span className="ml-1.5 text-yellow-500">· {agent.pendingTasks} task{agent.pendingTasks !== 1 ? "s" : ""}</span>
+                                )}
+                              </p>
+                            </div>
                           </div>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            {approval.reason}
-                          </p>
+                          <div className="relative shrink-0">
+                            <BudgetRing pct={agent.budgetPct} />
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <span className={`text-[9px] font-bold ${budgetColor}`}>{agent.budgetPct}%</span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="font-medium">${approval.estimatedCost.toFixed(2)}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {formatTimeAgo(approval.createdAt)}
-                          </p>
+                        <div className="mt-3">
+                          <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
+                            <span>Budget</span>
+                            <span>${agent.budgetUsed.toFixed(2)} / ${agent.budgetTotal.toFixed(0)}</span>
+                          </div>
+                          <Progress value={agent.budgetPct} className="h-1.5" />
                         </div>
-                      </div>
-                      <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">
-                        {approval.actionDetails}
-                      </pre>
-                      <div className="flex gap-2 justify-end">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleApproval(approval.id, false)}
-                        >
-                          Reject
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => handleApproval(approval.id, true)}
-                        >
-                          Approve
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+                        <div className="flex gap-1.5 mt-3">
+                          <Button size="sm" variant="outline" className="flex-1 h-7 text-xs"
+                            onClick={() => runSingleAgent(agent.id)} disabled={agent.status !== "active"}>
+                            <Play className="h-3 w-3 mr-1" />Run
+                          </Button>
+                          <Button size="sm" variant={agent.status === "active" ? "outline" : "default"}
+                            className="flex-1 h-7 text-xs" onClick={() => toggleAgent(agent.id, agent.status)}>
+                            {agent.status === "active"
+                              ? <><Pause className="h-3 w-3 mr-1" />Pause</>
+                              : <><Play className="h-3 w-3 mr-1" />Resume</>}
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 text-xs px-2"
+                            onClick={() => window.location.href = `/admin/agents/${agent.id}`}>
+                            ···
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+                {agents.length === 0 && (
+                  <Card className="col-span-full">
+                    <CardContent className="py-10 text-center">
+                      <Bot className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+                      <h3 className="font-medium mb-1">No Agents Initialised</h3>
+                      <p className="text-sm text-muted-foreground mb-4">Run the full test to initialise</p>
+                      <Button size="sm" onClick={runFullTest}>
+                        <Zap className="h-3.5 w-3.5 mr-1.5" />Initialise Agents
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
 
-        <TabsContent value="executions">
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Executions</CardTitle>
-              <CardDescription>
-                Last 50 agent actions across all agents
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {executions.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No executions yet</p>
-                  <p className="text-sm">Run heartbeats to see agent activity</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b text-muted-foreground">
-                        <th className="text-left pb-2 pr-4">Agent</th>
-                        <th className="text-left pb-2 pr-4">Action</th>
-                        <th className="text-left pb-2 pr-4">Status</th>
-                        <th className="text-right pb-2 pr-4">Cost</th>
-                        <th className="text-right pb-2 pr-4">Duration</th>
-                        <th className="text-right pb-2">Time</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {executions.map((ex) => (
-                        <tr key={ex.id} className="border-b last:border-0 hover:bg-muted/30">
-                          <td className="py-2 pr-4 font-medium">{ex.agent.displayName}</td>
-                          <td className="py-2 pr-4">
-                            <span className="text-xs text-muted-foreground">{ex.actionType}</span>
-                            <div>{ex.actionName}</div>
-                          </td>
-                          <td className="py-2 pr-4">
-                            <Badge
-                              variant={ex.status === "success" ? "default" : ex.status === "failed" ? "destructive" : "secondary"}
-                              className="text-xs"
-                            >
-                              {ex.status}
-                            </Badge>
-                          </td>
-                          <td className="py-2 pr-4 text-right font-mono text-xs">
-                            {ex.costUsd > 0 ? `$${ex.costUsd.toFixed(4)}` : "—"}
-                          </td>
-                          <td className="py-2 pr-4 text-right text-xs text-muted-foreground">
-                            {ex.durationMs != null ? `${ex.durationMs}ms` : "—"}
-                          </td>
-                          <td className="py-2 text-right text-xs text-muted-foreground">
-                            {new Date(ex.startedAt).toLocaleString()}
-                          </td>
-                        </tr>
+              {/* Autonomy Readiness Checklist */}
+              <div className="mt-5">
+                <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Autonomy Readiness</h2>
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {[
+                        {
+                          label: "Hermes (Tailscale) connected",
+                          ok: system?.hermesModeEnabled ?? false,
+                          detail: system?.hermesModeEnabled ? (system.ollamaUrl ?? "configured") : "Set OLLAMA_BASE_URL in Vercel",
+                        },
+                        {
+                          label: "All agents active",
+                          ok: (system?.activeAgents ?? 0) === (system?.totalAgents ?? 0) && (system?.totalAgents ?? 0) > 0,
+                          detail: `${system?.activeAgents ?? 0}/${system?.totalAgents ?? 0} running`,
+                        },
+                        {
+                          label: "No pending approvals",
+                          ok: (system?.pendingApprovals ?? 0) === 0,
+                          detail: (system?.pendingApprovals ?? 0) > 0 ? `${system?.pendingApprovals} awaiting review` : "Clear",
+                        },
+                        {
+                          label: "Budget headroom",
+                          ok: budgetPct < 80,
+                          detail: `${budgetPct}% of total budget used`,
+                        },
+                        {
+                          label: "Activity today",
+                          ok: (system?.todayExecutions ?? 0) > 0,
+                          detail: `${system?.todayExecutions ?? 0} executions`,
+                        },
+                        {
+                          label: "Agents heartbeating",
+                          ok: agents.some(a => a.pulseStatus === "green"),
+                          detail: agents.filter(a => a.pulseStatus === "green").length + " green",
+                        },
+                      ].map((item, i) => (
+                        <div key={i} className="flex items-center gap-2.5 text-sm">
+                          {item.ok
+                            ? <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
+                            : <AlertTriangle className="h-4 w-4 text-yellow-500 shrink-0" />}
+                          <div className="min-w-0">
+                            <span className="font-medium">{item.label}</span>
+                            <p className="text-[11px] text-muted-foreground truncate">{item.detail}</p>
+                          </div>
+                        </div>
                       ))}
-                    </tbody>
-                  </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+
+            {/* Live Activity Feed (1/3) */}
+            <div className="xl:col-span-1">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Live Activity</h2>
+                <span className="text-[10px] text-muted-foreground">↻ 10s</span>
+              </div>
+              <Card className="sticky top-4">
+                <CardContent className="p-0">
+                  <div ref={activityRef} className="h-[600px] overflow-y-auto divide-y divide-border/50">
+                    {activity.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-6 text-center">
+                        <Activity className="h-8 w-8 mb-2 opacity-30" />
+                        <p className="text-sm">No activity yet</p>
+                        <p className="text-xs mt-1">Run agents to see the feed</p>
+                      </div>
+                    ) : (
+                      activity.map((item) => {
+                        const isHermes = !!(item.model?.toLowerCase().match(/hermes|llama|qwen|mistral/));
+                        return (
+                          <div key={item.id} className="px-3 py-2.5 hover:bg-muted/30 transition-colors">
+                            <div className="flex items-start gap-2">
+                              {item.status === "success"
+                                ? <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0 mt-0.5" />
+                                : item.status === "failed"
+                                ? <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
+                                : <Clock className="h-3.5 w-3.5 text-yellow-500 shrink-0 mt-0.5" />}
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-[11px] font-semibold text-orange-400">{item.agentDisplayName}</span>
+                                  <span className="text-[10px] text-muted-foreground truncate">{item.actionName}</span>
+                                </div>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <span className="text-[10px] text-muted-foreground">{formatTimeAgo(item.startedAt)}</span>
+                                  {item.costUsd > 0 && (
+                                    <span className="text-[10px] text-muted-foreground font-mono">${item.costUsd.toFixed(4)}</span>
+                                  )}
+                                  {item.model && (
+                                    <span className={`text-[9px] px-1 rounded ${isHermes ? "bg-purple-500/20 text-purple-400" : "bg-orange-500/20 text-orange-400"}`}>
+                                      {isHermes ? "Hermes" : "OpenAI"}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
+          {/* Tailscale Setup Prompt */}
+          {system && !system.hermesModeEnabled && (
+            <Card className="mt-5 border-purple-500/30 bg-purple-500/5">
+              <CardContent className="p-4 flex items-start gap-3">
+                <WifiOff className="h-5 w-5 text-purple-400 shrink-0 mt-0.5" />
+                <div className="text-sm">
+                  <p className="font-semibold text-purple-300">Hermes not connected — agents using OpenAI (paid)</p>
+                  <p className="text-muted-foreground text-xs mt-1">
+                    On your Mac Ultra: run{" "}
+                    <code className="bg-muted px-1 rounded text-[11px]">tailscale funnel 11434</code>,
+                    then set{" "}
+                    <code className="bg-muted px-1 rounded text-[11px]">OLLAMA_BASE_URL</code>{" "}
+                    in Vercel to your Tailscale URL (e.g.{" "}
+                    <code className="bg-muted px-1 rounded text-[11px]">https://&lt;hostname&gt;.ts.net</code>).
+                  </p>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
+                <Wifi className="h-4 w-4 text-purple-400 shrink-0 mt-0.5 ml-auto" />
+              </CardContent>
+            </Card>
+          )}
+
+        </div>
+      </div>
     </AdminSidebar>
   );
 }
