@@ -23,6 +23,9 @@ interface UseJobNotificationsOptions {
 }
 
 const POLL_INTERVAL_MS = 30_000;
+const SSE_BASE_RETRY_MS = 5_000;
+const SSE_MAX_RETRY_MS = 60_000;
+const SSE_MAX_RETRIES = 5;
 
 export function useJobNotifications({
   locksmithId,
@@ -31,10 +34,19 @@ export function useJobNotifications({
 }: UseJobNotificationsOptions) {
   const eventSourceRef = useRef<EventSource | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const knownJobIdsRef = useRef<Set<string>>(new Set());
   const sseFailCountRef = useRef(0);
+  const reconnectAttemptsRef = useRef(0);
   const [isConnected, setIsConnected] = useState(false);
   const [lastNotification, setLastNotification] = useState<JobNotification | null>(null);
+
+  const clearReconnectTimer = useCallback(() => {
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+  }, []);
 
   const handleNewJobNotification = useCallback(
     (notification: JobNotification) => {
@@ -104,6 +116,8 @@ export function useJobNotifications({
   const connect = useCallback(() => {
     if (!locksmithId || !enabled) return;
 
+    clearReconnectTimer();
+
     // Close existing SSE connection
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
@@ -122,6 +136,7 @@ export function useJobNotifications({
     eventSource.onopen = () => {
       console.log(`[JobNotifications] SSE connected for locksmith ${locksmithId}`);
       sseFailCountRef.current = 0;
+      reconnectAttemptsRef.current = 0;
       setIsConnected(true);
     };
 
@@ -150,20 +165,33 @@ export function useJobNotifications({
       eventSource.close();
       eventSourceRef.current = null;
       sseFailCountRef.current += 1;
+      reconnectAttemptsRef.current += 1;
 
       if (sseFailCountRef.current >= 2) {
         console.log("[JobNotifications] SSE unavailable, switching to polling");
         startPolling();
-      } else {
-        // Retry SSE once more after 5 seconds
-        setTimeout(() => {
-          if (enabled && locksmithId) connect();
-        }, 5000);
+        return;
       }
+
+      if (reconnectAttemptsRef.current > SSE_MAX_RETRIES) {
+        console.log("[JobNotifications] SSE retries exhausted, switching to polling");
+        startPolling();
+        return;
+      }
+
+      const retryDelay = Math.min(
+        SSE_BASE_RETRY_MS * Math.pow(2, reconnectAttemptsRef.current - 1),
+        SSE_MAX_RETRY_MS
+      );
+
+      reconnectTimerRef.current = setTimeout(() => {
+        reconnectTimerRef.current = null;
+        if (enabled && locksmithId) connect();
+      }, retryDelay);
     };
 
     eventSourceRef.current = eventSource;
-  }, [locksmithId, enabled, handleNewJobNotification, startPolling]);
+  }, [locksmithId, enabled, handleNewJobNotification, startPolling, clearReconnectTimer]);
 
   useEffect(() => {
     if (enabled && locksmithId) {
@@ -171,13 +199,14 @@ export function useJobNotifications({
     }
 
     return () => {
+      clearReconnectTimer();
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
         eventSourceRef.current = null;
       }
       stopPolling();
     };
-  }, [connect, enabled, locksmithId, stopPolling]);
+  }, [connect, enabled, locksmithId, stopPolling, clearReconnectTimer]);
 
   return {
     isConnected,
