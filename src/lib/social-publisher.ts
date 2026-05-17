@@ -515,10 +515,305 @@ export async function getPostInsights(
   }
 }
 
+// ==========================================
+// TWITTER / X PUBLISHING
+// ==========================================
+
+export interface TwitterPublishResult {
+  success: boolean;
+  platform: 'twitter';
+  tweetId?: string;
+  error?: string;
+  publishedAt?: Date;
+}
+
+/**
+ * Publish a tweet via Twitter API v2.
+ * Requires env vars: TWITTER_BEARER_TOKEN, TWITTER_API_KEY,
+ *   TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET
+ */
+export async function publishToTwitter(params: {
+  text: string;
+  mediaIds?: string[]; // Pre-uploaded media IDs
+}): Promise<TwitterPublishResult> {
+  try {
+    const { text, mediaIds } = params;
+
+    const body: Record<string, unknown> = { text };
+    if (mediaIds && mediaIds.length > 0) {
+      body.media = { media_ids: mediaIds };
+    }
+
+    // OAuth 1.0a signature required for user-context endpoints
+    const response = await fetch('https://api.twitter.com/2/tweets', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: buildTwitterOAuthHeader('POST', 'https://api.twitter.com/2/tweets', {}),
+      },
+      body: JSON.stringify(body),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.detail || data.title || 'Twitter publishing failed');
+    }
+
+    return {
+      success: true,
+      platform: 'twitter',
+      tweetId: data.data?.id,
+      publishedAt: new Date(),
+    };
+  } catch (error) {
+    console.error('Twitter publish error:', error);
+    return {
+      success: false,
+      platform: 'twitter',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
+ * Build an OAuth 1.0a Authorization header for Twitter API calls.
+ * Uses env: TWITTER_API_KEY, TWITTER_API_SECRET,
+ *           TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET
+ */
+function buildTwitterOAuthHeader(
+  method: string,
+  url: string,
+  extraParams: Record<string, string>
+): string {
+  const apiKey      = process.env.TWITTER_API_KEY ?? '';
+  const apiSecret   = process.env.TWITTER_API_SECRET ?? '';
+  const accessToken = process.env.TWITTER_ACCESS_TOKEN ?? '';
+  const accessSecret = process.env.TWITTER_ACCESS_SECRET ?? '';
+
+  const nonce     = Math.random().toString(36).substring(2) + Date.now().toString(36);
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+
+  const oauthParams: Record<string, string> = {
+    oauth_consumer_key:     apiKey,
+    oauth_nonce:            nonce,
+    oauth_signature_method: 'HMAC-SHA256',
+    oauth_timestamp:        timestamp,
+    oauth_token:            accessToken,
+    oauth_version:          '1.0',
+    ...extraParams,
+  };
+
+  // Percent-encode and sort params for base string
+  const sortedParams = Object.entries(oauthParams)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+    .join('&');
+
+  const baseString = [
+    method.toUpperCase(),
+    encodeURIComponent(url),
+    encodeURIComponent(sortedParams),
+  ].join('&');
+
+  const signingKey = `${encodeURIComponent(apiSecret)}&${encodeURIComponent(accessSecret)}`;
+
+  // HMAC-SHA256 — uses Node.js crypto (available in Next.js API routes)
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const crypto = require('crypto') as typeof import('crypto');
+  const signature = crypto
+    .createHmac('sha256', signingKey)
+    .update(baseString)
+    .digest('base64');
+
+  oauthParams.oauth_signature = signature;
+
+  const headerValue = Object.entries(oauthParams)
+    .map(([k, v]) => `${encodeURIComponent(k)}="${encodeURIComponent(v)}"`)
+    .join(', ');
+
+  return `OAuth ${headerValue}`;
+}
+
+// ==========================================
+// LINKEDIN PUBLISHING
+// ==========================================
+
+export interface LinkedInPublishResult {
+  success: boolean;
+  platform: 'linkedin';
+  postId?: string;
+  error?: string;
+  publishedAt?: Date;
+}
+
+/**
+ * Publish an organic post to a LinkedIn Page.
+ * Requires env vars: LINKEDIN_ACCESS_TOKEN, LINKEDIN_ORG_URN
+ *   LINKEDIN_ORG_URN format: "urn:li:organization:XXXXXXX"
+ */
+export async function publishToLinkedIn(params: {
+  text: string;
+  imageUrl?: string;
+}): Promise<LinkedInPublishResult> {
+  try {
+    const { text, imageUrl } = params;
+
+    const orgUrn      = process.env.LINKEDIN_ORG_URN ?? '';
+    const accessToken = process.env.LINKEDIN_ACCESS_TOKEN ?? '';
+
+    const content: Record<string, unknown> = {
+      author: orgUrn,
+      lifecycleState: 'PUBLISHED',
+      specificContent: {
+        'com.linkedin.ugc.ShareContent': {
+          shareCommentary: { text },
+          shareMediaCategory: imageUrl ? 'IMAGE' : 'NONE',
+          ...(imageUrl
+            ? {
+                media: [
+                  {
+                    status: 'READY',
+                    description: { text: text.slice(0, 200) },
+                    originalUrl: imageUrl,
+                  },
+                ],
+              }
+            : {}),
+        },
+      },
+      visibility: { 'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC' },
+    };
+
+    const response = await fetch('https://api.linkedin.com/v2/ugcPosts', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+        'X-Restli-Protocol-Version': '2.0.0',
+      },
+      body: JSON.stringify(content),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'LinkedIn publishing failed');
+    }
+
+    const postId = response.headers.get('x-restli-id') ?? data.id;
+
+    return {
+      success: true,
+      platform: 'linkedin',
+      postId,
+      publishedAt: new Date(),
+    };
+  } catch (error) {
+    console.error('LinkedIn publish error:', error);
+    return {
+      success: false,
+      platform: 'linkedin',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+// ==========================================
+// TIKTOK PUBLISHING
+// ==========================================
+
+export interface TikTokPublishResult {
+  success: boolean;
+  platform: 'tiktok';
+  publishId?: string;
+  error?: string;
+  publishedAt?: Date;
+}
+
+/**
+ * Publish a video to TikTok via Content Posting API.
+ * Requires env vars: TIKTOK_ACCESS_TOKEN, TIKTOK_OPEN_ID
+ *
+ * Note: TikTok's API only supports video uploads (not text-only posts).
+ * For text captions + video, provide a publicly accessible videoUrl.
+ */
+export async function publishToTikTok(params: {
+  title: string;       // Caption / description
+  videoUrl: string;    // Publicly accessible MP4 URL
+  privacyLevel?: 'PUBLIC_TO_EVERYONE' | 'FOLLOWER_OF_CREATOR' | 'SELF_ONLY';
+  disableDuet?: boolean;
+  disableStitch?: boolean;
+  disableComment?: boolean;
+}): Promise<TikTokPublishResult> {
+  try {
+    const {
+      title,
+      videoUrl,
+      privacyLevel = 'PUBLIC_TO_EVERYONE',
+      disableDuet = false,
+      disableStitch = false,
+      disableComment = false,
+    } = params;
+
+    const accessToken = process.env.TIKTOK_ACCESS_TOKEN ?? '';
+
+    // Step 1: Initialise the upload
+    const initResponse = await fetch(
+      'https://open.tiktokapis.com/v2/post/publish/video/init/',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          post_info: {
+            title,
+            privacy_level: privacyLevel,
+            disable_duet: disableDuet,
+            disable_stitch: disableStitch,
+            disable_comment: disableComment,
+          },
+          source_info: {
+            source: 'PULL_FROM_URL',
+            video_url: videoUrl,
+          },
+        }),
+      }
+    );
+
+    const initData = await initResponse.json();
+
+    if (!initResponse.ok || initData.error?.code !== 'ok') {
+      throw new Error(initData.error?.message || 'TikTok upload init failed');
+    }
+
+    const publishId: string = initData.data?.publish_id;
+
+    return {
+      success: true,
+      platform: 'tiktok',
+      publishId,
+      publishedAt: new Date(),
+    };
+  } catch (error) {
+    console.error('TikTok publish error:', error);
+    return {
+      success: false,
+      platform: 'tiktok',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
 export default {
   publishToFacebook,
   publishToInstagram,
   publishToBothPlatforms,
+  publishToTwitter,
+  publishToLinkedIn,
+  publishToTikTok,
   getInstagramBusinessAccount,
   getPageAccessToken,
   getManagedPages,
