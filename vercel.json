@@ -14,7 +14,6 @@
     { "path": "/api/cron/generate-organic",           "schedule": "0 5 * * *"       },
     { "path": "/api/cron/publish-organic",            "schedule": "0 9,13,18 * * *" },
     { "path": "/api/cron/cmo-autonomous",             "schedule": "0 */6 * * *"     },
-    { "path": "/api/cron/sync-google-ads-performance","schedule": "0 */6 * * *"     },
     { "path": "/api/cron/sync-meta-performance",      "schedule": "30 */6 * * *"    },
     { "path": "/api/cron/agents-weekly-report",       "schedule": "0 9 * * 1"       },
     { "path": "/api/cron/reset-agent-budgets",        "schedule": "5 0 1 * *"       },

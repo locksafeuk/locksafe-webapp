@@ -9,6 +9,8 @@ import { JobStatus } from "@prisma/client";
 import { executeHeartbeat, delegateTask } from "@/agents/core/orchestrator";
 import { parseSkillsFile } from "@/agents/core/skill-parser";
 import { storeDecision, storePattern } from "@/agents/core/memory";
+import { WorkflowEngine } from "@/lib/workflow-engine";
+import { sendAdminAlert } from "@/lib/telegram";
 import type { AgentConfig } from "@/agents/core/types";
 
 // Agent configuration
@@ -90,26 +92,111 @@ export async function initializeCOOAgent(): Promise<void> {
 }
 
 /**
- * Run COO agent heartbeat
+ * Run COO agent heartbeat using the WorkflowEngine.
+ * Performs real operational checks: stuck jobs, expiring insurance, SLA monitoring.
  */
 export async function runCOOHeartbeat(): Promise<void> {
-  const agent = await prisma.agent.findUnique({
-    where: { name: "coo" },
-  });
-
+  const agent = await prisma.agent.findUnique({ where: { name: "coo" } });
   if (!agent) {
     console.error("[COO] Agent not found, initializing...");
     await initializeCOOAgent();
     return;
   }
 
-  const result = await executeHeartbeat(agent.id);
+  type COOCtx = {
+    stuckJobCount: number;
+    unassignedEmergencyCount: number;
+    expiringInsuranceCount: number;
+    alerts: string[];
+  };
 
-  console.log(`[COO] Heartbeat completed:
-    - Actions: ${result.actionsExecuted}
-    - Cost: $${result.costUsd.toFixed(4)}
-    - Errors: ${result.errors.length}
-    - Next: ${result.nextHeartbeat.toISOString()}`);
+  const workflow = new WorkflowEngine<COOCtx>("COO Operations Review")
+    .step("check-stuck-jobs", async (ctx) => {
+      // Jobs PENDING >30 min with no assigned locksmith
+      const stuckJobs = await prisma.job.findMany({
+        where: {
+          status: JobStatus.PENDING,
+          createdAt: { lt: new Date(Date.now() - 30 * 60_000) },
+          locksmithId: null,
+        },
+        select: { id: true, problemType: true, createdAt: true },
+        take: 20,
+      });
+      ctx.stuckJobCount = stuckJobs.length;
+      if (stuckJobs.length >= 3) {
+        ctx.alerts.push(`${stuckJobs.length} jobs stuck PENDING >30 min without locksmith assignment`);
+      }
+      return ctx;
+    })
+    .step("check-unassigned-emergency", async (ctx) => {
+      // Emergency jobs pending >10 min
+      const emergencies = await prisma.job.count({
+        where: {
+          status: JobStatus.PENDING,
+          isEmergency: true,
+          createdAt: { lt: new Date(Date.now() - 10 * 60_000) },
+          locksmithId: null,
+        },
+      });
+      ctx.unassignedEmergencyCount = emergencies;
+      if (emergencies > 0) {
+        ctx.alerts.push(`🚨 ${emergencies} emergency job(s) unassigned for >10 minutes`);
+      }
+      return ctx;
+    })
+    .step("check-expiring-insurance", async (ctx) => {
+      // Locksmiths whose insurance expires within 7 days
+      const expiring = await prisma.locksmith.count({
+        where: {
+          isActive: true,
+          insuranceExpiryDate: {
+            lte: new Date(Date.now() + 7 * 24 * 60 * 60_000),
+            gt: new Date(),
+          },
+        },
+      });
+      ctx.expiringInsuranceCount = expiring;
+      if (expiring > 0) {
+        ctx.alerts.push(`${expiring} locksmith(s) have insurance expiring within 7 days`);
+      }
+      return ctx;
+    })
+    .step("dispatch-alerts", async (ctx) => {
+      if (ctx.alerts.length > 0) {
+        await sendAdminAlert({
+          title: "⚙️ COO Operations Alert",
+          message: ctx.alerts.join("\n"),
+          severity: ctx.unassignedEmergencyCount > 0 ? "error" : "warning",
+        });
+      }
+      return ctx;
+    })
+    .step("update-heartbeat", async (ctx) => {
+      await prisma.agent.update({
+        where: { name: "coo" },
+        data: { lastHeartbeat: new Date() },
+      });
+      return ctx;
+    });
+
+  const result = await workflow.run({
+    stuckJobCount: 0,
+    unassignedEmergencyCount: 0,
+    expiringInsuranceCount: 0,
+    alerts: [],
+  });
+
+  if (!result.success) {
+    const failed = result.steps.find(s => !s.success);
+    console.error(`[COO] Workflow step "${failed?.name}" failed: ${failed?.error}`);
+  } else {
+    const ctx = result.context;
+    console.log(
+      `[COO] Heartbeat done in ${result.totalDurationMs}ms — ` +
+      `stuck:${ctx.stuckJobCount} emergencies:${ctx.unassignedEmergencyCount} ` +
+      `expiringInsurance:${ctx.expiringInsuranceCount} alerts:${ctx.alerts.length}`
+    );
+  }
 }
 
 /**

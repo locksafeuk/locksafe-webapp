@@ -15,6 +15,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { optimiseGoogleCampaignsTool } from "@/agents/tools/marketing";
 import { optimiseMetaCampaigns } from "@/lib/meta-optimiser";
+import { syncAllGoogleAdsAccounts } from "@/lib/google-ads-sync";
 import { sendAdminAlert } from "@/lib/telegram";
 import { getEffectivePolicy } from "@/lib/spend-guard";
 
@@ -37,6 +38,17 @@ async function handle(request: NextRequest) {
 
   const url = new URL(request.url);
   const forceDryRun = url.searchParams.get("dryRun") === "true";
+
+  // ---- Google Ads performance sync (merged from sync-google-ads-performance) ----
+  let syncResult: { accountsProcessed?: number; snapshotsWritten?: number; error?: string } = {};
+  try {
+    const sync = await syncAllGoogleAdsAccounts({});
+    syncResult = { accountsProcessed: sync.accountsProcessed, snapshotsWritten: sync.snapshotsWritten };
+    console.log(`[cmo-autonomous] Google Ads sync: ${sync.accountsProcessed} accounts, ${sync.snapshotsWritten} snapshots`);
+  } catch (err) {
+    syncResult = { error: err instanceof Error ? err.message : String(err) };
+    console.error("[cmo-autonomous] Google Ads sync failed:", syncResult.error);
+  }
 
   // ---- Google branch ----
   const googlePolicy = await getEffectivePolicy("google");
@@ -102,6 +114,7 @@ async function handle(request: NextRequest) {
 
   return NextResponse.json({
     ok: true,
+    sync: syncResult,
     google: googleResult,
     meta: {
       dryRun: metaResult.dryRun,

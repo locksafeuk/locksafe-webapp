@@ -19,6 +19,7 @@ import {
 import { formatPostForPlatform } from "@/lib/organic-content";
 import { isTwitterConfigured, postTweet, postThread } from "@/lib/twitter";
 import { isLinkedInConfigured, postToLinkedIn } from "@/lib/linkedin";
+import { isTikTokApiConfigured, generateTikTokScript } from "@/lib/tiktok";
 import { sendAdminAlert } from "@/lib/telegram";
 
 /** Facebook errors that indicate a permanently invalid token (not transient) */
@@ -121,6 +122,7 @@ export async function GET(request: NextRequest) {
     const instagramAccount = accounts.find((a: AccountType) => a.platform === "INSTAGRAM");
     const twitterEnabled   = isTwitterConfigured();
     const linkedinEnabled  = isLinkedInConfigured();
+    const tiktokApiEnabled = isTikTokApiConfigured();
 
     const results: Array<{
       postId: string;
@@ -143,6 +145,7 @@ export async function GET(request: NextRequest) {
         instagram?: { success: boolean; postId?: string; error?: string };
         twitter?:   { success: boolean; postId?: string; error?: string };
         linkedin?:  { success: boolean; postId?: string; error?: string };
+        tiktok?:    { success: boolean; postId?: string; script?: string; error?: string };
       } = {};
 
       // Publish to Facebook if platform is selected
@@ -264,13 +267,35 @@ export async function GET(request: NextRequest) {
         }
       }
 
+      // TikTok: generate video script (API video posting requires separate upload pipeline)
+      if (post.platforms.includes("TIKTOK")) {
+        if (tiktokApiEnabled) {
+          // Future: POST to TikTok Content Posting API with a video asset
+          // For now mark as pending video upload
+          platformResults.tiktok = { success: true, script: undefined };
+        } else {
+          // No API credentials — generate a script and save it for manual/AI video production
+          try {
+            const topic = post.headline || post.content.slice(0, 80);
+            const script = await generateTikTokScript(topic, "security-tips");
+            platformResults.tiktok = { success: true, script: JSON.stringify(script) };
+          } catch (err) {
+            platformResults.tiktok = {
+              success: false,
+              error: err instanceof Error ? err.message : String(err),
+            };
+          }
+        }
+      }
+
       // Determine final status
       const anyAttempted = Object.keys(platformResults).length > 0;
       const anySuccess = Boolean(
         platformResults.facebook?.success ||
         platformResults.instagram?.success ||
         platformResults.twitter?.success ||
-        platformResults.linkedin?.success
+        platformResults.linkedin?.success ||
+        platformResults.tiktok?.success
       );
 
       // If no platforms were attempted (all accounts inactive), keep SCHEDULED
@@ -294,12 +319,15 @@ export async function GET(request: NextRequest) {
           instagramPostId: platformResults.instagram?.postId || null,
           twitterPostId:   platformResults.twitter?.postId   || null,
           linkedinPostId:  platformResults.linkedin?.postId  || null,
+          tiktokPostId:    platformResults.tiktok?.postId    || null,
+          tiktokScript:    platformResults.tiktok?.script    || undefined,
           publishError: !anySuccess
             ? [
                 platformResults.facebook  ? `Facebook: ${platformResults.facebook.error}`   : null,
                 platformResults.instagram ? `Instagram: ${platformResults.instagram.error}` : null,
                 platformResults.twitter   ? `Twitter: ${platformResults.twitter.error}`     : null,
                 platformResults.linkedin  ? `LinkedIn: ${platformResults.linkedin.error}`   : null,
+                platformResults.tiktok    ? `TikTok: ${platformResults.tiktok.error}`       : null,
               ].filter(Boolean).join("; ") || "No platforms attempted"
             : null,
         },
