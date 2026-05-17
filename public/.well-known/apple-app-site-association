@@ -1,0 +1,14 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "REPLACE_WITH_TEAM_ID.uk.locksafe.app",
+        "paths": [
+          "/locksmith/job/*",
+          "/locksmith/jobs/*"
+        ]
+      }
+    ]
+  }
+}

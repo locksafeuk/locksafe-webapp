@@ -79,6 +79,15 @@ const nextConfig = {
     ];
 
     return [
+      // Apple Universal Links + Android App Links verification files
+      // Must be served with Content-Type: application/json (not pkcs7-mime)
+      {
+        source: '/.well-known/:path*',
+        headers: [
+          { key: 'Content-Type', value: 'application/json' },
+          { key: 'Cache-Control', value: 'public, max-age=3600' },
+        ],
+      },
       {
         source: '/:all*(svg|jpg|jpeg|png|webp|avif|ico|woff2)',
         headers: [

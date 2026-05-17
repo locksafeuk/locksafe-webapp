@@ -220,8 +220,10 @@ async function sendFcm(
       android: {
         priority: "high",
         notification: {
-          sound: "default",
-          channel_id: "default",
+          sound: "locksafe_alert",
+          channel_id: "locksafe_jobs",
+          notification_priority: "PRIORITY_MAX",
+          visibility: "PUBLIC",
         },
       },
       data: Object.fromEntries(

@@ -1,12 +1,58 @@
 {
   "expo": {
+    "name": "LockSafe Locksmith",
+    "slug": "locksafe-locksmith",
+    "scheme": "locksafe",
     "extra": {
       "eas": {
         "projectId": "c31f2767-ac6e-4eae-8d05-1b77fcf65a74"
       }
     },
+    "ios": {
+      "bundleIdentifier": "uk.locksafe.app",
+      "associatedDomains": [
+        "applinks:locksafe.uk",
+        "applinks:www.locksafe.uk"
+      ]
+    },
     "android": {
-      "package": "uk.locksafe.app.preview"
+      "package": "uk.locksafe.app",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "locksafe.uk",
+              "pathPrefix": "/locksmith/job"
+            },
+            {
+              "scheme": "https",
+              "host": "www.locksafe.uk",
+              "pathPrefix": "/locksmith/job"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "sounds": ["./assets/sounds/locksafe_alert.wav"],
+          "color": "#f97316",
+          "iosDisplayInForeground": true,
+          "androidMode": "default",
+          "androidCollapsedTitle": "New Job Available"
+        }
+      ]
+    ],
+    "notification": {
+      "iosDisplayInForeground": true,
+      "androidMode": "default",
+      "androidCollapsedTitle": "New Job Available"
     }
   }
 }
