@@ -1,5 +1,5 @@
 /**
- * OpenAI helpers for Google Ads campaign generation.
+ * Google Ads campaign generation via the LLM router (Models.QUALITY → gpt-4o).
  *
  * Google Search Ads use a Responsive Search Ad (RSA) shape:
  *  - 3 to 15 headlines, each <= 30 characters
@@ -9,25 +9,13 @@
  * Plus a keyword set with match types (EXACT / PHRASE / BROAD) and
  * a negative-keyword list (free-text, lowercased).
  *
- * Reuses the LockSafe UK business context + copywriting frameworks from
- * src/lib/openai-ads.ts but constrains the output strictly to Google's
- * length limits — Meta-shape copy will violate RSA constraints.
+ * Uses Models.QUALITY (gpt-4o) — strict RSA character limits and structured
+ * JSON output require a capable model. Do not downgrade to Hermes/Ollama
+ * until character-counting reliability is verified at 70B+ scale.
  */
 
-import OpenAI from "openai";
+import { chat, Models } from "@/lib/llm-router";
 import { BUSINESS_CONTEXT, getBusinessSummary } from "./business-context";
-
-// Lazily initialize OpenAI to avoid crashing at module load when key is absent
-let _openai: OpenAI | null = null;
-const openai = new Proxy({} as OpenAI, {
-  get(_t, prop) {
-    if (!_openai) {
-      if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is not set');
-      _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    }
-    return (_openai as unknown as Record<string | symbol, unknown>)[prop];
-  },
-});
 
 export const RSA_HEADLINE_MAX = 30;
 export const RSA_DESCRIPTION_MAX = 90;
@@ -149,19 +137,17 @@ Return a JSON object matching this exact shape (no markdown, no commentary):
   "reasoning": "1-3 sentences explaining the angle and expected CAC"
 }`;
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o",
-    messages: [
+  const response = await chat(
+    Models.QUALITY,
+    [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
     ],
-    temperature: 0.7,
-    max_tokens: 2500,
-    response_format: { type: "json_object" },
-  });
+    { temperature: 0.7, maxTokens: 2500, responseFormat: "json" }
+  );
 
-  const content = response.choices[0]?.message?.content;
-  if (!content) throw new Error("No response from OpenAI for Google Ads draft");
+  const content = response.content;
+  if (!content) throw new Error("No response from LLM router for Google Ads draft");
 
   let parsed: Partial<GoogleAdsDraftPlan>;
   try {
