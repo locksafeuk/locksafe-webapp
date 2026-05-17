@@ -120,8 +120,12 @@ export async function GET(request: NextRequest) {
     type AccountType = typeof accounts[number];
     const facebookAccount  = accounts.find((a: AccountType) => a.platform === "FACEBOOK");
     const instagramAccount = accounts.find((a: AccountType) => a.platform === "INSTAGRAM");
-    const twitterEnabled   = isTwitterConfigured();
-    const linkedinEnabled  = isLinkedInConfigured();
+    // Twitter: prefer DB credentials, fall back to env vars
+    const twitterDbAccount = accounts.find((a: AccountType) => a.platform === "TWITTER");
+    const twitterEnabled   = !!(twitterDbAccount || isTwitterConfigured());
+    // LinkedIn: prefer DB credentials, fall back to env vars
+    const linkedinDbAccount = accounts.find((a: AccountType) => a.platform === "LINKEDIN");
+    const linkedinEnabled  = !!(linkedinDbAccount || isLinkedInConfigured());
     const tiktokApiEnabled = isTikTokApiConfigured();
 
     const results: Array<{
@@ -238,12 +242,30 @@ export async function GET(request: NextRequest) {
           const tweetText = (post as Record<string, unknown>).twitterContent as string | undefined || post.content;
           const threadParts = (post as Record<string, unknown>).twitterThreadParts as string[] | undefined;
 
-          if (threadParts && threadParts.length > 1) {
-            const result = await postThread(threadParts);
-            platformResults.twitter = { success: true, postId: result.ids[0] };
+          // Use DB credentials if available (from OAuth connect), else fall back to env vars
+          if (twitterDbAccount) {
+            const { TwitterApi } = require("twitter-api-v2") as typeof import("twitter-api-v2");
+            const twitterClient = new TwitterApi({
+              appKey:     process.env.TWITTER_API_KEY!,
+              appSecret:  process.env.TWITTER_API_SECRET!,
+              accessToken: twitterDbAccount.accessToken,
+              accessSecret: twitterDbAccount.refreshToken!, // stored in refreshToken field
+            });
+            if (threadParts && threadParts.length > 1) {
+              const tweets = await twitterClient.v2.tweetThread(threadParts);
+              platformResults.twitter = { success: true, postId: tweets[0]?.data?.id };
+            } else {
+              const { data } = await twitterClient.v2.tweet(tweetText.slice(0, 280));
+              platformResults.twitter = { success: true, postId: data.id };
+            }
           } else {
-            const result = await postTweet(tweetText.slice(0, 280));
-            platformResults.twitter = { success: true, postId: result.id };
+            if (threadParts && threadParts.length > 1) {
+              const result = await postThread(threadParts);
+              platformResults.twitter = { success: true, postId: result.ids[0] };
+            } else {
+              const result = await postTweet(tweetText.slice(0, 280));
+              platformResults.twitter = { success: true, postId: result.id };
+            }
           }
         } catch (err) {
           platformResults.twitter = {
@@ -257,8 +279,42 @@ export async function GET(request: NextRequest) {
       if (post.platforms.includes("LINKEDIN") && linkedinEnabled) {
         try {
           const linkedinText = (post as Record<string, unknown>).linkedinContent as string | undefined || post.content;
-          const result = await postToLinkedIn({ text: linkedinText });
-          platformResults.linkedin = { success: true, postId: result.id };
+          // Use DB account if available (from OAuth connect), else fall back to env vars
+          if (linkedinDbAccount) {
+            const orgId  = linkedinDbAccount.accountId;
+            const token  = linkedinDbAccount.accessToken;
+            const author = `urn:li:organization:${orgId}`;
+            const body = {
+              author,
+              lifecycleState: "PUBLISHED",
+              specificContent: {
+                "com.linkedin.ugc.ShareContent": {
+                  shareCommentary: { text: linkedinText },
+                  shareMediaCategory: "NONE",
+                },
+              },
+              visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" },
+            };
+            const res = await fetch("https://api.linkedin.com/v2/ugcPosts", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+                "X-Restli-Protocol-Version": "2.0.0",
+              },
+              body: JSON.stringify(body),
+            });
+            if (!res.ok) {
+              const errText = await res.text();
+              platformResults.linkedin = { success: false, error: `LinkedIn API ${res.status}: ${errText}` };
+            } else {
+              const postId = res.headers.get("x-restli-id")?.split(":").pop() || "unknown";
+              platformResults.linkedin = { success: true, postId };
+            }
+          } else {
+            const result = await postToLinkedIn({ text: linkedinText });
+            platformResults.linkedin = { success: true, postId: result.id };
+          }
         } catch (err) {
           platformResults.linkedin = {
             success: false,
