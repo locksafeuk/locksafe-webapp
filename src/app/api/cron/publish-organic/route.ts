@@ -19,6 +19,21 @@ import {
 import { formatPostForPlatform } from "@/lib/organic-content";
 import { isTwitterConfigured, postTweet, postThread } from "@/lib/twitter";
 import { isLinkedInConfigured, postToLinkedIn } from "@/lib/linkedin";
+import { sendAdminAlert } from "@/lib/telegram";
+
+/** Facebook errors that indicate a permanently invalid token (not transient) */
+const FB_TOKEN_EXPIRED_ERRORS = [
+  "session is invalid",
+  "expired",
+  "user changed the password",
+  "user logged out",
+  "token is invalid",
+];
+
+function isFbTokenExpired(error: string): boolean {
+  const lower = error.toLowerCase();
+  return FB_TOKEN_EXPIRED_ERRORS.some((pattern) => lower.includes(pattern));
+}
 
 // Verify cron secret or admin authentication
 async function verifyAccess(request: NextRequest): Promise<boolean> {
@@ -66,6 +81,13 @@ export async function GET(request: NextRequest) {
 
   try {
     const now = new Date();
+
+    // Reset any posts stuck in PUBLISHING for >10 minutes (from a previous crashed run)
+    const staleThreshold = new Date(now.getTime() - 10 * 60_000);
+    await prisma.socialPost.updateMany({
+      where: { status: "PUBLISHING", updatedAt: { lt: staleThreshold } },
+      data: { status: "SCHEDULED", publishError: null },
+    });
 
     // Find posts that are scheduled and ready to publish
     const postsToPublish = await prisma.socialPost.findMany({
@@ -152,6 +174,27 @@ export async function GET(request: NextRequest) {
           postId: fbResult.postId,
           error: fbResult.error,
         };
+
+        // If the token is permanently invalid, deactivate the account and alert admin
+        if (!fbResult.success && fbResult.error && isFbTokenExpired(fbResult.error)) {
+          await prisma.socialAccount.update({
+            where: { id: facebookAccount.id },
+            data: { isActive: false },
+          });
+          await sendAdminAlert({
+            title: "⚠️ Facebook Token Expired",
+            message: `Facebook Page Access Token has expired and publishing has stopped.\n\nError: ${fbResult.error}\n\nTo fix:\n1. Get a new Page Access Token from Facebook Developer Console\n2. Run: FACEBOOK_PAGE_ACCESS_TOKEN=<token> npx ts-node -P tsconfig.scripts.json scripts/refresh-facebook-token.ts`,
+            severity: "error",
+          });
+          // Reset this post back to SCHEDULED (not FAILED) so it retries after token refresh
+          await prisma.socialPost.update({
+            where: { id: post.id },
+            data: { status: "SCHEDULED", publishError: "Facebook token expired — account deactivated pending refresh" },
+          });
+          // Also reset remaining batch back to SCHEDULED
+          results.push({ postId: post.id, success: false, platforms: platformResults });
+          break; // Stop processing — token is dead for all remaining posts
+        }
       }
 
       // Publish to Instagram if platform is selected and has image
