@@ -134,6 +134,14 @@ export async function DELETE(
       prisma.notification.deleteMany({
         where: { jobId: id },
       }),
+      // Delete job auction (required relation — must delete before job)
+      prisma.jobAuction.deleteMany({
+        where: { jobId: id },
+      }),
+      // Delete job messages/chat
+      prisma.jobMessage.deleteMany({
+        where: { jobId: id },
+      }),
       // Delete the job
       prisma.job.delete({
         where: { id },
