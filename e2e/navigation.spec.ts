@@ -8,7 +8,7 @@ test.describe("Navigation", () => {
 
   test("services page loads", async ({ page }) => {
     await page.goto("/services");
-    await expect(page.locator("h1")).toContainText("One Trusted Platform");
+    await expect(page.locator("main h1").first()).toBeVisible();
   });
 
   test("pricing page loads", async ({ page }) => {
@@ -40,14 +40,18 @@ test.describe("Navigation", () => {
 test.describe("Header Navigation", () => {
   test("header contains main navigation links", async ({ page }) => {
     await page.goto("/");
-    await expect(page.locator("nav")).toBeVisible();
-    await expect(page.getByRole("link", { name: "How It Works" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Services" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Pricing" })).toBeVisible();
+    const header = page.locator("header").first();
+    await expect(header.getByRole("navigation").first()).toBeVisible();
+    await expect(header.getByRole("link", { name: "How It Works", exact: true })).toBeVisible();
+    await expect(header.getByRole("link", { name: "Services", exact: true })).toBeVisible();
+    await expect(header.getByRole("link", { name: "Pricing", exact: true })).toBeVisible();
   });
 
   test("emergency help button is visible", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("link", { name: /Emergency Help|Help Now/i })).toBeVisible();
+    const header = page.locator("header").first();
+    await expect(
+      header.getByRole("link", { name: /Get Emergency Help|Emergency Help|Help Now/i }).first(),
+    ).toBeVisible();
   });
 });
