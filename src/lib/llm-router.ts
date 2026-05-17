@@ -2,12 +2,12 @@
  * LLM Router — unified interface for all AI calls
  *
  * Routes to:
- *   AGENT   → hermes3:70b   (Ollama) — tool-calling, structured reasoning, decisions
- *   CONTENT → llama3.1:70b  (Ollama) — social copy, ad copy, blog drafts
- *   FAST    → llama3.2:3b   (Ollama) — summaries, routing, cheap tasks
+ *   AGENT   → llama3.3:70b  (Ollama) — tool-calling, structured reasoning, decisions
+ *   CONTENT → qwen2.5:72b   (Ollama) — social copy, ad copy, blog drafts
+ *   FAST    → llama3:70b    (Ollama) — summaries, routing, cheap tasks
  *   QUALITY → gpt-4o        (OpenAI) — final quality review, high-stakes only
  *
- * Ollama is called via Tailscale private IP (never publicly exposed).
+ * Ollama is called locally (localhost:11434) or via Tailscale (OLLAMA_BASE_URL).
  * Falls back to OpenAI gpt-4o-mini if Ollama is unreachable.
  */
 
@@ -22,9 +22,9 @@ export type ModelAlias = typeof Models[keyof typeof Models];
 
 /** Internal map from alias to actual model name */
 const MODEL_NAMES: Record<ModelAlias, string> = {
-  AGENT:   "hermes3:70b",
-  CONTENT: "llama3.1:70b",
-  FAST:    "llama3.2:3b",
+  AGENT:   "llama3.3:70b",
+  CONTENT: "qwen2.5:72b",
+  FAST:    "llama3:70b",
   QUALITY: "gpt-4o",
 };
 
@@ -62,7 +62,8 @@ export interface LLMResponse {
   toolCalls?: Array<{ name: string; arguments: Record<string, unknown> }>;
 }
 
-const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL;
+// Prefer explicit OLLAMA_BASE_URL (Tailscale remote), fall back to local
+const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
 const OLLAMA_SECRET   = process.env.OLLAMA_SECRET;
 const OPENAI_API_KEY  = process.env.OPENAI_API_KEY;
 
@@ -81,13 +82,11 @@ export async function chat(
     return callOpenAI(modelName, messages, options, startMs, false);
   }
 
-  // Ollama models — try Tailscale first, fall back to OpenAI
-  if (OLLAMA_BASE_URL) {
-    try {
-      return await callOllama(modelName, messages, options, startMs);
-    } catch (err) {
-      console.warn(`[LLM Router] Ollama unreachable (${modelName}), falling back to OpenAI:`, err instanceof Error ? err.message : err);
-    }
+  // Ollama models — try local/Tailscale, fall back to OpenAI on failure
+  try {
+    return await callOllama(modelName, messages, options, startMs);
+  } catch (err) {
+    console.warn(`[LLM Router] Ollama unreachable (${modelName}), falling back to OpenAI:`, err instanceof Error ? err.message : err);
   }
 
   // Fallback — use gpt-4o-mini (cheap, fast)
