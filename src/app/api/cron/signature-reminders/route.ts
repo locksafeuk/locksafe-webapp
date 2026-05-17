@@ -17,8 +17,9 @@ export async function GET(request: NextRequest) {
     // Verify authorization
     const authHeader = request.headers.get("authorization");
     const token = authHeader?.replace("Bearer ", "");
+    const isVercelCron = request.headers.get("x-vercel-cron") === "1";
 
-    if (token !== CRON_SECRET && process.env.NODE_ENV === "production") {
+    if (token !== CRON_SECRET && process.env.NODE_ENV === "production" && !isVercelCron) {
       console.warn("[Cron] Unauthorized cron request");
       return NextResponse.json(
         { success: false, error: "Unauthorized" },

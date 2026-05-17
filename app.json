@@ -4,6 +4,9 @@
       "eas": {
         "projectId": "c31f2767-ac6e-4eae-8d05-1b77fcf65a74"
       }
+    },
+    "android": {
+      "package": "uk.locksafe.app.preview"
     }
   }
 }

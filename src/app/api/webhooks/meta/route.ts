@@ -16,6 +16,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { sendAdminAlert } from "@/lib/telegram";
 
 // Verify token for Meta webhook verification
 const VERIFY_TOKEN = process.env.META_WEBHOOK_VERIFY_TOKEN || "locksafe_meta_webhook_verify_token";
@@ -188,8 +189,11 @@ async function handleAdStatusChange(value: MetaChangeValue) {
   if (newStatus === "REJECTED" && value.review_feedback) {
     console.log(`[Meta Webhook] Ad ${ad.id} rejected: ${value.review_feedback}`);
 
-    // TODO: Send notification to admin about rejection
-    // await sendAdminNotification("ad_rejected", { adId: ad.id, reason: value.review_feedback });
+    sendAdminAlert({
+      title: `🚫 Meta Ad Rejected`,
+      message: `Ad rejected by Meta review.\nReason: ${value.review_feedback}\nAd DB ID: ${ad.id}`,
+      severity: "warning",
+    }).catch(() => {});
   }
 }
 
@@ -275,7 +279,11 @@ async function handleSpendCapReached(value: MetaChangeValue) {
     });
 
     // TODO: Send notification to admin
-    // await sendAdminNotification("spend_cap_reached", { campaignId: campaign.id });
+    sendAdminAlert({
+      title: `💰 Meta Campaign Spend Cap Reached`,
+      message: `Campaign ${campaign.id} has reached its spend cap and has been marked COMPLETED.`,
+      severity: "info",
+    }).catch(() => {});
   }
 }
 
@@ -286,8 +294,12 @@ async function handleDeliveryStatusChange(value: MetaChangeValue) {
   console.log(`[Meta Webhook] Delivery status change:`, value);
 
   if (value.delivery_status === "DELIVERY_ISSUES") {
-    // TODO: Alert admin about delivery issues
     console.log(`[Meta Webhook] Delivery issues detected for ad/campaign`);
+    sendAdminAlert({
+      title: `⚠️ Meta Delivery Issues Detected`,
+      message: `Meta reported delivery issues.\nDetails: ${JSON.stringify(value).slice(0, 400)}`,
+      severity: "warning",
+    }).catch(() => {});
   }
 }
 

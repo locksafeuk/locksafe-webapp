@@ -29,8 +29,9 @@ const SLA = {
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
   const token = authHeader?.replace("Bearer ", "");
+  const isVercelCron = request.headers.get("x-vercel-cron") === "1";
 
-  if (token !== CRON_SECRET && process.env.NODE_ENV === "production") {
+  if (token !== CRON_SECRET && process.env.NODE_ENV === "production" && !isVercelCron) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

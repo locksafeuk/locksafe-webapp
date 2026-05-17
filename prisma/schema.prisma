@@ -1521,7 +1521,24 @@ model SocialPost {
   // Publishing results
   facebookPostId  String?  // Post ID after publishing to Facebook
   instagramPostId String?  // Post ID after publishing to Instagram
+  twitterPostId   String?  // Tweet ID after publishing to Twitter/X
+  twitterThreadIds String[] // IDs of all tweets in a thread
+  linkedinPostId  String?  // LinkedIn UGC post URN after publishing
+  tiktokPostId    String?  // TikTok video ID (future auto-publishing)
   publishError    String?  // Error message if publish failed
+
+  // Platform-specific content variants (rewritten for each platform's native style)
+  facebookContent  String?  // Facebook-optimised copy (200-300 chars + 5-8 hashtags)
+  instagramContent String?  // Instagram caption (100-150 chars + 20-30 hashtags)
+  twitterContent   String?  // Single tweet (max 270 chars + 2-3 hashtags)
+  twitterThreadParts String[] // Multi-tweet thread parts (3-5 tweets)
+  linkedinContent  String?  // LinkedIn professional post (400-600 chars)
+  tiktokScript     String?  // JSON: { hook, body, cta, caption, hashtags, b_roll }
+
+  // Generation metadata
+  contentPillar   String?  // "security-tips" | "success-stories" | "trust-signals" | "behind-scenes" | "engagement"
+  source          String?  // "social-media-agent" | "generate-organic" | "manual"
+  imagePrompt     String?  // DALL-E/Stable Diffusion prompt for a supporting image
 
   // Approval workflow
   approvedBy      String?  // Admin ID who approved

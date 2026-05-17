@@ -40,6 +40,7 @@ export interface NativePushPayload {
 
 export interface NativePushResult {
   success: boolean;
+  stale?: boolean; // true when APNs/FCM reports the token is no longer valid
   error?: string;
 }
 
@@ -123,7 +124,13 @@ async function sendApns(
 
     const errorBody = await response.text();
     console.error("[NativePush][APNs] Send failed:", response.status, errorBody);
-    return { success: false, error: `APNs error ${response.status}: ${errorBody}` };
+
+    // 410 = device token is no longer active; 400 BadDeviceToken = token is malformed/invalid
+    const isStale =
+      response.status === 410 ||
+      (response.status === 400 && errorBody.includes("BadDeviceToken"));
+
+    return { success: false, stale: isStale, error: `APNs error ${response.status}: ${errorBody}` };
   } catch (error) {
     console.error("[NativePush][APNs] Request failed:", error);
     return { success: false, error: String(error) };
@@ -242,7 +249,14 @@ async function sendFcm(
 
     const errorBody = await response.text();
     console.error("[NativePush][FCM] Send failed:", response.status, errorBody);
-    return { success: false, error: `FCM error ${response.status}: ${errorBody}` };
+
+    // FCM returns 404 or a specific error code when the registration token is invalid/expired
+    const isStale =
+      response.status === 404 ||
+      errorBody.includes("UNREGISTERED") ||
+      errorBody.includes("registration-token-not-registered");
+
+    return { success: false, stale: isStale, error: `FCM error ${response.status}: ${errorBody}` };
   } catch (error) {
     console.error("[NativePush][FCM] Request failed:", error);
     return { success: false, error: String(error) };
@@ -280,6 +294,7 @@ export async function sendNativePush(
 
 /**
  * Send a native push to multiple devices in parallel.
+ * Stale tokens (APNs 410, FCM UNREGISTERED) are automatically cleared from the DB.
  * Returns the count of successful sends.
  */
 export async function sendNativePushToMany(
@@ -305,6 +320,9 @@ export async function sendNativePushToMany(
     )
   );
 
+  // Lazily import prisma to avoid circular deps and keep this file usable outside Next.js
+  let prisma: typeof import("@/lib/db").default | null = null;
+
   let successCount = 0;
   for (let i = 0; i < results.length; i++) {
     const result = results[i];
@@ -314,7 +332,26 @@ export async function sendNativePushToMany(
       console.log(`[NativePush] Sent to ${ls.name} (${ls.nativeTokenPlatform})`);
     } else {
       const err = result.status === "fulfilled" ? result.value.error : result.reason;
-      console.error(`[NativePush] Failed to send to ${ls.name}:`, err);
+      const isStale = result.status === "fulfilled" && result.value.stale;
+      console.error(`[NativePush] Failed to send to ${ls.name} (stale=${isStale}):`, err);
+
+      // Clear stale/invalid tokens from the DB so future dispatches skip this device
+      if (isStale) {
+        try {
+          if (!prisma) prisma = (await import("@/lib/db")).default;
+          await prisma.locksmith.update({
+            where: { id: ls.id },
+            data: {
+              nativeDeviceToken: null,
+              nativeTokenType: null,
+              nativeTokenPlatform: null,
+            },
+          });
+          console.log(`[NativePush] Cleared stale token for ${ls.name} (${ls.id})`);
+        } catch (dbErr) {
+          console.error(`[NativePush] Failed to clear stale token for ${ls.name}:`, dbErr);
+        }
+      }
     }
   }
 

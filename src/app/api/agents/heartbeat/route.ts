@@ -31,7 +31,8 @@ export async function POST(req: NextRequest) {
     }
     // Verify authorization - allow cron secret OR admin session
     const authHeader = req.headers.get("authorization");
-    const hasCronAuth = !CRON_SECRET || authHeader === `Bearer ${CRON_SECRET}`;
+    const isVercelCron = req.headers.get("x-vercel-cron") === "1";
+    const hasCronAuth = !CRON_SECRET || authHeader === `Bearer ${CRON_SECRET}` || isVercelCron;
 
     // Check admin authentication from request cookies (same approach as /api/admin/auth)
     let hasAdminAuth = false;

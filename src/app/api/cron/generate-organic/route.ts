@@ -29,6 +29,11 @@ async function verifyAccess(request: NextRequest): Promise<boolean> {
     return true;
   }
 
+  // Allow Vercel native cron scheduler
+  if (request.headers.get("x-vercel-cron") === "1") {
+    return true;
+  }
+
   // Check admin authentication via cookies
   const cookieStore = await cookies();
   const token = cookieStore.get("admin_token")?.value || cookieStore.get("auth_token")?.value;
@@ -224,8 +229,22 @@ export async function GET(request: NextRequest) {
 
     // Send notification if configured
     if (config.notifyOnGeneration && config.notificationEmail && generatedPosts.length > 0) {
-      // TODO: Send email notification
-      console.log(`Generated ${generatedPosts.length} posts, notification would be sent to ${config.notificationEmail}`);
+      try {
+        const { Resend } = await import("resend");
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.locksafe.uk";
+        await resend.emails.send({
+          from: "LockSafe Agents <agents@locksafe.uk>",
+          to: config.notificationEmail,
+          subject: `${generatedPosts.length} social posts generated${config.requireApproval ? " — awaiting approval" : " — auto-scheduled"}`,
+          html: `<p>${generatedPosts.length} organic posts have been generated and ${config.requireApproval ? "are awaiting your approval" : "are automatically scheduled"}.</p>
+<p><a href="${baseUrl}/admin/social">Review in Social Media Queue →</a></p>`,
+        });
+        console.log(`[generate-organic] Notification sent to ${config.notificationEmail}`);
+      } catch (emailErr) {
+        console.error("[generate-organic] Email notification failed:", emailErr);
+        // Non-critical — posts still saved
+      }
     }
 
     return NextResponse.json({

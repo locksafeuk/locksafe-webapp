@@ -5,22 +5,10 @@
  */
 
 import prisma from "@/lib/db";
-import OpenAI from "openai";
 import { executeHeartbeat } from "@/agents/core/orchestrator";
 import { storeDecision, storePattern } from "@/agents/core/memory";
+import { chat, Models } from "@/lib/llm-router";
 import type { AgentConfig } from "@/agents/core/types";
-
-// Lazily initialize OpenAI to avoid crashing at module load when key is absent
-let _openai: OpenAI | null = null;
-const openai = new Proxy({} as OpenAI, {
-  get(_t, prop) {
-    if (!_openai) {
-      if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is not set');
-      _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    }
-    return (_openai as unknown as Record<string | symbol, unknown>)[prop];
-  },
-});
 
 // Agent configuration
 export const COPYWRITER_AGENT_CONFIG: AgentConfig = {
@@ -222,21 +210,20 @@ For each variant, use a different copywriting framework:
 
 Return as JSON array with: headline, body, cta, framework, emotionalAngle`;
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4-turbo",
-    messages: [
+  const response = await chat(
+    Models.CONTENT,
+    [
       {
         role: "system",
         content: "You are an expert copywriter specializing in emergency services marketing. Generate high-converting ad copy.",
       },
       { role: "user", content: prompt },
     ],
-    temperature: 0.8,
-    max_tokens: 1500,
-  });
+    { temperature: 0.8, maxTokens: 1500 }
+  );
 
-  const tokensUsed = response.usage?.total_tokens || 0;
-  const costUsd = (tokensUsed / 1000) * 0.01; // Approximate cost
+  const tokensUsed = 500; // Estimated; Ollama cost is near-zero
+  const costUsd = (tokensUsed / 1000) * 0.0001; // Ollama near-zero cost
 
   let variants: Array<{
     headline: string;
@@ -247,7 +234,7 @@ Return as JSON array with: headline, body, cta, framework, emotionalAngle`;
   }> = [];
 
   try {
-    const content = response.choices[0].message.content || "[]";
+    const content = response.content || "[]";
     const jsonMatch = content.match(/\[[\s\S]*\]/);
     if (jsonMatch) {
       variants = JSON.parse(jsonMatch[0]);
@@ -314,21 +301,20 @@ Requirements:
 
 Return as JSON: { content, hashtags, hook, cta }`;
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4-turbo",
-    messages: [
+  const response = await chat(
+    Models.CONTENT,
+    [
       {
         role: "system",
         content: "You are a social media expert for emergency services marketing.",
       },
       { role: "user", content: prompt },
     ],
-    temperature: 0.7,
-    max_tokens: 500,
-  });
+    { temperature: 0.7, maxTokens: 500 }
+  );
 
-  const tokensUsed = response.usage?.total_tokens || 0;
-  const costUsd = (tokensUsed / 1000) * 0.01;
+  const tokensUsed = 200; // Estimated; Ollama cost is near-zero
+  const costUsd = (tokensUsed / 1000) * 0.0001;
 
   let result = {
     content: "",
@@ -338,7 +324,7 @@ Return as JSON: { content, hashtags, hook, cta }`;
   };
 
   try {
-    const content = response.choices[0].message.content || "{}";
+    const content = response.content || "{}";
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       result = JSON.parse(jsonMatch[0]);

@@ -16,6 +16,18 @@ const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 const TELEGRAM_ENABLED = process.env.TELEGRAM_NOTIFICATIONS_ENABLED === "true";
 
+// Forum topic thread IDs — set these env vars after creating topics in your Telegram supergroup.
+// Leave unset (or set to 0) to send all messages to the General topic.
+const TOPIC_NEW_JOBS = process.env.TELEGRAM_TOPIC_NEW_JOBS ? parseInt(process.env.TELEGRAM_TOPIC_NEW_JOBS) : undefined;
+const TOPIC_LOCKSMITHS = process.env.TELEGRAM_TOPIC_LOCKSMITHS ? parseInt(process.env.TELEGRAM_TOPIC_LOCKSMITHS) : undefined;
+const TOPIC_CUSTOMERS = process.env.TELEGRAM_TOPIC_CUSTOMERS ? parseInt(process.env.TELEGRAM_TOPIC_CUSTOMERS) : undefined;
+const TOPIC_JOB_UPDATES = process.env.TELEGRAM_TOPIC_JOB_UPDATES ? parseInt(process.env.TELEGRAM_TOPIC_JOB_UPDATES) : undefined;
+const TOPIC_PAYMENTS = process.env.TELEGRAM_TOPIC_PAYMENTS ? parseInt(process.env.TELEGRAM_TOPIC_PAYMENTS) : undefined;
+const TOPIC_AGENTS = process.env.TELEGRAM_TOPIC_AGENTS ? parseInt(process.env.TELEGRAM_TOPIC_AGENTS) : undefined;
+const TOPIC_APPLICATIONS = process.env.TELEGRAM_TOPIC_APPLICATIONS ? parseInt(process.env.TELEGRAM_TOPIC_APPLICATIONS) : undefined;
+const TOPIC_QUOTES = process.env.TELEGRAM_TOPIC_QUOTES ? parseInt(process.env.TELEGRAM_TOPIC_QUOTES) : undefined;
+const TOPIC_REVIEWS = process.env.TELEGRAM_TOPIC_REVIEWS ? parseInt(process.env.TELEGRAM_TOPIC_REVIEWS) : undefined;
+
 interface TelegramResponse {
   ok: boolean;
   result?: unknown;
@@ -24,8 +36,14 @@ interface TelegramResponse {
 
 /**
  * Send a message via Telegram Bot API
+ * @param threadId  Optional forum topic thread ID (message_thread_id). When set the message
+ *                  is posted into that topic instead of the General topic.
  */
-async function sendTelegramMessage(message: string, parseMode: "HTML" | "Markdown" = "HTML"): Promise<boolean> {
+async function sendTelegramMessage(
+  message: string,
+  parseMode: "HTML" | "Markdown" = "HTML",
+  threadId?: number
+): Promise<boolean> {
   if (!TELEGRAM_ENABLED) {
     console.log("[Telegram] Notifications disabled");
     return false;
@@ -39,27 +57,31 @@ async function sendTelegramMessage(message: string, parseMode: "HTML" | "Markdow
   try {
     const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
 
+    const body: Record<string, unknown> = {
+      chat_id: TELEGRAM_CHAT_ID,
+      text: message,
+      parse_mode: parseMode,
+      disable_web_page_preview: true,
+    };
+
+    if (threadId) {
+      body.message_thread_id = threadId;
+    }
+
     const response = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        chat_id: TELEGRAM_CHAT_ID,
-        text: message,
-        parse_mode: parseMode,
-        disable_web_page_preview: true,
-      }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     });
 
     const data: TelegramResponse = await response.json();
 
     if (!data.ok) {
-      console.error("[Telegram] API error:", data.description);
+      console.error(`[Telegram] API error (threadId=${threadId}):`, data.description);
       return false;
     }
 
-    console.log("[Telegram] Message sent successfully");
+    console.log(`[Telegram] Message sent${threadId ? ` to topic ${threadId}` : ""}`);
     return true;
   } catch (error) {
     console.error("[Telegram] Failed to send message:", error);
@@ -121,7 +143,7 @@ export async function notifyNewCustomer(data: {
 🕐 <b>Time:</b> ${formatDate(new Date())}
 `;
 
-  return sendTelegramMessage(message);
+  return sendTelegramMessage(message, "HTML", TOPIC_CUSTOMERS);
 }
 
 /**
@@ -150,7 +172,7 @@ export async function notifyNewLocksmith(data: {
 🕐 <b>Time:</b> ${formatDate(new Date())}
 `;
 
-  return sendTelegramMessage(message);
+  return sendTelegramMessage(message, "HTML", TOPIC_LOCKSMITHS);
 }
 
 /**
@@ -189,7 +211,7 @@ ${data.description ? `📝 <b>Notes:</b> ${escapeHtml(data.description)}` : ""}
 🕐 <b>Time:</b> ${formatDate(new Date())}
 `;
 
-  return sendTelegramMessage(message);
+  return sendTelegramMessage(message, "HTML", TOPIC_NEW_JOBS);
 }
 
 /**
@@ -221,7 +243,7 @@ ${data.distanceMiles ? `📏 <b>Distance:</b> ${data.distanceMiles.toFixed(1)} m
 🕐 <b>Time:</b> ${formatDate(new Date())}
 `;
 
-  return sendTelegramMessage(message);
+  return sendTelegramMessage(message, "HTML", TOPIC_APPLICATIONS);
 }
 
 /**
@@ -254,7 +276,7 @@ export async function notifyApplicationAccepted(data: {
 🕐 <b>Time:</b> ${formatDate(new Date())}
 `;
 
-  return sendTelegramMessage(message);
+  return sendTelegramMessage(message, "HTML", TOPIC_APPLICATIONS);
 }
 
 /**
@@ -279,7 +301,7 @@ export async function notifyAssessmentFeePaid(data: {
 🕐 <b>Time:</b> ${formatDate(new Date())}
 `;
 
-  return sendTelegramMessage(message);
+  return sendTelegramMessage(message, "HTML", TOPIC_PAYMENTS);
 }
 
 /**
@@ -315,7 +337,7 @@ ${data.description ? `📋 <b>Work:</b> ${escapeHtml(data.description)}` : ""}
 🕐 <b>Time:</b> ${formatDate(new Date())}
 `;
 
-  return sendTelegramMessage(message);
+  return sendTelegramMessage(message, "HTML", TOPIC_QUOTES);
 }
 
 /**
@@ -342,7 +364,7 @@ export async function notifyQuoteAccepted(data: {
 🕐 <b>Time:</b> ${formatDate(new Date())}
 `;
 
-  return sendTelegramMessage(message);
+  return sendTelegramMessage(message, "HTML", TOPIC_QUOTES);
 }
 
 /**
@@ -370,7 +392,7 @@ ${data.reason ? `📝 <b>Reason:</b> ${escapeHtml(data.reason)}` : ""}
 🕐 <b>Time:</b> ${formatDate(new Date())}
 `;
 
-  return sendTelegramMessage(message);
+  return sendTelegramMessage(message, "HTML", TOPIC_QUOTES);
 }
 
 /**
@@ -397,7 +419,7 @@ export async function notifyWorkCompleted(data: {
 🕐 <b>Time:</b> ${formatDate(new Date())}
 `;
 
-  return sendTelegramMessage(message);
+  return sendTelegramMessage(message, "HTML", TOPIC_JOB_UPDATES);
 }
 
 /**
@@ -430,7 +452,7 @@ export async function notifyJobSigned(data: {
 🕐 <b>Time:</b> ${formatDate(new Date())}
 `;
 
-  return sendTelegramMessage(message);
+  return sendTelegramMessage(message, "HTML", TOPIC_JOB_UPDATES);
 }
 
 /**
@@ -465,7 +487,7 @@ ${data.method ? `📱 <b>Method:</b> ${escapeHtml(data.method)}` : ""}
 🕐 <b>Time:</b> ${formatDate(new Date())}
 `;
 
-  return sendTelegramMessage(message);
+  return sendTelegramMessage(message, "HTML", TOPIC_PAYMENTS);
 }
 
 /**
@@ -492,7 +514,7 @@ export async function notifyRefundRequested(data: {
 🕐 <b>Time:</b> ${formatDate(new Date())}
 `;
 
-  return sendTelegramMessage(message);
+  return sendTelegramMessage(message, "HTML", TOPIC_PAYMENTS);
 }
 
 /**
@@ -522,7 +544,7 @@ ${data.adminNotes ? `📝 <b>Notes:</b> ${escapeHtml(data.adminNotes)}` : ""}
 🕐 <b>Time:</b> ${formatDate(new Date())}
 `;
 
-  return sendTelegramMessage(message);
+  return sendTelegramMessage(message, "HTML", TOPIC_PAYMENTS);
 }
 
 /**
@@ -547,7 +569,7 @@ export async function notifyLocksmithArrived(data: {
 🕐 <b>Time:</b> ${formatDate(new Date())}
 `;
 
-  return sendTelegramMessage(message);
+  return sendTelegramMessage(message, "HTML", TOPIC_JOB_UPDATES);
 }
 
 /**
@@ -576,7 +598,7 @@ ${data.comment ? `💬 "${escapeHtml(data.comment)}"` : ""}
 🕐 <b>Time:</b> ${formatDate(new Date())}
 `;
 
-  return sendTelegramMessage(message);
+  return sendTelegramMessage(message, "HTML", TOPIC_REVIEWS);
 }
 
 /**
@@ -610,7 +632,7 @@ export async function notifyJobAutoCompleted(data: {
 🕐 <b>Time:</b> ${formatDate(new Date())}
 `;
 
-  return sendTelegramMessage(message);
+  return sendTelegramMessage(message, "HTML", TOPIC_JOB_UPDATES);
 }
 
 /**
@@ -631,7 +653,7 @@ export async function notifyStripeConnectCompleted(data: {
 🕐 <b>Time:</b> ${formatDate(new Date())}
 `;
 
-  return sendTelegramMessage(message);
+  return sendTelegramMessage(message, "HTML", TOPIC_LOCKSMITHS);
 }
 
 /**
@@ -654,7 +676,7 @@ ${data.utmCampaign ? `🏷️ <b>Campaign:</b> ${escapeHtml(data.utmCampaign)}` 
 🕐 <b>Time:</b> ${formatDate(new Date())}
 `;
 
-  return sendTelegramMessage(message);
+  return sendTelegramMessage(message, "HTML", TOPIC_CUSTOMERS);
 }
 
 /**
@@ -681,7 +703,7 @@ ${escapeHtml(data.message)}
 🕐 <b>Time:</b> ${formatDate(new Date())}
 `;
 
-  return sendTelegramMessage(message);
+  return sendTelegramMessage(message, "HTML", TOPIC_AGENTS);
 }
 
 /**
@@ -712,7 +734,7 @@ export async function sendDailySummary(data: {
 • Platform Earnings: ${formatCurrency(data.platformEarnings)}
 `;
 
-  return sendTelegramMessage(message);
+  return sendTelegramMessage(message, "HTML", TOPIC_AGENTS);
 }
 
 // Export a test function for verification
@@ -777,5 +799,5 @@ export async function notifyLocksmithDeclinedAssignment(data: {
 🕐 <b>Time:</b> ${formatDate(new Date())}
 `;
 
-  return sendTelegramMessage(message);
+  return sendTelegramMessage(message, "HTML", TOPIC_AGENTS);
 }

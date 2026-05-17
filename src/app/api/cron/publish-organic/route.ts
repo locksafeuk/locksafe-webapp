@@ -17,6 +17,8 @@ import {
   publishToInstagram,
 } from "@/lib/social-publisher";
 import { formatPostForPlatform } from "@/lib/organic-content";
+import { isTwitterConfigured, postTweet, postThread } from "@/lib/twitter";
+import { isLinkedInConfigured, postToLinkedIn } from "@/lib/linkedin";
 
 // Verify cron secret or admin authentication
 async function verifyAccess(request: NextRequest): Promise<boolean> {
@@ -25,6 +27,11 @@ async function verifyAccess(request: NextRequest): Promise<boolean> {
   const cronSecret = process.env.CRON_SECRET;
 
   if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
+    return true;
+  }
+
+  // Allow Vercel native cron scheduler
+  if (request.headers.get("x-vercel-cron") === "1") {
     return true;
   }
 
@@ -88,8 +95,10 @@ export async function GET(request: NextRequest) {
     });
 
     type AccountType = typeof accounts[number];
-    const facebookAccount = accounts.find((a: AccountType) => a.platform === "FACEBOOK");
+    const facebookAccount  = accounts.find((a: AccountType) => a.platform === "FACEBOOK");
     const instagramAccount = accounts.find((a: AccountType) => a.platform === "INSTAGRAM");
+    const twitterEnabled   = isTwitterConfigured();
+    const linkedinEnabled  = isLinkedInConfigured();
 
     const results: Array<{
       postId: string;
@@ -108,8 +117,10 @@ export async function GET(request: NextRequest) {
       });
 
       const platformResults: {
-        facebook?: { success: boolean; postId?: string; error?: string };
+        facebook?:  { success: boolean; postId?: string; error?: string };
         instagram?: { success: boolean; postId?: string; error?: string };
+        twitter?:   { success: boolean; postId?: string; error?: string };
+        linkedin?:  { success: boolean; postId?: string; error?: string };
       } = {};
 
       // Publish to Facebook if platform is selected
@@ -175,8 +186,48 @@ export async function GET(request: NextRequest) {
         };
       }
 
+      // Publish to Twitter/X
+      if (post.platforms.includes("TWITTER") && twitterEnabled) {
+        try {
+          const tweetText = (post as Record<string, unknown>).twitterContent as string | undefined || post.content;
+          const threadParts = (post as Record<string, unknown>).twitterThreadParts as string[] | undefined;
+
+          if (threadParts && threadParts.length > 1) {
+            const result = await postThread(threadParts);
+            platformResults.twitter = { success: true, postId: result.ids[0] };
+          } else {
+            const result = await postTweet(tweetText.slice(0, 280));
+            platformResults.twitter = { success: true, postId: result.id };
+          }
+        } catch (err) {
+          platformResults.twitter = {
+            success: false,
+            error: err instanceof Error ? err.message : String(err),
+          };
+        }
+      }
+
+      // Publish to LinkedIn
+      if (post.platforms.includes("LINKEDIN") && linkedinEnabled) {
+        try {
+          const linkedinText = (post as Record<string, unknown>).linkedinContent as string | undefined || post.content;
+          const result = await postToLinkedIn({ text: linkedinText });
+          platformResults.linkedin = { success: true, postId: result.id };
+        } catch (err) {
+          platformResults.linkedin = {
+            success: false,
+            error: err instanceof Error ? err.message : String(err),
+          };
+        }
+      }
+
       // Determine final status
-      const anySuccess = Boolean(platformResults.facebook?.success || platformResults.instagram?.success);
+      const anySuccess = Boolean(
+        platformResults.facebook?.success ||
+        platformResults.instagram?.success ||
+        platformResults.twitter?.success ||
+        platformResults.linkedin?.success
+      );
 
       // Update post with results
       await prisma.socialPost.update({
@@ -184,10 +235,17 @@ export async function GET(request: NextRequest) {
         data: {
           status: anySuccess ? "PUBLISHED" : "FAILED",
           publishedAt: anySuccess ? new Date() : null,
-          facebookPostId: platformResults.facebook?.postId || null,
+          facebookPostId:  platformResults.facebook?.postId  || null,
           instagramPostId: platformResults.instagram?.postId || null,
+          twitterPostId:   platformResults.twitter?.postId   || null,
+          linkedinPostId:  platformResults.linkedin?.postId  || null,
           publishError: !anySuccess
-            ? `Facebook: ${platformResults.facebook?.error || "Not attempted"}; Instagram: ${platformResults.instagram?.error || "Not attempted"}`
+            ? [
+                platformResults.facebook  ? `Facebook: ${platformResults.facebook.error}`   : null,
+                platformResults.instagram ? `Instagram: ${platformResults.instagram.error}` : null,
+                platformResults.twitter   ? `Twitter: ${platformResults.twitter.error}`     : null,
+                platformResults.linkedin  ? `LinkedIn: ${platformResults.linkedin.error}`   : null,
+              ].filter(Boolean).join("; ") || "No platforms attempted"
             : null,
         },
       });

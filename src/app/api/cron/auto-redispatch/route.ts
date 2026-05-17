@@ -19,7 +19,8 @@ const CRON_SECRET = process.env.CRON_SECRET || "dev-secret";
  */
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${CRON_SECRET}`) {
+  const isVercelCron = request.headers.get("x-vercel-cron") === "1";
+  if (authHeader !== `Bearer ${CRON_SECRET}` && !isVercelCron) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

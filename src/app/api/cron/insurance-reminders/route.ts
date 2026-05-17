@@ -19,7 +19,8 @@ export async function GET(request: NextRequest) {
     const secret = searchParams.get("secret");
     const cronSecret = process.env.CRON_SECRET;
 
-    if (cronSecret && secret !== cronSecret) {
+    const isVercelCron = request.headers.get("x-vercel-cron") === "1";
+    if (cronSecret && secret !== cronSecret && !isVercelCron) {
       return NextResponse.json(
         { success: false, error: "Unauthorized" },
         { status: 401 }

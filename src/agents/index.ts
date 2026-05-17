@@ -17,6 +17,7 @@ import { initializeCMOAgent, runCMOHeartbeat, getCMOStatus, CMO_AGENT_CONFIG } f
 import { initializeCTOAgent, runCTOHeartbeat, getCTOStatus, CTO_AGENT_CONFIG } from "@/agents/cto/agent";
 import { initializeCopywriterAgent, runCopywriterHeartbeat, getCopywriterStatus, COPYWRITER_AGENT_CONFIG } from "@/agents/cmo/subagents/copywriter/agent";
 import { initializeAdsSpecialistAgent, runAdsSpecialistHeartbeat, getAdsSpecialistStatus, ADS_SPECIALIST_AGENT_CONFIG } from "@/agents/cmo/subagents/ads-specialist/agent";
+import { initializeSocialMediaAgent, runSocialMediaHeartbeat, getSocialMediaStatus, SOCIAL_MEDIA_AGENT_CONFIG } from "@/agents/cmo/subagents/social-media/agent";
 
 // Core orchestrator
 import {
@@ -141,6 +142,7 @@ export {
   initializeCTOAgent,
   initializeCopywriterAgent,
   initializeAdsSpecialistAgent,
+  initializeSocialMediaAgent,
   // Agent heartbeats
   runCEOHeartbeat,
   runCOOHeartbeat,
@@ -148,6 +150,7 @@ export {
   runCTOHeartbeat,
   runCopywriterHeartbeat,
   runAdsSpecialistHeartbeat,
+  runSocialMediaHeartbeat,
   // Agent status
   getCEOStatus,
   getCOOStatus,
@@ -155,6 +158,7 @@ export {
   getCTOStatus,
   getCopywriterStatus,
   getAdsSpecialistStatus,
+  getSocialMediaStatus,
   // Agent configs
   CEO_AGENT_CONFIG,
   COO_AGENT_CONFIG,
@@ -162,6 +166,7 @@ export {
   CTO_AGENT_CONFIG,
   COPYWRITER_AGENT_CONFIG,
   ADS_SPECIALIST_AGENT_CONFIG,
+  SOCIAL_MEDIA_AGENT_CONFIG,
   // Orchestrator (enhanced)
   runAllHeartbeats,
   getAgentStatusSummary,
@@ -277,6 +282,7 @@ export async function initializeAgentSystem(): Promise<void> {
   console.log("\n[Init] Initializing subagents...");
   await initializeCopywriterAgent();
   await initializeAdsSpecialistAgent();
+  await initializeSocialMediaAgent();
 
   // Set agent dependencies and priorities
   console.log("\n[Init] Configuring agent dependencies...");
@@ -286,11 +292,13 @@ export async function initializeAgentSystem(): Promise<void> {
   setAgentPriority('cmo', 6);
   setAgentPriority('copywriter', 3);
   setAgentPriority('ads-specialist', 3);
+  setAgentPriority('social-media', 4);
 
   setAgentDependencies('cmo', ['ceo']);
   setAgentDependencies('coo', ['ceo']);
   setAgentDependencies('copywriter', ['cmo']);
   setAgentDependencies('ads-specialist', ['cmo']);
+  setAgentDependencies('social-media', ['cmo']);
 
   // Subscribe CEO to all executive status updates
   subscribeToMessages('ceo', (msg) => {
@@ -349,7 +357,46 @@ export async function runAgentHeartbeats(): Promise<{
   // Cleanup expired messages
   await cleanupExpiredMessages();
 
-  const results = await runAllHeartbeats();
+  // Wrap each agent heartbeat fn to capture success/errors uniformly
+  async function runWithResult(name: string, fn: () => Promise<void>) {
+    try {
+      await fn();
+      return { success: true, agentName: name, actionsExecuted: 1, costUsd: 0, errors: [], nextHeartbeat: new Date(Date.now() + 3_600_000) };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[Heartbeat] ${name} failed:`, msg);
+      return { success: false, agentName: name, actionsExecuted: 0, costUsd: 0, errors: [msg], nextHeartbeat: new Date(Date.now() + 3_600_000) };
+    }
+  }
+
+  // Independent executives run in parallel (no cross-dependencies)
+  const independentSettled = await Promise.allSettled([
+    runWithResult("ceo", runCEOHeartbeat),
+    runWithResult("cto", runCTOHeartbeat),
+    runWithResult("coo", runCOOHeartbeat),
+  ]);
+  const independentResults = independentSettled.map((r, i) => {
+    const names = ["ceo", "cto", "coo"];
+    if (r.status === "fulfilled") return r.value;
+    return { success: false, agentName: names[i], actionsExecuted: 0, costUsd: 0, errors: [(r.reason as Error)?.message ?? "Unknown"], nextHeartbeat: new Date() };
+  });
+
+  // CMO depends on CEO results — run after independent agents
+  const cmoResult = await runWithResult("cmo", runCMOHeartbeat);
+
+  // CMO subagents run after CMO
+  const subagentSettled = await Promise.allSettled([
+    runWithResult("copywriter", runCopywriterHeartbeat),
+    runWithResult("ads-specialist", runAdsSpecialistHeartbeat),
+    runWithResult("social-media", runSocialMediaHeartbeat),
+  ]);
+  const subagentResults = subagentSettled.map((r, i) => {
+    const names = ["copywriter", "ads-specialist", "social-media"];
+    if (r.status === "fulfilled") return r.value;
+    return { success: false, agentName: names[i], actionsExecuted: 0, costUsd: 0, errors: [(r.reason as Error)?.message ?? "Unknown"], nextHeartbeat: new Date() };
+  });
+
+  const results = [...independentResults, cmoResult, ...subagentResults];
 
   return {
     success: results.every(r => r.success),

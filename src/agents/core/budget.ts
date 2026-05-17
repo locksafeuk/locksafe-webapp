@@ -73,6 +73,9 @@ export function estimateCost(operation: string, params: Record<string, unknown>)
   const baseCosts: Record<string, number> = {
     'openai-gpt4': 0.03,
     'openai-gpt3.5': 0.002,
+    'ollama-agent': 0.0001,    // hermes3:70b — local, near-zero marginal cost
+    'ollama-content': 0.0001,  // llama3.1:70b — local
+    'ollama-fast': 0.00001,    // llama3.2:3b — local, very cheap
     'analytics': 0.001,
     'email': 0.0001,
     'sms': 0.01,

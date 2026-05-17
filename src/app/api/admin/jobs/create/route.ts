@@ -6,6 +6,7 @@ import { verifyToken } from "@/lib/auth";
 import { sendCustomerOnboardingEmail } from "@/lib/email";
 import { sendSMS } from "@/lib/sms";
 import { notifyNearbyLocksmiths } from "@/lib/job-notifications";
+import { notifyNewJob } from "@/lib/telegram";
 import { generateJobNumber } from "@/lib/job-number";
 import crypto from "crypto";
 
@@ -209,6 +210,22 @@ export async function POST(request: NextRequest) {
           console.error("[Admin Create Job] Error notifying locksmiths:", err)
         );
       }
+
+      // Telegram notification
+      notifyNewJob({
+        jobNumber: job.jobNumber,
+        jobId: job.id,
+        customerName: customer.name,
+        customerPhone: customer.phone,
+        problemType,
+        propertyType,
+        postcode: job.postcode,
+        address: job.address,
+        description: description || null,
+        isUrgent: urgency === "emergency",
+      }).catch((err) =>
+        console.error("[Admin Create Job] Telegram notification error:", err)
+      );
     }
 
     return NextResponse.json({
