@@ -1103,7 +1103,7 @@ Get pricing guidance for your quotes:
 
   const assistance = await getQuoteAssistance(lockType, "general", difficulty);
 
-  let partsText = assistance.commonParts
+  const partsText = assistance.commonParts
     .map((p) => `• ${p.name}: ${formatCurrency(p.avgPrice)}`)
     .join("\n");
 

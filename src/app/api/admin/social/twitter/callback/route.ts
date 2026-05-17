@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { TwitterApi } from "twitter-api-v2";
 import { verifyToken } from "@/lib/auth";
 import prisma from "@/lib/db";
 
@@ -58,7 +59,6 @@ export async function GET(request: NextRequest) {
   const callbackUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://www.locksafe.uk"}/api/admin/social/twitter/callback`;
 
   try {
-    const { TwitterApi } = require("twitter-api-v2") as typeof import("twitter-api-v2");
     const client = new TwitterApi({ clientId, clientSecret });
 
     const { client: loggedClient, accessToken, refreshToken, expiresIn } =

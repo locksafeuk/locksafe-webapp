@@ -159,9 +159,9 @@ export default function JobRedirectPage() {
               </p>
               <p className="text-xs text-slate-500 text-center mt-2">
                 Having trouble?{" "}
-                <a href="/help" className="text-orange-600 hover:underline">
+                <Link href="/help" className="text-orange-600 hover:underline">
                   Contact Support
-                </a>
+                </Link>
               </p>
             </div>
           </div>

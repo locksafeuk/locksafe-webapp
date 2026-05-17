@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   X,
   FileText,
@@ -210,12 +211,12 @@ export function ExitIntentModal({
         </div>
 
         <div className="px-4 pb-4">
-          <a
+          <Link
             href="/request"
             className="block w-full bg-amber-500 hover:bg-amber-600 text-white font-medium py-2.5 rounded-lg text-sm text-center"
           >
             Get Free Quote
-          </a>
+          </Link>
         </div>
       </div>
     </div>

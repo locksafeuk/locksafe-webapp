@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
 
 interface Policy {
@@ -152,7 +153,7 @@ export default function MarketingPolicyPage() {
         <h2 className="font-semibold text-red-900">Emergency kill switch</h2>
         <p className="text-sm text-red-900">
           Disable autonomy on every platform immediately. Manual admin actions are unaffected. This does NOT pause active campaigns —
-          go to <a href="/admin/integrations/google-ads/drafts" className="underline">Google Ads drafts</a> to pause individual ones.
+          go to <Link href="/admin/integrations/google-ads/drafts" className="underline">Google Ads drafts</Link> to pause individual ones.
         </p>
         <button
           type="button"

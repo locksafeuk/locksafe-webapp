@@ -807,7 +807,7 @@ export async function publishToTikTok(params: {
   }
 }
 
-export default {
+const socialPublisher = {
   publishToFacebook,
   publishToInstagram,
   publishToBothPlatforms,
@@ -819,3 +819,5 @@ export default {
   getManagedPages,
   getPostInsights,
 };
+
+export default socialPublisher;

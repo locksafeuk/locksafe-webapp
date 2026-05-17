@@ -10,9 +10,7 @@
  *   TWITTER_ACCESS_TOKEN
  *   TWITTER_ACCESS_SECRET
  */
-
-// twitter-api-v2 is imported dynamically to avoid breaking builds
-// when the package is not yet installed.
+import { TwitterApi } from "twitter-api-v2";
 
 export interface TweetResult {
   id: string;
@@ -27,8 +25,6 @@ export interface ThreadResult {
 }
 
 function getClient() {
-  const { TwitterApi } = require("twitter-api-v2") as typeof import("twitter-api-v2");
-
   const apiKey       = process.env.TWITTER_API_KEY;
   const apiSecret    = process.env.TWITTER_API_SECRET;
   const accessToken  = process.env.TWITTER_ACCESS_TOKEN;

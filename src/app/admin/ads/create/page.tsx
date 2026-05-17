@@ -489,7 +489,7 @@ export default function CreateAdPage() {
                 <div className="text-xs text-slate-500 py-3">Loading services…</div>
               ) : catalogServices.length === 0 ? (
                 <div className="text-xs text-slate-500 py-3">
-                  No catalog services configured yet. <a href="/admin/marketing/meta-catalog" className="text-orange-600 underline">Manage catalog</a>
+                  No catalog services configured yet. <Link href="/admin/marketing/meta-catalog" className="text-orange-600 underline">Manage catalog</Link>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2">

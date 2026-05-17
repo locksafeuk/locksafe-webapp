@@ -1104,7 +1104,7 @@ async function showCustomerJobs(phone: string): Promise<void> {
 
 async function showJobDetails(phone: string, jobRef: string): Promise<void> {
   // Find job by ID or job number
-  let job = await prisma.job.findFirst({
+  const job = await prisma.job.findFirst({
     where: {
       OR: [
         { id: jobRef },

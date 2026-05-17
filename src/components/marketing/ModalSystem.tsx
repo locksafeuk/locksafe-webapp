@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
 
@@ -120,13 +121,13 @@ export function ModalSystem({ disabled = false }: ModalSystemProps) {
         <p className="text-sm text-gray-600 mb-5">
           Our vetted locksmiths arrive in under 30 minutes — any time, any lock.
         </p>
-        <a
+        <Link
           href="/request"
           onClick={dismiss}
           className="block w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-colors"
         >
           Get a Free Quote →
-        </a>
+        </Link>
         <button
           onClick={dismiss}
           className="mt-3 text-xs text-gray-400 hover:text-gray-600"

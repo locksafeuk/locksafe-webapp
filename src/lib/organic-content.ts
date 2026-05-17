@@ -670,7 +670,7 @@ export function optimizeHashtags(
   ];
 
   // Combine and dedupe
-  let allHashtags = [...new Set([
+  const allHashtags = [...new Set([
     ...branded,
     ...baseHashtags,
     ...additionalHashtags,
@@ -703,7 +703,7 @@ export function formatPostForPlatform(
   }
 }
 
-export default {
+const organicContent = {
   generateOrganicPost,
   generateStoryPost,
   generateTipPost,
@@ -717,3 +717,5 @@ export default {
   formatPostForPlatform,
   CONTENT_PILLARS,
 };
+
+export default organicContent;

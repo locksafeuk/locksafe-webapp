@@ -1,1 +1,3 @@
-export default {};
+const sameRuntimeMock = {};
+
+export default sameRuntimeMock;

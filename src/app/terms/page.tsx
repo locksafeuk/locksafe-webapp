@@ -789,7 +789,7 @@ export default function TermsPage() {
                     <li>The service has been fully performed before the end of the 14-day period with your prior express consent.</li>
                   </ul>
                   <p>
-                    Please see our <a href="/cooling-off">Cooling-Off Rights</a> page for full details.
+                    Please see our <Link href="/cooling-off">Cooling-Off Rights</Link> page for full details.
                   </p>
 
                   <h3>Consumer Protection from Unfair Trading Regulations 2008</h3>
@@ -827,7 +827,7 @@ export default function TermsPage() {
 
                   <h3>18.2 Subscription Plans and Pricing</h3>
                   <p>
-                    Subscriptions are available on a monthly or annual basis. Current prices are displayed on the <a href="/customer/cover">Cover page</a> before checkout. Prices include VAT where applicable.
+                    Subscriptions are available on a monthly or annual basis. Current prices are displayed on the <Link href="/customer/cover">Cover page</Link> before checkout. Prices include VAT where applicable.
                   </p>
 
                   <h3>18.3 Auto-Renewal</h3>

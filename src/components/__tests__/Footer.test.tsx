@@ -6,9 +6,19 @@ import { render, screen } from "@testing-library/react";
 import { Footer } from "../layout/Footer";
 
 jest.mock("next/link", () => {
-  return ({ children, href, ...props }: { children: React.ReactNode; href: string; [key: string]: unknown }) => (
-    <a href={href} {...props}>{children}</a>
-  );
+  function MockNextLink({
+    children,
+    href,
+    ...props
+  }: {
+    children: React.ReactNode;
+    href: string;
+    [key: string]: unknown;
+  }) {
+    return <a href={href} {...props}>{children}</a>;
+  }
+
+  return MockNextLink;
 });
 
 describe("Footer Component", () => {

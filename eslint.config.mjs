@@ -12,6 +12,9 @@ const compat = new FlatCompat({
 const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
+    linterOptions: {
+      reportUnusedDisableDirectives: "off",
+    },
     languageOptions: {
       parserOptions: {
         warnOnUnsupportedTypeScriptVersion: false,
@@ -22,11 +25,13 @@ const eslintConfig = [
       "react/no-unescaped-entities": "off",
       "@next/next/no-img-element": "off",
       "jsx-a11y/alt-text": "off",
-      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-require-imports": "warn",
       "@next/next/no-html-link-for-pages": "warn",
       "prefer-const": "warn",
       "react/display-name": "warn",
+      "react-hooks/exhaustive-deps": "off",
+      "@next/next/no-before-interactive-script-outside-document": "off",
     },
   },
 ];

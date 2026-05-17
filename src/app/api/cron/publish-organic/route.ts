@@ -9,6 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { TwitterApi } from "twitter-api-v2";
 import { prisma } from "@/lib/db";
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth";
@@ -244,7 +245,6 @@ export async function GET(request: NextRequest) {
 
           // Use DB credentials if available (from OAuth connect), else fall back to env vars
           if (twitterDbAccount) {
-            const { TwitterApi } = require("twitter-api-v2") as typeof import("twitter-api-v2");
             // OAuth 2.0: use the access token directly
             const twitterClient = new TwitterApi(twitterDbAccount.accessToken);
             if (threadParts && threadParts.length > 1) {

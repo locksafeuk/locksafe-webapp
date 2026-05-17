@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 
@@ -160,12 +161,12 @@ export default function GoogleAdsDraftDetailPage() {
             Status: <strong>{draft.status}</strong> · Created {new Date(draft.createdAt).toLocaleString()}
           </p>
         </div>
-        <a
+        <Link
           href="/admin/integrations/google-ads/drafts"
           className="text-blue-600 hover:underline text-sm"
         >
           ← Back to drafts
-        </a>
+        </Link>
       </div>
 
       {message && (

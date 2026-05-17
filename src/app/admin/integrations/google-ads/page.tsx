@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Suspense, useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 
@@ -145,9 +146,9 @@ function GoogleAdsIntegrationPageInner() {
           be able to pull metrics and publish approved campaign drafts.
         </p>
         <p className="text-sm mt-2">
-          <a href="/admin/integrations/google-ads/drafts" className="text-blue-600 hover:underline">
+          <Link href="/admin/integrations/google-ads/drafts" className="text-blue-600 hover:underline">
             → View AI-generated campaign drafts
-          </a>
+          </Link>
         </p>
       </div>
 

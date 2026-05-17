@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import RegisterForm from "./RegisterForm";
 
@@ -16,7 +17,7 @@ export default function RegisterPage() {
       {/* Header */}
       <header className="py-6">
         <div className="section-container">
-          <a href="/" className="flex items-center gap-2 w-fit">
+          <Link href="/" className="flex items-center gap-2 w-fit">
             <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center">
               <svg
                 viewBox="0 0 24 24"
@@ -31,7 +32,7 @@ export default function RegisterPage() {
             <span className="text-2xl font-bold text-slate-900">
               Lock<span className="text-orange-500">Safe</span>
             </span>
-          </a>
+          </Link>
         </div>
       </header>
 

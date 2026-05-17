@@ -71,4 +71,6 @@ const handler: ProxyHandler<Record<string, unknown>> = {
   },
 };
 
-export default new Proxy({}, handler);
+const lucideReactMock = new Proxy({}, handler);
+
+export default lucideReactMock;
