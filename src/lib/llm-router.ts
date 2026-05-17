@@ -1,106 +1,259 @@
 /**
- * LLM Router
+ * LLM Router — unified interface for all AI calls
  *
- * Routes AI generation requests to the best available provider:
- *   1. Ollama (local) — if OLLAMA_BASE_URL is set and reachable
- *   2. OpenAI (cloud)  — fallback for Vercel/production
+ * Routes to:
+ *   AGENT   → llama3.3:70b  (Ollama) — tool-calling, structured reasoning, decisions
+ *   CONTENT → qwen2.5:72b   (Ollama) — social copy, ad copy, blog drafts
+ *   FAST    → llama3:70b    (Ollama) — summaries, routing, cheap tasks
+ *   QUALITY → gpt-4o        (OpenAI) — final quality review, high-stakes only
  *
- * Usage: drop-in replacement for openai.chat.completions.create()
- *
- *   import { createCompletion } from '@/lib/llm-router';
- *   const response = await createCompletion({ messages, temperature, ... });
- *   const text = response.choices[0].message.content;
+ * Ollama is called locally (localhost:11434) or via Tailscale (OLLAMA_BASE_URL).
+ * Falls back to OpenAI gpt-4o-mini if Ollama is unreachable.
  */
 
-import OpenAI from 'openai';
+export const Models = {
+  AGENT:       "AGENT",
+  CONTENT:     "CONTENT",
+  FAST:        "FAST",
+  QUALITY:     "QUALITY",
+  /** Hermes 3 (NousResearch) — 8B, fine-tuned for tool-calling / function dispatch */
+  HERMES:      "HERMES",
+} as const;
 
-// ─── Config ──────────────────────────────────────────────────────────────────
+export type ModelAlias = typeof Models[keyof typeof Models];
 
-const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL; // e.g. http://localhost:11434
-const OLLAMA_MODEL    = process.env.OLLAMA_MODEL ?? 'qwen2.5:72b';
-const OLLAMA_TIMEOUT  = Number(process.env.OLLAMA_TIMEOUT_MS ?? 120_000);
+/** Internal map from alias to actual model name */
+const MODEL_NAMES: Record<ModelAlias, string> = {
+  AGENT:   "llama3.3:70b",
+  CONTENT: "qwen2.5:72b",
+  FAST:    "llama3:70b",
+  QUALITY: "gpt-4o",
+  HERMES:  "hermes3",
+};
 
-// ─── Clients ─────────────────────────────────────────────────────────────────
-
-// Standard OpenAI client (cloud)
-const openaiClient = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-// Ollama exposes an OpenAI-compatible /v1 endpoint
-function getOllamaClient(): OpenAI {
-  return new OpenAI({
-    baseURL: `${OLLAMA_BASE_URL}/v1`,
-    apiKey:  'ollama',      // required by SDK but not validated by Ollama
-    timeout: OLLAMA_TIMEOUT,
-  });
+export interface LLMMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
 }
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+export interface OllamaTool {
+  type: "function";
+  function: {
+    name: string;
+    description: string;
+    parameters: {
+      type: "object";
+      properties: Record<string, { type: string; description?: string; enum?: string[] }>;
+      required?: string[];
+    };
+  };
+}
 
-export type LLMProvider = 'ollama' | 'openai';
+export interface LLMOptions {
+  temperature?: number;
+  maxTokens?: number;
+  tools?: OllamaTool[];
+  responseFormat?: "json" | "text";
+  timeoutMs?: number;
+}
 
 export interface LLMResponse {
-  choices: Array<{ message: { content: string | null } }>;
-  provider: LLMProvider;
+  content: string;
   model: string;
+  usedFallback: boolean;
+  durationMs: number;
+  toolCalls?: Array<{ name: string; arguments: Record<string, unknown> }>;
 }
 
-type CompletionParams = Parameters<typeof openaiClient.chat.completions.create>[0];
+// Prefer explicit OLLAMA_BASE_URL (Tailscale remote), fall back to local
+const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
+const OLLAMA_SECRET   = process.env.OLLAMA_SECRET;
+const OPENAI_API_KEY  = process.env.OPENAI_API_KEY;
 
 // ─── Core router ─────────────────────────────────────────────────────────────
 
-/**
- * Route a chat completion to Ollama (if available) or OpenAI.
- * Strips `response_format` from Ollama calls unless the model supports it.
- */
-export async function createCompletion(
-  params: Omit<CompletionParams, 'stream'>
+export async function chat(
+  modelAlias: ModelAlias,
+  messages: LLMMessage[],
+  options: LLMOptions = {}
 ): Promise<LLMResponse> {
-  // ── Try Ollama first ───────────────────────────────────────────────────────
-  if (OLLAMA_BASE_URL) {
-    try {
-      const client = getOllamaClient();
+  const startMs = Date.now();
+  const modelName = MODEL_NAMES[modelAlias];
 
-      // qwen2.5 supports json_object; pass through response_format as-is.
-      // For other models that may not, we could strip it here — but for now
-      // OLLAMA_MODEL is assumed to be qwen2.5:72b.
-      const response = await (client.chat.completions.create as (
-        p: CompletionParams
-      ) => Promise<OpenAI.Chat.Completions.ChatCompletion>)({
-        ...params,
-        model: OLLAMA_MODEL,
-        stream: false,
-      });
-
-      const content = response.choices[0]?.message?.content ?? '';
-      console.log(`[LLM Router] Ollama ✓  model=${OLLAMA_MODEL}`);
-      return {
-        choices: [{ message: { content } }],
-        provider: 'ollama',
-        model: OLLAMA_MODEL,
-      };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.warn(`[LLM Router] Ollama failed (${msg}) — falling back to OpenAI`);
-    }
+  // QUALITY always uses OpenAI
+  if (modelAlias === "QUALITY") {
+    return callOpenAI(modelName, messages, options, startMs, false);
   }
 
-  // ── OpenAI fallback ────────────────────────────────────────────────────────
-  const model = (params as CompletionParams & { model?: string }).model ?? 'gpt-4o';
-  const response = await (openaiClient.chat.completions.create as (
-    p: CompletionParams
-  ) => Promise<OpenAI.Chat.Completions.ChatCompletion>)({
-    ...params,
+  // Ollama models — try local/Tailscale, fall back to OpenAI on failure
+  try {
+    return await callOllama(modelName, messages, options, startMs);
+  } catch (err) {
+    console.warn(`[LLM Router] Ollama unreachable (${modelName}), falling back to OpenAI:`, err instanceof Error ? err.message : err);
+  }
+
+  // Fallback — use gpt-4o-mini (cheap, fast)
+  return callOpenAI("gpt-4o-mini", messages, options, startMs, true);
+}
+
+export async function complete(
+  modelAlias: ModelAlias,
+  prompt: string,
+  options: LLMOptions = {}
+): Promise<LLMResponse> {
+  return chat(modelAlias, [{ role: "user", content: prompt }], options);
+}
+
+// ─── Ollama client ────────────────────────────────────────────────────────────
+
+async function callOllama(
+  model: string,
+  messages: LLMMessage[],
+  options: LLMOptions,
+  startMs: number
+): Promise<LLMResponse> {
+  const timeoutMs = options.timeoutMs ?? 180_000; // 3min — within Vercel Pro 300s limit
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  const body: Record<string, unknown> = {
     model,
+    messages,
     stream: false,
+    options: {
+      temperature: options.temperature ?? 0.7,
+      num_predict: options.maxTokens ?? 2048,
+    },
+  };
+
+  if (options.tools?.length) {
+    body.tools = options.tools;
+  }
+
+  if (options.responseFormat === "json") {
+    body.format = "json";
+  }
+
+  try {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (OLLAMA_SECRET) {
+      headers["X-Ollama-Secret"] = OLLAMA_SECRET;
+    }
+
+    const res = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      throw new Error(`Ollama returned HTTP ${res.status}: ${await res.text()}`);
+    }
+
+    const data = await res.json() as {
+      message: { content: string; tool_calls?: Array<{ function: { name: string; arguments: unknown } }> };
+    };
+
+    const toolCalls = data.message.tool_calls?.map((tc) => ({
+      name: tc.function.name,
+      arguments: typeof tc.function.arguments === "string"
+        ? JSON.parse(tc.function.arguments)
+        : (tc.function.arguments as Record<string, unknown>),
+    }));
+
+    return {
+      content:     data.message.content ?? "",
+      model,
+      usedFallback: false,
+      durationMs:  Date.now() - startMs,
+      toolCalls,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ─── OpenAI client ────────────────────────────────────────────────────────────
+
+async function callOpenAI(
+  model: string,
+  messages: LLMMessage[],
+  options: LLMOptions,
+  startMs: number,
+  usedFallback: boolean
+): Promise<LLMResponse> {
+  if (!OPENAI_API_KEY) {
+    throw new Error("[LLM Router] Neither OLLAMA_BASE_URL nor OPENAI_API_KEY is configured");
+  }
+
+  const body: Record<string, unknown> = {
+    model,
+    messages,
+    temperature: options.temperature ?? 0.7,
+    max_tokens:  options.maxTokens ?? 2048,
+  };
+
+  if (options.responseFormat === "json") {
+    body.response_format = { type: "json_object" };
+  }
+
+  if (options.tools?.length) {
+    body.tools = options.tools.map((t) => ({ type: "function", function: t.function }));
+  }
+
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify(body),
   });
 
-  const content = response.choices[0]?.message?.content ?? '';
-  console.log(`[LLM Router] OpenAI ✓  model=${model}`);
-  return {
-    choices: [{ message: { content } }],
-    provider: 'openai',
-    model,
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`OpenAI returned HTTP ${res.status}: ${errText}`);
+  }
+
+  const data = await res.json() as {
+    choices: Array<{
+      message: {
+        content: string | null;
+        tool_calls?: Array<{ function: { name: string; arguments: string } }>;
+      };
+    }>;
   };
+
+  const choice = data.choices[0].message;
+
+  const toolCalls = choice.tool_calls?.map((tc) => ({
+    name:      tc.function.name,
+    arguments: JSON.parse(tc.function.arguments) as Record<string, unknown>,
+  }));
+
+  return {
+    content:     choice.content ?? "",
+    model,
+    usedFallback,
+    durationMs:  Date.now() - startMs,
+    toolCalls,
+  };
+}
+
+// ─── Cost helpers ─────────────────────────────────────────────────────────────
+
+/** Cost tracking for budget system — Ollama is near-zero, OpenAI is real cost */
+export function estimateLLMCost(modelAlias: ModelAlias, tokens = 1000): number {
+  const costPer1k: Record<ModelAlias, number> = {
+    AGENT:   0.0001,  // near-zero — local compute only
+    CONTENT: 0.0001,
+    FAST:    0.00001,
+    QUALITY: 0.005,   // gpt-4o: ~$5/1M input tokens
+    HERMES:  0.00001, // near-zero — local Hermes 3 8B
+  };
+  return (costPer1k[modelAlias] * tokens) / 1000;
 }

@@ -11,6 +11,7 @@ import type {
   TaskCreateRequest,
   AgentRuntimeState,
   AgentStatus,
+  AgentContext,
 } from './types';
 import {
   sendMessage,
@@ -18,6 +19,8 @@ import {
   broadcastMessage,
   getMessages,
 } from './message-bus';
+import { chat, Models } from '@/lib/llm-router';
+import type { LLMMessage } from '@/lib/llm-router';
 
 // ─── In-Memory Agent State Store ──────────────────────────────────────────────
 
@@ -169,7 +172,15 @@ export async function runAllHeartbeats(): Promise<HeartbeatResult[]> {
 }
 
 /**
- * Execute a single agent's heartbeat with LLM reasoning loop
+ * Execute a single agent's heartbeat with LLM reasoning loop.
+ *
+ * Flow:
+ *  1. Load agent config + budget from DB
+ *  2. Read SKILL.md for system prompt (falls back to DB role string)
+ *  3. Build initial context (time, budget, pending tasks)
+ *  4. Run Hermes3 tool-calling loop (max 5 iterations)
+ *  5. Execute each tool call via registry
+ *  6. Persist decisions, update lastHeartbeat + budget in DB
  */
 export async function executeHeartbeat(agentId: string): Promise<HeartbeatResult> {
   const state = agentStates.get(agentId);
@@ -182,35 +193,173 @@ export async function executeHeartbeat(agentId: string): Promise<HeartbeatResult
       actionsExecuted: 0,
       costUsd: 0,
       errors: [`Agent ${agentId} is ${state.status}`],
-      nextHeartbeat: state.nextHeartbeat,
+      nextHeartbeat: state?.nextHeartbeat ?? new Date(now.getTime() + 3_600_000),
     };
   }
 
-  // Check inbox for pending messages
-  const pendingMessages = await getMessages(agentId, { status: 'pending' });
   let actionsExecuted = 0;
   let totalCost = 0;
+  const errors: string[] = [];
 
-  // Process pending decision requests
-  for (const msg of pendingMessages) {
-    if (msg.type === 'DECISION_REQUEST' || msg.type === 'TASK_DELEGATION') {
-      actionsExecuted++;
-      // Mark as delivered (actual processing happens in agent-specific logic)
-      msg.status = 'delivered';
-      msg.deliveredAt = new Date();
+  try {
+    // ── 1. Load agent from DB ────────────────────────────────────────────────
+    const { prisma } = await import('@/lib/prisma');
+    const dbAgent = await prisma.agent.findUnique({ where: { name: agentId } });
+    if (!dbAgent) {
+      return {
+        success: false,
+        agentName: agentId,
+        actionsExecuted: 0,
+        costUsd: 0,
+        errors: [`Agent ${agentId} not found in database`],
+        nextHeartbeat: new Date(now.getTime() + 3_600_000),
+      };
     }
+
+    const budgetRemaining = dbAgent.monthlyBudgetUsd - dbAgent.budgetUsedUsd;
+    if (budgetRemaining <= 0) {
+      console.warn(`[Orchestrator] Agent ${agentId} budget exhausted`);
+      return {
+        success: false,
+        agentName: agentId,
+        actionsExecuted: 0,
+        costUsd: 0,
+        errors: ['Monthly budget exhausted'],
+        nextHeartbeat: new Date(now.getTime() + 3_600_000),
+      };
+    }
+
+    // ── 2. Load SKILL.md system prompt ──────────────────────────────────────
+    let systemPrompt = `You are the ${dbAgent.displayName} for LockSafe UK.\n${dbAgent.role}\n\nAnalyze the platform state and use your available tools to take appropriate actions.`;
+    try {
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const skillPath = path.join(process.cwd(), 'src', 'agents', dbAgent.skillsPath);
+      systemPrompt = await fs.readFile(skillPath, 'utf-8');
+    } catch {
+      // Fall back to DB role string — acceptable on Vercel if SKILL.md not bundled
+    }
+
+    // ── 3. Initialize tools ──────────────────────────────────────────────────
+    const {
+      initializeTools,
+      generateFunctionDefinitions,
+      executeTool,
+    } = await import('@/agents/tools/index');
+    initializeTools();
+
+    const agentCtx: AgentContext = {
+      agentId:         dbAgent.id,
+      agentName:       dbAgent.displayName,
+      permissions:     dbAgent.permissions,
+      budgetRemaining,
+    };
+
+    // Cast to OllamaTool[] — the shape is identical; registry returns OpenAI-compatible format
+    const toolDefs = generateFunctionDefinitions(dbAgent.permissions) as import('@/lib/llm-router').OllamaTool[];
+
+    // ── 4. Build initial context ─────────────────────────────────────────────
+    const contextParts: string[] = [
+      `Current UTC time: ${now.toISOString()}`,
+      `Budget remaining this month: $${budgetRemaining.toFixed(2)} of $${dbAgent.monthlyBudgetUsd}`,
+    ];
+
+    try {
+      const pendingTasks = await prisma.agentTask.findMany({
+        where: { agentId: dbAgent.id, status: { in: ['pending', 'in_progress'] } },
+        take: 5,
+        orderBy: { priority: 'desc' },
+      });
+      if (pendingTasks.length > 0) {
+        contextParts.push(
+          `Pending tasks (${pendingTasks.length}): ${pendingTasks.map(t => t.title).join(' | ')}`
+        );
+      }
+    } catch {
+      // non-critical
+    }
+
+    // ── 5. Run Hermes3 tool-calling reasoning loop ───────────────────────────
+    const messages: LLMMessage[] = [
+      { role: 'system', content: systemPrompt },
+      {
+        role: 'user',
+        content:
+          `Scheduled heartbeat. ${contextParts.join('. ')}. ` +
+          `Use your tools to check the platform, identify issues, and take action. ` +
+          `When done, call sendTelegramAlert with a brief summary if there are notable findings.`,
+      },
+    ];
+
+    const MAX_ITERATIONS = 5;
+    for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
+      const response = await chat(Models.HERMES, messages, {
+        tools: toolDefs,
+        temperature: 0.2,
+        timeoutMs: 120_000,
+      });
+
+      // Append assistant turn to conversation history
+      messages.push({ role: 'assistant', content: response.content ?? '' });
+
+      if (!response.toolCalls || response.toolCalls.length === 0) {
+        // No more tool calls — agent has finished reasoning
+        break;
+      }
+
+      // Execute each tool call and feed result back into conversation
+      for (const call of response.toolCalls) {
+        console.log(`[Orchestrator:${agentId}] Tool call → ${call.name}`, call.arguments);
+        const result = await executeTool(call.name, call.arguments, agentCtx);
+        actionsExecuted++;
+
+        // Nominal cost tracking ($0 for local Ollama, but tracked for auditing)
+        totalCost += 0.001;
+
+        messages.push({
+          role: 'user',
+          content: `Tool "${call.name}" returned: ${JSON.stringify(
+            result.success ? result.data : { error: result.error }
+          )}`,
+        });
+      }
+    }
+
+    // ── 6. Persist results to DB ─────────────────────────────────────────────
+    await prisma.agent.update({
+      where: { id: dbAgent.id },
+      data: {
+        lastHeartbeat: now,
+        budgetUsedUsd: { increment: totalCost },
+      },
+    });
+
+    // Store the last assistant message as a memory decision
+    const lastAssistantMsg = [...messages].reverse().find(m => m.role === 'assistant');
+    if (lastAssistantMsg?.content) {
+      const { storeDecision } = await import('@/agents/core/memory');
+      await storeDecision(
+        dbAgent.id,
+        `Heartbeat ${now.toISOString()}`,
+        lastAssistantMsg.content.slice(0, 500),
+        'completed'
+      );
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    errors.push(msg);
+    console.error(`[Orchestrator] Heartbeat error for ${agentId}:`, err);
   }
 
-  // Update state
+  // ── Update in-memory state ──────────────────────────────────────────────
   if (state) {
     state.lastHeartbeat = now;
-    state.nextHeartbeat = new Date(now.getTime() + 3600000);
+    state.nextHeartbeat = new Date(now.getTime() + 3_600_000);
   }
 
-  // Sync to DB
   await syncAgentStateWithDB(agentId);
 
-  // Broadcast status update to CEO if this is an executive agent
+  // Notify CEO if this is a sub-executive
   if (['cmo', 'coo', 'cto'].includes(agentId)) {
     await sendStatusUpdate(
       agentId,
@@ -222,12 +371,12 @@ export async function executeHeartbeat(agentId: string): Promise<HeartbeatResult
   }
 
   return {
-    success: true,
+    success: errors.length === 0,
     agentName: agentId,
     actionsExecuted,
     costUsd: totalCost,
-    errors: [],
-    nextHeartbeat: new Date(now.getTime() + 3600000),
+    errors,
+    nextHeartbeat: new Date(now.getTime() + 3_600_000),
   };
 }
 
