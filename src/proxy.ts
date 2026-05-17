@@ -48,6 +48,16 @@ export function proxy(request: NextRequest) {
 
   // Rate limiting for API routes
   if (pathname.startsWith('/api/')) {
+    const method = request.method.toUpperCase();
+    const isReadOnlyMethod = method === 'GET' || method === 'HEAD' || method === 'OPTIONS';
+
+    // Do not rate limit read-only API traffic.
+    // This avoids blocking critical session checks and SSE/polling reads,
+    // which can otherwise cause client-side loading loops and forced logouts.
+    if (isReadOnlyMethod) {
+      return NextResponse.next();
+    }
+
     const ip =
       request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
       request.headers.get('x-real-ip') ||
