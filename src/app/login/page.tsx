@@ -30,6 +30,7 @@ function LoginContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [referralCode, setReferralCode] = useState("");
 
   // Login form state
   const [loginForm, setLoginForm] = useState({
@@ -69,6 +70,13 @@ function LoginContent() {
     // Check for redirect param
     const tab = searchParams.get("tab");
     if (tab === "register") {
+      setActiveTab("register");
+    }
+
+    // Check for referral code
+    const ref = searchParams.get("ref");
+    if (ref) {
+      setReferralCode(ref.trim().toUpperCase());
       setActiveTab("register");
     }
   }, [searchParams]);
@@ -140,6 +148,7 @@ function LoginContent() {
       email: registerForm.email,
       phone: registerForm.phone,
       password: registerForm.password,
+      referralCode: referralCode || undefined,
       pendingRequest: pendingRequest || undefined,
     });
 

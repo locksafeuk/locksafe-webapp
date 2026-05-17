@@ -142,8 +142,12 @@ function calculateMatchScore(
 export async function findBestLocksmiths(
   jobId: string,
   maxCandidates = 5,
+  priorityDispatch = false,
 ): Promise<DispatchResult> {
   try {
+    // Priority dispatch: widen search radius and candidate pool for Cover subscribers
+    const effectiveMaxDistance = priorityDispatch ? 20 : MAX_DISTANCE_MILES;
+    const effectiveMaxCandidates = priorityDispatch ? Math.max(maxCandidates, 15) : maxCandidates;
     // Get job details
     const job = await prisma.job.findUnique({
       where: { id: jobId },
@@ -222,8 +226,8 @@ export async function findBestLocksmiths(
 
       // Skip if outside coverage radius or max distance
       const effectiveRadius = Math.min(
-        locksmith.coverageRadius ?? MAX_DISTANCE_MILES,
-        MAX_DISTANCE_MILES,
+        locksmith.coverageRadius ?? effectiveMaxDistance,
+        effectiveMaxDistance,
       );
       if (distance > effectiveRadius) continue;
 
@@ -277,7 +281,7 @@ export async function findBestLocksmiths(
     candidates.sort((a, b) => b.matchScore - a.matchScore);
 
     // Take top N candidates
-    const topCandidates = candidates.slice(0, maxCandidates);
+    const topCandidates = candidates.slice(0, effectiveMaxCandidates);
 
     // Determine if auto-dispatch is recommended
     const topCandidate = topCandidates[0] || null;

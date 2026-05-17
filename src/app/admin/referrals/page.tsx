@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Gift, Users, TrendingUp, Clock, CheckCircle2, Loader2, Copy, Check } from "lucide-react";
+import { Gift, Users, TrendingUp, CheckCircle2, Loader2, Copy, Check, AlertTriangle } from "lucide-react";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
 
 interface ReferralRow {
@@ -43,6 +43,7 @@ export default function AdminReferralsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -64,6 +65,21 @@ export default function AdminReferralsPage() {
     navigator.clipboard.writeText(code);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 1500);
+  };
+
+  const handleAction = async (referralId: string, action: "credit_override" | "flag_fraud" | "reset") => {
+    if (action === "flag_fraud" && !confirm("Flag this referral as fraud? This will claw back any issued credit.")) return;
+    setActionLoading(referralId + action);
+    try {
+      const res = await fetch("/api/admin/referrals", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ referralId, action }),
+      });
+      if (res.ok) await fetchData();
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const filtered = filter === "all" ? rows : rows.filter((r) => r.status === filter);
@@ -142,7 +158,7 @@ export default function AdminReferralsPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                {["Code", "Referrer", "Referred", "Status", "Clicks", "Rewards", "Created"].map((h) => (
+                {["Code", "Referrer", "Referred", "Status", "Clicks", "Rewards", "Created", "Actions"].map((h) => (
                   <th key={h} className="text-left px-4 py-3 font-medium text-gray-600 text-xs uppercase tracking-wide">
                     {h}
                   </th>
@@ -152,7 +168,7 @@ export default function AdminReferralsPage() {
             <tbody className="divide-y divide-gray-100">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-gray-400 text-sm">
+                  <td colSpan={8} className="px-4 py-8 text-center text-gray-400 text-sm">
                     No referrals found
                   </td>
                 </tr>
@@ -208,6 +224,41 @@ export default function AdminReferralsPage() {
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">
                       {new Date(row.createdAt).toLocaleDateString("en-GB")}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5">
+                        {row.status !== "rewarded" && (
+                          <button
+                            onClick={() => handleAction(row.id, "credit_override")}
+                            disabled={!!actionLoading}
+                            className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded hover:bg-green-200 disabled:opacity-50"
+                            title="Force issue credit"
+                          >
+                            Credit
+                          </button>
+                        )}
+                        {row.status !== "fraud" && (
+                          <button
+                            onClick={() => handleAction(row.id, "flag_fraud")}
+                            disabled={!!actionLoading}
+                            className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded hover:bg-red-200 disabled:opacity-50 flex items-center gap-1"
+                            title="Flag as fraud"
+                          >
+                            <AlertTriangle className="w-3 h-3" />
+                            Fraud
+                          </button>
+                        )}
+                        {row.status !== "active" && (
+                          <button
+                            onClick={() => handleAction(row.id, "reset")}
+                            disabled={!!actionLoading}
+                            className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded hover:bg-gray-200 disabled:opacity-50"
+                            title="Reset to active"
+                          >
+                            Reset
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))

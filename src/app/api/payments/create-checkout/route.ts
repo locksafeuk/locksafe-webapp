@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { createCheckoutSession } from "@/lib/stripe";
+import { applySubscriberDiscount } from "@/lib/subscriptions";
+import { applyReferralCredit, revertReferralCredit } from "@/lib/referrals";
 
 /**
  * POST /api/payments/create-checkout
@@ -95,24 +97,76 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create Stripe Checkout Session
-    const session = await createCheckoutSession({
-      amount,
-      jobId: job.id,
-      customerId: customer.id,
-      locksmithId: locksmith.id,
-      applicationId: application.id,
-      customerEmail: customer.email,
-      customerName: customer.name,
-      locksmithName: locksmith.name,
-      jobNumber: job.jobNumber,
-      locksmithStripeAccountId: locksmith.stripeConnectVerified
-        ? locksmith.stripeConnectId
-        : null,
-      paymentType: "callout",
-    });
+    // ── Apply discount chain ─────────────────────────────────────────
+    // 1. LockSafe Cover discount (50% off or free callout)
+    const subscriberResult = await applySubscriberDiscount(customerId, amount);
+    const afterSubscriber = subscriberResult.fee;
+    const subscriberDiscount = amount - afterSubscriber;
 
-    // Create or update Payment record
+    // 2. Referral credit
+    const creditResult = await applyReferralCredit(customerId, afterSubscriber);
+    const finalAmount = creditResult.finalAmount;
+    // ─────────────────────────────────────────────────────────────────
+
+    // Create Stripe Checkout Session
+    let session;
+    try {
+      if (finalAmount < 0.3) {
+        // Below Stripe minimum — skip Stripe, mark payment succeeded directly
+        const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+        const payment = await prisma.payment.create({
+          data: {
+            jobId: job.id,
+            customerId: customer.id,
+            type: "callout",
+            amount: finalAmount,
+            originalAmount: amount,
+            subscriberDiscount,
+            referralCreditApplied: creditResult.creditApplied,
+            platformSubsidy: subscriberDiscount,
+            status: "succeeded",
+            paidAt: new Date(),
+          },
+        });
+        return NextResponse.json({
+          success: true,
+          checkoutUrl: null,
+          sessionId: null,
+          paymentId: payment.id,
+          expiresAt: expiresAt.toISOString(),
+          zeroCost: true,
+        });
+      }
+
+      session = await createCheckoutSession({
+        amount: finalAmount,
+        jobId: job.id,
+        customerId: customer.id,
+        locksmithId: locksmith.id,
+        applicationId: application.id,
+        customerEmail: customer.email,
+        customerName: customer.name,
+        locksmithName: locksmith.name,
+        jobNumber: job.jobNumber,
+        locksmithStripeAccountId: locksmith.stripeConnectVerified
+          ? locksmith.stripeConnectId
+          : null,
+        paymentType: "callout",
+      });
+    } catch (stripeError) {
+      // Rollback discounts applied
+      if (creditResult.creditApplied > 0) {
+        await revertReferralCredit(customerId, creditResult.creditApplied);
+      }
+      if (subscriberResult.freeCallout) {
+        await prisma.subscription.updateMany({
+          where: { customerId, status: { in: ["active", "trialing"] } },
+          data: { freeCallouts: { increment: 1 } },
+        });
+      }
+      throw stripeError;
+    }
+
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
 
     const payment = await prisma.payment.create({
@@ -120,7 +174,11 @@ export async function POST(request: NextRequest) {
         jobId: job.id,
         customerId: customer.id,
         type: "callout",
-        amount,
+        amount: finalAmount,
+        originalAmount: amount,
+        subscriberDiscount,
+        referralCreditApplied: creditResult.creditApplied,
+        platformSubsidy: subscriberDiscount,
         status: "pending",
         stripeCheckoutId: session.id,
         paymentUrl: session.url,

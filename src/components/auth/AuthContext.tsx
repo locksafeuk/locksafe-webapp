@@ -29,6 +29,7 @@ interface RegisterData {
   email: string;
   phone: string;
   password: string;
+  referralCode?: string;
   pendingRequest?: {
     problemType: string;
     propertyType: string;

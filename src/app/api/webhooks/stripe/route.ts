@@ -8,6 +8,10 @@ import {
   sendPayoutFailedEmail,
   sendTransferNotificationEmail,
   sendEarningsReversalEmail,
+  sendCoverWelcomeEmail,
+  sendCoverRenewalEmail,
+  sendCoverPaymentFailedEmail,
+  sendCoverCanceledEmail,
 } from "@/lib/email";
 import { handleDisputeCreated, handleDisputeUpdated, handleDisputeClosed } from "@/lib/disputes";
 import { handleSubscriptionUpsert, handleSubscriptionCanceled } from "@/lib/subscriptions";
@@ -749,13 +753,78 @@ export async function POST(request: NextRequest) {
       case "customer.subscription.created":
       case "customer.subscription.updated": {
         const sub = event.data.object as Parameters<typeof handleSubscriptionUpsert>[0];
+        const isNew = event.type === "customer.subscription.created";
         await handleSubscriptionUpsert(sub);
+        // Send welcome email on new subscription only
+        if (isNew && sub.metadata?.lockSafeCustomerId) {
+          const customer = await prisma.customer.findUnique({
+            where: { id: sub.metadata.lockSafeCustomerId },
+            select: { email: true, name: true },
+          });
+          if (customer?.email) {
+            const priceId = sub.items.data[0]?.price.id;
+            const plan = priceId === process.env.STRIPE_COVER_ANNUAL_PRICE_ID ? "cover_annual" : "cover_monthly";
+            const trialEnd = sub.trial_end ? new Date((sub.trial_end as number) * 1000) : null;
+            sendCoverWelcomeEmail(customer.email, customer.name, plan, trialEnd).catch(console.error);
+          }
+        }
         break;
       }
 
       case "customer.subscription.deleted": {
         const sub = event.data.object as Parameters<typeof handleSubscriptionCanceled>[0];
         await handleSubscriptionCanceled(sub);
+        // Notify customer
+        if (sub.metadata?.lockSafeCustomerId) {
+          const customer = await prisma.customer.findUnique({
+            where: { id: sub.metadata.lockSafeCustomerId },
+            select: { email: true, name: true },
+          });
+          if (customer?.email) {
+            sendCoverCanceledEmail(customer.email, customer.name).catch(console.error);
+          }
+        }
+        break;
+      }
+
+      case "invoice.payment_succeeded": {
+        const invoice = event.data.object as unknown as { subscription: string | null; customer_email: string | null; amount_paid: number; period_end: number };
+        if (!invoice.subscription) break; // Not a subscription invoice
+        // Find customer by subscription
+        const dbSub = await prisma.subscription.findFirst({
+          where: { stripeSubscriptionId: invoice.subscription as string },
+          include: { customer: { select: { email: true, name: true } } },
+        });
+        if (dbSub?.customer?.email) {
+          const renewalDate = new Date((invoice.period_end ?? 0) * 1000);
+          sendCoverRenewalEmail(
+            dbSub.customer.email,
+            dbSub.customer.name,
+            dbSub.plan,
+            renewalDate,
+            invoice.amount_paid / 100,
+          ).catch(console.error);
+        }
+        break;
+      }
+
+      case "invoice.payment_failed": {
+        const invoice = event.data.object as unknown as { subscription: string | null; next_payment_attempt: number | null };
+        if (!invoice.subscription) break;
+        const dbSub = await prisma.subscription.findFirst({
+          where: { stripeSubscriptionId: invoice.subscription as string },
+          include: { customer: { select: { email: true, name: true } } },
+        });
+        if (dbSub?.customer?.email) {
+          const retryDate = invoice.next_payment_attempt
+            ? new Date(invoice.next_payment_attempt * 1000)
+            : undefined;
+          sendCoverPaymentFailedEmail(
+            dbSub.customer.email,
+            dbSub.customer.name,
+            retryDate,
+          ).catch(console.error);
+        }
         break;
       }
 

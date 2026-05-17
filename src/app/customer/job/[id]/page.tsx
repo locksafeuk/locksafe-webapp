@@ -546,6 +546,16 @@ export default function CustomerJobPage({ params }: { params: Promise<{ id: stri
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [hasLeftReview, setHasLeftReview] = useState(false);
 
+  // Price preview state (subscriber / referral discounts)
+  const [paymentPreview, setPaymentPreview] = useState<{
+    originalAmount: number;
+    subscriberDiscount: number;
+    freeCallout: boolean;
+    referralCredit: number;
+    finalAmount: number;
+    isSubscriber: boolean;
+  } | null>(null);
+
   // Cancellation/Refund state
   const [isOverdue, setIsOverdue] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -665,6 +675,19 @@ export default function CustomerJobPage({ params }: { params: Promise<{ id: stri
     setShowPaymentModal(true);
     setPaymentError(null);
     setClientSecret(null);
+    setPaymentPreview(null);
+
+    // Fetch price preview (discounts) in background
+    if (job?.customerId) {
+      fetch(
+        `/api/payments/preview?customerId=${job.customerId}&amount=${application.assessmentFee}`,
+      )
+        .then((r) => r.json())
+        .then((data) => {
+          if (!data.error) setPaymentPreview(data);
+        })
+        .catch(() => {});
+    }
 
     if (!stripePublishableKey) {
       console.log("[Payment] No Stripe publishable key configured, using demo mode");
@@ -753,6 +776,7 @@ export default function CustomerJobPage({ params }: { params: Promise<{ id: stri
     setClientSecret(null);
     setStripeCustomerId(null);
     setPaymentError(null);
+    setPaymentPreview(null);
   };
 
   const handleAcceptQuote = async () => {
@@ -1786,11 +1810,37 @@ export default function CustomerJobPage({ params }: { params: Promise<{ id: stri
                   <div className="space-y-2 sm:space-y-3">
                     <div className="flex justify-between text-slate-600 text-sm">
                       <span>Assessment Fee</span>
-                      <span className="font-medium">£{selectedApplication.assessmentFee}</span>
+                      <span className={paymentPreview && (paymentPreview.subscriberDiscount > 0 || paymentPreview.referralCredit > 0) ? "line-through text-slate-400" : "font-medium"}>
+                        £{selectedApplication.assessmentFee}
+                      </span>
                     </div>
+                    {paymentPreview?.freeCallout && (
+                      <div className="flex justify-between text-green-700 text-sm">
+                        <span className="flex items-center gap-1">🎁 Free callout (Cover benefit)</span>
+                        <span className="font-medium">-£{selectedApplication.assessmentFee.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {!paymentPreview?.freeCallout && paymentPreview && paymentPreview.subscriberDiscount > 0 && (
+                      <div className="flex justify-between text-green-700 text-sm">
+                        <span className="flex items-center gap-1">🛡️ Cover discount (50% off)</span>
+                        <span className="font-medium">-£{paymentPreview.subscriberDiscount.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {paymentPreview && paymentPreview.referralCredit > 0 && (
+                      <div className="flex justify-between text-blue-700 text-sm">
+                        <span className="flex items-center gap-1">🎉 Referral credit</span>
+                        <span className="font-medium">-£{paymentPreview.referralCredit.toFixed(2)}</span>
+                      </div>
+                    )}
                     <div className="border-t pt-2 sm:pt-3 flex justify-between text-base sm:text-lg">
                       <span className="font-semibold">Total</span>
-                      <span className="font-bold text-orange-600">£{selectedApplication.assessmentFee}</span>
+                      <span className="font-bold text-orange-600">
+                        {paymentPreview
+                          ? paymentPreview.finalAmount === 0
+                            ? "FREE"
+                            : `£${paymentPreview.finalAmount.toFixed(2)}`
+                          : `£${selectedApplication.assessmentFee}`}
+                      </span>
                     </div>
                   </div>
                   {isLoadingPayment ? (

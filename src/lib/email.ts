@@ -3487,3 +3487,394 @@ export async function sendWinBackEmail(data: {
     html,
   });
 }
+
+// ============================================
+// REFERRAL EMAILS
+// ============================================
+
+export async function sendReferralSignupEmail(
+  referrerEmail: string,
+  referrerName: string,
+  referredName: string,
+) {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: system-ui, sans-serif; line-height: 1.6; color: #1e293b; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #f97316, #f59e0b); color: white; padding: 24px; border-radius: 12px 12px 0 0; text-align: center; }
+        .content { background: #f8fafc; padding: 24px; border-radius: 0 0 12px 12px; }
+        .box { background: white; padding: 20px; border-radius: 12px; margin: 16px 0; text-align: center; border: 2px solid #fed7aa; }
+        .footer { text-align: center; color: #64748b; font-size: 12px; margin-top: 24px; }
+        .badge { display: inline-block; background: #fef3c7; color: #b45309; padding: 6px 16px; border-radius: 20px; font-weight: 700; font-size: 18px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <div style="font-size:48px;margin-bottom:8px;">🎉</div>
+          <h1 style="margin:0;font-size:24px;">Your friend joined LockSafe!</h1>
+        </div>
+        <div class="content">
+          <p>Hi ${referrerName},</p>
+          <p>Great news — <strong>${referredName}</strong> just created a LockSafe account using your referral link!</p>
+
+          <div class="box">
+            <p style="margin:0 0 8px 0;color:#64748b;font-size:14px;">You're almost there! Once they complete their first job, you'll earn:</p>
+            <div class="badge">£10 credit</div>
+          </div>
+
+          <p>Share your link with more friends to keep earning:</p>
+          <p style="background:#fff;border:1px solid #e2e8f0;padding:12px;border-radius:8px;font-family:monospace;text-align:center;">
+            ${SITE_URL}/ref/YOUR_CODE
+          </p>
+
+          <p style="color:#64748b;font-size:13px;">
+            Your £10 credit will be automatically added to your account once ${referredName}'s first locksmith job is completed.
+          </p>
+        </div>
+        <div class="footer">
+          <p>${SITE_NAME} · <a href="${SITE_URL}" style="color:#f97316;">locksafe.uk</a></p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to: referrerEmail,
+    subject: `${referredName} just joined using your LockSafe link!`,
+    html,
+  });
+}
+
+export async function sendReferralRewardEmail(
+  referrerEmail: string,
+  referrerName: string,
+  rewardAmount: number,
+) {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: system-ui, sans-serif; line-height: 1.6; color: #1e293b; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #16a34a, #15803d); color: white; padding: 24px; border-radius: 12px 12px 0 0; text-align: center; }
+        .content { background: #f8fafc; padding: 24px; border-radius: 0 0 12px 12px; }
+        .box { background: white; padding: 20px; border-radius: 12px; margin: 16px 0; text-align: center; border: 2px solid #bbf7d0; }
+        .footer { text-align: center; color: #64748b; font-size: 12px; margin-top: 24px; }
+        .amount { font-size: 48px; font-weight: 800; color: #16a34a; }
+        .button { display: inline-block; background: #f97316; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <div style="font-size:48px;margin-bottom:8px;">💰</div>
+          <h1 style="margin:0;font-size:24px;">You earned a referral reward!</h1>
+        </div>
+        <div class="content">
+          <p>Hi ${referrerName},</p>
+          <p>Your referral just completed their first LockSafe job — and your reward is ready!</p>
+
+          <div class="box">
+            <p style="margin:0 0 4px 0;color:#64748b;font-size:14px;">Account credit added:</p>
+            <div class="amount">£${rewardAmount.toFixed(2)}</div>
+          </div>
+
+          <p>Your credit has been added to your LockSafe account and will automatically apply to your next callout fee.</p>
+
+          <p style="text-align:center;margin-top:24px;">
+            <a href="${SITE_URL}/customer/dashboard" class="button">View Your Credits</a>
+          </p>
+
+          <p style="color:#64748b;font-size:13px;margin-top:24px;">
+            Keep sharing your link to earn more! Every friend who completes a job earns you £${rewardAmount.toFixed(2)}.
+          </p>
+        </div>
+        <div class="footer">
+          <p>${SITE_NAME} · <a href="${SITE_URL}" style="color:#f97316;">locksafe.uk</a></p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to: referrerEmail,
+    subject: `You earned £${rewardAmount.toFixed(2)}! Your referral credit is ready.`,
+    html,
+  });
+}
+
+// ============================================
+// LOCKSAFE COVER SUBSCRIPTION EMAILS
+// ============================================
+
+export async function sendCoverWelcomeEmail(
+  customerEmail: string,
+  customerName: string,
+  plan: string,
+  trialEndDate: Date | null,
+) {
+  const planLabel = plan === "cover_annual" ? "Annual Plan" : "Monthly Plan";
+  const trialMsg = trialEndDate
+    ? `<p style="background:#dbeafe;border:1px solid #93c5fd;padding:12px 16px;border-radius:8px;color:#1e40af;font-size:14px;">
+        Your <strong>7-day free trial</strong> is active until <strong>${trialEndDate.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</strong>. No charge until then.
+       </p>`
+    : "";
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: system-ui, sans-serif; line-height: 1.6; color: #1e293b; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #f97316, #ea580c); color: white; padding: 24px; border-radius: 12px 12px 0 0; text-align: center; }
+        .content { background: #f8fafc; padding: 24px; border-radius: 0 0 12px 12px; }
+        .benefit { display: flex; align-items: flex-start; gap: 12px; background: white; padding: 14px 16px; border-radius: 8px; margin: 8px 0; }
+        .icon { width: 32px; height: 32px; background: #fff7ed; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 18px; }
+        .footer { text-align: center; color: #64748b; font-size: 12px; margin-top: 24px; }
+        .button { display: inline-block; background: #f97316; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <div style="font-size:48px;margin-bottom:8px;">🛡️</div>
+          <h1 style="margin:0;font-size:24px;">Welcome to LockSafe Cover!</h1>
+          <p style="margin:8px 0 0 0;opacity:0.9;">${planLabel}</p>
+        </div>
+        <div class="content">
+          <p>Hi ${customerName},</p>
+          <p>You're now covered! Here's what you get with LockSafe Cover:</p>
+
+          ${trialMsg}
+
+          <div class="benefit">
+            <div class="icon">⚡</div>
+            <div>
+              <strong>50% off all callouts</strong><br>
+              <span style="color:#64748b;font-size:14px;">Half-price assessment fee on every job. Automatically applied at checkout.</span>
+            </div>
+          </div>
+          <div class="benefit">
+            <div class="icon">🎯</div>
+            <div>
+              <strong>Priority dispatch</strong><br>
+              <span style="color:#64748b;font-size:14px;">Your jobs are matched with more locksmiths in a wider area — faster response times.</span>
+            </div>
+          </div>
+          <div class="benefit">
+            <div class="icon">🎁</div>
+            <div>
+              <strong>1 free callout per month</strong><br>
+              <span style="color:#64748b;font-size:14px;">One completely free assessment fee every billing period. Resets automatically.</span>
+            </div>
+          </div>
+
+          <p style="text-align:center;margin-top:24px;">
+            <a href="${SITE_URL}/customer/dashboard" class="button">Go to My Dashboard</a>
+          </p>
+        </div>
+        <div class="footer">
+          <p>Questions? Reply to this email. · <a href="${SITE_URL}/customer/cover" style="color:#f97316;">Manage Cover</a></p>
+          <p>${SITE_NAME} · Cancel anytime, no fees.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to: customerEmail,
+    subject: "Welcome to LockSafe Cover — you're protected!",
+    html,
+  });
+}
+
+export async function sendCoverRenewalEmail(
+  customerEmail: string,
+  customerName: string,
+  plan: string,
+  renewalDate: Date,
+  amount: number,
+) {
+  const planLabel = plan === "cover_annual" ? "Annual Plan" : "Monthly Plan";
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: system-ui, sans-serif; line-height: 1.6; color: #1e293b; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #1e293b; color: white; padding: 24px; border-radius: 12px 12px 0 0; text-align: center; }
+        .content { background: #f8fafc; padding: 24px; border-radius: 0 0 12px 12px; }
+        .box { background: white; padding: 20px; border-radius: 12px; margin: 16px 0; border: 1px solid #e2e8f0; }
+        .footer { text-align: center; color: #64748b; font-size: 12px; margin-top: 24px; }
+        .button { display: inline-block; background: #f97316; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1 style="margin:0;font-size:24px;">LockSafe Cover Renewed</h1>
+          <p style="margin:8px 0 0;opacity:0.8;">${planLabel}</p>
+        </div>
+        <div class="content">
+          <p>Hi ${customerName},</p>
+          <p>Your LockSafe Cover has renewed successfully. You're still protected!</p>
+
+          <div class="box">
+            <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #e2e8f0;">
+              <span style="color:#64748b;">Plan</span>
+              <strong>${planLabel}</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #e2e8f0;">
+              <span style="color:#64748b;">Amount charged</span>
+              <strong>£${amount.toFixed(2)}</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:8px 0;">
+              <span style="color:#64748b;">Next renewal</span>
+              <strong>${renewalDate.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</strong>
+            </div>
+          </div>
+
+          <p>Your free monthly callout has been reset and is ready to use.</p>
+
+          <p style="text-align:center;margin-top:24px;">
+            <a href="${SITE_URL}/customer/cover" class="button">Manage Cover</a>
+          </p>
+        </div>
+        <div class="footer">
+          <p>${SITE_NAME} · <a href="${SITE_URL}/customer/cover" style="color:#f97316;">Cancel anytime</a></p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to: customerEmail,
+    subject: "LockSafe Cover renewed — your free callout is ready",
+    html,
+  });
+}
+
+export async function sendCoverCanceledEmail(
+  customerEmail: string,
+  customerName: string,
+) {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: system-ui, sans-serif; line-height: 1.6; color: #1e293b; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #64748b; color: white; padding: 24px; border-radius: 12px 12px 0 0; text-align: center; }
+        .content { background: #f8fafc; padding: 24px; border-radius: 0 0 12px 12px; }
+        .footer { text-align: center; color: #64748b; font-size: 12px; margin-top: 24px; }
+        .button { display: inline-block; background: #f97316; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1 style="margin:0;font-size:24px;">LockSafe Cover Cancelled</h1>
+        </div>
+        <div class="content">
+          <p>Hi ${customerName},</p>
+          <p>Your LockSafe Cover subscription has been cancelled. Your benefits (50% off, priority dispatch, free callouts) will remain active until the end of your current billing period.</p>
+
+          <p>We're sorry to see you go. If you change your mind, you can reactivate at any time:</p>
+
+          <p style="text-align:center;margin-top:24px;">
+            <a href="${SITE_URL}/customer/cover" class="button">Reactivate Cover</a>
+          </p>
+
+          <p style="color:#64748b;font-size:13px;">
+            If you cancelled by mistake or have questions, reply to this email and we'll help right away.
+          </p>
+        </div>
+        <div class="footer">
+          <p>${SITE_NAME} · We'd love to have you back.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to: customerEmail,
+    subject: "LockSafe Cover has been cancelled",
+    html,
+  });
+}
+
+export async function sendCoverPaymentFailedEmail(
+  customerEmail: string,
+  customerName: string,
+  retryDate?: Date,
+) {
+  const retryMsg = retryDate
+    ? `We'll try again on <strong>${retryDate.toLocaleDateString("en-GB", { day: "numeric", month: "long" })}</strong>.`
+    : "We'll try again shortly.";
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: system-ui, sans-serif; line-height: 1.6; color: #1e293b; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #dc2626; color: white; padding: 24px; border-radius: 12px 12px 0 0; text-align: center; }
+        .content { background: #f8fafc; padding: 24px; border-radius: 0 0 12px 12px; }
+        .alert { background: #fef2f2; border: 1px solid #fecaca; padding: 16px; border-radius: 8px; margin: 16px 0; }
+        .footer { text-align: center; color: #64748b; font-size: 12px; margin-top: 24px; }
+        .button { display: inline-block; background: #dc2626; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <div style="font-size:32px;margin-bottom:8px;">⚠️</div>
+          <h1 style="margin:0;font-size:22px;">Action Required: Payment Failed</h1>
+        </div>
+        <div class="content">
+          <p>Hi ${customerName},</p>
+
+          <div class="alert">
+            <strong>Your LockSafe Cover payment failed.</strong>
+            <p style="margin:4px 0 0 0;color:#dc2626;font-size:14px;">${retryMsg} If payment fails again, your Cover subscription will be paused.</p>
+          </div>
+
+          <p>To keep your benefits active (50% off callouts, priority dispatch, free monthly callout), please update your payment method:</p>
+
+          <p style="text-align:center;margin-top:24px;">
+            <a href="${SITE_URL}/customer/cover" class="button">Update Payment Method</a>
+          </p>
+
+          <p style="color:#64748b;font-size:13px;">
+            Need help? Reply to this email and our team will assist you.
+          </p>
+        </div>
+        <div class="footer">
+          <p>${SITE_NAME} · <a href="${SITE_URL}/customer/cover" style="color:#f97316;">Manage Cover</a></p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to: customerEmail,
+    subject: "Action required: LockSafe Cover payment failed",
+    html,
+  });
+}

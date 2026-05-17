@@ -8,6 +8,7 @@
  */
 
 import prisma from "@/lib/db";
+import { sendReferralSignupEmail, sendReferralRewardEmail } from "@/lib/email";
 
 const CUSTOMER_REFERRER_REWARD = 10.0; // £10 credit to referrer
 const CUSTOMER_REFERRED_DISCOUNT = 10.0; // £10 off referred user's first job
@@ -123,8 +124,12 @@ export interface ReferralValidation {
 /**
  * Validate a referral code (called during registration / checkout preview).
  * Also increments the click counter.
+ * Pass requestingCustomerId to enable self-referral fraud prevention.
  */
-export async function validateReferralCode(code: string): Promise<ReferralValidation> {
+export async function validateReferralCode(
+  code: string,
+  requestingCustomerId?: string,
+): Promise<ReferralValidation> {
   const normalised = code.trim().toUpperCase();
 
   const referral = await prisma.referral.findUnique({
@@ -134,6 +139,8 @@ export async function validateReferralCode(code: string): Promise<ReferralValida
       status: true,
       referrerName: true,
       referredReward: true,
+      referrerId: true,
+      referrerType: true,
     },
   });
 
@@ -143,6 +150,11 @@ export async function validateReferralCode(code: string): Promise<ReferralValida
 
   if (referral.status !== "active") {
     return { valid: false, discount: 0, referrerName: "", code: normalised, error: "This referral code has already been used" };
+  }
+
+  // Self-referral fraud prevention
+  if (requestingCustomerId && referral.referrerId === requestingCustomerId) {
+    return { valid: false, discount: 0, referrerName: "", code: normalised, error: "You cannot use your own referral code" };
   }
 
   // Increment click count
@@ -174,7 +186,7 @@ export async function applyReferralOnRegistration(
 
   const referral = await prisma.referral.findUnique({
     where: { code: normalised },
-    select: { id: true, status: true, referrerType: true },
+    select: { id: true, status: true, referrerType: true, referrerId: true },
   });
 
   if (!referral || referral.status !== "active") return;
@@ -197,6 +209,15 @@ export async function applyReferralOnRegistration(
     where: { id: newCustomerId },
     data: { referredByCode: normalised },
   });
+
+  // Notify referrer that their friend joined (fire-and-forget)
+  const referrerData = await prisma.customer.findUnique({
+    where: { id: referral.referrerId },
+    select: { email: true, name: true },
+  }).catch(() => null);
+  if (referrerData?.email) {
+    sendReferralSignupEmail(referrerData.email, referrerData.name, newCustomerName).catch(console.error);
+  }
 }
 
 export interface CreditApplyResult {
@@ -289,6 +310,15 @@ export async function triggerReferralReward(customerId: string, jobId: string): 
       triggerJobId: jobId,
     },
   });
+
+  // Notify referrer they earned their reward (fire-and-forget)
+  const referrerData = await prisma.customer.findUnique({
+    where: { id: referral.referrerId },
+    select: { email: true, name: true },
+  }).catch(() => null);
+  if (referrerData?.email) {
+    sendReferralRewardEmail(referrerData.email, referrerData.name, referral.referrerReward).catch(console.error);
+  }
 }
 
 /**

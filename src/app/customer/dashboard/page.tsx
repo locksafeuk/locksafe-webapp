@@ -466,11 +466,14 @@ export default function CustomerDashboard() {
                   <p className="text-xs text-slate-500 mt-0.5">
                     {subscription.freeCallouts} free callout{subscription.freeCallouts !== 1 ? "s" : ""} remaining · Renews {new Date(subscription.currentPeriodEnd).toLocaleDateString("en-GB")}
                   </p>
-                  <div className="flex gap-2 mt-3">
+                  <div className="flex gap-2 mt-3 flex-wrap">
                     <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">50% off all callouts</span>
                     <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">Priority dispatch</span>
                     <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">1 free callout/month</span>
                   </div>
+                  <Link href="/customer/cover" className="inline-block mt-3 text-xs text-amber-700 underline underline-offset-2">
+                    Manage Cover →
+                  </Link>
                 </div>
               ) : (
                 <div>
@@ -478,20 +481,12 @@ export default function CustomerDashboard() {
                     Get 50% off all callouts, priority dispatch, and 1 free callout per month.
                   </p>
                   <div className="flex gap-3 mt-3">
-                    <button
-                      onClick={() => startCoverCheckout("cover_monthly")}
-                      disabled={coverLoading}
-                      className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                    <Link
+                      href="/customer/cover"
+                      className="bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
                     >
-                      {coverLoading ? "Loading…" : "£9.99/month"}
-                    </button>
-                    <button
-                      onClick={() => startCoverCheckout("cover_annual")}
-                      disabled={coverLoading}
-                      className="border border-amber-300 hover:bg-amber-50 disabled:opacity-50 text-amber-800 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-                    >
-                      {coverLoading ? "…" : "£79.99/year (save 33%)"}
-                    </button>
+                      View plans — from £9.99/mo
+                    </Link>
                   </div>
                   <p className="text-xs text-slate-400 mt-2">7-day free trial · Cancel anytime</p>
                 </div>

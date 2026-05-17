@@ -192,3 +192,22 @@ export async function applySubscriberDiscount(
     isSubscriber: true,
   };
 }
+
+/**
+ * Cancel a customer's subscription at period end via Stripe.
+ */
+export async function cancelSubscriptionAtPeriodEnd(
+  customerId: string,
+): Promise<void> {
+  const sub = await getCustomerSubscription(customerId);
+  if (!sub?.stripeSubscriptionId) {
+    throw new Error("No active subscription found");
+  }
+  await stripe.subscriptions.update(sub.stripeSubscriptionId, {
+    cancel_at_period_end: true,
+  });
+  await prisma.subscription.update({
+    where: { customerId },
+    data: { cancelAtPeriodEnd: true },
+  });
+}

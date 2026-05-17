@@ -36,6 +36,7 @@ import {
   Plug,
   Globe,
   Search,
+  Crown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -117,6 +118,7 @@ const navGroups: NavGroup[] = [
       { href: "/admin/refunds", label: "Refunds", icon: RotateCcw },
       { href: "/admin/commission-tiers", label: "Commission Tiers", icon: Percent },
       { href: "/admin/referrals", label: "Referrals", icon: Gift },
+      { href: "/admin/subscriptions", label: "Cover Subscriptions", icon: Crown },
     ],
   },
   {

@@ -19,6 +19,7 @@ import {
   sendJobNotificationSMS,
 } from "@/lib/job-notifications";
 import { notifyLocksmithApplication } from "@/lib/telegram";
+import { isActiveSubscriber } from "@/lib/subscriptions";
 import { type NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
@@ -60,7 +61,18 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const result = await findBestLocksmiths(jobId, maxCandidates);
+    // Check if customer has Cover (priority dispatch)
+    let priorityDispatch = false;
+    if (jobId) {
+      const job = await prisma.job.findUnique({ where: { id: jobId }, select: { customerId: true } });
+      if (job?.customerId) {
+        priorityDispatch = await isActiveSubscriber(job.customerId);
+      }
+    }
+
+    const result = await findBestLocksmiths(jobId, maxCandidates, priorityDispatch);
+
+    return NextResponse.json(result);
 
     return NextResponse.json(result);
   } catch (error) {
