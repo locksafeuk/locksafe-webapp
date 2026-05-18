@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
   authUrl.searchParams.set("client_id", clientId);
   authUrl.searchParams.set("redirect_uri", callbackUrl);
   authUrl.searchParams.set("state", state);
-  authUrl.searchParams.set("scope", "r_organization_social w_organization_social rw_organization_admin openid profile");
+  authUrl.searchParams.set("scope", "w_member_social openid profile");
 
   const res = NextResponse.redirect(authUrl.toString());
   res.cookies.set("linkedin_oauth_state", state, {

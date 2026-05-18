@@ -123,7 +123,8 @@ export async function GET(request: NextRequest) {
 
     // Fall back to member URN if no org found
     if (!orgId) {
-      orgId = profile.sub || "unknown";
+      // Store full URN so cron can use it directly as author
+      orgId = `urn:li:person:${profile.sub || "unknown"}`;
       orgName = profile.name || "LockSafe UK";
       orgHandle = "linkedin.com/in/me";
     }

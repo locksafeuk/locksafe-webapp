@@ -280,7 +280,8 @@ export async function GET(request: NextRequest) {
           if (linkedinDbAccount) {
             const orgId  = linkedinDbAccount.accountId;
             const token  = linkedinDbAccount.accessToken;
-            const author = `urn:li:organization:${orgId}`;
+            // accountId may be a full URN (urn:li:person:X or urn:li:organization:X) or a bare org ID
+            const author = orgId.startsWith("urn:li:") ? orgId : `urn:li:organization:${orgId}`;
             const body = {
               author,
               lifecycleState: "PUBLISHED",
