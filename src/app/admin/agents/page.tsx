@@ -5,7 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Toaster } from "@/components/ui/toaster";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
+import { useToast } from "@/hooks/use-toast";
 import {
   Bot,
   Brain,
@@ -140,6 +142,7 @@ function BudgetRing({ pct }: { pct: number }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function MissionControlPage() {
+  const { toast, toasts, dismiss } = useToast();
   const [agents, setAgents] = useState<AgentStatus[]>([]);
   const [system, setSystem] = useState<SystemStatus | null>(null);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
@@ -267,8 +270,22 @@ export default function MissionControlPage() {
             openAiFallbackEnabled: Boolean(data.policy.openAiFallbackEnabled),
             openAiFallbackMinSeverity: (data.policy.openAiFallbackMinSeverity || "high") as LlmPolicy["openAiFallbackMinSeverity"],
           });
+          toast({
+            title: data.policy.openAiFallbackEnabled
+              ? `Emergency fallback enabled (${data.policy.openAiFallbackMinSeverity})`
+              : "Emergency fallback disabled",
+          });
         }
+      } else {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || "Failed to update fallback policy");
       }
+    } catch (error) {
+      toast({
+        title: "Failed to update fallback policy",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "error",
+      });
     } finally {
       setTogglingFallback(false);
     }
@@ -705,6 +722,7 @@ export default function MissionControlPage() {
 
         </div>
       </div>
+      <Toaster toasts={toasts} dismiss={dismiss} />
     </AdminSidebar>
   );
 }
