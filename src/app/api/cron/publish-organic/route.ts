@@ -123,7 +123,8 @@ export async function GET(request: NextRequest) {
     const instagramAccount = accounts.find((a: AccountType) => a.platform === "INSTAGRAM");
     // Twitter: prefer DB credentials, fall back to env vars
     const twitterDbAccount = accounts.find((a: AccountType) => a.platform === "TWITTER");
-    const twitterEnabled   = !!(twitterDbAccount || isTwitterConfigured());
+    // Prefer OAuth 1.0a env vars (permanent, never expire) over DB OAuth 2.0 token (expires every 2h)
+    const twitterEnabled   = !!(isTwitterConfigured() || twitterDbAccount);
     // LinkedIn: prefer DB credentials, fall back to env vars
     const linkedinDbAccount = accounts.find((a: AccountType) => a.platform === "LINKEDIN");
     const linkedinEnabled  = !!(linkedinDbAccount || isLinkedInConfigured());
@@ -243,9 +244,17 @@ export async function GET(request: NextRequest) {
           const tweetText = (post as Record<string, unknown>).twitterContent as string | undefined || post.content;
           const threadParts = (post as Record<string, unknown>).twitterThreadParts as string[] | undefined;
 
-          // Use DB credentials if available (from OAuth connect), else fall back to env vars
-          if (twitterDbAccount) {
-            // OAuth 2.0: use the access token directly
+          // Prefer OAuth 1.0a env vars (permanent, never expire) over DB OAuth 2.0 token (expires every 2h)
+          if (isTwitterConfigured()) {
+            if (threadParts && threadParts.length > 1) {
+              const result = await postThread(threadParts);
+              platformResults.twitter = { success: true, postId: result.ids[0] };
+            } else {
+              const result = await postTweet(tweetText.slice(0, 280));
+              platformResults.twitter = { success: true, postId: result.id };
+            }
+          } else if (twitterDbAccount) {
+            // Fallback: OAuth 2.0 DB token (may expire — reconnect via /admin/social-connect)
             const twitterClient = new TwitterApi(twitterDbAccount.accessToken);
             if (threadParts && threadParts.length > 1) {
               const tweets = await twitterClient.v2.tweetThread(threadParts);
@@ -253,14 +262,6 @@ export async function GET(request: NextRequest) {
             } else {
               const { data } = await twitterClient.v2.tweet(tweetText.slice(0, 280));
               platformResults.twitter = { success: true, postId: data.id };
-            }
-          } else {
-            if (threadParts && threadParts.length > 1) {
-              const result = await postThread(threadParts);
-              platformResults.twitter = { success: true, postId: result.ids[0] };
-            } else {
-              const result = await postTweet(tweetText.slice(0, 280));
-              platformResults.twitter = { success: true, postId: result.id };
             }
           }
         } catch (err) {
