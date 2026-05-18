@@ -1,14 +1,13 @@
 /**
  * LLM Router — unified interface for all AI calls
  *
- * Routes to:
- *   AGENT   → llama3.3:70b  (Ollama) — tool-calling, structured reasoning, decisions
- *   CONTENT → qwen2.5:72b   (Ollama) — social copy, ad copy, blog drafts
- *   FAST    → llama3:70b    (Ollama) — summaries, routing, cheap tasks
- *   QUALITY → gpt-4o        (OpenAI) — final quality review, high-stakes only
+ * Local-first routes:
+ *   AGENT   → llama3.3:70b  (Ollama)
+ *   CONTENT → qwen2.5:72b   (Ollama)
+ *   FAST    → llama3:70b    (Ollama)
+ *   QUALITY → qwen2.5:72b   (Ollama)
  *
- * Ollama is called locally (localhost:11434) or via Tailscale (OLLAMA_BASE_URL).
- * Falls back to OpenAI gpt-4o-mini if Ollama is unreachable.
+ * OpenAI is emergency fallback only and must be explicitly enabled.
  */
 
 export const Models = {
@@ -22,13 +21,41 @@ export const Models = {
 
 export type ModelAlias = typeof Models[keyof typeof Models];
 
-/** Internal map from alias to actual model name */
-const MODEL_NAMES: Record<ModelAlias, string> = {
-  AGENT:   "llama3.3:70b",
-  CONTENT: "qwen2.5:72b",
-  FAST:    "llama3:70b",
-  QUALITY: "gpt-4o",
-  HERMES:  "hermes3",
+type FallbackSeverity = "low" | "medium" | "high" | "critical";
+
+type ModelConfig = {
+  localModel: string;
+  openAiFallbackModel: string;
+};
+
+const MODEL_CONFIG: Record<ModelAlias, ModelConfig> = {
+  AGENT: {
+    localModel: "llama3.3:70b",
+    openAiFallbackModel: "gpt-4o-mini",
+  },
+  CONTENT: {
+    localModel: "qwen2.5:72b",
+    openAiFallbackModel: "gpt-4o-mini",
+  },
+  FAST: {
+    localModel: "llama3:70b",
+    openAiFallbackModel: "gpt-4o-mini",
+  },
+  QUALITY: {
+    localModel: "qwen2.5:72b",
+    openAiFallbackModel: "gpt-4o",
+  },
+  HERMES: {
+    localModel: "hermes3",
+    openAiFallbackModel: "gpt-4o-mini",
+  },
+};
+
+const SEVERITY_RANK: Record<FallbackSeverity, number> = {
+  low: 1,
+  medium: 2,
+  high: 3,
+  critical: 4,
 };
 
 export interface LLMMessage {
@@ -55,6 +82,8 @@ export interface LLMOptions {
   tools?: OllamaTool[];
   responseFormat?: "json" | "text";
   timeoutMs?: number;
+  allowOpenAIFallback?: boolean;
+  fallbackSeverity?: FallbackSeverity;
 }
 
 export interface LLMResponse {
@@ -69,6 +98,7 @@ export interface LLMResponse {
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
 const OLLAMA_SECRET   = process.env.OLLAMA_SECRET;
 const OPENAI_API_KEY  = process.env.OPENAI_API_KEY;
+const OPENAI_FALLBACK_ENABLED = process.env.OPENAI_FALLBACK_ENABLED === "true";
 
 // ─── Core router ─────────────────────────────────────────────────────────────
 
@@ -78,22 +108,42 @@ export async function chat(
   options: LLMOptions = {}
 ): Promise<LLMResponse> {
   const startMs = Date.now();
-  const modelName = MODEL_NAMES[modelAlias];
+  const modelConfig = MODEL_CONFIG[modelAlias];
+  const localModel = modelConfig.localModel;
 
-  // QUALITY always uses OpenAI
-  if (modelAlias === "QUALITY") {
-    return callOpenAI(modelName, messages, options, startMs, false);
-  }
-
-  // Ollama models — try local/Tailscale, fall back to OpenAI on failure
+  // Local-first for all workloads.
   try {
-    return await callOllama(modelName, messages, options, startMs);
+    return await callOllama(localModel, messages, options, startMs);
   } catch (err) {
-    console.warn(`[LLM Router] Ollama unreachable (${modelName}), falling back to OpenAI:`, err instanceof Error ? err.message : err);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`[LLM Router] Local model failed (${localModel}): ${msg}`);
+
+    if (!shouldUseOpenAIFallback(options)) {
+      throw new Error(
+        `[LLM Router] Local model failed and OpenAI fallback is disabled. ` +
+        `Enable allowOpenAIFallback with high/critical severity for emergency fallback.`
+      );
+    }
   }
 
-  // Fallback — use gpt-4o-mini (cheap, fast)
-  return callOpenAI("gpt-4o-mini", messages, options, startMs, true);
+  return callOpenAI(modelConfig.openAiFallbackModel, messages, options, startMs, true);
+}
+
+function shouldUseOpenAIFallback(options: LLMOptions): boolean {
+  if (!OPENAI_API_KEY) {
+    return false;
+  }
+
+  const severity = options.fallbackSeverity ?? "low";
+  if (SEVERITY_RANK[severity] < SEVERITY_RANK.high) {
+    return false;
+  }
+
+  if (options.allowOpenAIFallback) {
+    return true;
+  }
+
+  return OPENAI_FALLBACK_ENABLED;
 }
 
 export async function complete(
@@ -252,7 +302,7 @@ export function estimateLLMCost(modelAlias: ModelAlias, tokens = 1000): number {
     AGENT:   0.0001,  // near-zero — local compute only
     CONTENT: 0.0001,
     FAST:    0.00001,
-    QUALITY: 0.005,   // gpt-4o: ~$5/1M input tokens
+    QUALITY: 0.0001,
     HERMES:  0.00001, // near-zero — local Hermes 3 8B
   };
   return (costPer1k[modelAlias] * tokens) / 1000;

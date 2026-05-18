@@ -390,6 +390,8 @@ export async function executeHeartbeat(agentId: string): Promise<HeartbeatResult
         tools: toolDefs,
         temperature: 0.2,
         timeoutMs: 120_000,
+        allowOpenAIFallback: true,
+        fallbackSeverity: 'critical',
       });
 
       // Append assistant turn to conversation history

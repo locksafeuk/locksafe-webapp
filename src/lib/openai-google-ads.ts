@@ -1,5 +1,5 @@
 /**
- * Google Ads campaign generation via the LLM router (Models.QUALITY → gpt-4o).
+ * Google Ads campaign generation via the LLM router (local-first).
  *
  * Google Search Ads use a Responsive Search Ad (RSA) shape:
  *  - 3 to 15 headlines, each <= 30 characters
@@ -9,9 +9,8 @@
  * Plus a keyword set with match types (EXACT / PHRASE / BROAD) and
  * a negative-keyword list (free-text, lowercased).
  *
- * Uses Models.QUALITY (gpt-4o) — strict RSA character limits and structured
- * JSON output require a capable model. Do not downgrade to Hermes/Ollama
- * until character-counting reliability is verified at 70B+ scale.
+ * Uses Models.QUALITY (qwen2.5:72b local-first) with explicit OpenAI fallback
+ * only for high-severity failures.
  */
 
 import { chat, Models } from "@/lib/llm-router";
@@ -143,7 +142,13 @@ Return a JSON object matching this exact shape (no markdown, no commentary):
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
     ],
-    { temperature: 0.7, maxTokens: 2500, responseFormat: "json" }
+    {
+      temperature: 0.7,
+      maxTokens: 2500,
+      responseFormat: "json",
+      allowOpenAIFallback: true,
+      fallbackSeverity: "high",
+    }
   );
 
   const content = response.content;
