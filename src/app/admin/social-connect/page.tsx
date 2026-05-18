@@ -95,6 +95,11 @@ function SocialConnectContent() {
     return account.accountId.startsWith("PLACEHOLDER");
   }
 
+  function isExpired(account: SocialAccountData): boolean {
+    if (!account.tokenExpiresAt) return false;
+    return new Date(account.tokenExpiresAt).getTime() <= Date.now();
+  }
+
   return (
     <AdminSidebar>
       <div className="p-4 md:p-8 max-w-3xl mx-auto">
@@ -140,7 +145,8 @@ function SocialConnectContent() {
             {ALL_PLATFORMS.map((platform) => {
               const account = getAccountForPlatform(platform);
               const placeholder = account ? isPlaceholder(account) : false;
-              const connected  = account && !placeholder;
+              const expired    = account ? isExpired(account) : false;
+              const connected  = account && !placeholder && !expired;
               const connectUrl = connectPaths[platform];
               const colors     = platformColor[platform] || "text-slate-600 bg-slate-50";
 
@@ -161,6 +167,11 @@ function SocialConnectContent() {
                       {connected && (
                         <span className="inline-flex items-center gap-1 text-xs font-medium bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
                           <CheckCircle2 className="w-3 h-3" /> Connected
+                        </span>
+                      )}
+                      {expired && !placeholder && (
+                        <span className="inline-flex items-center gap-1 text-xs font-medium bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
+                          <AlertCircle className="w-3 h-3" /> Reconnect required
                         </span>
                       )}
                       {placeholder && (
@@ -184,6 +195,14 @@ function SocialConnectContent() {
                         )}
                       </p>
                     )}
+                    {expired && !placeholder && account && (
+                      <p className="text-sm text-amber-700 truncate">
+                        {account.accountHandle || account.accountName}
+                        <span className="ml-2">
+                          · Token expired {new Date(account.tokenExpiresAt!).toLocaleDateString("en-GB")}
+                        </span>
+                      </p>
+                    )}
                     {!connected && platform === "FACEBOOK" && (
                       <p className="text-sm text-slate-400">
                         Managed via Meta Business Suite — token set in environment.
@@ -203,6 +222,11 @@ function SocialConnectContent() {
                           <>
                             <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
                             Re-connect
+                          </>
+                        ) : expired ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                            Reconnect
                           </>
                         ) : (
                           <>
