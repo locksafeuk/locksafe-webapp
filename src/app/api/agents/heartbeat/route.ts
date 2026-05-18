@@ -85,13 +85,19 @@ export async function POST(req: NextRequest) {
     // Run heartbeats
     const result = await runAgentHeartbeats();
 
-    // Alert on errors via Telegram
-    if (result.errors && result.errors.length > 0) {
+    // Alert on actionable errors via Telegram.
+    // Paused-agent messages are operationally expected and should not page.
+    const actionableErrors = (result.errors || []).filter(
+      (e) => !/\bis paused\b/i.test(e),
+    );
+    if (actionableErrors.length > 0) {
       sendAdminAlert({
         title: "🚨 Agent Heartbeat Error",
-        message: `${result.errors.length} agent(s) failed during heartbeat:\n\n${result.errors.slice(0, 5).join("\n")}`,
+        message: `${actionableErrors.length} agent(s) failed during heartbeat:\n\n${actionableErrors.slice(0, 5).join("\n")}`,
         severity: "error",
       }).catch(() => {});
+    } else if ((result.errors || []).length > 0) {
+      console.log("[Heartbeat API] Suppressed paused-agent heartbeat errors");
     }
 
     return NextResponse.json({

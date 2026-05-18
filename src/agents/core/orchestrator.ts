@@ -344,17 +344,6 @@ export async function executeHeartbeat(agentId: string): Promise<HeartbeatResult
   const state = agentStates.get(agentId);
   const now = new Date();
 
-  if (state && state.status !== 'active') {
-    return {
-      success: false,
-      agentName: agentId,
-      actionsExecuted: 0,
-      costUsd: 0,
-      errors: [`Agent ${agentId} is ${state.status}`],
-      nextHeartbeat: state?.nextHeartbeat ?? new Date(now.getTime() + 3_600_000),
-    };
-  }
-
   let actionsExecuted = 0;
   let totalCost = 0;
   const errors: string[] = [];
@@ -371,6 +360,26 @@ export async function executeHeartbeat(agentId: string): Promise<HeartbeatResult
         costUsd: 0,
         errors: [`Agent ${agentId} not found in database`],
         nextHeartbeat: new Date(now.getTime() + 3_600_000),
+      };
+    }
+
+    const dbStatus = String(dbAgent.status ?? '').toLowerCase();
+    const runtimeStatus = state ? String(state.status).toLowerCase() : '';
+
+    // DB is source of truth; reconcile in-memory drift when possible.
+    if (state && dbStatus && runtimeStatus && dbStatus !== runtimeStatus) {
+      state.status = dbStatus as AgentStatus;
+    }
+
+    const effectiveStatus = dbStatus || runtimeStatus || 'active';
+    if (effectiveStatus !== 'active') {
+      return {
+        success: true,
+        agentName: agentId,
+        actionsExecuted: 0,
+        costUsd: 0,
+        errors: [],
+        nextHeartbeat: dbAgent.nextHeartbeat || state?.nextHeartbeat || new Date(now.getTime() + 3_600_000),
       };
     }
 

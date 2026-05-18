@@ -14,6 +14,7 @@ import { SocialPlatform } from "@prisma/client";
 import { chat, Models, estimateLLMCost } from "@/lib/llm-router";
 import { recordCost } from "@/agents/core/budget";
 import { sendAdminAlert } from "@/lib/telegram";
+import { getOperationalPolicy, shouldEmitAlert } from "@/agents/core/operational-policy";
 import { generateTikTokScript } from "@/lib/tiktok";
 import type { AgentConfig } from "@/agents/core/types";
 
@@ -181,13 +182,16 @@ export async function runSocialMediaHeartbeat(): Promise<void> {
   const cost = estimateLLMCost("CONTENT", postsCreated * 800);
   await recordCost("social-media", cost, `Generated ${postsCreated} social posts`);
 
-  // Send Telegram summary
+  // Send Telegram summary only when policy allows low/info non-guardian alerts.
   if (postsCreated > 0) {
-    await sendAdminAlert({
-      title: `📱 Social Posts Scheduled`,
-      message: `${postsCreated} posts generated for today's ${pillar} pillar.\nPlatforms: ${activePlatforms.join(", ")}\nSlots: ${POSTING_SLOTS.slice(0, postsCreated).join(", ")} UK time`,
-      severity: "info",
-    });
+    const policy = await getOperationalPolicy();
+    if (shouldEmitAlert("social-media", "info", policy.alertSensitivity)) {
+      await sendAdminAlert({
+        title: `📱 Social Posts Scheduled`,
+        message: `${postsCreated} posts generated for today's ${pillar} pillar.\nPlatforms: ${activePlatforms.join(", ")}\nSlots: ${POSTING_SLOTS.slice(0, postsCreated).join(", ")} UK time`,
+        severity: "info",
+      });
+    }
   }
 
   if (errors.length) {
