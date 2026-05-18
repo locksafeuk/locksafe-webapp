@@ -93,6 +93,39 @@ export const sendTelegramAlertTool: AgentTool = {
     const message = params.message as string;
     const priority = (params.priority as string) || "medium";
 
+    // Sensitivity gating — non-workflow agents (CEO/CMO/copywriter/ads/social)
+    // are noisy. Only let them through to Telegram if their priority meets the
+    // operational policy threshold:
+    //   sensitivity=all        → low/medium/high/critical
+    //   sensitivity=workflow   → high/critical only      (default)
+    //   sensitivity=critical   → critical only
+    // Guardians (COO, CTO) and any 'high'/'critical' from anyone are never gated.
+    try {
+      const [{ getOperationalPolicy, isGuardianAgent }] = await Promise.all([
+        import("@/agents/core/operational-policy"),
+      ]);
+      const policy = await getOperationalPolicy();
+      const isGuardian = isGuardianAgent(context.agentName);
+      const sensitivity = policy.alertSensitivity;
+      const rank: Record<string, number> = { low: 1, medium: 2, high: 3, critical: 4 };
+      const priorityRank = rank[priority] ?? 2;
+      let threshold = 1;
+      if (sensitivity === "workflow") threshold = 3; // high+
+      else if (sensitivity === "critical") threshold = 4; // critical only
+      if (!isGuardian && priorityRank < threshold) {
+        console.log(
+          `[Telegram][gated] ${context.agentName} priority=${priority} suppressed (sensitivity=${sensitivity})`,
+        );
+        return {
+          success: true,
+          data: { sent: false, priority, gated: true, sensitivity },
+        };
+      }
+    } catch (e) {
+      // Fail open — if policy lookup fails, fall through to send (legacy behaviour)
+      console.warn("[Telegram][gating] policy lookup failed, allowing message:", e);
+    }
+
     const priorityEmoji = {
       low: "ℹ️",
       medium: "📢",

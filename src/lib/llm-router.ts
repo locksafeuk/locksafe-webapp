@@ -94,8 +94,10 @@ export interface LLMResponse {
   toolCalls?: Array<{ name: string; arguments: Record<string, unknown> }>;
 }
 
-// Prefer explicit OLLAMA_BASE_URL (Tailscale remote), fall back to local
-const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
+// Prefer explicit OLLAMA_BASE_URL (Tailscale remote), fall back to local.
+// Use `||` (not `??`) so empty-string env values also fall back — Vercel sometimes
+// stores blank values which would otherwise short-circuit to an invalid base URL.
+const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
 const OLLAMA_SECRET   = process.env.OLLAMA_SECRET;
 const OPENAI_API_KEY  = process.env.OPENAI_API_KEY;
 const OPENAI_FALLBACK_ENABLED = process.env.OPENAI_FALLBACK_ENABLED === "true";

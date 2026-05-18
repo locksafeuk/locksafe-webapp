@@ -362,6 +362,26 @@ export async function runAgentHeartbeats(): Promise<{
   const policy = await getOperationalPolicy();
   const guardianOnly = policy.guardianModeEnabled;
 
+  // Load active agent set from DB — paused agents are skipped entirely so they
+  // don't throw "Agent X is paused" inside their heartbeat (which was spamming
+  // Telegram on every cycle).
+  const { default: prismaForActiveSet } = await import("@/lib/db");
+  let activeAgentNames = new Set<string>([
+    "ceo", "cto", "cmo", "coo", "copywriter", "ads-specialist", "social-media",
+  ]);
+  try {
+    const rows = await prismaForActiveSet.agent.findMany({
+      where: { status: "active" },
+      select: { name: true },
+    });
+    if (rows.length > 0) {
+      activeAgentNames = new Set(rows.map(r => r.name.toLowerCase()));
+    }
+  } catch (e) {
+    console.warn("[Heartbeats] Failed to load active agent set, defaulting to all:", e);
+  }
+  const isActive = (name: string) => activeAgentNames.has(name.toLowerCase());
+
   // Wrap each agent heartbeat fn to capture success/errors uniformly
   async function runWithResult(name: string, fn: () => Promise<void>) {
     try {
@@ -399,10 +419,11 @@ export async function runAgentHeartbeats(): Promise<{
 
   // Guardians always run (COO + CTO) — they protect dispatch/SLA/system health
   // and must never be throttled by guardian mode or sensitivity controls.
+  // Still respect explicit pause from DB (admin override).
   const guardianJobs = [
     { name: "cto", fn: runCTOHeartbeat },
     { name: "coo", fn: runCOOHeartbeat },
-  ];
+  ].filter(j => isActive(j.name));
 
   if (guardianOnly) {
     console.log("[Heartbeats] Guardian Mode ON — running guardians only (CTO, COO)");
@@ -432,7 +453,10 @@ export async function runAgentHeartbeats(): Promise<{
   // Independent executives — guardians + CEO when non-workflow active.
   const independentJobs = skipNonWorkflow
     ? guardianJobs
-    : [...guardianJobs, { name: "ceo", fn: runCEOHeartbeat }];
+    : [
+        ...guardianJobs,
+        ...(isActive("ceo") ? [{ name: "ceo", fn: runCEOHeartbeat }] : []),
+      ];
 
   const independentResults = await runLimited(independentJobs, CONCURRENCY_CAP);
 
@@ -456,20 +480,24 @@ export async function runAgentHeartbeats(): Promise<{
     };
   }
 
-  // CMO depends on CEO results — run after independent agents
-  const cmoResult = await runWithResult("cmo", runCMOHeartbeat);
+  // CMO depends on CEO results — run after independent agents (skip if paused)
+  const cmoResult = isActive("cmo")
+    ? await runWithResult("cmo", runCMOHeartbeat)
+    : null;
 
-  // CMO subagents run after CMO, bounded by concurrency cap
-  const subagentResults = await runLimited(
-    [
-      { name: "copywriter", fn: runCopywriterHeartbeat },
-      { name: "ads-specialist", fn: runAdsSpecialistHeartbeat },
-      { name: "social-media", fn: runSocialMediaHeartbeat },
-    ],
-    CONCURRENCY_CAP,
-  );
+  // CMO subagents run after CMO, bounded by concurrency cap (skip paused)
+  const subagentJobs = [
+    { name: "copywriter", fn: runCopywriterHeartbeat },
+    { name: "ads-specialist", fn: runAdsSpecialistHeartbeat },
+    { name: "social-media", fn: runSocialMediaHeartbeat },
+  ].filter(j => isActive(j.name));
+  const subagentResults = await runLimited(subagentJobs, CONCURRENCY_CAP);
 
-  const results = [...independentResults, cmoResult, ...subagentResults];
+  const results = [
+    ...independentResults,
+    ...(cmoResult ? [cmoResult] : []),
+    ...subagentResults,
+  ];
 
   return {
     success: results.every(r => r.success),
