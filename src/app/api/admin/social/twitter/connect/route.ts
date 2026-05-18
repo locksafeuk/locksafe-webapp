@@ -1,15 +1,16 @@
 /**
  * GET /api/admin/social/twitter/connect
  *
- * Initiates Twitter OAuth 2.0 PKCE flow.
- * Requires TWITTER_CLIENT_ID + TWITTER_CLIENT_SECRET env vars.
- * Redirects admin to Twitter authorization page.
+ * Uses static OAuth 1.0a env vars (TWITTER_API_KEY/SECRET + ACCESS_TOKEN/SECRET)
+ * to verify credentials, look up the account, and upsert a SocialAccount DB record.
+ * No web OAuth flow needed since we already hold permanent access tokens.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { TwitterApi } from "twitter-api-v2";
 import { verifyToken } from "@/lib/auth";
+import prisma from "@/lib/db";
 
 async function verifyAdmin(): Promise<boolean> {
   const cookieStore = await cookies();
@@ -24,42 +25,46 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/admin/login", request.url));
   }
 
-  const clientId = process.env.TWITTER_CLIENT_ID;
-  const clientSecret = process.env.TWITTER_CLIENT_SECRET;
+  const apiKey       = process.env.TWITTER_API_KEY;
+  const apiSecret    = process.env.TWITTER_API_SECRET;
+  const accessToken  = process.env.TWITTER_ACCESS_TOKEN;
+  const accessSecret = process.env.TWITTER_ACCESS_SECRET;
 
-  if (!clientId || !clientSecret) {
+  if (!apiKey || !apiSecret || !accessToken || !accessSecret) {
     return NextResponse.redirect(
       new URL("/admin/social-connect?error=twitter_app_not_configured&platform=twitter", request.url)
     );
   }
 
-  const callbackUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://www.locksafe.uk"}/api/admin/social/twitter/callback`;
-
   try {
-    const client = new TwitterApi({ clientId, clientSecret });
-    const { url, codeVerifier, state } = client.generateOAuth2AuthLink(callbackUrl, {
-      scope: ["tweet.read", "tweet.write", "users.read", "offline.access"],
+    const client = new TwitterApi({ appKey: apiKey, appSecret: apiSecret, accessToken, accessSecret });
+    const { data: me } = await client.v2.me({ "user.fields": ["name", "username", "profile_image_url"] });
+
+    await prisma.socialAccount.upsert({
+      where: { platform_accountId: { platform: "TWITTER", accountId: me.id } },
+      create: {
+        platform:      "TWITTER",
+        accountId:     me.id,
+        accountName:   me.name,
+        accountHandle: `@${me.username}`,
+        accessToken:   accessToken,
+        isActive:      true,
+      },
+      update: {
+        accountName:   me.name,
+        accountHandle: `@${me.username}`,
+        accessToken:   accessToken,
+        isActive:      true,
+      },
     });
 
-    const res = NextResponse.redirect(url);
-    // Store codeVerifier + state in HttpOnly cookies for callback verification
-    res.cookies.set("twitter_code_verifier", codeVerifier, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 600,
-      path: "/",
-    });
-    res.cookies.set("twitter_oauth_state", state, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 600,
-      path: "/",
-    });
-    return res;
+    console.log(`[Twitter Connect] Connected: @${me.username} (${me.id})`);
+
+    return NextResponse.redirect(
+      new URL(`/admin/social-connect?success=twitter&platform=twitter&name=${encodeURIComponent(me.name)}`, request.url)
+    );
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Twitter OAuth init failed";
+    const msg = err instanceof Error ? err.message : "Twitter connect failed";
     console.error("[Twitter Connect]", msg);
     return NextResponse.redirect(
       new URL(`/admin/social-connect?error=${encodeURIComponent(msg)}&platform=twitter`, request.url)
