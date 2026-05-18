@@ -43,18 +43,20 @@ export async function GET(request: NextRequest) {
     await prisma.socialAccount.upsert({
       where: { platform_accountId: { platform: "TWITTER", accountId: me.id } },
       create: {
-        platform:      "TWITTER",
-        accountId:     me.id,
-        accountName:   me.name,
-        accountHandle: `@${me.username}`,
-        accessToken:   accessToken,
-        isActive:      true,
+        platform:       "TWITTER",
+        accountId:      me.id,
+        accountName:    me.name,
+        accountHandle:  `@${me.username}`,
+        accessToken:    accessToken,
+        tokenExpiresAt: null, // OAuth 1.0a tokens are permanent
+        isActive:       true,
       },
       update: {
-        accountName:   me.name,
-        accountHandle: `@${me.username}`,
-        accessToken:   accessToken,
-        isActive:      true,
+        accountName:    me.name,
+        accountHandle:  `@${me.username}`,
+        accessToken:    accessToken,
+        tokenExpiresAt: null, // clear any old expiry
+        isActive:       true,
       },
     });
 
