@@ -32,6 +32,7 @@ if (!API_KEY) {
 // UK cities to search across
 // ---------------------------------------------------------------------------
 const UK_CITIES = [
+  // Original 50
   "London", "Birmingham", "Manchester", "Leeds", "Glasgow",
   "Sheffield", "Bradford", "Liverpool", "Edinburgh", "Bristol",
   "Cardiff", "Leicester", "Coventry", "Nottingham", "Newcastle upon Tyne",
@@ -42,11 +43,32 @@ const UK_CITIES = [
   "York", "Peterborough", "Ipswich", "Chelmsford", "Gloucester",
   "Bournemouth", "Swindon", "Blackpool", "Dundee", "Middlesbrough",
   "Slough", "Huddersfield", "Poole", "Eastbourne", "Telford",
+  // Extended 50
+  "Warrington", "Basildon", "Worthing", "Crawley", "Wigan",
+  "Birkenhead", "Oldham", "Rochdale", "Rotherham", "Barnsley",
+  "Doncaster", "Wakefield", "Halifax", "Stockport", "Bolton",
+  "Blackburn", "Burnley", "Salford", "Gateshead", "Hartlepool",
+  "Stockton-on-Tees", "Darlington", "Chester", "Wrexham", "Newport",
+  "Swansea", "Rhondda", "Merthyr Tydfil", "Inverness", "Perth",
+  "Stirling", "Falkirk", "Livingston", "Kilmarnock", "Paisley",
+  "Motherwell", "Hamilton", "Ayr", "Dunfermline", "Kirkcaldy",
+  "Walsall", "West Bromwich", "Solihull", "Nuneaton", "Rugby",
+  "Shrewsbury", "Hereford", "Worcester", "Gloucester", "Cheltenham",
+  "Bath", "Taunton", "Torquay", "Barnstaple", "Truro",
+  "St Albans", "Watford", "Hemel Hempstead", "Stevenage", "Harlow",
+  "Colchester", "Southend-on-Sea", "Maidstone", "Tunbridge Wells", "Canterbury",
+  "Dover", "Folkestone", "Hastings", "Guildford", "Woking",
+  "Basingstoke", "Andover", "Salisbury", "Weymouth", "Dorchester",
 ];
 
-// ---------------------------------------------------------------------------
-// Known chains / franchises to exclude
-// ---------------------------------------------------------------------------
+// Multiple search queries per city — gives 3× more coverage
+const SEARCH_QUERIES = [
+  (city: string) => `independent locksmith ${city} UK`,
+  (city: string) => `emergency locksmith ${city} UK`,
+  (city: string) => `auto locksmith ${city} UK`,
+];
+
+
 const CHAIN_KEYWORDS = [
   "timpson", "mls locksmith", "speedy locksmith", "banham",
   "chubb", "yale", "securitas", "g4s", "keyfax", "fast keys",
@@ -126,7 +148,14 @@ async function fetchHtml(rawUrl: string, timeoutMs = 8000): Promise<string> {
 async function extractEmailFromWebsite(websiteUrl: string): Promise<string> {
   if (!websiteUrl) return "";
   const base = websiteUrl.replace(/\/$/, "");
-  const pages = [base, `${base}/contact`, `${base}/contact-us`, `${base}/about`];
+  const pages = [
+    base,
+    `${base}/contact`,
+    `${base}/contact-us`,
+    `${base}/about`,
+    `${base}/about-us`,
+    `${base}/get-in-touch`,
+  ];
   for (const pageUrl of pages) {
     try {
       const html = await fetchHtml(pageUrl);
@@ -134,7 +163,7 @@ async function extractEmailFromWebsite(websiteUrl: string): Promise<string> {
       const valid = matches.map(e => e.toLowerCase()).filter(e => !isJunkEmail(e));
       if (valid.length > 0) return valid[0];
     } catch { /* continue */ }
-    await sleep(300);
+    await sleep(200);
   }
   return "";
 }
@@ -212,49 +241,54 @@ async function main() {
   const leads: Lead[] = [];
 
   for (const city of UK_CITIES) {
-    const query = `independent locksmith ${city} UK`;
     console.log(`📍 ${city}...`);
 
-    let pageToken: string | undefined;
-    let page = 0;
+    for (const buildQuery of SEARCH_QUERIES) {
+      const query = buildQuery(city);
 
-    do {
-      if (page > 0) await sleep(2500); // wait for next_page_token to activate
-      const { results, nextPageToken } = await textSearch(query, pageToken);
-      pageToken = nextPageToken;
-      page++;
+      let pageToken: string | undefined;
+      let page = 0;
 
-      for (const place of results) {
-        if (seen.has(place.place_id)) continue;
-        if (isChain(place.name)) {
-          console.log(`   ⛔ Skipping chain: ${place.name}`);
-          continue;
+      do {
+        if (page > 0) await sleep(2500); // wait for next_page_token to activate
+        const { results, nextPageToken } = await textSearch(query, pageToken);
+        pageToken = nextPageToken;
+        page++;
+
+        for (const place of results) {
+          if (seen.has(place.place_id)) continue;
+          if (isChain(place.name)) {
+            console.log(`   ⛔ Skipping chain: ${place.name}`);
+            continue;
+          }
+          seen.add(place.place_id);
+
+          // Rate-limit detail calls
+          await sleep(150);
+          const details = await getDetails(place.place_id);
+          if (!details) continue;
+
+          const phone = details.formatted_phone_number || details.international_phone_number || "";
+          const email = await extractEmailFromWebsite(details.website || "");
+          leads.push({
+            placeId: place.place_id,
+            name: details.name,
+            city,
+            address: details.formatted_address || place.formatted_address,
+            phone,
+            email,
+            website: details.website || "",
+            rating: details.rating || 0,
+            reviewCount: details.user_ratings_total || 0,
+          });
+
+          const tag = email ? `📧 ${email}` : "no email";
+          console.log(`   ✅ ${details.name} | ${phone || "no phone"} | ${tag}`);
         }
-        seen.add(place.place_id);
+      } while (pageToken && page < 3); // max 3 pages = ~60 results per query
 
-        // Rate-limit detail calls
-        await sleep(150);
-        const details = await getDetails(place.place_id);
-        if (!details) continue;
-
-        const phone = details.formatted_phone_number || details.international_phone_number || "";
-        const email = await extractEmailFromWebsite(details.website || "");
-        leads.push({
-          placeId: place.place_id,
-          name: details.name,
-          city,
-          address: details.formatted_address || place.formatted_address,
-          phone,
-          email,
-          website: details.website || "",
-          rating: details.rating || 0,
-          reviewCount: details.user_ratings_total || 0,
-        });
-
-        const tag = email ? `📧 ${email}` : "no email";
-        console.log(`   ✅ ${details.name} | ${phone || "no phone"} | ${tag}`);
-      }
-    } while (pageToken && page < 3); // max 3 pages = ~60 results per city
+      await sleep(500); // brief pause between query types
+    }
   }
 
   console.log(`\n✨  Found ${leads.length} independent locksmiths.\n`);

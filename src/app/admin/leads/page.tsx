@@ -26,6 +26,7 @@ import {
   Trash2,
   Plus,
 } from "lucide-react";
+import type { OutreachSubjectStyle, OutreachTrack } from "@/lib/lead-outreach";
 
 interface Lead {
   id: string;
@@ -53,6 +54,24 @@ interface Stats {
   not_interested: number;
 }
 
+interface OutreachVariantStat {
+  key: string;
+  sends: number;
+  opens: number;
+  clicks: number;
+  onboarded: number;
+  openRate: number;
+  clickRate: number;
+  signupRate: number;
+}
+
+interface OutreachStats {
+  totalSends: number;
+  totalOpens: number;
+  totalClicks: number;
+  variants: OutreachVariantStat[];
+}
+
 const STATUS_CONFIG: Record<string, { label: string; colour: string }> = {
   new: { label: "New", colour: "bg-blue-100 text-blue-700" },
   contacted: { label: "Contacted", colour: "bg-yellow-100 text-yellow-700" },
@@ -74,6 +93,12 @@ export default function AdminLeadsPage() {
   const [inviteSending, setInviteSending] = useState<string | null>(null);
   const [bulkInviting, setBulkInviting] = useState(false);
   const [inviteResult, setInviteResult] = useState<{ sent: number; failed: number } | null>(null);
+  const [outreachStats, setOutreachStats] = useState<OutreachStats | null>(null);
+  const [sequenceSending, setSequenceSending] = useState(false);
+  const [sequenceTrack, setSequenceTrack] = useState<OutreachTrack>("independent");
+  const [sequenceStyle, setSequenceStyle] = useState<OutreachSubjectStyle>("benefit");
+  const [sequenceTouch, setSequenceTouch] = useState<1 | 2 | 3>(1);
+  const [sequenceVariant, setSequenceVariant] = useState<1 | 2 | 3>(1);
 
   // SMS state
   const [smsSending, setSmsSending] = useState<string | null>(null);
@@ -110,6 +135,7 @@ export default function AdminLeadsPage() {
       setLeads(data.leads || []);
       setStats(data.stats || null);
       setCities(data.cities || []);
+      setOutreachStats(data.outreachStats || null);
     } finally {
       setLoading(false);
     }
@@ -257,6 +283,33 @@ export default function AdminLeadsPage() {
     }
   };
 
+  const runSequenceTouch = async () => {
+    setSequenceSending(true);
+    setInviteResult(null);
+    try {
+      const res = await fetch("/api/admin/leads/send-invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "sequence",
+          track: sequenceTrack,
+          subjectStyle: sequenceStyle,
+          touch: sequenceTouch,
+          variant: sequenceVariant,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "Sequence send failed");
+        return;
+      }
+      setInviteResult({ sent: data.sent || 0, failed: data.failed || 0 });
+      await fetchLeads();
+    } finally {
+      setSequenceSending(false);
+    }
+  };
+
   const downloadCsv = () => {
     const header = "Name,Email,Phone,City,Address,Website,Rating,Reviews,Status\n";
     const rows = leads.map(l =>
@@ -356,6 +409,96 @@ export default function AdminLeadsPage() {
                 <div className="text-xs text-slate-500 mt-0.5">{s.label}</div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Sequence Controls */}
+        <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900">Lead Email Sequence</h2>
+              <p className="text-xs text-slate-500">Run Touch 1/2/3 with track + A/B variant targeting.</p>
+            </div>
+            <Button
+              size="sm"
+              onClick={runSequenceTouch}
+              disabled={sequenceSending}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+            >
+              {sequenceSending ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Send className="w-4 h-4 mr-1.5" />}
+              Run Touch {sequenceTouch}
+            </Button>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <select
+              value={sequenceTrack}
+              onChange={(e) => setSequenceTrack(e.target.value as OutreachTrack)}
+              className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="independent">Track: Independent</option>
+              <option value="manager">Track: Manager</option>
+            </select>
+            <select
+              value={sequenceStyle}
+              onChange={(e) => setSequenceStyle(e.target.value as OutreachSubjectStyle)}
+              className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="benefit">Style: Benefit-first</option>
+              <option value="direct">Style: Direct commission</option>
+            </select>
+            <select
+              value={sequenceTouch}
+              onChange={(e) => setSequenceTouch(Number(e.target.value) as 1 | 2 | 3)}
+              className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value={1}>Touch 1 (new leads)</option>
+              <option value={2}>Touch 2 (&gt;= 3 days)</option>
+              <option value={3}>Touch 3 (&gt;= 7 days)</option>
+            </select>
+            <select
+              value={sequenceVariant}
+              onChange={(e) => setSequenceVariant(Number(e.target.value) as 1 | 2 | 3)}
+              className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value={1}>Variant 1</option>
+              <option value={2}>Variant 2</option>
+              <option value={3}>Variant 3</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Outreach performance */}
+        {outreachStats && outreachStats.variants.length > 0 && (
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div className="p-4 border-b border-slate-100 flex flex-wrap items-center gap-4 text-xs text-slate-600">
+              <span><strong className="text-slate-900">Sends:</strong> {outreachStats.totalSends}</span>
+              <span><strong className="text-slate-900">Opens:</strong> {outreachStats.totalOpens}</span>
+              <span><strong className="text-slate-900">Clicks:</strong> {outreachStats.totalClicks}</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
+                    <th className="px-4 py-3 text-left">Variant Key</th>
+                    <th className="px-4 py-3 text-left">Sends</th>
+                    <th className="px-4 py-3 text-left">Open Rate</th>
+                    <th className="px-4 py-3 text-left">Click Rate</th>
+                    <th className="px-4 py-3 text-left">Signup Rate</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {outreachStats.variants.slice(0, 12).map((row) => (
+                    <tr key={row.key} className="hover:bg-slate-50">
+                      <td className="px-4 py-3 text-slate-700">{row.key}</td>
+                      <td className="px-4 py-3 text-slate-700">{row.sends}</td>
+                      <td className="px-4 py-3 text-slate-700">{row.openRate}%</td>
+                      <td className="px-4 py-3 text-slate-700">{row.clickRate}%</td>
+                      <td className="px-4 py-3 text-slate-700">{row.signupRate}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 

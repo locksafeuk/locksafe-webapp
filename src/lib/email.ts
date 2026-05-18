@@ -3193,8 +3193,25 @@ export async function sendLocksmithInviteEmail(
     locksmithName: string;
     city: string;
   },
+  options?: {
+    subject?: string;
+    signupUrl?: string;
+    ctaText?: string;
+    introOverride?: string;
+    trackPixelUrl?: string;
+  },
 ) {
-  const signupUrl = `${SITE_URL}/locksmith/register?utm_source=invite&utm_medium=email&utm_campaign=partner-outreach`;
+  const signupUrl = options?.signupUrl || `${SITE_URL}/locksmith/register?utm_source=invite&utm_medium=email&utm_campaign=partner-outreach`;
+  const subject = options?.subject || `${data.locksmithName} — join LockSafe UK's verified locksmith network (free)`;
+  const ctaText = options?.ctaText || "Apply to Join — It's Free";
+  const introParagraph =
+    options?.introOverride ||
+    `My name is Alex, co-founder of <strong>LockSafe UK</strong> — the UK's first anti-fraud locksmith platform.
+            We're building a trusted network of <strong>vetted, independent locksmiths</strong> across the country,
+            and your business in ${data.city} caught our eye.`;
+  const trackingPixel = options?.trackPixelUrl
+    ? `<img src="${options.trackPixelUrl}" width="1" height="1" alt="" style="display:block;width:1px;height:1px;" />`
+    : "";
   const html = `
     <!DOCTYPE html>
     <html lang="en">
@@ -3255,9 +3272,7 @@ export async function sendLocksmithInviteEmail(
           <p class="greeting">Hi ${data.locksmithName},</p>
 
           <p class="intro">
-            My name is Alex, co-founder of <strong>LockSafe UK</strong> — the UK's first anti-fraud locksmith platform.
-            We're building a trusted network of <strong>vetted, independent locksmiths</strong> across the country,
-            and your business in ${data.city} caught our eye.
+            ${introParagraph}
           </p>
 
           <div class="highlight-box">
@@ -3317,7 +3332,7 @@ export async function sendLocksmithInviteEmail(
           <!-- CTA -->
           <div class="cta-section">
             <p>Takes less than 5 minutes. No commitment required — see if it's right for your business first.</p>
-            <a href="${signupUrl}" class="cta-button">Apply to Join — It's Free</a>
+            <a href="${signupUrl}" class="cta-button">${ctaText}</a>
             <p class="cta-sub">Or simply reply to this email with any questions — I read every reply personally.</p>
           </div>
 
@@ -3344,13 +3359,14 @@ export async function sendLocksmithInviteEmail(
         </div>
 
       </div>
+      ${trackingPixel}
     </body>
     </html>
   `;
 
   return sendEmail({
     to: locksmithEmail,
-    subject: `${data.locksmithName} — join LockSafe UK's verified locksmith network (free)`,
+    subject,
     replyTo: "contact@locksafe.uk",
     html,
   });

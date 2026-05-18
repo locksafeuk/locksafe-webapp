@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { aggregateOutreachStats } from "@/lib/lead-outreach";
 
 async function verifyAdmin() {
   const cookieStore = await cookies();
@@ -52,7 +53,11 @@ export async function GET(req: NextRequest) {
     not_interested: await prisma.locksmithLead.count({ where: { status: "not_interested" } }),
   };
 
-  return NextResponse.json({ leads, cities: cities.map(c => c.city), stats });
+  const outreachStats = aggregateOutreachStats(
+    leads.map((lead) => ({ status: lead.status, notes: lead.notes }))
+  );
+
+  return NextResponse.json({ leads, cities: cities.map(c => c.city), stats, outreachStats });
 }
 
 export async function PATCH(req: NextRequest) {

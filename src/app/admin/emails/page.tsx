@@ -93,6 +93,8 @@ interface CampaignStats {
 
 type ViewMode = "list" | "create" | "detail";
 type EmailTemplate = "announcement" | "newsletter" | "update" | "promo" | "urgent" | "custom";
+type OutreachTrack = "independent" | "manager";
+type SubjectStyle = "direct" | "benefit";
 
 const TEMPLATES: { value: EmailTemplate; label: string; icon: React.ReactNode; description: string; color: string }[] = [
   { value: "announcement", label: "Announcement", icon: <Megaphone className="w-5 h-5" />, description: "Important updates and news", color: "#f97316" },
@@ -114,6 +116,60 @@ const ACCENT_COLORS = [
   "#f59e0b", // Amber
 ];
 
+const OUTREACH_PRESETS: Record<OutreachTrack, {
+  campaignName: string;
+  headline: string;
+  preheader: string;
+  body: string;
+  ctaText: string;
+  ctaUrl: string;
+  accentColor: string;
+  subjects: Record<SubjectStyle, string[]>;
+}> = {
+  independent: {
+    campaignName: "Independent Engineer Onboarding",
+    headline: "Keep more per job with transparent payouts",
+    preheader: "Get started quickly, choose jobs you want, and get paid fast.",
+    body: "<p>You are invited to join LockSafe UK as an independent locksmith partner.</p><p>Why many independent engineers choose LockSafe:</p><ul><li><strong>More control:</strong> apply only to jobs you want</li><li><strong>Transparent earnings:</strong> no hidden lead fees</li><li><strong>Fast payout flow:</strong> secure and trackable payment process</li></ul><p>If you complete onboarding now, you can start receiving local opportunities immediately.</p>",
+    ctaText: "Complete Locksmith Signup",
+    ctaUrl: "https://www.locksafe.uk/for-locksmiths",
+    accentColor: "#f97316",
+    subjects: {
+      direct: [
+        "Custom commission options now available for locksmith partners",
+        "Increase your take-home per locksmith job",
+        "Join LockSafe and keep more from each completed job",
+      ],
+      benefit: [
+        "New local locksmith opportunities in your area",
+        "Grow your locksmith earnings without extra admin",
+        "Ready for more jobs with transparent payouts?",
+      ],
+    },
+  },
+  manager: {
+    campaignName: "Team Manager Onboarding",
+    headline: "Scale your locksmith team with flexible commission setup",
+    preheader: "Onboard engineers under one team and configure custom splits.",
+    body: "<p>If you manage multiple locksmith engineers, LockSafe can help you scale faster with one operational flow.</p><p>Team manager advantages:</p><ul><li><strong>Multi-engineer onboarding:</strong> bring your team into one platform</li><li><strong>Custom split flexibility:</strong> configure member-level commission structure</li><li><strong>Centralized operations:</strong> one system for team growth and job flow</li></ul><p>Complete setup and start onboarding your engineers this week.</p>",
+    ctaText: "Start Team Onboarding",
+    ctaUrl: "https://www.locksafe.uk/for-locksmiths",
+    accentColor: "#3b82f6",
+    subjects: {
+      direct: [
+        "Custom commissions for locksmith team managers",
+        "Offer better split structures to your locksmith team",
+        "Flexible commission setup for growing locksmith companies",
+      ],
+      benefit: [
+        "Scale your locksmith team without extra overhead",
+        "Onboard multiple engineers in one streamlined flow",
+        "Built for locksmith managers ready to grow",
+      ],
+    },
+  },
+};
+
 export default function AdminEmailsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -126,6 +182,9 @@ export default function AdminEmailsPage() {
   const [showPreview, setShowPreview] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [outreachTrack, setOutreachTrack] = useState<OutreachTrack>("independent");
+  const [subjectStyle, setSubjectStyle] = useState<SubjectStyle>("benefit");
+  const [subjectVariant, setSubjectVariant] = useState(0);
 
   // Form state for creating/editing campaigns
   const [formData, setFormData] = useState({
@@ -352,6 +411,43 @@ export default function AdminEmailsPage() {
     });
     setPreviewHtml("");
     setShowPreview(false);
+    setOutreachTrack("independent");
+    setSubjectStyle("benefit");
+    setSubjectVariant(0);
+  };
+
+  const getTrackCandidates = (track: OutreachTrack) => {
+    if (track === "manager") {
+      return locksmiths.filter((ls) => Boolean(ls.companyName));
+    }
+    return locksmiths.filter((ls) => !ls.companyName);
+  };
+
+  const applyOutreachPreset = () => {
+    const preset = OUTREACH_PRESETS[outreachTrack];
+    const subjectCandidates = preset.subjects[subjectStyle];
+    const selectedSubject = subjectCandidates[subjectVariant] || subjectCandidates[0];
+
+    setFormData((prev) => ({
+      ...prev,
+      name: `${preset.campaignName} - ${subjectStyle.toUpperCase()} V${subjectVariant + 1}`,
+      subject: selectedSubject,
+      preheader: preset.preheader,
+      template: "promo",
+      headline: preset.headline,
+      body: preset.body,
+      ctaText: preset.ctaText,
+      ctaUrl: preset.ctaUrl,
+      accentColor: preset.accentColor,
+    }));
+  };
+
+  const applyRecipientSelectionByTrack = () => {
+    const candidates = getTrackCandidates(outreachTrack);
+    setFormData((prev) => ({
+      ...prev,
+      selectedLocksmithIds: candidates.map((ls) => ls.id),
+    }));
   };
 
   // Toggle locksmith selection
@@ -610,6 +706,107 @@ export default function AdminEmailsPage() {
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Form - Left 2 columns */}
         <div className="lg:col-span-2 space-y-6">
+          {/* Outreach Quick Start */}
+          <div className="bg-white rounded-xl shadow-sm p-6 border border-blue-100">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-slate-900">Outreach Quick Start (A/B)</h2>
+              <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700">Signup Focus</span>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Audience Track</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOutreachTrack("independent");
+                      setSubjectVariant(0);
+                    }}
+                    className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                      outreachTrack === "independent"
+                        ? "border-orange-500 bg-orange-50 text-orange-700"
+                        : "border-slate-200 text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    Independent Engineers ({getTrackCandidates("independent").length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOutreachTrack("manager");
+                      setSubjectVariant(0);
+                    }}
+                    className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                      outreachTrack === "manager"
+                        ? "border-blue-500 bg-blue-50 text-blue-700"
+                        : "border-slate-200 text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    Team Managers ({getTrackCandidates("manager").length})
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Subject Style</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSubjectStyle("direct");
+                      setSubjectVariant(0);
+                    }}
+                    className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                      subjectStyle === "direct"
+                        ? "border-slate-800 bg-slate-100 text-slate-900"
+                        : "border-slate-200 text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    Direct (mentions commission)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSubjectStyle("benefit");
+                      setSubjectVariant(0);
+                    }}
+                    className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                      subjectStyle === "benefit"
+                        ? "border-slate-800 bg-slate-100 text-slate-900"
+                        : "border-slate-200 text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    Benefit-first
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Subject Variant</label>
+                <select
+                  value={subjectVariant}
+                  onChange={(e) => setSubjectVariant(Number(e.target.value))}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none bg-white"
+                >
+                  {OUTREACH_PRESETS[outreachTrack].subjects[subjectStyle].map((subject, index) => (
+                    <option key={subject} value={index}>
+                      V{index + 1}: {subject}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button type="button" variant="outline" onClick={applyOutreachPreset} className="flex-1">
+                  Apply Preset Copy
+                </Button>
+                <Button type="button" variant="outline" onClick={applyRecipientSelectionByTrack} className="flex-1">
+                  Auto-Select Track Recipients
+                </Button>
+              </div>
+            </div>
+          </div>
+
           {/* Basic Info */}
           <div className="bg-white rounded-xl shadow-sm p-6">
             <h2 className="text-lg font-semibold text-slate-900 mb-4">Campaign Details</h2>
