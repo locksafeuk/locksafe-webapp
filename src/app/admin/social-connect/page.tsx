@@ -195,11 +195,11 @@ function SocialConnectContent() {
                         )}
                       </p>
                     )}
-                    {expired && !placeholder && account && (
+                    {expired && !placeholder && account && account.tokenExpiresAt && (
                       <p className="text-sm text-amber-700 truncate">
                         {account.accountHandle || account.accountName}
                         <span className="ml-2">
-                          · Token expired {new Date(account.tokenExpiresAt!).toLocaleDateString("en-GB")}
+                          · Token expired {new Date(account.tokenExpiresAt).toLocaleDateString("en-GB")}
                         </span>
                       </p>
                     )}
