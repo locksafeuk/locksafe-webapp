@@ -1079,6 +1079,12 @@ model MarketingPolicy {
   // Notification settings
   notifyOnAutoAction       Boolean  @default(true) // Telegram/email when agent acts
 
+  // LLM emergency fallback policy (local-first by default).
+  // When disabled, agent/model calls must stay on Ollama/Hermes and cannot
+  // fail over to OpenAI.
+  openAiFallbackEnabled    Boolean? @default(false)
+  openAiFallbackMinSeverity String? @default("high") // low | medium | high | critical
+
   // Audit
   updatedBy                String?
   notes                    String?

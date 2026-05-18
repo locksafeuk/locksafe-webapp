@@ -21,6 +21,13 @@ interface Policy {
   updatedAt?: string;
 }
 
+interface LlmPolicy {
+  openAiFallbackEnabled: boolean;
+  openAiFallbackMinSeverity: "low" | "medium" | "high" | "critical";
+  updatedAt?: string;
+  updatedBy?: string | null;
+}
+
 const DEFAULTS: Omit<Policy, "platform"> = {
   autonomyEnabled: false,
   maxDailySpend: 15,
@@ -43,6 +50,10 @@ function withDefaults(platform: string, p?: Policy): Policy {
 
 export default function MarketingPolicyPage() {
   const [policies, setPolicies] = useState<Record<string, Policy>>({});
+  const [llmPolicy, setLlmPolicy] = useState<LlmPolicy>({
+    openAiFallbackEnabled: false,
+    openAiFallbackMinSeverity: "high",
+  });
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
@@ -59,6 +70,15 @@ export default function MarketingPolicyPage() {
           if (!map[platform]) map[platform] = withDefaults(platform);
         }
         setPolicies(map);
+      }
+
+      const llmRes = await fetch("/api/admin/agents/llm-policy");
+      if (llmRes.ok) {
+        const llmData = await llmRes.json();
+        setLlmPolicy((prev) => ({
+          ...prev,
+          ...(llmData.policy as Partial<LlmPolicy>),
+        }));
       }
     } finally {
       setLoading(false);
@@ -123,6 +143,26 @@ export default function MarketingPolicyPage() {
     }
   }
 
+  async function saveLlmPolicy() {
+    setBusy("llm");
+    setMessage(null);
+    try {
+      const res = await fetch("/api/admin/agents/llm-policy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(llmPolicy),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to save LLM policy");
+      setMessage({ kind: "ok", text: "LLM emergency fallback policy saved." });
+      await refresh();
+    } catch (err) {
+      setMessage({ kind: "err", text: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setBusy(null);
+    }
+  }
+
   if (loading) {
     return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
   }
@@ -164,6 +204,57 @@ export default function MarketingPolicyPage() {
           Stop everything
         </button>
       </div>
+
+      <section className="rounded border border-amber-300 bg-amber-50 p-4 space-y-3">
+        <h2 className="font-semibold text-amber-900">LLM emergency fallback policy</h2>
+        <p className="text-sm text-amber-900">
+          Local Ollama/Hermes is always primary. OpenAI fallback is used only when enabled here and only for calls marked with severe incidents.
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={llmPolicy.openAiFallbackEnabled}
+              onChange={(e) =>
+                setLlmPolicy((prev) => ({
+                  ...prev,
+                  openAiFallbackEnabled: e.target.checked,
+                }))
+              }
+            />
+            Enable OpenAI emergency fallback
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="text-muted-foreground text-xs">Minimum incident severity required</span>
+            <select
+              value={llmPolicy.openAiFallbackMinSeverity}
+              onChange={(e) =>
+                setLlmPolicy((prev) => ({
+                  ...prev,
+                  openAiFallbackMinSeverity: e.target.value as LlmPolicy["openAiFallbackMinSeverity"],
+                }))
+              }
+              className="rounded border px-2 py-1 bg-white"
+            >
+              <option value="low">low</option>
+              <option value="medium">medium</option>
+              <option value="high">high</option>
+              <option value="critical">critical</option>
+            </select>
+          </label>
+        </div>
+
+        <button
+          type="button"
+          disabled={busy === "llm"}
+          onClick={saveLlmPolicy}
+          className="rounded bg-amber-600 px-4 py-2 text-white text-sm hover:bg-amber-700 disabled:opacity-50"
+        >
+          Save LLM policy
+        </button>
+      </section>
 
       {PLATFORMS.map((platform) => {
         const p = policies[platform];

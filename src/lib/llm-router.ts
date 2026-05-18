@@ -99,6 +99,12 @@ const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
 const OLLAMA_SECRET   = process.env.OLLAMA_SECRET;
 const OPENAI_API_KEY  = process.env.OPENAI_API_KEY;
 const OPENAI_FALLBACK_ENABLED = process.env.OPENAI_FALLBACK_ENABLED === "true";
+const LLM_POLICY_CACHE_TTL_MS = 30_000;
+
+let llmPolicyCache: {
+  value: { openAiFallbackEnabled: boolean; openAiFallbackMinSeverity: FallbackSeverity };
+  expiresAt: number;
+} | null = null;
 
 // ─── Core router ─────────────────────────────────────────────────────────────
 
@@ -118,7 +124,7 @@ export async function chat(
     const msg = err instanceof Error ? err.message : String(err);
     console.warn(`[LLM Router] Local model failed (${localModel}): ${msg}`);
 
-    if (!shouldUseOpenAIFallback(options)) {
+    if (!(await shouldUseOpenAIFallback(options))) {
       throw new Error(
         `[LLM Router] Local model failed and OpenAI fallback is disabled. ` +
         `Enable allowOpenAIFallback with high/critical severity for emergency fallback.`
@@ -129,21 +135,82 @@ export async function chat(
   return callOpenAI(modelConfig.openAiFallbackModel, messages, options, startMs, true);
 }
 
-function shouldUseOpenAIFallback(options: LLMOptions): boolean {
+async function shouldUseOpenAIFallback(options: LLMOptions): Promise<boolean> {
   if (!OPENAI_API_KEY) {
     return false;
   }
 
-  const severity = options.fallbackSeverity ?? "low";
-  if (SEVERITY_RANK[severity] < SEVERITY_RANK.high) {
+  const policy = await getRuntimeLlmPolicy();
+  if (!policy.openAiFallbackEnabled && !OPENAI_FALLBACK_ENABLED) {
     return false;
   }
 
-  if (options.allowOpenAIFallback) {
+  if (!options.allowOpenAIFallback) {
+    return false;
+  }
+
+  const severity = options.fallbackSeverity ?? "low";
+  if (SEVERITY_RANK[severity] < SEVERITY_RANK[policy.openAiFallbackMinSeverity]) {
+    return false;
+  }
+
+  if (policy.openAiFallbackEnabled) {
     return true;
   }
 
   return OPENAI_FALLBACK_ENABLED;
+}
+
+async function getRuntimeLlmPolicy(): Promise<{
+  openAiFallbackEnabled: boolean;
+  openAiFallbackMinSeverity: FallbackSeverity;
+}> {
+  const now = Date.now();
+  if (llmPolicyCache && llmPolicyCache.expiresAt > now) {
+    return llmPolicyCache.value;
+  }
+
+  const defaultPolicy = {
+    openAiFallbackEnabled: false,
+    openAiFallbackMinSeverity: "high" as FallbackSeverity,
+  };
+
+  try {
+    const { prisma } = await import("@/lib/db");
+    const globalPolicy = await prisma.marketingPolicy.findUnique({
+      where: { platform: "global" },
+      select: {
+        openAiFallbackEnabled: true,
+        openAiFallbackMinSeverity: true,
+      },
+    });
+
+    const severity = String(globalPolicy?.openAiFallbackMinSeverity ?? "high").toLowerCase();
+    const parsedSeverity =
+      severity === "low" || severity === "medium" || severity === "high" || severity === "critical"
+        ? (severity as FallbackSeverity)
+        : "high";
+
+    const value = {
+      openAiFallbackEnabled: Boolean(globalPolicy?.openAiFallbackEnabled),
+      openAiFallbackMinSeverity: parsedSeverity,
+    };
+
+    llmPolicyCache = {
+      value,
+      expiresAt: now + LLM_POLICY_CACHE_TTL_MS,
+    };
+
+    return value;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[LLM Router] Failed to load runtime LLM policy, using defaults: ${message}`);
+    llmPolicyCache = {
+      value: defaultPolicy,
+      expiresAt: now + LLM_POLICY_CACHE_TTL_MS,
+    };
+    return defaultPolicy;
+  }
 }
 
 export async function complete(
