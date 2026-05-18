@@ -18,7 +18,7 @@ export const CMO_AGENT_CONFIG: AgentConfig = {
   role: "Chief Marketing Officer - Manages ad campaigns, content generation, and marketing strategy",
   skillsPath: "cmo/SKILL.md",
   monthlyBudgetUsd: 60,
-  heartbeatCronExpr: "0 */2 * * *", // Every 2 hours
+  heartbeatCronExpr: "0 */6 * * *", // Every 6 hours (non-workflow tier — reduced from 2h)
   permissions: [
     "cmo",
     "copywriter",

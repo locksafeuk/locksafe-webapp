@@ -22,6 +22,14 @@ import {
 import { chat, Models } from '@/lib/llm-router';
 import type { LLMMessage } from '@/lib/llm-router';
 import { sendAdminAlert } from '@/lib/telegram';
+import {
+  getOperationalPolicy,
+  isGuardianAgent,
+  shouldEmitAlert,
+  GUARDIAN_AGENT_NAMES,
+} from './operational-policy';
+
+export { GUARDIAN_AGENT_NAMES };
 
 // ─── In-Memory Agent State Store ──────────────────────────────────────────────
 
@@ -35,11 +43,21 @@ const agentPriorities = new Map<string, number>();
 
 // Incident dedupe map: signature -> last sent timestamp
 const incidentDedupe = new Map<string, number>();
-const INCIDENT_DEDUPE_WINDOW_MS = 15 * 60 * 1000;
+
+// Dedupe and rate-limit values are env-configurable so we can tune Telegram
+// noise without a redeploy. Defaults preserve previous behaviour for guardian
+// alerts, with a longer window for non-workflow agents.
+const INCIDENT_DEDUPE_WINDOW_MS =
+  Math.max(1, Number(process.env.AGENT_DEDUPE_WINDOW_MIN ?? '15')) * 60 * 1000;
+const NON_WORKFLOW_DEDUPE_WINDOW_MS =
+  Math.max(1, Number(process.env.NON_WORKFLOW_DEDUPE_WINDOW_MIN ?? '60')) * 60 * 1000;
 
 // Telegram rate limiting
 let lastTelegramMessage = 0;
-const TELEGRAM_RATE_LIMIT_MS = 3000;
+const TELEGRAM_RATE_LIMIT_MS = Math.max(
+  500,
+  Number(process.env.AGENT_TELEGRAM_RATE_LIMIT_MS ?? '3000'),
+);
 
 // ─── Telegram Rate Limiting ──────────────────────────────────────────────────
 
@@ -51,10 +69,10 @@ export function recordTelegramMessage(): void {
   lastTelegramMessage = Date.now();
 }
 
-function shouldEscalateIncident(signature: string): boolean {
+function shouldEscalateIncident(signature: string, windowMs: number): boolean {
   const now = Date.now();
   const previous = incidentDedupe.get(signature);
-  if (previous && now - previous < INCIDENT_DEDUPE_WINDOW_MS) {
+  if (previous && now - previous < windowMs) {
     return false;
   }
   incidentDedupe.set(signature, now);
@@ -72,6 +90,64 @@ function extractInvalidSchemaToolNames(schemaErrors: string[]): string[] {
   return Array.from(toolNames);
 }
 
+/**
+ * Execute a tool with bounded exponential-backoff retry for transient failures.
+ * Only retries on network/DB-shaped errors; permanent errors return on the
+ * first attempt.
+ */
+type ToolExecutor = (
+  name: string,
+  args: Record<string, unknown>,
+  ctx: AgentContext,
+) => Promise<{ success: boolean; data?: unknown; error?: string }>;
+
+function isTransientToolError(err: string | undefined): boolean {
+  if (!err) return false;
+  const lower = err.toLowerCase();
+  return (
+    lower.includes('etimedout') ||
+    lower.includes('econnreset') ||
+    lower.includes('econnrefused') ||
+    lower.includes('socket hang up') ||
+    lower.includes('network') ||
+    lower.includes('timeout') ||
+    lower.includes('temporarily unavailable') ||
+    lower.includes('rate limit') ||
+    lower.includes('503') ||
+    lower.includes('502')
+  );
+}
+
+async function executeToolWithRetry(
+  executeTool: ToolExecutor,
+  name: string,
+  args: Record<string, unknown>,
+  ctx: AgentContext,
+  maxAttempts = 3,
+): Promise<{ success: boolean; data?: unknown; error?: string }> {
+  let lastResult: { success: boolean; data?: unknown; error?: string } = {
+    success: false,
+    error: 'unknown',
+  };
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      lastResult = await executeTool(name, args, ctx);
+    } catch (err) {
+      lastResult = {
+        success: false,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+    if (lastResult.success) return lastResult;
+    if (!isTransientToolError(lastResult.error)) return lastResult;
+    if (attempt < maxAttempts) {
+      const delayMs = Math.min(2000, 200 * 2 ** (attempt - 1));
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+  return lastResult;
+}
+
 async function escalateHeartbeatIncident(params: {
   incidentKey: string;
   sourceAgentName: string;
@@ -79,25 +155,53 @@ async function escalateHeartbeatIncident(params: {
   title: string;
   message: string;
   taskDescription: string;
+  severity?: 'info' | 'warning' | 'error' | 'critical';
 }): Promise<void> {
-  if (!shouldEscalateIncident(params.incidentKey)) {
+  const guardian = isGuardianAgent(params.sourceAgentName);
+  const severity = params.severity ?? (guardian ? 'error' : 'warning');
+  const dedupeWindow = guardian
+    ? INCIDENT_DEDUPE_WINDOW_MS
+    : NON_WORKFLOW_DEDUPE_WINDOW_MS;
+
+  if (!shouldEscalateIncident(params.incidentKey, dedupeWindow)) {
     return;
   }
 
+  const policy = await getOperationalPolicy();
+  const emitAlert = shouldEmitAlert(
+    params.sourceAgentName,
+    severity,
+    policy.alertSensitivity,
+  );
+
   const targetAgent = params.sourceAgentName === 'cto' ? 'ceo' : 'cto';
 
-  await Promise.allSettled([
-    sendAdminAlert({
-      title: params.title,
-      message: params.message,
-      severity: 'error',
-    }),
+  const tasks: Promise<unknown>[] = [
     delegateTask(params.sourceAgentDbId, targetAgent, {
       title: `[Repair] ${params.title}`,
       description: params.taskDescription,
       priority: 9,
     }),
-  ]);
+  ];
+
+  if (emitAlert) {
+    const telegramSeverity: 'info' | 'warning' | 'error' =
+      severity === 'critical' ? 'error' : severity;
+    tasks.push(
+      sendAdminAlert({
+        title: params.title,
+        message: params.message,
+        severity: telegramSeverity,
+      }),
+    );
+  } else {
+    console.log(
+      `[Orchestrator] Suppressing Telegram alert for ${params.sourceAgentName} ` +
+      `(${severity}) under sensitivity=${policy.alertSensitivity}`,
+    );
+  }
+
+  await Promise.allSettled(tasks);
 }
 
 // ─── DB Sync ─────────────────────────────────────────────────────────────────
@@ -385,7 +489,23 @@ export async function executeHeartbeat(agentId: string): Promise<HeartbeatResult
     ];
 
     const MAX_ITERATIONS = 5;
+    // In-heartbeat memoization for idempotent read-only tools. Avoids the LLM
+    // re-fetching the same data within a single heartbeat reasoning loop.
+    const toolCallCache = new Map<string, unknown>();
+    const READ_ONLY_TOOL_PREFIXES = ['get', 'list', 'check', 'fetch', 'read', 'query'];
+    const isReadOnlyTool = (name: string): boolean =>
+      READ_ONLY_TOOL_PREFIXES.some((p) => name.toLowerCase().startsWith(p));
+
     for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
+      // Iteration-level budget guard — stop the loop if budget exhausted.
+      if (totalCost >= budgetRemaining) {
+        console.warn(
+          `[Orchestrator:${agentId}] Budget guard tripped at iter ${iter} ` +
+          `(spent $${totalCost.toFixed(4)} of $${budgetRemaining.toFixed(2)})`,
+        );
+        break;
+      }
+
       const response = await chat(Models.HERMES, messages, {
         tools: toolDefs,
         temperature: 0.2,
@@ -405,16 +525,34 @@ export async function executeHeartbeat(agentId: string): Promise<HeartbeatResult
       // Execute each tool call and feed result back into conversation
       for (const call of response.toolCalls) {
         console.log(`[Orchestrator:${agentId}] Tool call → ${call.name}`, call.arguments);
-        const result = await executeTool(call.name, call.arguments, agentCtx);
-        actionsExecuted++;
 
+        const cacheKey = `${call.name}:${JSON.stringify(call.arguments ?? {})}`;
+        let resultPayload: { success: boolean; data?: unknown; error?: string };
+
+        if (isReadOnlyTool(call.name) && toolCallCache.has(cacheKey)) {
+          resultPayload = toolCallCache.get(cacheKey) as typeof resultPayload;
+          console.log(`[Orchestrator:${agentId}] Cache hit → ${call.name}`);
+        } else {
+          // Retry with exponential backoff for transient failures (network/DB).
+          resultPayload = await executeToolWithRetry(
+            executeTool,
+            call.name,
+            call.arguments,
+            agentCtx,
+          );
+          if (isReadOnlyTool(call.name) && resultPayload.success) {
+            toolCallCache.set(cacheKey, resultPayload);
+          }
+        }
+
+        actionsExecuted++;
         // Nominal cost tracking ($0 for local Ollama, but tracked for auditing)
         totalCost += 0.001;
 
         messages.push({
           role: 'user',
           content: `Tool "${call.name}" returned: ${JSON.stringify(
-            result.success ? result.data : { error: result.error }
+            resultPayload.success ? resultPayload.data : { error: resultPayload.error }
           )}`,
         });
       }

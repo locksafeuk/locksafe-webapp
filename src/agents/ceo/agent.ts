@@ -17,7 +17,7 @@ export const CEO_AGENT_CONFIG: AgentConfig = {
   role: "Chief Executive Officer - Strategic coordination, resource allocation, and company oversight",
   skillsPath: "ceo/SKILL.md",
   monthlyBudgetUsd: 100,
-  heartbeatCronExpr: "0 */4 * * *", // Every 4 hours
+  heartbeatCronExpr: "0 */8 * * *", // Every 8 hours (non-workflow tier — reduced from 4h)
   permissions: [
     "ceo",
     "analyst",

@@ -17,7 +17,7 @@ export const ADS_SPECIALIST_AGENT_CONFIG: AgentConfig = {
   role: "Campaign Management Specialist - Ad campaigns, targeting, and optimization",
   skillsPath: "cmo/subagents/ads-specialist/SKILL.md",
   monthlyBudgetUsd: 25,
-  heartbeatCronExpr: "0 */2 * * *", // Every 2 hours
+  heartbeatCronExpr: "0 */6 * * *", // Every 6 hours (non-workflow tier — reduced from 2h)
   permissions: [
     "ads-specialist",
     "marketing",

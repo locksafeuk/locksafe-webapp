@@ -357,6 +357,11 @@ export async function runAgentHeartbeats(): Promise<{
   // Cleanup expired messages
   await cleanupExpiredMessages();
 
+  // Operational policy — guardian mode and concurrency knobs.
+  const { getOperationalPolicy } = await import("@/agents/core/operational-policy");
+  const policy = await getOperationalPolicy();
+  const guardianOnly = policy.guardianModeEnabled;
+
   // Wrap each agent heartbeat fn to capture success/errors uniformly
   async function runWithResult(name: string, fn: () => Promise<void>) {
     try {
@@ -369,32 +374,100 @@ export async function runAgentHeartbeats(): Promise<{
     }
   }
 
-  // Independent executives run in parallel (no cross-dependencies)
-  const independentSettled = await Promise.allSettled([
-    runWithResult("ceo", runCEOHeartbeat),
-    runWithResult("cto", runCTOHeartbeat),
-    runWithResult("coo", runCOOHeartbeat),
-  ]);
-  const independentResults = independentSettled.map((r, i) => {
-    const names = ["ceo", "cto", "coo"];
-    if (r.status === "fulfilled") return r.value;
-    return { success: false, agentName: names[i], actionsExecuted: 0, costUsd: 0, errors: [(r.reason as Error)?.message ?? "Unknown"], nextHeartbeat: new Date() };
-  });
+  // Bounded-concurrency runner — caps simultaneous heartbeats to avoid
+  // overloading Ollama/Hermes and to keep token noise predictable.
+  const CONCURRENCY_CAP = Math.max(
+    1,
+    Number(process.env.AGENT_HEARTBEAT_CONCURRENCY ?? "3"),
+  );
+  async function runLimited(
+    jobs: Array<{ name: string; fn: () => Promise<void> }>,
+    limit: number,
+  ) {
+    const out: Awaited<ReturnType<typeof runWithResult>>[] = new Array(jobs.length);
+    let cursor = 0;
+    async function worker() {
+      while (cursor < jobs.length) {
+        const idx = cursor++;
+        out[idx] = await runWithResult(jobs[idx].name, jobs[idx].fn);
+      }
+    }
+    const workers = Array.from({ length: Math.min(limit, jobs.length) }, worker);
+    await Promise.all(workers);
+    return out;
+  }
+
+  // Guardians always run (COO + CTO) — they protect dispatch/SLA/system health
+  // and must never be throttled by guardian mode or sensitivity controls.
+  const guardianJobs = [
+    { name: "cto", fn: runCTOHeartbeat },
+    { name: "coo", fn: runCOOHeartbeat },
+  ];
+
+  if (guardianOnly) {
+    console.log("[Heartbeats] Guardian Mode ON — running guardians only (CTO, COO)");
+    const guardianResults = await runLimited(guardianJobs, CONCURRENCY_CAP);
+    return {
+      success: guardianResults.every(r => r.success),
+      agentsRun: guardianResults.length,
+      totalActions: guardianResults.reduce((sum, r) => sum + r.actionsExecuted, 0),
+      totalCost: guardianResults.reduce((sum, r) => sum + r.costUsd, 0),
+      errors: guardianResults.flatMap(r => r.errors),
+      results: guardianResults.map(r => ({
+        agentName: r.agentName,
+        success: r.success,
+        actionsExecuted: r.actionsExecuted,
+        costUsd: r.costUsd,
+        errors: r.errors,
+      })),
+    };
+  }
+
+  // Non-workflow heartbeat multiplier — when >1, skip CEO/CMO/subagents on
+  // (cycle % multiplier !== 0). Guardians are always exempt.
+  const multiplier = Math.max(1, policy.nonWorkflowHeartbeatMultiplier);
+  const cycleIndex = Math.floor(Date.now() / (5 * 60 * 1000)); // 5-min cron cadence
+  const skipNonWorkflow = multiplier > 1 && cycleIndex % multiplier !== 0;
+
+  // Independent executives — guardians + CEO when non-workflow active.
+  const independentJobs = skipNonWorkflow
+    ? guardianJobs
+    : [...guardianJobs, { name: "ceo", fn: runCEOHeartbeat }];
+
+  const independentResults = await runLimited(independentJobs, CONCURRENCY_CAP);
+
+  if (skipNonWorkflow) {
+    console.log(
+      `[Heartbeats] Non-workflow tier skipped this cycle (multiplier=${multiplier}, cycle=${cycleIndex})`,
+    );
+    return {
+      success: independentResults.every(r => r.success),
+      agentsRun: independentResults.length,
+      totalActions: independentResults.reduce((sum, r) => sum + r.actionsExecuted, 0),
+      totalCost: independentResults.reduce((sum, r) => sum + r.costUsd, 0),
+      errors: independentResults.flatMap(r => r.errors),
+      results: independentResults.map(r => ({
+        agentName: r.agentName,
+        success: r.success,
+        actionsExecuted: r.actionsExecuted,
+        costUsd: r.costUsd,
+        errors: r.errors,
+      })),
+    };
+  }
 
   // CMO depends on CEO results — run after independent agents
   const cmoResult = await runWithResult("cmo", runCMOHeartbeat);
 
-  // CMO subagents run after CMO
-  const subagentSettled = await Promise.allSettled([
-    runWithResult("copywriter", runCopywriterHeartbeat),
-    runWithResult("ads-specialist", runAdsSpecialistHeartbeat),
-    runWithResult("social-media", runSocialMediaHeartbeat),
-  ]);
-  const subagentResults = subagentSettled.map((r, i) => {
-    const names = ["copywriter", "ads-specialist", "social-media"];
-    if (r.status === "fulfilled") return r.value;
-    return { success: false, agentName: names[i], actionsExecuted: 0, costUsd: 0, errors: [(r.reason as Error)?.message ?? "Unknown"], nextHeartbeat: new Date() };
-  });
+  // CMO subagents run after CMO, bounded by concurrency cap
+  const subagentResults = await runLimited(
+    [
+      { name: "copywriter", fn: runCopywriterHeartbeat },
+      { name: "ads-specialist", fn: runAdsSpecialistHeartbeat },
+      { name: "social-media", fn: runSocialMediaHeartbeat },
+    ],
+    CONCURRENCY_CAP,
+  );
 
   const results = [...independentResults, cmoResult, ...subagentResults];
 

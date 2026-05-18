@@ -1085,6 +1085,17 @@ model MarketingPolicy {
   openAiFallbackEnabled    Boolean? @default(false)
   openAiFallbackMinSeverity String? @default("high") // low | medium | high | critical
 
+  // Operational policy (runtime controls for orchestrator).
+  // guardianModeEnabled: when true, only guardian agents (coo, cto) run; other
+  //   agents are skipped silently to cut Telegram/token noise during incidents.
+  // alertSensitivity: "all" | "workflow" | "critical" — gates Telegram alerts
+  //   from non-workflow agents.
+  // nonWorkflowHeartbeatMultiplier: integer >=1 that multiplies the cadence of
+  //   non-guardian agents (e.g. 2 = run half as often). Applied at dispatch time.
+  guardianModeEnabled            Boolean? @default(false)
+  alertSensitivity               String?  @default("workflow") // all | workflow | critical
+  nonWorkflowHeartbeatMultiplier Int?     @default(1)
+
   // Audit
   updatedBy                String?
   notes                    String?

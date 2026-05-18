@@ -85,6 +85,9 @@ interface HeartbeatResult {
 interface LlmPolicy {
   openAiFallbackEnabled: boolean;
   openAiFallbackMinSeverity: "low" | "medium" | "high" | "critical";
+  guardianModeEnabled: boolean;
+  alertSensitivity: "all" | "workflow" | "critical";
+  nonWorkflowHeartbeatMultiplier: number;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -149,12 +152,16 @@ export default function MissionControlPage() {
   const [llmPolicy, setLlmPolicy] = useState<LlmPolicy>({
     openAiFallbackEnabled: false,
     openAiFallbackMinSeverity: "high",
+    guardianModeEnabled: false,
+    alertSensitivity: "workflow",
+    nonWorkflowHeartbeatMultiplier: 1,
   });
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [testing, setTesting] = useState(false);
   const [togglingFallback, setTogglingFallback] = useState(false);
+  const [savingPolicy, setSavingPolicy] = useState(false);
   const [testResults, setTestResults] = useState<HeartbeatResult[]>([]);
   const [showTestPanel, setShowTestPanel] = useState(false);
   const activityRef = useRef<HTMLDivElement>(null);
@@ -190,6 +197,9 @@ export default function MissionControlPage() {
         setLlmPolicy({
           openAiFallbackEnabled: Boolean(data.policy.openAiFallbackEnabled),
           openAiFallbackMinSeverity: (data.policy.openAiFallbackMinSeverity || "high") as LlmPolicy["openAiFallbackMinSeverity"],
+          guardianModeEnabled: Boolean(data.policy.guardianModeEnabled),
+          alertSensitivity: (data.policy.alertSensitivity || "workflow") as LlmPolicy["alertSensitivity"],
+          nonWorkflowHeartbeatMultiplier: Math.max(1, Number(data.policy.nonWorkflowHeartbeatMultiplier ?? 1)),
         });
       }
     } catch {
@@ -269,6 +279,9 @@ export default function MissionControlPage() {
           setLlmPolicy({
             openAiFallbackEnabled: Boolean(data.policy.openAiFallbackEnabled),
             openAiFallbackMinSeverity: (data.policy.openAiFallbackMinSeverity || "high") as LlmPolicy["openAiFallbackMinSeverity"],
+            guardianModeEnabled: Boolean(data.policy.guardianModeEnabled),
+            alertSensitivity: (data.policy.alertSensitivity || "workflow") as LlmPolicy["alertSensitivity"],
+            nonWorkflowHeartbeatMultiplier: Math.max(1, Number(data.policy.nonWorkflowHeartbeatMultiplier ?? 1)),
           });
           toast({
             title: data.policy.openAiFallbackEnabled
@@ -290,6 +303,55 @@ export default function MissionControlPage() {
       setTogglingFallback(false);
     }
   };
+
+  const updateOperationalPolicy = async (patch: Partial<LlmPolicy>, label: string) => {
+    setSavingPolicy(true);
+    try {
+      const res = await fetch("/api/admin/agents/llm-policy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || `Failed to update ${label}`);
+      }
+      const data = await res.json();
+      if (data?.policy) {
+        setLlmPolicy({
+          openAiFallbackEnabled: Boolean(data.policy.openAiFallbackEnabled),
+          openAiFallbackMinSeverity: (data.policy.openAiFallbackMinSeverity || "high") as LlmPolicy["openAiFallbackMinSeverity"],
+          guardianModeEnabled: Boolean(data.policy.guardianModeEnabled),
+          alertSensitivity: (data.policy.alertSensitivity || "workflow") as LlmPolicy["alertSensitivity"],
+          nonWorkflowHeartbeatMultiplier: Math.max(1, Number(data.policy.nonWorkflowHeartbeatMultiplier ?? 1)),
+        });
+        toast({ title: `${label} updated` });
+      }
+    } catch (error) {
+      toast({
+        title: `Failed to update ${label}`,
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "error",
+      });
+    } finally {
+      setSavingPolicy(false);
+    }
+  };
+
+  const toggleGuardianMode = () =>
+    updateOperationalPolicy(
+      { guardianModeEnabled: !llmPolicy.guardianModeEnabled },
+      "Guardian Mode",
+    );
+
+  const changeAlertSensitivity = (value: LlmPolicy["alertSensitivity"]) =>
+    updateOperationalPolicy({ alertSensitivity: value }, "Alert sensitivity");
+
+  const changeHeartbeatMultiplier = (value: number) =>
+    updateOperationalPolicy(
+      { nonWorkflowHeartbeatMultiplier: value },
+      "Heartbeat multiplier",
+    );
 
   if (loading) {
     return (
@@ -348,6 +410,43 @@ export default function MissionControlPage() {
                   ? `Fallback ON (${llmPolicy.openAiFallbackMinSeverity})`
                   : "Fallback OFF"}
               </Button>
+              <Button
+                variant={llmPolicy.guardianModeEnabled ? "default" : "outline"}
+                size="sm"
+                onClick={toggleGuardianMode}
+                disabled={savingPolicy}
+                className={llmPolicy.guardianModeEnabled ? "bg-red-600 hover:bg-red-700 text-white" : ""}
+                title="Guardian Mode: only COO + CTO run. Use during incidents to cut noise."
+              >
+                {savingPolicy
+                  ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                  : <Target className="h-3.5 w-3.5 mr-1.5" />}
+                {llmPolicy.guardianModeEnabled ? "Guardian ON" : "Guardian OFF"}
+              </Button>
+              <select
+                value={llmPolicy.alertSensitivity}
+                onChange={(e) => changeAlertSensitivity(e.target.value as LlmPolicy["alertSensitivity"])}
+                disabled={savingPolicy}
+                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                title="Telegram alert sensitivity for non-workflow agents"
+              >
+                <option value="all">Alerts: all</option>
+                <option value="workflow">Alerts: workflow</option>
+                <option value="critical">Alerts: critical only</option>
+              </select>
+              <select
+                value={llmPolicy.nonWorkflowHeartbeatMultiplier}
+                onChange={(e) => changeHeartbeatMultiplier(Number(e.target.value))}
+                disabled={savingPolicy}
+                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                title="Non-workflow heartbeat multiplier (higher = less frequent)"
+              >
+                <option value={1}>HB ×1</option>
+                <option value={2}>HB ×2</option>
+                <option value={3}>HB ×3</option>
+                <option value={4}>HB ×4</option>
+                <option value={6}>HB ×6</option>
+              </select>
               <Button size="sm" onClick={runFullTest} disabled={testing}
                 className="bg-orange-500 hover:bg-orange-600 text-white">
                 {testing
