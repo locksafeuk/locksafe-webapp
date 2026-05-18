@@ -158,19 +158,57 @@ export function generateFunctionDefinitions(permissions: string[]): Array<{
       parameters: {
         type: "object" as const,
         properties: Object.fromEntries(
-          tool.parameters.map(param => [
-            param.name,
-            {
+          tool.parameters.map(param => {
+            const propertySchema: Record<string, unknown> = {
               type: param.type,
               description: param.description,
               ...(param.enum ? { enum: param.enum } : {}),
-            },
-          ])
+            };
+
+            if (param.type === 'array') {
+              propertySchema.items = { type: param.itemsType ?? 'string' };
+            }
+
+            return [param.name, propertySchema];
+          })
         ),
         required: tool.parameters.filter(p => p.required).map(p => p.name),
       },
     },
   }));
+}
+
+/**
+ * Validate generated function definitions before sending them to model providers.
+ */
+export function validateFunctionDefinitions(definitions: ReturnType<typeof generateFunctionDefinitions>): string[] {
+  const errors: string[] = [];
+
+  for (const def of definitions) {
+    const properties = def.function.parameters.properties;
+    for (const [propertyName, schema] of Object.entries(properties)) {
+      if (!schema || typeof schema !== 'object') {
+        continue;
+      }
+
+      const typedSchema = schema as Record<string, unknown>;
+      if (typedSchema.type === 'array') {
+        const items = typedSchema.items;
+        const itemsType =
+          items && typeof items === 'object'
+            ? (items as Record<string, unknown>).type
+            : undefined;
+
+        if (typeof itemsType !== 'string' || itemsType.length === 0) {
+          errors.push(
+            `Tool ${def.function.name} has invalid array schema for parameter \"${propertyName}\": missing items.type`
+          );
+        }
+      }
+    }
+  }
+
+  return errors;
 }
 
 /**

@@ -29,11 +29,12 @@ async function main() {
       heartbeatEnabled: true,
       heartbeatCronExpr: "0 */4 * * *",
       governanceLevel: "supervised",
-      permissions: ["read_all", "delegate", "approve", "telegram_notify"],
+      permissions: ["read_all", "delegate", "approve", "telegram_notify", "repair_system"],
     },
     update: {
       status: "active",
       heartbeatEnabled: true,
+      permissions: ["read_all", "delegate", "approve", "telegram_notify", "repair_system"],
     },
   });
   console.log(`✅ CEO Agent: ${ceo.id}`);
@@ -95,11 +96,12 @@ async function main() {
       heartbeatEnabled: true,
       heartbeatCronExpr: "*/15 * * * *",
       governanceLevel: "supervised",
-      permissions: ["read_system", "read_errors", "telegram_notify"],
+      permissions: ["read_system", "read_errors", "telegram_notify", "repair_system"],
     },
     update: {
       status: "active",
       heartbeatEnabled: true,
+      permissions: ["read_system", "read_errors", "telegram_notify", "repair_system"],
     },
   });
   console.log(`✅ CTO Agent: ${cto.id}`);

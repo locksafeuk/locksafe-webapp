@@ -35,6 +35,7 @@ export interface ParsedSkills {
 export interface ToolParameter {
   name: string;
   type: string;
+  itemsType?: 'string' | 'number' | 'integer' | 'boolean' | 'object';
   required: boolean;
   description: string;
   enum?: string[];

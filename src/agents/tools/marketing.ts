@@ -835,6 +835,7 @@ export const createGoogleAdsDraftTool: AgentTool = {
     {
       name: "competitorBrands",
       type: "array",
+      itemsType: "string",
       required: false,
       description: "Competitor brand names to add as negative keywords",
     },
@@ -1426,6 +1427,7 @@ export const launchAcquisitionEngineTool: AgentTool = {
     {
       name: "slugs",
       type: "array",
+      itemsType: "string",
       required: true,
       description: "Service catalog slugs to target (e.g. ['locked-out','emergency-locksmith'])",
     },

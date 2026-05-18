@@ -21,6 +21,7 @@ import {
 } from './message-bus';
 import { chat, Models } from '@/lib/llm-router';
 import type { LLMMessage } from '@/lib/llm-router';
+import { sendAdminAlert } from '@/lib/telegram';
 
 // ─── In-Memory Agent State Store ──────────────────────────────────────────────
 
@@ -31,6 +32,10 @@ const agentDependencies = new Map<string, string[]>();
 
 // Agent priority levels (higher = runs first)
 const agentPriorities = new Map<string, number>();
+
+// Incident dedupe map: signature -> last sent timestamp
+const incidentDedupe = new Map<string, number>();
+const INCIDENT_DEDUPE_WINDOW_MS = 15 * 60 * 1000;
 
 // Telegram rate limiting
 let lastTelegramMessage = 0;
@@ -44,6 +49,55 @@ export function canSendTelegramMessage(): boolean {
 
 export function recordTelegramMessage(): void {
   lastTelegramMessage = Date.now();
+}
+
+function shouldEscalateIncident(signature: string): boolean {
+  const now = Date.now();
+  const previous = incidentDedupe.get(signature);
+  if (previous && now - previous < INCIDENT_DEDUPE_WINDOW_MS) {
+    return false;
+  }
+  incidentDedupe.set(signature, now);
+  return true;
+}
+
+function extractInvalidSchemaToolNames(schemaErrors: string[]): string[] {
+  const toolNames = new Set<string>();
+  for (const err of schemaErrors) {
+    const match = err.match(/Tool\s+([^\s]+)\s+has\s+invalid\s+array\s+schema/i);
+    if (match?.[1]) {
+      toolNames.add(match[1]);
+    }
+  }
+  return Array.from(toolNames);
+}
+
+async function escalateHeartbeatIncident(params: {
+  incidentKey: string;
+  sourceAgentName: string;
+  sourceAgentDbId: string;
+  title: string;
+  message: string;
+  taskDescription: string;
+}): Promise<void> {
+  if (!shouldEscalateIncident(params.incidentKey)) {
+    return;
+  }
+
+  const targetAgent = params.sourceAgentName === 'cto' ? 'ceo' : 'cto';
+
+  await Promise.allSettled([
+    sendAdminAlert({
+      title: params.title,
+      message: params.message,
+      severity: 'error',
+    }),
+    delegateTask(params.sourceAgentDbId, targetAgent, {
+      title: `[Repair] ${params.title}`,
+      description: params.taskDescription,
+      priority: 9,
+    }),
+  ]);
 }
 
 // ─── DB Sync ─────────────────────────────────────────────────────────────────
@@ -244,6 +298,7 @@ export async function executeHeartbeat(agentId: string): Promise<HeartbeatResult
     const {
       initializeTools,
       generateFunctionDefinitions,
+      validateFunctionDefinitions,
       executeTool,
     } = await import('@/agents/tools/index');
     initializeTools();
@@ -255,14 +310,52 @@ export async function executeHeartbeat(agentId: string): Promise<HeartbeatResult
       budgetRemaining,
     };
 
+    const functionDefs = generateFunctionDefinitions(dbAgent.permissions);
+    const schemaErrors = validateFunctionDefinitions(functionDefs);
+    const invalidSchemaTools = extractInvalidSchemaToolNames(schemaErrors);
+
+    const activeFunctionDefs =
+      invalidSchemaTools.length > 0
+        ? functionDefs.filter((def) => !invalidSchemaTools.includes(def.function.name))
+        : functionDefs;
+
+    if (schemaErrors.length > 0) {
+      errors.push(`Schema validation issues detected: ${schemaErrors.join('; ')}`);
+
+      await escalateHeartbeatIncident({
+        incidentKey: `schema:${agentId}:${invalidSchemaTools.sort().join(',') || 'unknown'}`,
+        sourceAgentName: agentId,
+        sourceAgentDbId: dbAgent.id,
+        title: `Agent tool schema issue isolated (${agentId})`,
+        message:
+          `Detected invalid tool schema during heartbeat for ${agentId}. ` +
+          `${invalidSchemaTools.length > 0 ? `Isolated tools: ${invalidSchemaTools.join(', ')}` : 'Tool names not parsed from validator output.'}`,
+        taskDescription:
+          `Heartbeat schema preflight failed for ${agentId}.\n` +
+          `Errors:\n- ${schemaErrors.join('\n- ')}\n\n` +
+          `Isolated tools: ${invalidSchemaTools.join(', ') || 'none detected'}.\n` +
+          `Investigate tool parameter definitions and registry schema generation.`,
+      });
+    }
+
+    if (activeFunctionDefs.length === 0) {
+      throw new Error('No valid tools available after schema isolation.');
+    }
+
     // Cast to OllamaTool[] — the shape is identical; registry returns OpenAI-compatible format
-    const toolDefs = generateFunctionDefinitions(dbAgent.permissions) as import('@/lib/llm-router').OllamaTool[];
+    const toolDefs = activeFunctionDefs as import('@/lib/llm-router').OllamaTool[];
 
     // ── 4. Build initial context ─────────────────────────────────────────────
     const contextParts: string[] = [
       `Current UTC time: ${now.toISOString()}`,
       `Budget remaining this month: $${budgetRemaining.toFixed(2)} of $${dbAgent.monthlyBudgetUsd}`,
     ];
+
+    if (invalidSchemaTools.length > 0) {
+      contextParts.push(
+        `Safety mode: these tools were isolated due to invalid schema and must not be used until fixed: ${invalidSchemaTools.join(', ')}`
+      );
+    }
 
     try {
       const pendingTasks = await prisma.agentTask.findMany({

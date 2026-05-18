@@ -5,7 +5,7 @@
  * Import this file to register all tools with the registry.
  */
 
-import { registerTools, getTool, getAllTools, getToolsByCategory, getToolsForAgent, canAgentUseTool, executeTool, generateFunctionDefinitions, getToolDocumentation, getRegistryStats, registerTool } from "@/agents/tools/registry";
+import { registerTools, getTool, getAllTools, getToolsByCategory, getToolsForAgent, canAgentUseTool, executeTool, generateFunctionDefinitions, validateFunctionDefinitions, getToolDocumentation, getRegistryStats, registerTool } from "@/agents/tools/registry";
 import { dispatchTools } from "@/agents/tools/dispatch";
 import { marketingTools } from "@/agents/tools/marketing";
 import { communicationTools } from "@/agents/tools/communication";
@@ -28,6 +28,7 @@ export {
   canAgentUseTool,
   executeTool,
   generateFunctionDefinitions,
+  validateFunctionDefinitions,
   getToolDocumentation,
   getRegistryStats,
 };

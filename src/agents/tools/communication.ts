@@ -7,7 +7,14 @@
 
 import { sendSMS } from "@/lib/sms";
 import type { AgentTool, ToolResult, AgentContext } from "@/agents/core/types";
-import { canSendTelegramMessage, recordTelegramMessage } from "@/agents/core/orchestrator";
+import {
+  canSendTelegramMessage,
+  recordTelegramMessage,
+  delegateTask,
+  pauseAgent,
+  resumeAgent,
+  syncAllAgentsFromDB,
+} from "@/agents/core/orchestrator";
 
 // Telegram config
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -287,10 +294,159 @@ Time: ${new Date().toISOString()}`);
   },
 };
 
+/**
+ * Create a high-priority remediation task for another agent.
+ */
+export const createRepairTaskTool: AgentTool = {
+  name: "createRepairTask",
+  description: "Create a remediation task when heartbeat or tool execution errors are detected",
+  category: "communication",
+  permissions: ["repair_system", "ceo", "cto"],
+  parameters: [
+    {
+      name: "targetAgent",
+      type: "string",
+      required: true,
+      description: "Agent name that should own the remediation task (e.g. cto, cmo)",
+    },
+    {
+      name: "errorSummary",
+      type: "string",
+      required: true,
+      description: "Short summary of the failure that needs fixing",
+    },
+    {
+      name: "recommendedAction",
+      type: "string",
+      required: false,
+      description: "Suggested fix path for the target agent",
+    },
+    {
+      name: "priority",
+      type: "number",
+      required: false,
+      description: "Priority from 1 (low) to 10 (critical). Default 8.",
+      default: 8,
+    },
+  ],
+  async execute(params, context): Promise<ToolResult> {
+    const targetAgent = String(params.targetAgent || "").trim().toLowerCase();
+    const errorSummary = String(params.errorSummary || "").trim();
+    const recommendedAction = String(params.recommendedAction || "").trim();
+    const priority = Number(params.priority ?? 8);
+
+    if (!targetAgent) {
+      return { success: false, error: "targetAgent is required" };
+    }
+    if (!errorSummary) {
+      return { success: false, error: "errorSummary is required" };
+    }
+
+    const boundedPriority = Number.isFinite(priority)
+      ? Math.max(1, Math.min(10, Math.floor(priority)))
+      : 8;
+
+    const taskId = await delegateTask(context.agentId, targetAgent, {
+      title: "[Repair] Investigate and resolve agent failure",
+      description: [
+        `Detected by: ${context.agentName}`,
+        `Error: ${errorSummary}`,
+        recommendedAction ? `Recommended action: ${recommendedAction}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      priority: boundedPriority,
+    });
+
+    if (!taskId) {
+      return {
+        success: false,
+        error: `Failed to create repair task for agent ${targetAgent}`,
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        taskId,
+        targetAgent,
+        priority: boundedPriority,
+        createdAt: new Date(),
+      },
+    };
+  },
+};
+
+/**
+ * Controlled heartbeat state action for recovery playbooks.
+ */
+export const controlAgentHeartbeatTool: AgentTool = {
+  name: "controlAgentHeartbeat",
+  description: "Pause or resume an agent heartbeat to contain or recover from repeated failures",
+  category: "communication",
+  permissions: ["repair_system", "ceo", "cto"],
+  parameters: [
+    {
+      name: "agentName",
+      type: "string",
+      required: true,
+      description: "Target agent name (e.g. cmo, ads-specialist)",
+    },
+    {
+      name: "action",
+      type: "string",
+      required: true,
+      description: "Heartbeat action to execute",
+      enum: ["pause", "resume"],
+    },
+    {
+      name: "reason",
+      type: "string",
+      required: false,
+      description: "Optional reason for auditability",
+    },
+  ],
+  async execute(params): Promise<ToolResult> {
+    const agentName = String(params.agentName || "").trim().toLowerCase();
+    const action = String(params.action || "").trim().toLowerCase();
+    const reason = String(params.reason || "").trim();
+
+    if (!agentName) {
+      return { success: false, error: "agentName is required" };
+    }
+    if (action !== "pause" && action !== "resume") {
+      return { success: false, error: "action must be pause or resume" };
+    }
+
+    // Ensure runtime state exists for DB-backed agents before state mutation.
+    await syncAllAgentsFromDB();
+
+    const ok = action === "pause" ? await pauseAgent(agentName) : await resumeAgent(agentName);
+    if (!ok) {
+      return {
+        success: false,
+        error: `Unable to ${action} agent ${agentName}. Verify the agent exists and is initialized.`,
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        agentName,
+        action,
+        reason: reason || undefined,
+        updatedAt: new Date(),
+      },
+    };
+  },
+};
+
 // Export all communication tools
 export const communicationTools: AgentTool[] = [
   sendTelegramAlertTool,
   sendEmailTool,
   sendSMSTool,
   logAgentCommunicationTool,
+  createRepairTaskTool,
+  controlAgentHeartbeatTool,
 ];
