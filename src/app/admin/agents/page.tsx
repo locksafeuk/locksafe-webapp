@@ -80,6 +80,11 @@ interface HeartbeatResult {
   errors: string[];
 }
 
+interface LlmPolicy {
+  openAiFallbackEnabled: boolean;
+  openAiFallbackMinSeverity: "low" | "medium" | "high" | "critical";
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatTimeAgo(date: string | null): string {
@@ -138,10 +143,15 @@ export default function MissionControlPage() {
   const [agents, setAgents] = useState<AgentStatus[]>([]);
   const [system, setSystem] = useState<SystemStatus | null>(null);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [llmPolicy, setLlmPolicy] = useState<LlmPolicy>({
+    openAiFallbackEnabled: false,
+    openAiFallbackMinSeverity: "high",
+  });
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [testing, setTesting] = useState(false);
+  const [togglingFallback, setTogglingFallback] = useState(false);
   const [testResults, setTestResults] = useState<HeartbeatResult[]>([]);
   const [showTestPanel, setShowTestPanel] = useState(false);
   const activityRef = useRef<HTMLDivElement>(null);
@@ -168,14 +178,30 @@ export default function MissionControlPage() {
     } catch { /* silent */ }
   }, []);
 
+  const fetchLlmPolicy = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/agents/llm-policy");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data?.policy) {
+        setLlmPolicy({
+          openAiFallbackEnabled: Boolean(data.policy.openAiFallbackEnabled),
+          openAiFallbackMinSeverity: (data.policy.openAiFallbackMinSeverity || "high") as LlmPolicy["openAiFallbackMinSeverity"],
+        });
+      }
+    } catch {
+      // silent
+    }
+  }, []);
+
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      await Promise.all([fetchStatus(), fetchActivity()]);
+      await Promise.all([fetchStatus(), fetchActivity(), fetchLlmPolicy()]);
       setLoading(false);
     };
     load();
-  }, [fetchStatus, fetchActivity]);
+  }, [fetchStatus, fetchActivity, fetchLlmPolicy]);
 
   useEffect(() => {
     if (!autoRefresh) return;
@@ -223,6 +249,31 @@ export default function MissionControlPage() {
     setTesting(false);
   };
 
+  const toggleEmergencyFallback = async () => {
+    setTogglingFallback(true);
+    try {
+      const res = await fetch("/api/admin/agents/llm-policy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          openAiFallbackEnabled: !llmPolicy.openAiFallbackEnabled,
+          openAiFallbackMinSeverity: llmPolicy.openAiFallbackMinSeverity || "high",
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.policy) {
+          setLlmPolicy({
+            openAiFallbackEnabled: Boolean(data.policy.openAiFallbackEnabled),
+            openAiFallbackMinSeverity: (data.policy.openAiFallbackMinSeverity || "high") as LlmPolicy["openAiFallbackMinSeverity"],
+          });
+        }
+      }
+    } finally {
+      setTogglingFallback(false);
+    }
+  };
+
   if (loading) {
     return (
       <AdminSidebar>
@@ -266,6 +317,20 @@ export default function MissionControlPage() {
                 <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
                 Refresh
               </Button>
+              <Button
+                variant={llmPolicy.openAiFallbackEnabled ? "default" : "outline"}
+                size="sm"
+                onClick={toggleEmergencyFallback}
+                disabled={togglingFallback}
+                className={llmPolicy.openAiFallbackEnabled ? "bg-amber-600 hover:bg-amber-700 text-white" : ""}
+              >
+                {togglingFallback
+                  ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                  : <AlertTriangle className="h-3.5 w-3.5 mr-1.5" />}
+                {llmPolicy.openAiFallbackEnabled
+                  ? `Fallback ON (${llmPolicy.openAiFallbackMinSeverity})`
+                  : "Fallback OFF"}
+              </Button>
               <Button size="sm" onClick={runFullTest} disabled={testing}
                 className="bg-orange-500 hover:bg-orange-600 text-white">
                 {testing
@@ -284,7 +349,12 @@ export default function MissionControlPage() {
                 <div className="min-w-0">
                   <p className="text-[10px] text-muted-foreground uppercase tracking-wide">LLM</p>
                   <p className={`text-xs font-semibold truncate ${system?.hermesModeEnabled ? "text-purple-400" : "text-orange-400"}`}>
-                    {system?.hermesModeEnabled ? "🟣 Hermes (Tailscale)" : "🟠 OpenAI Fallback"}
+                    {system?.hermesModeEnabled ? "🟣 Hermes (local-first)" : "🟠 Local LLM unavailable"}
+                  </p>
+                  <p className={`text-[10px] truncate ${llmPolicy.openAiFallbackEnabled ? "text-amber-500" : "text-green-500"}`}>
+                    {llmPolicy.openAiFallbackEnabled
+                      ? `OpenAI fallback armed (${llmPolicy.openAiFallbackMinSeverity}+)`
+                      : "OpenAI fallback disabled"}
                   </p>
                 </div>
               </CardContent>
