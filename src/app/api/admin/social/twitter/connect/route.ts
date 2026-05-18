@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
         accountName:    me.name,
         accountHandle:  `@${me.username}`,
         accessToken:    accessToken,
-        tokenExpiresAt: null, // clear any old expiry
+        tokenExpiresAt: { set: null }, // clear any old expiry; OAuth 1.0a tokens are permanent
         isActive:       true,
       },
     });
