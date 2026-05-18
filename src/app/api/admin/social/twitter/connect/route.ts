@@ -48,16 +48,22 @@ export async function GET(request: NextRequest) {
         accountName:    me.name,
         accountHandle:  `@${me.username}`,
         accessToken:    accessToken,
-        tokenExpiresAt: null, // OAuth 1.0a tokens are permanent
+        tokenExpiresAt: new Date("2099-01-01"), // OAuth 1.0a tokens are permanent
         isActive:       true,
       },
       update: {
         accountName:    me.name,
         accountHandle:  `@${me.username}`,
         accessToken:    accessToken,
-        tokenExpiresAt: { set: null }, // clear any old expiry; OAuth 1.0a tokens are permanent
+        tokenExpiresAt: new Date("2099-01-01"), // OAuth 1.0a tokens are permanent
         isActive:       true,
       },
+    });
+
+    // Deactivate any stale Twitter records (e.g. old OAuth 2.0 tokens)
+    await prisma.socialAccount.updateMany({
+      where: { platform: "TWITTER", NOT: { accountId: me.id } },
+      data: { isActive: false },
     });
 
     console.log(`[Twitter Connect] Connected: @${me.username} (${me.id})`);
