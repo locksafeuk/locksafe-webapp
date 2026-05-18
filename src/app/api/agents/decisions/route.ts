@@ -6,6 +6,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdminFromCookies } from '@/lib/agent-api-auth';
+import { logAgentApiMutation } from '@/lib/agent-api-audit';
 import {
   proposeDecision,
   castVote,
@@ -23,6 +25,11 @@ import type { MessagePriority } from '@/agents/core/message-bus';
 
 export async function GET(request: NextRequest) {
   try {
+    const admin = await requireAdminFromCookies();
+    if (!admin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action') || 'all';
     const agentId = searchParams.get('agentId');
@@ -123,6 +130,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const admin = await requireAdminFromCookies();
+    if (!admin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { action } = body;
 
@@ -153,6 +165,13 @@ export async function POST(request: NextRequest) {
           priority: priority as MessagePriority,
           deadlineMs,
         });
+        await logAgentApiMutation({
+          admin,
+          actionName: 'decisions_propose',
+          targetAgentName: proposedBy,
+          input: { proposedBy, title, scope, requiredVoters, consensusThreshold },
+          output: { decisionId: decision.id, status: decision.status },
+        });
         return NextResponse.json({
           success: true,
           data: decision,
@@ -175,6 +194,13 @@ export async function POST(request: NextRequest) {
           reasoning,
           selectedOption
         );
+        await logAgentApiMutation({
+          admin,
+          actionName: 'decisions_vote',
+          targetAgentName: agentId,
+          input: { decisionId, agentId, choice, selectedOption },
+          output: { resolved: !!outcome, approved: outcome?.approved ?? null },
+        });
         return NextResponse.json({
           success: true,
           data: {
@@ -190,6 +216,13 @@ export async function POST(request: NextRequest) {
 
       case 'expire': {
         const expired = await expireOverdueDecisions();
+        await logAgentApiMutation({
+          admin,
+          actionName: 'decisions_expire',
+          targetAgentName: 'ceo',
+          input: { action },
+          output: { expiredCount: expired },
+        });
         return NextResponse.json({
           success: true,
           data: { expiredCount: expired },

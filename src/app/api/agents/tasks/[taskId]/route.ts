@@ -4,12 +4,17 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
+import { requireAdminFromCookies } from "@/lib/agent-api-auth";
+import { logAgentApiMutation } from "@/lib/agent-api-audit";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ taskId: string }> }
 ) {
   try {
+    const admin = await requireAdminFromCookies();
+    if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const { taskId } = await params;
 
     const task = await prisma.agentTask.findUnique({
@@ -71,6 +76,9 @@ export async function PATCH(
   { params }: { params: Promise<{ taskId: string }> }
 ) {
   try {
+    const admin = await requireAdminFromCookies();
+    if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const { taskId } = await params;
     const body = await request.json();
 
@@ -123,6 +131,18 @@ export async function PATCH(
       },
     });
 
+    await logAgentApiMutation({
+      admin,
+      actionName: "tasks_update",
+      targetAgentId: task.agentId,
+      input: {
+        taskId,
+        updatedFields: Object.keys(updates),
+        status: updates.status,
+      },
+      output: { status: task.status },
+    });
+
     // Update agent stats if task completed
     if (updates.status === "completed") {
       await prisma.agent.update({
@@ -158,6 +178,9 @@ export async function DELETE(
   { params }: { params: Promise<{ taskId: string }> }
 ) {
   try {
+    const admin = await requireAdminFromCookies();
+    if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const { taskId } = await params;
 
     // Check if task exists
@@ -175,6 +198,14 @@ export async function DELETE(
     // Delete the task
     await prisma.agentTask.delete({
       where: { id: taskId },
+    });
+
+    await logAgentApiMutation({
+      admin,
+      actionName: "tasks_delete",
+      targetAgentId: task.agentId,
+      input: { taskId },
+      output: { deleted: true },
     });
 
     return NextResponse.json({

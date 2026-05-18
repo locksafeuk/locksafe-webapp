@@ -3,26 +3,17 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import prisma from "@/lib/db";
-import { verifyToken } from "@/lib/auth";
+import { requireAdminFromCookies } from "@/lib/agent-api-auth";
+import { logAgentApiMutation } from "@/lib/agent-api-audit";
 import { sendAdminAlert } from "@/lib/telegram";
-
-async function requireAdmin() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get("auth_token")?.value;
-  if (!token) return null;
-  const payload = await verifyToken(token);
-  if (!payload || payload.type !== "admin") return null;
-  return payload;
-}
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ approvalId: string }> }
 ) {
   try {
-    const admin = await requireAdmin();
+    const admin = await requireAdminFromCookies();
     if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { approvalId } = await params;
@@ -59,7 +50,7 @@ export async function POST(
       where: { id: approvalId },
       data: {
         status: approved ? "approved" : "rejected",
-        resolvedBy: "admin", // In production, get from session
+        resolvedBy: admin.id,
         resolvedAt: new Date(),
         resolution: resolution || (approved ? "Approved by admin" : "Rejected by admin"),
       },
@@ -84,6 +75,19 @@ export async function POST(
         },
       });
     }
+
+    await logAgentApiMutation({
+      admin,
+      actionName: approved ? "approvals_approve" : "approvals_reject",
+      targetAgentId: approval.agentId,
+      input: {
+        approvalId,
+        actionType: approval.actionType,
+        approved,
+        resolution: resolution || null,
+      },
+      output: { status: updatedApproval.status },
+    });
 
     // Cascade approval to linked Google Ads draft
     if (approval.targetType === "google_ads_draft" && approval.targetId) {

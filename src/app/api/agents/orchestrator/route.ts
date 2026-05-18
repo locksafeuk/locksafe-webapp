@@ -6,6 +6,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdminFromCookies } from '@/lib/agent-api-auth';
+import { logAgentApiMutation } from '@/lib/agent-api-audit';
 import {
   getAgentStatusSummary,
   runAllHeartbeats,
@@ -17,8 +19,31 @@ import {
   getAgentsDueForHeartbeat,
 } from '@/agents/core/orchestrator';
 
+const idempotencyStore = new Map<string, number>();
+const IDEMPOTENCY_TTL_MS = 10 * 60 * 1000;
+
+function registerIdempotencyKey(action: string, key: string): boolean {
+  const now = Date.now();
+
+  for (const [storedKey, expiresAt] of idempotencyStore.entries()) {
+    if (expiresAt <= now) idempotencyStore.delete(storedKey);
+  }
+
+  const compositeKey = `${action}:${key}`;
+  const existingExpiry = idempotencyStore.get(compositeKey);
+  if (existingExpiry && existingExpiry > now) return false;
+
+  idempotencyStore.set(compositeKey, now + IDEMPOTENCY_TTL_MS);
+  return true;
+}
+
 export async function GET(request: NextRequest) {
   try {
+    const admin = await requireAdminFromCookies();
+    if (!admin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action') || 'status';
 
@@ -58,12 +83,48 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const admin = await requireAdminFromCookies();
+    if (!admin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { action } = body;
+    const idempotencyKeyHeader = request.headers.get('x-idempotency-key')?.trim();
+    const idempotentActions = new Set([
+      'heartbeat',
+      'delegate',
+      'coordinate',
+      'sync',
+      'pause',
+      'resume',
+    ]);
+
+    if (idempotencyKeyHeader && idempotentActions.has(action)) {
+      const accepted = registerIdempotencyKey(action, idempotencyKeyHeader);
+      if (!accepted) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Duplicate request blocked by idempotency protection',
+            action,
+            idempotencyKey: idempotencyKeyHeader,
+          },
+          { status: 409 }
+        );
+      }
+    }
 
     switch (action) {
       case 'heartbeat': {
         const results = await runAllHeartbeats();
+        await logAgentApiMutation({
+          admin,
+          actionName: 'orchestrator_heartbeat',
+          targetAgentName: 'ceo',
+          input: { action },
+          output: { agentsRun: results.length },
+        });
         return NextResponse.json({
           success: true,
           data: {
@@ -90,6 +151,13 @@ export async function POST(request: NextRequest) {
           priority: priority || 5,
           deadline: deadline ? new Date(deadline) : undefined,
         });
+        await logAgentApiMutation({
+          admin,
+          actionName: 'orchestrator_delegate',
+          targetAgentName: toAgent,
+          input: { fromAgent, toAgent, title, priority: priority || 5 },
+          output: { taskId },
+        });
         return NextResponse.json({
           success: true,
           data: { taskId, fromAgent, toAgent, title },
@@ -112,6 +180,13 @@ export async function POST(request: NextRequest) {
           agents,
           coordPriority || 5
         );
+        await logAgentApiMutation({
+          admin,
+          actionName: 'orchestrator_coordinate',
+          targetAgentName: initiator,
+          input: { initiator, taskTitle, agents, priority: coordPriority || 5 },
+          output: { correlationId: result.correlationId, taskCount: result.taskIds.length },
+        });
         return NextResponse.json({
           success: true,
           data: result,
@@ -121,6 +196,13 @@ export async function POST(request: NextRequest) {
 
       case 'sync': {
         const synced = await syncAllAgentsFromDB();
+        await logAgentApiMutation({
+          admin,
+          actionName: 'orchestrator_sync',
+          targetAgentName: 'ceo',
+          input: { action },
+          output: { agentsSynced: synced },
+        });
         return NextResponse.json({
           success: true,
           data: { agentsSynced: synced },
@@ -134,6 +216,13 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ success: false, error: 'agentId required' }, { status: 400 });
         }
         const paused = await pauseAgent(pauseId);
+        await logAgentApiMutation({
+          admin,
+          actionName: 'orchestrator_pause',
+          targetAgentName: pauseId,
+          input: { agentId: pauseId },
+          output: { paused },
+        });
         return NextResponse.json({
           success: paused,
           data: { agentId: pauseId, status: paused ? 'paused' : 'not_found' },
@@ -147,6 +236,13 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ success: false, error: 'agentId required' }, { status: 400 });
         }
         const resumed = await resumeAgent(resumeId);
+        await logAgentApiMutation({
+          admin,
+          actionName: 'orchestrator_resume',
+          targetAgentName: resumeId,
+          input: { agentId: resumeId },
+          output: { resumed },
+        });
         return NextResponse.json({
           success: resumed,
           data: { agentId: resumeId, status: resumed ? 'active' : 'not_found' },

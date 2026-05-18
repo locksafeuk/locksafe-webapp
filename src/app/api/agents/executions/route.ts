@@ -6,21 +6,11 @@
  * Auth: admin JWT cookie (auth_token)
  */
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
-import { verifyToken } from "@/lib/auth";
-
-async function verifyAdmin() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get("auth_token")?.value;
-  if (!token) return null;
-  const payload = await verifyToken(token);
-  if (!payload || payload.type !== "admin") return null;
-  return payload;
-}
+import { requireAdminFromCookies } from "@/lib/agent-api-auth";
 
 export async function GET(request: NextRequest) {
-  const admin = await verifyAdmin();
+  const admin = await requireAdminFromCookies();
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(request.url);

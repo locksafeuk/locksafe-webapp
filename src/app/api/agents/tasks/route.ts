@@ -4,9 +4,14 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
+import { requireAdminFromCookies } from "@/lib/agent-api-auth";
+import { logAgentApiMutation } from "@/lib/agent-api-audit";
 
 export async function GET(request: NextRequest) {
   try {
+    const admin = await requireAdminFromCookies();
+    if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const { searchParams } = new URL(request.url);
     const agentId = searchParams.get("agentId");
     const status = searchParams.get("status");
@@ -84,6 +89,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const admin = await requireAdminFromCookies();
+    if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const body = await request.json();
 
     const { agentId, title, description, priority, deadline, companyGoalId, projectContext } = body;
@@ -126,6 +134,18 @@ export async function POST(request: NextRequest) {
           },
         },
       },
+    });
+
+    await logAgentApiMutation({
+      admin,
+      actionName: "tasks_create",
+      targetAgentId: task.agentId,
+      input: {
+        title,
+        priority: priority || 5,
+        deadline: deadline || null,
+      },
+      output: { taskId: task.id, status: task.status },
     });
 
     return NextResponse.json({

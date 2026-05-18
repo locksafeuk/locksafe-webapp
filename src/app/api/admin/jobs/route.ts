@@ -17,7 +17,12 @@ export async function GET(request: NextRequest) {
     const where: Record<string, unknown> = {};
 
     if (status && status !== "all") {
-      where.status = status as JobStatus;
+      if (status === "NO_LOCKSMITH_AVAILABLE") {
+        where.status = JobStatus.CANCELLED;
+        where.noLocksmithNotifiedAt = { not: null };
+      } else {
+        where.status = status as JobStatus;
+      }
     }
 
     // Filter for jobs awaiting signature
@@ -106,6 +111,14 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    // Jobs where admin/customer was explicitly notified no locksmith is available
+    const noLocksmithAvailableCount = await prisma.job.count({
+      where: {
+        status: JobStatus.CANCELLED,
+        noLocksmithNotifiedAt: { not: null },
+      },
+    });
+
     return NextResponse.json({
       success: true,
       jobs: jobs.map((job) => ({
@@ -126,6 +139,8 @@ export async function GET(request: NextRequest) {
         confirmationDeadline: job.confirmationDeadline,
         confirmationRemindersSent: job.confirmationRemindersSent,
         autoCompletedAt: job.autoCompletedAt,
+        noLocksmithNotifiedAt: job.noLocksmithNotifiedAt,
+        noLocksmithNotifiedChannels: job.noLocksmithNotifiedChannels,
         customer: job.customer,
         locksmith: job.locksmith,
         quote: job.quote,
@@ -148,6 +163,7 @@ export async function GET(request: NextRequest) {
         ),
         awaitingSignature: awaitingSignatureCount,
         overdueSignature: overdueJobs,
+        noLocksmithAvailable: noLocksmithAvailableCount,
       },
     });
   } catch (error) {

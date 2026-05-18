@@ -59,6 +59,7 @@ interface JobSummary {
   statusCounts: Record<string, number>;
   awaitingSignature: number;
   overdueSignature: number;
+  noLocksmithAvailable: number;
 }
 
 interface Locksmith {
@@ -112,6 +113,13 @@ const problemLabels: Record<string, string> = {
   "lost-keys": "Lost Keys",
   burglary: "After Burglary",
   other: "Other",
+};
+
+const NO_LOCKSMITH_STATUS = "NO_LOCKSMITH_AVAILABLE";
+const noLocksmithStatusConfig = {
+  bg: "bg-rose-100",
+  text: "text-rose-700",
+  label: "No Locksmith Available",
 };
 
 // Skeleton loading component
@@ -298,6 +306,13 @@ function AdminJobsContent() {
     }
   };
 
+  const getStatusConfigForJob = (job: Job) => {
+    if (job.status === "CANCELLED" && job.noLocksmithNotifiedAt) {
+      return noLocksmithStatusConfig;
+    }
+    return statusColors[job.status] || statusColors.PENDING;
+  };
+
   // Bulk selection handlers
   const toggleSelectAll = () => {
     if (selectedJobs.size === jobs.length) {
@@ -344,7 +359,10 @@ function AdminJobsContent() {
   const handleOpenEditModal = (job: Job) => {
     setEditingJob(job);
     setEditFormData({
-      status: job.status,
+      status:
+        job.status === "CANCELLED" && job.noLocksmithNotifiedAt
+          ? NO_LOCKSMITH_STATUS
+          : job.status,
       problemType: job.problemType,
       propertyType: job.propertyType,
       postcode: job.postcode,
@@ -355,12 +373,52 @@ function AdminJobsContent() {
   const handleSaveEdit = async () => {
     if (!editingJob) return;
     try {
+      let statusToPersist = editFormData.status;
+
+      if (editFormData.status === NO_LOCKSMITH_STATUS) {
+        const channels: Array<"sms" | "email"> = [];
+        if (editingJob.customer?.phone) channels.push("sms");
+        if (editingJob.customer?.email) channels.push("email");
+
+        if (channels.length > 0) {
+          const notifyResponse = await fetch(
+            `/api/admin/jobs/${editingJob.id}/notify-no-locksmith`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ channels }),
+            },
+          );
+
+          if (!notifyResponse.ok) {
+            toast({
+              title: "No-locksmith notification failed",
+              description:
+                "Job will still be moved out of Pending, but notification was not sent.",
+              variant: "error",
+            });
+          }
+        }
+
+        statusToPersist = "CANCELLED";
+      }
+
       const response = await fetch(`/api/jobs/${editingJob.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editFormData),
+        body: JSON.stringify({
+          ...editFormData,
+          status: statusToPersist,
+        }),
       });
       if (response.ok) {
+        if (editFormData.status === NO_LOCKSMITH_STATUS) {
+          toast({
+            title: "Job marked: No Locksmith Available",
+            description:
+              "The job was moved out of Pending and customer notification was attempted.",
+          });
+        }
         setEditingJob(null);
         fetchJobs();
       } else {
@@ -444,7 +502,14 @@ function AdminJobsContent() {
           <h1 className="text-xl lg:text-2xl font-bold text-slate-900">
             Job Management
           </h1>
-          <p className="text-sm text-slate-500">{jobs.length} jobs</p>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-sm text-slate-500">{jobs.length} jobs</p>
+            {(summary?.noLocksmithAvailable || 0) > 0 && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-700 border border-rose-200">
+                No locksmith notified: {summary?.noLocksmithAvailable || 0}
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={fetchJobs}>
@@ -466,7 +531,8 @@ function AdminJobsContent() {
 
       {/* Summary Cards with Skeleton */}
       {loading ? (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-4 lg:mb-6">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 lg:gap-4 mb-4 lg:mb-6">
+          <SummaryCardSkeleton />
           <SummaryCardSkeleton />
           <SummaryCardSkeleton />
           <SummaryCardSkeleton />
@@ -474,7 +540,7 @@ function AdminJobsContent() {
         </div>
       ) : (
         summary && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-4 lg:mb-6">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 lg:gap-4 mb-4 lg:mb-6">
             <button
               type="button"
               onClick={() => setStatusFilter("PENDING_CUSTOMER_CONFIRMATION")}
@@ -527,6 +593,21 @@ function AdminJobsContent() {
             </button>
             <button
               type="button"
+              onClick={() => setStatusFilter(NO_LOCKSMITH_STATUS)}
+              className={`bg-white rounded-xl p-3 lg:p-4 shadow-sm text-left hover:shadow-md transition-shadow ${statusFilter === NO_LOCKSMITH_STATUS ? "ring-2 ring-orange-500" : ""}`}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <XCircle className="w-4 h-4 text-rose-500" />
+                <span className="text-xs lg:text-sm text-slate-500">
+                  No Locksmith
+                </span>
+              </div>
+              <div className="text-xl lg:text-2xl font-bold text-slate-900">
+                {summary.noLocksmithAvailable || 0}
+              </div>
+            </button>
+            <button
+              type="button"
               onClick={() => setStatusFilter("all")}
               className={`bg-white rounded-xl p-3 lg:p-4 shadow-sm text-left hover:shadow-md transition-shadow ${statusFilter === "all" ? "ring-2 ring-orange-500" : ""}`}
             >
@@ -567,6 +648,7 @@ function AdminJobsContent() {
               className="flex-1 lg:flex-none px-3 lg:px-4 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none bg-white"
             >
               <option value="all">All Statuses</option>
+              <option value={NO_LOCKSMITH_STATUS}>No Locksmith Available</option>
               {Object.entries(statusColors).map(([status, { label }]) => (
                 <option key={status} value={status}>
                   {label}
@@ -629,8 +711,7 @@ function AdminJobsContent() {
           {/* Jobs List - Mobile Cards */}
           <div className="lg:hidden space-y-3">
             {jobs.map((job) => {
-              const statusConfig =
-                statusColors[job.status] || statusColors.PENDING;
+              const statusConfig = getStatusConfigForJob(job);
               const deadline = getDeadlineStatus(job.confirmationDeadline);
 
               return (
@@ -827,8 +908,7 @@ function AdminJobsContent() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {jobs.map((job) => {
-                    const statusConfig =
-                      statusColors[job.status] || statusColors.PENDING;
+                    const statusConfig = getStatusConfigForJob(job);
                     const deadline = getDeadlineStatus(
                       job.confirmationDeadline,
                     );
@@ -1051,6 +1131,7 @@ function AdminJobsContent() {
                   }
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
                 >
+                  <option value={NO_LOCKSMITH_STATUS}>No Locksmith Available</option>
                   {Object.entries(statusColors).map(([status, { label }]) => (
                     <option key={status} value={status}>
                       {label}

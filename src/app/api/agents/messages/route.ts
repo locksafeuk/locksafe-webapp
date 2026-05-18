@@ -6,6 +6,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdminFromCookies } from '@/lib/agent-api-auth';
+import { logAgentApiMutation } from '@/lib/agent-api-audit';
 import {
   getAllMessages,
   getMessages,
@@ -22,6 +24,11 @@ import {
 
 export async function GET(request: NextRequest) {
   try {
+    const admin = await requireAdminFromCookies();
+    if (!admin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action') || 'all';
     const agentId = searchParams.get('agentId');
@@ -120,6 +127,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const admin = await requireAdminFromCookies();
+    if (!admin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { action } = body;
 
@@ -135,6 +147,13 @@ export async function POST(request: NextRequest) {
         const message = await sendMessage(fromAgent, toAgent, type, subject, msgBody || '', {
           priority,
           metadata,
+        });
+        await logAgentApiMutation({
+          admin,
+          actionName: 'messages_send',
+          targetAgentName: fromAgent,
+          input: { fromAgent, toAgent, type, subject },
+          output: { messageId: message.id, status: message.status },
         });
         return NextResponse.json({
           success: true,
@@ -152,6 +171,13 @@ export async function POST(request: NextRequest) {
           );
         }
         const msg = await shareInsight(insFrom, insTo, insight, category || 'general', insData);
+        await logAgentApiMutation({
+          admin,
+          actionName: 'messages_insight',
+          targetAgentName: insFrom,
+          input: { fromAgent: insFrom, toAgent: insTo, category: category || 'general' },
+          output: { messageId: msg.id, status: msg.status },
+        });
         return NextResponse.json({
           success: true,
           data: msg,
@@ -170,6 +196,13 @@ export async function POST(request: NextRequest) {
         const messages = await broadcastMessage(bFrom, bType, bSubject, bBody || '', targets, {
           priority: bPriority,
         });
+        await logAgentApiMutation({
+          admin,
+          actionName: 'messages_broadcast',
+          targetAgentName: bFrom,
+          input: { fromAgent: bFrom, type: bType, subject: bSubject, targetCount: targets?.length },
+          output: { count: messages.length },
+        });
         return NextResponse.json({
           success: true,
           data: { messages, count: messages.length },
@@ -186,6 +219,13 @@ export async function POST(request: NextRequest) {
           );
         }
         const acked = await acknowledgeMessage(messageId);
+        await logAgentApiMutation({
+          admin,
+          actionName: 'messages_acknowledge',
+          targetAgentName: 'ceo',
+          input: { messageId },
+          output: { acknowledged: acked },
+        });
         return NextResponse.json({
           success: acked,
           data: { messageId, acknowledged: acked },
