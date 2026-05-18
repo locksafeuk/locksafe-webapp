@@ -365,3 +365,77 @@ Create based on:
 - [ ] Smart Bidding enabled (after 15+ conversions)
 - [ ] Negative keywords added
 - [ ] Location targeting configured
+
+---
+
+## Appendix A — Outstanding Manual Steps (May 2026)
+
+The following steps require a human in the Google Ads UI / API Center because
+they cannot be executed via the API on a test-access developer token. Treat
+this as a sequenced checklist — order matters.
+
+### A.1 — Apply for Basic Access on the developer token
+
+The developer token currently in use is `sbMXQHwqfdpHpWVGFnh1jg` and is on
+**Test Account Access**. Test access cannot read live campaign or performance
+data on non-test customer IDs, so all automation jobs that read live
+performance (e.g. `scripts/_update-google-ads-cid.ts`, the
+`sync-google-ads-performance` cron) will be capped until this is upgraded.
+
+1. Sign in to [ads.google.com](https://ads.google.com) as `contact@locksafe.uk`
+   (the Locksafe Master Manager owner).
+2. **Tools & Settings (wrench) → Setup → API Center.**
+3. Locate developer token `sbMXQHwqfdpHpWVGFnh1jg`.
+4. Click **Apply for Basic Access** and complete the questionnaire:
+   - Tool purpose: internal campaign automation and reporting for Locksafe UK.
+   - Number of accounts: 1 production live account, 1 manager account.
+   - Data use: only reading our own campaign / performance data and writing
+     campaign / ad-group / keyword updates.
+5. Submit. Approval typically takes 1–3 business days.
+6. When approved, no env change is required — the same token string upgrades
+   in place.
+
+### A.2 — Delete the stray draft account
+
+Account ID `137-482-0174` was created accidentally during onboarding and is
+empty. Leaving it under the manager confuses account-pickers in scripts.
+
+1. Sign in to [ads.google.com](https://ads.google.com).
+2. Top-right account selector → search `137-482-0174`.
+3. Open the account → **Tools & Settings → Setup → Preferences → Account
+   status → Cancel my account.**
+4. Confirm cancellation. (Google retains the ID for audit; it will no longer
+   show in the picker after ~24 hours.)
+
+### A.3 — Link live customer account to the Locksafe Master Manager
+
+The live serving account `471-522-6378` must be linked under manager account
+`222-951-9701` ("Locksafe Master Manager", owner `contact@locksafe.uk`) so
+that the API token can read/write on its behalf.
+
+1. Sign in to [ads.google.com](https://ads.google.com) as `contact@locksafe.uk`.
+2. Top-right account selector → choose **Locksafe Master Manager**
+   (`222-951-9701`).
+3. **Tools & Settings (wrench) → Setup → Sub-account settings → Accounts**
+   (or in the new UI: **Admin → Sub-account settings → Accounts**).
+4. Click **+ → Link existing account.**
+5. Enter Customer ID `471-522-6378` and submit.
+6. Sign in separately as the owner of `471-522-6378` and accept the link
+   invitation from the notifications bell.
+7. Verify in the manager view that `471-522-6378` now appears in the
+   sub-accounts list with status **Active**.
+
+### A.4 — Verification after the three steps above
+
+Once A.1–A.3 are complete:
+
+```bash
+set -a; source .env.local; set +a
+npx tsx --tsconfig tsconfig.scripts.json scripts/_update-google-ads-cid.ts
+```
+
+The script should report the live customer ID `471-522-6378` as reachable via
+the manager and write it to `.env` / Vercel project env as
+`GOOGLE_ADS_CUSTOMER_ID`. From that point the `sync-google-ads-performance`
+cron will collect real performance data on every run.
+

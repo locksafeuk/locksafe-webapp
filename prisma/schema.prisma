@@ -25,74 +25,74 @@ model Admin {
 
 // Prospective locksmith leads (found via Google Places scraper)
 model LocksmithLead {
-  id            String   @id @default(auto()) @map("_id") @db.ObjectId
-  googlePlaceId String   @unique
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  googlePlaceId String    @unique
   name          String
   city          String
   address       String
   phone         String?
   website       String?
-  email         String?  // Manually added after research
-  rating        Float    @default(0)
-  reviewCount   Int      @default(0)
+  email         String? // Manually added after research
+  rating        Float     @default(0)
+  reviewCount   Int       @default(0)
   // Outreach tracking
-  status        String   @default("new")  // new | contacted | replied | onboarded | not_interested
+  status        String    @default("new") // new | contacted | replied | onboarded | not_interested
   notes         String?
   contactedAt   DateTime?
-  contactedBy   String?  // Admin name/id who contacted
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  contactedBy   String? // Admin name/id who contacted
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }
 
 // Customer/Client model
 model Customer {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  id           String  @id @default(auto()) @map("_id") @db.ObjectId
   name         String
-  email        String?  @unique
+  email        String? @unique
   phone        String
-  passwordHash String?  // Optional - for account-based customers
+  passwordHash String? // Optional - for account-based customers
 
   // Source tracking
-  createdVia   String   @default("web") // web, phone, app
+  createdVia String @default("web") // web, phone, app
 
   // Stripe Customer (for saving payment methods)
-  stripeCustomerId      String?   // Stripe customer ID
-  stripePaymentMethodId String?   // Default saved payment method ID
+  stripeCustomerId      String? // Stripe customer ID
+  stripePaymentMethodId String? // Default saved payment method ID
 
   // Email verification
-  emailVerified          Boolean   @default(false)
-  verificationToken      String?
+  emailVerified           Boolean   @default(false)
+  verificationToken       String?
   verificationTokenExpiry DateTime?
 
   // Password reset
-  resetToken             String?
-  resetTokenExpiry       DateTime?
+  resetToken       String?
+  resetTokenExpiry DateTime?
 
   // Onboarding & Terms
-  termsAcceptedAt        DateTime?  // When customer accepted T&C
-  onboardingCompleted    Boolean    @default(false)
-  passwordSet            Boolean    @default(false) // Whether customer has set a password
-  locationConfirmed      Boolean    @default(false) // Whether customer confirmed their location
+  termsAcceptedAt     DateTime? // When customer accepted T&C
+  onboardingCompleted Boolean   @default(false)
+  passwordSet         Boolean   @default(false) // Whether customer has set a password
+  locationConfirmed   Boolean   @default(false) // Whether customer confirmed their location
 
   // WhatsApp support integration
-  whatsappChatId         String?    // WhatsApp chat ID for support
-  whatsappVerified       Boolean    @default(false)
+  whatsappChatId   String? // WhatsApp chat ID for support
+  whatsappVerified Boolean @default(false)
 
   // Referral system
-  referralCode      String?   // Their own shareable code (e.g. SARAH-X4K2) - sparse unique index managed in Atlas
-  referralCredits   Float     @default(0)  // Available £ credits from referrals
-  referredByCode    String?   // Code they signed up with
+  referralCode    String? // Their own shareable code (e.g. SARAH-X4K2) - sparse unique index managed in Atlas
+  referralCredits Float   @default(0) // Available £ credits from referrals
+  referredByCode  String? // Code they signed up with
 
   // LockSafe Cover subscription
-  subscription      Subscription?
+  subscription Subscription?
 
   // B2B / Landlord
-  orgMemberships    OrgMember[]
+  orgMemberships OrgMember[]
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  jobs         Job[]
-  reviews      Review[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  jobs      Job[]
+  reviews   Review[]
 }
 
 // ==========================================
@@ -100,16 +100,16 @@ model Customer {
 // ==========================================
 
 model LocksmithCompany {
-  id                   String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  name                 String   // Trading name, e.g. "London Fast Locks Ltd"
-  registrationNumber   String?  // Companies House number (optional)
-  contactEmail         String   @unique
-  contactPhone         String
+  name               String // Trading name, e.g. "London Fast Locks Ltd"
+  registrationNumber String? // Companies House number (optional)
+  contactEmail       String  @unique
+  contactPhone       String
 
   // Owner / manager locksmith
-  ownerId              String?  @db.ObjectId
-  owner                Locksmith? @relation("CompanyOwner", fields: [ownerId], references: [id])
+  ownerId String?    @db.ObjectId
+  owner   Locksmith? @relation("CompanyOwner", fields: [ownerId], references: [id])
 
   // Shared Stripe Connect (all payouts go here)
   stripeConnectId        String?
@@ -117,27 +117,27 @@ model LocksmithCompany {
   stripeConnectVerified  Boolean @default(false)
 
   // Billing
-  billingEmail         String?
-  vatNumber            String?
+  billingEmail String?
+  vatNumber    String?
 
   // Team members (via join table — allows per-member commission rates)
-  memberships          LocksmithCompanyMember[]
+  memberships LocksmithCompanyMember[]
 
-  isActive             Boolean  @default(true)
-  notes                String?
+  isActive Boolean @default(true)
+  notes    String?
 
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Per-member commission agreement within a team
 model LocksmithCompanyMember {
-  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  companyId   String  @db.ObjectId
-  company     LocksmithCompany @relation(fields: [companyId], references: [id])
+  companyId String           @db.ObjectId
+  company   LocksmithCompany @relation(fields: [companyId], references: [id])
 
-  locksmithId String  @db.ObjectId
+  locksmithId String    @db.ObjectId
   locksmith   Locksmith @relation("TeamMemberships", fields: [locksmithId], references: [id])
 
   // Earnings split: after the platform takes its fee, what % goes to the locksmith?
@@ -147,210 +147,219 @@ model LocksmithCompanyMember {
   // Override platform commission % for this member's jobs (null = use platform default)
   platformCommissionOverride Float?
 
-  role        String  @default("member") // "owner" | "member"
-  isActive    Boolean @default(true)
+  role     String  @default("member") // "owner" | "member"
+  isActive Boolean @default(true)
 
-  invitedAt   DateTime @default(now())
-  acceptedAt  DateTime?
+  invitedAt  DateTime  @default(now())
+  acceptedAt DateTime?
 
   @@unique([companyId, locksmithId])
 }
 
 // Locksmith/Technician model
 model Locksmith {
-  id                String        @id @default(auto()) @map("_id") @db.ObjectId
-  name              String
-  companyName       String?
-  email             String        @unique
-  phone             String
-  passwordHash      String?       // For login
-  profileImage      String?
-  rating            Float         @default(5.0)
-  totalJobs         Int           @default(0)
-  totalEarnings     Float         @default(0)
-  isVerified        Boolean       @default(false)
-  isActive          Boolean       @default(true)
+  id            String  @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  companyName   String?
+  email         String  @unique
+  phone         String
+  passwordHash  String? // For login
+  profileImage  String?
+  rating        Float   @default(5.0)
+  totalJobs     Int     @default(0)
+  totalEarnings Float   @default(0)
+  isVerified    Boolean @default(false)
+  isActive      Boolean @default(true)
 
   // Team account linkage (via join table)
-  teamMemberships   LocksmithCompanyMember[] @relation("TeamMemberships")
-  ownedCompanies    LocksmithCompany[] @relation("CompanyOwner")
-  teamRole          String   @default("solo") // "solo" | "owner" | "member"
-  licenseNumber     String?
-  insuranceNumber   String?
-  coverageAreas     String[]      // Postcodes they cover (legacy)
-  services          String[]      // Types of services offered
-  yearsExperience   Int           @default(0)
+  teamMemberships LocksmithCompanyMember[] @relation("TeamMemberships")
+  ownedCompanies  LocksmithCompany[]       @relation("CompanyOwner")
+  teamRole        String                   @default("solo") // "solo" | "owner" | "member"
+  licenseNumber   String?
+  insuranceNumber String?
+  coverageAreas   String[] // Postcodes they cover (legacy)
+  services        String[] // Types of services offered
+  yearsExperience Int                      @default(0)
 
   // Location & Coverage (radius-based)
-  baseLat           Float?        // Base location latitude
-  baseLng           Float?        // Base location longitude
-  baseAddress       String?       // Human-readable base address
-  coverageRadius    Int?           @default(10) // Coverage radius in miles
+  baseLat        Float? // Base location latitude
+  baseLng        Float? // Base location longitude
+  baseAddress    String? // Human-readable base address
+  coverageRadius Int?    @default(10) // Coverage radius in miles
 
   // Pricing - Assessment Fee (required for auto-dispatch)
-  defaultAssessmentFee  Float?    // Locksmith's default assessment fee (e.g., 29.00)
-                                  // Must be set for auto-dispatch eligibility
+  defaultAssessmentFee Float? // Locksmith's default assessment fee (e.g., 29.00)
+  // Must be set for auto-dispatch eligibility
 
   // Stripe Connect
-  stripeConnectId         String?   // Stripe Connect account ID
-  stripeConnectOnboarded  Boolean   @default(false)
-  stripeConnectVerified   Boolean   @default(false)
+  stripeConnectId        String? // Stripe Connect account ID
+  stripeConnectOnboarded Boolean @default(false)
+  stripeConnectVerified  Boolean @default(false)
 
   // Notification preferences
-  smsNotifications        Boolean   @default(true)  // Receive SMS for new jobs
-  emailNotifications      Boolean   @default(true)  // Receive email notifications
-  pushNotifications       Boolean   @default(true)  // Receive push notifications
+  smsNotifications   Boolean @default(true) // Receive SMS for new jobs
+  emailNotifications Boolean @default(true) // Receive email notifications
+  pushNotifications  Boolean @default(true) // Receive push notifications
 
   // Availability status for receiving job notifications
-  isAvailable             Boolean   @default(true)  // When ON, locksmith receives job notifications
-  lastAvailabilityChange  DateTime? // Track when availability was last changed
+  isAvailable            Boolean   @default(true) // When ON, locksmith receives job notifications
+  lastAvailabilityChange DateTime? // Track when availability was last changed
 
   // Scheduled availability (working hours)
-  scheduleEnabled         Boolean   @default(false) // Enable automatic availability schedule
-  scheduleTimezone        String    @default("Europe/London") // Timezone for schedule
-  scheduleStartTime       String?   // Start time in HH:MM format (e.g., "08:00")
-  scheduleEndTime         String?   // End time in HH:MM format (e.g., "20:00")
-  scheduleDays            String[]  // Days of week: ["monday", "tuesday", "wednesday", "thursday", "friday"]
+  scheduleEnabled   Boolean  @default(false) // Enable automatic availability schedule
+  scheduleTimezone  String   @default("Europe/London") // Timezone for schedule
+  scheduleStartTime String? // Start time in HH:MM format (e.g., "08:00")
+  scheduleEndTime   String? // End time in HH:MM format (e.g., "20:00")
+  scheduleDays      String[] // Days of week: ["monday", "tuesday", "wednesday", "thursday", "friday"]
 
   // Bot registration for direct messaging
-  telegramChatId          String?   // Telegram chat ID for bot notifications
-  whatsappChatId          String?   // WhatsApp chat ID for bot notifications
-  preferredBotPlatform    String?   // "telegram" or "whatsapp"
+  telegramChatId       String? // Telegram chat ID for bot notifications
+  whatsappChatId       String? // WhatsApp chat ID for bot notifications
+  preferredBotPlatform String? // "telegram" or "whatsapp"
 
   // Native Push Notifications (APNs / FCM via expo-notifications)
-  nativeDeviceToken       String?   // Raw APNs (iOS) or FCM (Android) device token
-  nativeTokenType         String?   // "apns" | "fcm" | "fcmv1"
-  nativeTokenPlatform     String?   // "ios" | "android"
+  nativeDeviceToken       String? // Raw APNs (iOS) or FCM (Android) device token
+  nativeTokenType         String? // "apns" | "fcm" | "fcmv1"
+  nativeTokenPlatform     String? // "ios" | "android"
   nativeTokenRegisteredAt DateTime? // When the native token was last registered
 
   // Onboarding & Terms
-  termsAcceptedAt             DateTime?  // When locksmith accepted T&C
-  onboardingCompleted         Boolean    @default(false)
-  insuranceDocumentUrl        String?    // Uploaded insurance document
-  certificationDocumentUrl    String?    // Uploaded locksmith certification
-  additionalDocumentUrls      String[]   // Any additional supporting documents
-  documentationUploadedAt     DateTime?  // When documentation was uploaded
+  termsAcceptedAt          DateTime? // When locksmith accepted T&C
+  onboardingCompleted      Boolean   @default(false)
+  insuranceDocumentUrl     String? // Uploaded insurance document
+  certificationDocumentUrl String? // Uploaded locksmith certification
+  additionalDocumentUrls   String[] // Any additional supporting documents
+  documentationUploadedAt  DateTime? // When documentation was uploaded
 
   // Insurance expiry tracking
-  insuranceExpiryDate         DateTime?  // When insurance certificate expires
-  insuranceVerifiedAt         DateTime?  // When admin verified the insurance
-  insuranceVerifiedById       String?    // Admin ID who verified
-  insuranceStatus             String     @default("pending") // pending, verified, expired, expiring_soon
-  insuranceReminderSent       Boolean    @default(false) // Track if expiry reminder was sent
+  insuranceExpiryDate   DateTime? // When insurance certificate expires
+  insuranceVerifiedAt   DateTime? // When admin verified the insurance
+  insuranceVerifiedById String? // Admin ID who verified
+  insuranceStatus       String    @default("pending") // pending, verified, expired, expiring_soon
+  insuranceReminderSent Boolean   @default(false) // Track if expiry reminder was sent
 
   // Password reset
-  resetToken             String?
-  resetTokenExpiry       DateTime?
+  resetToken       String?
+  resetTokenExpiry DateTime?
 
   // Dynamic commission tier
-  commissionRate            Float    @default(0.25)   // Work quote commission (e.g. 0.25 = 25%)
-  commissionAssessmentRate  Float    @default(0.15)   // Assessment fee commission (e.g. 0.15 = 15%)
-  commissionTier            String   @default("STANDARD") // STANDARD | PREMIUM
-  commissionTierUpdatedAt   DateTime?
-  commissionTierReasons     String[] // e.g. ["high_earner", "regular_area", "area_saturation"]
-  commissionOverride        Boolean  @default(false)  // If true, cron will not auto-update this locksmith's tier
+  commissionRate           Float     @default(0.25) // Work quote commission (e.g. 0.25 = 25%)
+  commissionAssessmentRate Float     @default(0.15) // Assessment fee commission (e.g. 0.15 = 15%)
+  commissionTier           String    @default("STANDARD") // STANDARD | PREMIUM
+  commissionTierUpdatedAt  DateTime?
+  commissionTierReasons    String[] // e.g. ["high_earner", "regular_area", "area_saturation"]
+  commissionOverride       Boolean   @default(false) // If true, cron will not auto-update this locksmith's tier
 
   // Performance scoring
-  acceptanceRate       Float   @default(1.0)   // % of job offers accepted (0.0–1.0)
-  avgResponseMinutes   Float   @default(5.0)   // Historical average response time to new job alerts
-  onTimeRate           Float   @default(1.0)   // % of ETAs met within 15 min buffer
-  performanceScore     Float   @default(75.0)  // Composite score 0–100 fed into dispatch priority
-  performanceScoredAt  DateTime?               // When score was last computed
+  acceptanceRate      Float     @default(1.0) // % of job offers accepted (0.0–1.0)
+  avgResponseMinutes  Float     @default(5.0) // Historical average response time to new job alerts
+  onTimeRate          Float     @default(1.0) // % of ETAs met within 15 min buffer
+  performanceScore    Float     @default(75.0) // Composite score 0–100 fed into dispatch priority
+  performanceScoredAt DateTime? // When score was last computed
 
-  createdAt         DateTime      @default(now())
+  createdAt      DateTime @default(now())
   // Referral system
-  referralCode      String?   // Their own shareable code - sparse unique index managed in Atlas
-  referredByCode    String?   // Code they signed up with
+  referralCode   String? // Their own shareable code - sparse unique index managed in Atlas
+  referredByCode String? // Code they signed up with
 
-  updatedAt         DateTime      @updatedAt
+  updatedAt DateTime @updatedAt
 
-  jobs              Job[]
-  quotes            Quote[]
-  applications      LocksmithApplication[]
-  payouts           Payout[]
-  reviews           Review[]
-  auctionsAccepted  JobAuction[]
+  jobs             Job[]
+  quotes           Quote[]
+  applications     LocksmithApplication[]
+  payouts          Payout[]
+  reviews          Review[]
+  auctionsAccepted JobAuction[]
+
+  // Performance indexes for dispatch / matcher queries (Locksmith lookups by
+  // active+available status combined with base location). MongoDB B-tree
+  // compound indexes; bounding-box pre-filtering is still done in JS, but
+  // these greatly reduce the candidate set scanned per dispatch.
+  @@index([isActive, isAvailable])
+  @@index([baseLat, baseLng])
+  @@index([telegramChatId])
+  @@index([whatsappChatId])
 }
 
 // Locksmith application for a job (when locksmith applies with assessment fee)
 model LocksmithApplication {
-  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  jobId         String    @db.ObjectId
-  job           Job       @relation(fields: [jobId], references: [id])
+  jobId String @db.ObjectId
+  job   Job    @relation(fields: [jobId], references: [id])
 
-  locksmithId   String    @db.ObjectId
-  locksmith     Locksmith @relation(fields: [locksmithId], references: [id])
+  locksmithId String    @db.ObjectId
+  locksmith   Locksmith @relation(fields: [locksmithId], references: [id])
 
-  assessmentFee Float     // Fee the locksmith is charging
-  callOutFee    Float?    // Call-out fee for emergency workflow
-  eta           Int       // Minutes until arrival
-  estimatedETA  String?   // Human-readable ETA (e.g., "15 minutes")
-  message       String?   // Optional message to customer
+  assessmentFee Float // Fee the locksmith is charging
+  callOutFee    Float? // Call-out fee for emergency workflow
+  eta           Int // Minutes until arrival
+  estimatedETA  String? // Human-readable ETA (e.g., "15 minutes")
+  message       String? // Optional message to customer
 
-  status        String    @default("pending") // pending, accepted, rejected
+  status String @default("pending") // pending, accepted, rejected
 
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([jobId, locksmithId])
 }
 
 // Main Job model - the core entity
 model Job {
-  id               String    @id @default(auto()) @map("_id") @db.ObjectId
-  jobNumber        String    @unique // Human-readable job number
+  id        String @id @default(auto()) @map("_id") @db.ObjectId
+  jobNumber String @unique // Human-readable job number
 
-  status           JobStatus @default(PENDING)
+  status JobStatus @default(PENDING)
 
   // Source tracking (phone/web/app)
-  createdVia       String    @default("web") // web, phone, app, retell_ai
-  blandCallId      String?   // Bland.ai call ID for phone-initiated jobs
-  retellCallId     String?   // Retell AI call ID for voice-initiated jobs
-  phoneCollectedData Json?   // Data collected during phone call
-  continueToken    String?   // Token for continuing phone-initiated request (uniqueness enforced at application level)
+  createdVia         String  @default("web") // web, phone, app, retell_ai
+  blandCallId        String? // Bland.ai call ID for phone-initiated jobs
+  retellCallId       String? // Retell AI call ID for voice-initiated jobs
+  phoneCollectedData Json? // Data collected during phone call
+  continueToken      String? // Token for continuing phone-initiated request (uniqueness enforced at application level)
 
   // Emergency workflow tracking
   isEmergency          Boolean   @default(false) // Whether this is an emergency request
-  emergencyDetails     String?   // Details of the emergency
-  exactLocation        String?   // Exact location description (e.g., "blue door, flat 3")
-  notifiedLocksmithIds String[]  // IDs of locksmiths who were notified
+  emergencyDetails     String? // Details of the emergency
+  exactLocation        String? // Exact location description (e.g., "blue door, flat 3")
+  notifiedLocksmithIds String[] // IDs of locksmiths who were notified
   notifiedAt           DateTime? // When locksmiths were notified
 
   // Admin: "no locksmith available in coverage area" notification
   noLocksmithNotifiedAt       DateTime?
   noLocksmithNotifiedChannels String[]  @default([]) // ["sms","email"]
-  noLocksmithNotifiedBy       String?   // admin email/id who triggered it
+  noLocksmithNotifiedBy       String? // admin email/id who triggered it
 
   // Customer info
-  customerId       String    @db.ObjectId
-  customer         Customer  @relation(fields: [customerId], references: [id])
+  customerId String   @db.ObjectId
+  customer   Customer @relation(fields: [customerId], references: [id])
 
   // Locksmith info (assigned after acceptance)
-  locksmithId      String?   @db.ObjectId
-  locksmith        Locksmith? @relation(fields: [locksmithId], references: [id])
+  locksmithId String?    @db.ObjectId
+  locksmith   Locksmith? @relation(fields: [locksmithId], references: [id])
 
   // Job details
-  problemType      String    // lockout, broken, key-stuck, etc.
-  propertyType     String    // house, flat, commercial, car
-  description      String?
+  problemType  String // lockout, broken, key-stuck, etc.
+  propertyType String // house, flat, commercial, car
+  description  String?
 
   // Location
-  postcode         String
-  address          String
-  latitude         Float?
-  longitude        Float?
+  postcode  String
+  address   String
+  latitude  Float?
+  longitude Float?
 
   // Assessment fee
-  assessmentFee    Float     @default(29.00)
-  assessmentPaid   Boolean   @default(false)
-  acceptedEta      Int?      // ETA in minutes that was agreed upon
+  assessmentFee  Float   @default(29.00)
+  assessmentPaid Boolean @default(false)
+  acceptedEta    Int? // ETA in minutes that was agreed upon
 
   // Timestamps for workflow
   createdAt        DateTime  @default(now())
   acceptedAt       DateTime?
-  enRouteAt        DateTime?    // When locksmith started heading to location
-  estimatedArrival String?      // ETA as string (e.g., "15 minutes", "30 mins")
+  enRouteAt        DateTime? // When locksmith started heading to location
+  estimatedArrival String? // ETA as string (e.g., "15 minutes", "30 mins")
   arrivedAt        DateTime?
   diagnosedAt      DateTime?
   workStartedAt    DateTime?
@@ -358,260 +367,268 @@ model Job {
   signedAt         DateTime?
 
   // GPS tracking for all events (anti-fraud protection)
-  requestGps       Json?     // { lat, lng, accuracy } - Customer's location when requesting
-  acceptedGps      Json?     // { lat, lng, accuracy } - Locksmith's location when accepting
-  arrivalGps       Json?     // { lat, lng, accuracy } - Locksmith's location when arriving
-  quoteGps         Json?     // { lat, lng, accuracy } - Locksmith's location when sending quote
-  workStartedGps   Json?     // { lat, lng, accuracy } - Locksmith's location when starting work
-  completionGps    Json?     // { lat, lng, accuracy } - Locksmith's location when completing
-  signatureGps     Json?     // { lat, lng, accuracy } - Customer's location when signing
+  requestGps     Json? // { lat, lng, accuracy } - Customer's location when requesting
+  acceptedGps    Json? // { lat, lng, accuracy } - Locksmith's location when accepting
+  arrivalGps     Json? // { lat, lng, accuracy } - Locksmith's location when arriving
+  quoteGps       Json? // { lat, lng, accuracy } - Locksmith's location when sending quote
+  workStartedGps Json? // { lat, lng, accuracy } - Locksmith's location when starting work
+  completionGps  Json? // { lat, lng, accuracy } - Locksmith's location when completing
+  signatureGps   Json? // { lat, lng, accuracy } - Customer's location when signing
 
   // Photos
-  photos           Photo[]
+  photos Photo[]
 
   // Quote
-  quote            Quote?
+  quote Quote?
 
   // Digital signature
-  signature        Signature?
+  signature Signature?
 
   // Final report
-  report           Report?
+  report Report?
 
   // Applications from locksmiths
-  applications     LocksmithApplication[]
+  applications LocksmithApplication[]
 
   // Payments
-  payments         Payment[]
+  payments Payment[]
 
   // Review
-  review           Review?
+  review Review?
 
   // B2B / Landlord linkage
-  organisationId   String?   @db.ObjectId
-  organisation     Organisation? @relation("OrgJobs", fields: [organisationId], references: [id])
-  propertyId       String?   @db.ObjectId
-  property         Property? @relation("PropertyJobs", fields: [propertyId], references: [id])
+  organisationId String?       @db.ObjectId
+  organisation   Organisation? @relation("OrgJobs", fields: [organisationId], references: [id])
+  propertyId     String?       @db.ObjectId
+  property       Property?     @relation("PropertyJobs", fields: [propertyId], references: [id])
 
   // Auction (for high-supply areas)
-  auction          JobAuction?
+  auction JobAuction?
 
   // In-platform chat
-  messages         JobMessage[]
+  messages JobMessage[]
 
   // Scheduled booking support
-  scheduledFor     DateTime?   // If set, job is a pre-booked appointment
-  isScheduled      Boolean     @default(false)
+  scheduledFor DateTime? // If set, job is a pre-booked appointment
+  isScheduled  Boolean   @default(false)
 
   // Auto re-dispatch tracking
-  dispatchAttempts    Int       @default(1)   // How many notification waves have been sent
-  lastDispatchAt      DateTime?               // When the last dispatch wave was sent
+  dispatchAttempts Int       @default(1) // How many notification waves have been sent
+  lastDispatchAt   DateTime? // When the last dispatch wave was sent
 
   // Review request automation
-  reviewRequestedAt   DateTime?              // When review request was sent to customer
+  reviewRequestedAt DateTime? // When review request was sent to customer
 
   // Win-back automation
-  winBackSentAt       DateTime?              // When post-job win-back email was sent
+  winBackSentAt DateTime? // When post-job win-back email was sent
 
   // Confirmation deadline for customer to sign (locksmith safety)
-  confirmationDeadline    DateTime?  // When customer must sign by
-  confirmationRemindersSent Int      @default(0) // Number of reminders sent
-  autoCompletedAt         DateTime?  // If job was auto-completed after deadline
+  confirmationDeadline      DateTime? // When customer must sign by
+  confirmationRemindersSent Int       @default(0) // Number of reminders sent
+  autoCompletedAt           DateTime? // If job was auto-completed after deadline
 
   // Metadata
-  updatedAt        DateTime  @updatedAt
+  updatedAt DateTime @updatedAt
 
   @@index([continueToken])
+  // Frequently-filtered Job queries (dispatch, dashboard, lifecycle crons)
+  @@index([status])
+  @@index([status, createdAt])
+  @@index([locksmithId, status])
+  @@index([customerId, createdAt])
+  @@index([createdAt])
+  @@index([scheduledFor])
+  @@index([confirmationDeadline])
 }
 
 // Job status enum
 enum JobStatus {
-  PHONE_INITIATED                // Phone call started, awaiting web completion
-  PENDING                        // Customer submitted, waiting for locksmith
-  SCHEDULED                      // Pre-booked appointment — not yet dispatched
-  ACCEPTED                       // Locksmith accepted the job
-  EN_ROUTE                       // Locksmith is on the way
-  ARRIVED                        // Locksmith arrived at location
-  DIAGNOSING                     // Locksmith performing diagnostic
-  QUOTED                         // Quote sent to customer
-  QUOTE_ACCEPTED                 // Customer accepted quote
-  QUOTE_DECLINED                 // Customer declined quote (assessment only)
-  IN_PROGRESS                    // Work being performed
-  PENDING_CUSTOMER_CONFIRMATION  // Work finished, waiting for customer to confirm & sign
-  COMPLETED                      // Work finished and customer confirmed
-  SIGNED                         // Customer signed off and payment processed
-  CANCELLED                      // Job cancelled
+  PHONE_INITIATED // Phone call started, awaiting web completion
+  PENDING // Customer submitted, waiting for locksmith
+  SCHEDULED // Pre-booked appointment — not yet dispatched
+  ACCEPTED // Locksmith accepted the job
+  EN_ROUTE // Locksmith is on the way
+  ARRIVED // Locksmith arrived at location
+  DIAGNOSING // Locksmith performing diagnostic
+  QUOTED // Quote sent to customer
+  QUOTE_ACCEPTED // Customer accepted quote
+  QUOTE_DECLINED // Customer declined quote (assessment only)
+  IN_PROGRESS // Work being performed
+  PENDING_CUSTOMER_CONFIRMATION // Work finished, waiting for customer to confirm & sign
+  COMPLETED // Work finished and customer confirmed
+  SIGNED // Customer signed off and payment processed
+  CANCELLED // Job cancelled
 }
 
 // Quote model
 model Quote {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  jobId       String   @unique @db.ObjectId
-  job         Job      @relation(fields: [jobId], references: [id])
+  jobId String @unique @db.ObjectId
+  job   Job    @relation(fields: [jobId], references: [id])
 
-  locksmithId String   @db.ObjectId
+  locksmithId String    @db.ObjectId
   locksmith   Locksmith @relation(fields: [locksmithId], references: [id])
 
   // Diagnostic info
-  lockType    String   // cylinder, mortice, multipoint, etc.
-  defect      String   // description of issue found
-  difficulty  String   // easy, medium, hard, specialist
+  lockType   String // cylinder, mortice, multipoint, etc.
+  defect     String // description of issue found
+  difficulty String // easy, medium, hard, specialist
 
   // Parts breakdown
-  parts       QuotePart[]
+  parts QuotePart[]
 
   // Labour
-  labourCost  Float
-  labourTime  Int      // estimated minutes
+  labourCost Float
+  labourTime Int // estimated minutes
 
   // Totals
-  partsTotal  Float
-  subtotal    Float
-  vat         Float
-  total       Float
+  partsTotal Float
+  subtotal   Float
+  vat        Float
+  total      Float
 
   // Status
-  accepted    Boolean  @default(false)
-  acceptedAt  DateTime?
-  declinedAt  DateTime?
+  accepted   Boolean   @default(false)
+  acceptedAt DateTime?
+  declinedAt DateTime?
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Parts in a quote
 type QuotePart {
-  name        String
-  quantity    Int
-  unitPrice   Float
-  total       Float
+  name      String
+  quantity  Int
+  unitPrice Float
+  total     Float
 }
 
 // Payment model
 model Payment {
-  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  jobId           String    @db.ObjectId
-  job             Job       @relation(fields: [jobId], references: [id])
+  jobId String @db.ObjectId
+  job   Job    @relation(fields: [jobId], references: [id])
 
-  customerId      String?   @db.ObjectId  // Customer who made the payment
+  customerId String? @db.ObjectId // Customer who made the payment
 
-  type            String    // assessment, quote, tip, callout
-  amount          Float
-  status          String    @default("pending") // pending, succeeded, failed, refunded
+  type   String // assessment, quote, tip, callout
+  amount Float
+  status String @default("pending") // pending, succeeded, failed, refunded
 
   // Stripe integration
-  stripePaymentId       String?   // Stripe payment intent ID
-  stripeCheckoutId      String?   // Stripe Checkout Session ID
-  stripePaymentIntentId String?   // Payment Intent from completed checkout
+  stripePaymentId       String? // Stripe payment intent ID
+  stripeCheckoutId      String? // Stripe Checkout Session ID
+  stripePaymentIntentId String? // Payment Intent from completed checkout
 
   // Payment link for SMS-based checkout flow
-  paymentUrl            String?   // Short URL sent to customer via SMS
-  paymentUrlExpiresAt   DateTime? // When the payment link expires
+  paymentUrl          String? // Short URL sent to customer via SMS
+  paymentUrlExpiresAt DateTime? // When the payment link expires
 
   // Discount tracking
-  originalAmount        Float?    // Amount before any discounts
-  subscriberDiscount    Float?    @default(0) // £ off from LockSafe Cover subscription
-  referralCreditApplied Float?    @default(0) // £ off from referral credits
-  platformSubsidy       Float?    @default(0) // Platform cost absorbed (= subscriberDiscount)
+  originalAmount        Float? // Amount before any discounts
+  subscriberDiscount    Float? @default(0) // £ off from LockSafe Cover subscription
+  referralCreditApplied Float? @default(0) // £ off from referral credits
+  platformSubsidy       Float? @default(0) // Platform cost absorbed (= subscriberDiscount)
 
-  paidAt          DateTime?
+  paidAt DateTime?
 
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Descending-clock job auction for high-supply areas
 model JobAuction {
-  id                      String    @id @default(auto()) @map("_id") @db.ObjectId
-  jobId                   String    @unique @db.ObjectId
-  job                     Job       @relation(fields: [jobId], references: [id])
+  id    String @id @default(auto()) @map("_id") @db.ObjectId
+  jobId String @unique @db.ObjectId
+  job   Job    @relation(fields: [jobId], references: [id])
 
-  state                   String    @default("RUNNING") // RUNNING | ACCEPTED | EXPIRED | ADMIN_ASSIGNED
-  currentStep             Int       @default(0)         // 0=40% | 1=35% | 2=30% | 3=25%
-  currentRate             Float     @default(0.40)      // Commission rate currently on offer
-  nextDropAt              DateTime                      // When to move to next step
+  state       String   @default("RUNNING") // RUNNING | ACCEPTED | EXPIRED | ADMIN_ASSIGNED
+  currentStep Int      @default(0) // 0=40% | 1=35% | 2=30% | 3=25%
+  currentRate Float    @default(0.40) // Commission rate currently on offer
+  nextDropAt  DateTime // When to move to next step
 
-  notifiedLocksmithIds    String[]  @db.ObjectId        // Locksmiths who received the auction offer
-  acceptedByLocksmithId   String?   @db.ObjectId
-  acceptedBy              Locksmith? @relation(fields: [acceptedByLocksmithId], references: [id])
-  acceptedRate            Float?                        // Rate at which the locksmith accepted
-  acceptedAt              DateTime?
+  notifiedLocksmithIds  String[]   @db.ObjectId // Locksmiths who received the auction offer
+  acceptedByLocksmithId String?    @db.ObjectId
+  acceptedBy            Locksmith? @relation(fields: [acceptedByLocksmithId], references: [id])
+  acceptedRate          Float? // Rate at which the locksmith accepted
+  acceptedAt            DateTime?
 
-  createdAt               DateTime  @default(now())
-  updatedAt               DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Payout to locksmith
 model Payout {
-  id               String    @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  locksmithId      String    @db.ObjectId
-  locksmith        Locksmith @relation(fields: [locksmithId], references: [id])
+  locksmithId String    @db.ObjectId
+  locksmith   Locksmith @relation(fields: [locksmithId], references: [id])
 
-  amount           Float
-  platformFee      Float     // Our commission
-  netAmount        Float     // Amount paid to locksmith
-  status           String    @default("pending") // pending, processing, paid, failed
+  amount      Float
+  platformFee Float // Our commission
+  netAmount   Float // Amount paid to locksmith
+  status      String @default("pending") // pending, processing, paid, failed
 
-  stripePayoutId   String?   // Stripe payout/transfer ID
+  stripePayoutId   String? // Stripe payout/transfer ID
   stripeTransferId String?
 
-  periodStart      DateTime  // Payout period
-  periodEnd        DateTime
+  periodStart DateTime // Payout period
+  periodEnd   DateTime
 
-  jobIds           String[]  // Jobs included in this payout
+  jobIds String[] // Jobs included in this payout
 
-  createdAt        DateTime  @default(now())
-  paidAt           DateTime?
+  createdAt DateTime  @default(now())
+  paidAt    DateTime?
 }
 
 // Review from customer
 model Review {
-  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  jobId         String    @unique @db.ObjectId
-  job           Job       @relation(fields: [jobId], references: [id])
+  jobId String @unique @db.ObjectId
+  job   Job    @relation(fields: [jobId], references: [id])
 
-  customerId    String    @db.ObjectId
-  customer      Customer  @relation(fields: [customerId], references: [id])
+  customerId String   @db.ObjectId
+  customer   Customer @relation(fields: [customerId], references: [id])
 
-  locksmithId   String    @db.ObjectId
-  locksmith     Locksmith @relation(fields: [locksmithId], references: [id])
+  locksmithId String    @db.ObjectId
+  locksmith   Locksmith @relation(fields: [locksmithId], references: [id])
 
-  rating        Int       // 1-5 stars
-  comment       String?
-  isPublic      Boolean   @default(true)
+  rating   Int // 1-5 stars
+  comment  String?
+  isPublic Boolean @default(true)
 
-  createdAt     DateTime  @default(now())
+  createdAt DateTime @default(now())
 }
 
 // In-app notifications for users
 model Notification {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
   // Recipient - one of these will be set
-  customerId    String?  @db.ObjectId
-  locksmithId   String?  @db.ObjectId
+  customerId  String? @db.ObjectId
+  locksmithId String? @db.ObjectId
 
   // Related job (optional)
-  jobId         String?  @db.ObjectId
+  jobId String? @db.ObjectId
 
   // Notification content
-  type          String   // signature_reminder, job_update, payment, auto_completed, etc.
-  title         String
-  message       String
-  actionUrl     String?  // URL to navigate to when clicked
-  actionLabel   String?  // Button label like "Sign Now"
+  type        String // signature_reminder, job_update, payment, auto_completed, etc.
+  title       String
+  message     String
+  actionUrl   String? // URL to navigate to when clicked
+  actionLabel String? // Button label like "Sign Now"
 
   // Status
-  read          Boolean  @default(false)
-  readAt        DateTime?
+  read   Boolean   @default(false)
+  readAt DateTime?
 
   // Metadata
-  data          Json?    // Extra data for notification
-  createdAt     DateTime @default(now())
+  data      Json? // Extra data for notification
+  createdAt DateTime @default(now())
 
   @@index([customerId])
   @@index([locksmithId])
@@ -620,18 +637,18 @@ model Notification {
 
 // Photos for documentation
 model Photo {
-  id        String    @id @default(auto()) @map("_id") @db.ObjectId
-  jobId     String    @db.ObjectId
-  job       Job       @relation(fields: [jobId], references: [id])
+  id    String @id @default(auto()) @map("_id") @db.ObjectId
+  jobId String @db.ObjectId
+  job   Job    @relation(fields: [jobId], references: [id])
 
-  type      PhotoType // before, during, after, lock_serial, damage
-  url       String
-  caption   String?
+  type    PhotoType // before, during, after, lock_serial, damage
+  url     String
+  caption String?
 
   // Metadata
-  takenAt   DateTime  @default(now())
-  gpsLat    Float?
-  gpsLng    Float?
+  takenAt DateTime @default(now())
+  gpsLat  Float?
+  gpsLng  Float?
 }
 
 enum PhotoType {
@@ -645,60 +662,60 @@ enum PhotoType {
 
 // Digital signature
 model Signature {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  jobId       String   @unique @db.ObjectId
-  job         Job      @relation(fields: [jobId], references: [id])
+  id    String @id @default(auto()) @map("_id") @db.ObjectId
+  jobId String @unique @db.ObjectId
+  job   Job    @relation(fields: [jobId], references: [id])
 
-  signatureData String  // Base64 encoded signature image
+  signatureData String // Base64 encoded signature image
   signerName    String
   signerIp      String?
   deviceInfo    String?
 
   // Confirmations
-  confirmsWork       Boolean @default(true)
-  confirmsPrice      Boolean @default(true)
-  confirmsSatisfied  Boolean @default(true)
+  confirmsWork      Boolean @default(true)
+  confirmsPrice     Boolean @default(true)
+  confirmsSatisfied Boolean @default(true)
 
-  signedAt     DateTime @default(now())
+  signedAt DateTime @default(now())
 }
 
 // Legal PDF Report
 model Report {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  jobId       String   @unique @db.ObjectId
-  job         Job      @relation(fields: [jobId], references: [id])
+  id    String @id @default(auto()) @map("_id") @db.ObjectId
+  jobId String @unique @db.ObjectId
+  job   Job    @relation(fields: [jobId], references: [id])
 
-  pdfUrl      String
-  reportNumber String  @unique // LRS-2026-001234
+  pdfUrl       String
+  reportNumber String @unique // LRS-2026-001234
 
   // Embedded data for legal purposes
-  fullTimeline Json    // Complete timeline of events
-  gpsLog       Json    // All GPS points
-  photoUrls    String[]// All photo URLs
-  quoteData    Json    // Quote breakdown
-  signatureUrl String  // Signature image URL
+  fullTimeline Json // Complete timeline of events
+  gpsLog       Json // All GPS points
+  photoUrls    String[] // All photo URLs
+  quoteData    Json // Quote breakdown
+  signatureUrl String // Signature image URL
 
-  generatedAt  DateTime @default(now())
+  generatedAt DateTime @default(now())
 }
 
 // Analytics event for tracking metrics
 model AnalyticsEvent {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  type        String   // page_view, job_created, job_completed, etc.
-  data        Json     // Event-specific data
-  sessionId   String?
-  userId      String?  // Customer or locksmith ID
-  userType    String?  // customer, locksmith, admin
-  createdAt   DateTime @default(now())
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  type      String // page_view, job_created, job_completed, etc.
+  data      Json // Event-specific data
+  sessionId String?
+  userId    String? // Customer or locksmith ID
+  userType  String? // customer, locksmith, admin
+  createdAt DateTime @default(now())
 }
 
 // Blog posts for SEO content
 model BlogPost {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  slug        String   @unique
-  title       String
-  excerpt     String
-  content     String
+  id            String  @id @default(auto()) @map("_id") @db.ObjectId
+  slug          String  @unique
+  title         String
+  excerpt       String
+  content       String
   featuredImage String?
 
   // SEO
@@ -711,11 +728,11 @@ model BlogPost {
   authorImage String?
 
   // Status
-  published   Boolean  @default(false)
+  published   Boolean   @default(false)
   publishedAt DateTime?
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // FAQ for SEO/AEO
@@ -723,7 +740,7 @@ model FAQ {
   id       String  @id @default(auto()) @map("_id") @db.ObjectId
   question String
   answer   String
-  category String  // general, pricing, service, etc.
+  category String // general, pricing, service, etc.
   order    Int     @default(0)
   active   Boolean @default(true)
 }
@@ -731,18 +748,18 @@ model FAQ {
 // Service areas for GEO/SEO
 model ServiceArea {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  name        String   // "London", "Manchester", etc.
+  name        String // "London", "Manchester", etc.
   slug        String   @unique // "london", "manchester"
   postcodes   String[] // Covered postcodes
-  description String?  // Area-specific content
+  description String? // Area-specific content
   isActive    Boolean  @default(true)
 
   // SEO
   metaTitle       String?
   metaDescription String?
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ==========================================
@@ -751,30 +768,30 @@ model ServiceArea {
 
 // User session tracking for behavior analysis
 model UserSession {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
-  visitorId       String   // Fingerprint/cookie ID
-  customerId      String?  @db.ObjectId
+  id         String  @id @default(auto()) @map("_id") @db.ObjectId
+  visitorId  String // Fingerprint/cookie ID
+  customerId String? @db.ObjectId
 
   // Session data
-  startedAt       DateTime @default(now())
-  lastActiveAt    DateTime @default(now())
-  deviceType      String   // mobile, tablet, desktop
-  browser         String
-  referrer        String?
-  utmSource       String?
-  utmMedium       String?
-  utmCampaign     String?
-  landingPage     String
+  startedAt    DateTime @default(now())
+  lastActiveAt DateTime @default(now())
+  deviceType   String // mobile, tablet, desktop
+  browser      String
+  referrer     String?
+  utmSource    String?
+  utmMedium    String?
+  utmCampaign  String?
+  landingPage  String
 
   // Tracking
-  pageViews       PageView[]
-  events          UserEvent[]
-  funnelStage     String   @default("visitor") // visitor, lead, prospect, customer, advocate
-  segment         String[] // emergency, price_shopper, researcher, etc.
+  pageViews   PageView[]
+  events      UserEvent[]
+  funnelStage String      @default("visitor") // visitor, lead, prospect, customer, advocate
+  segment     String[] // emergency, price_shopper, researcher, etc.
 
   // Scoring
-  engagementScore Int      @default(0)
-  intentScore     Int      @default(0)
+  engagementScore Int @default(0)
+  intentScore     Int @default(0)
 
   // Modal history
   modalsShown     String[]
@@ -787,31 +804,31 @@ model UserSession {
 
 // Page view tracking
 model PageView {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  sessionId   String   @db.ObjectId
-  session     UserSession @relation(fields: [sessionId], references: [id])
+  id        String      @id @default(auto()) @map("_id") @db.ObjectId
+  sessionId String      @db.ObjectId
+  session   UserSession @relation(fields: [sessionId], references: [id])
 
   path        String
   title       String?
-  timeOnPage  Int?     // seconds
-  scrollDepth Int      @default(0) // percentage
+  timeOnPage  Int? // seconds
+  scrollDepth Int     @default(0) // percentage
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([sessionId])
 }
 
 // User event tracking (clicks, interactions, etc.)
 model UserEvent {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  sessionId   String   @db.ObjectId
-  session     UserSession @relation(fields: [sessionId], references: [id])
+  id        String      @id @default(auto()) @map("_id") @db.ObjectId
+  sessionId String      @db.ObjectId
+  session   UserSession @relation(fields: [sessionId], references: [id])
 
-  type        String   // click, form_start, form_abandon, scroll, hover, etc.
-  element     String?  // Button ID, form name, etc.
-  data        Json?
+  type    String // click, form_start, form_abandon, scroll, hover, etc.
+  element String? // Button ID, form name, etc.
+  data    Json?
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([sessionId])
   @@index([type])
@@ -819,45 +836,45 @@ model UserEvent {
 
 // Funnel triggers for modals and popups
 model FunnelTrigger {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  name        String   @unique
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  name        String  @unique
   description String?
 
   // Trigger conditions
-  conditions  Json     // Complex conditions object
+  conditions Json // Complex conditions object
 
   // Action
-  modalType   String   // survey, offer, lead_magnet, exit_intent, etc.
-  modalConfig Json     // Modal content and styling
+  modalType   String // survey, offer, lead_magnet, exit_intent, etc.
+  modalConfig Json // Modal content and styling
 
   // Targeting
-  segments    String[] // Which segments to show
+  segments     String[] // Which segments to show
   funnelStages String[] // Which funnel stages
 
   // Limits
-  priority    Int      @default(0)
-  showOnce    Boolean  @default(true)
-  cooldownHours Int    @default(24)
-  maxShows    Int      @default(1)
+  priority      Int     @default(0)
+  showOnce      Boolean @default(true)
+  cooldownHours Int     @default(24)
+  maxShows      Int     @default(1)
 
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
 }
 
 // Modal interaction tracking
 model ModalInteraction {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  sessionId   String
-  visitorId   String
-  customerId  String?
+  id         String  @id @default(auto()) @map("_id") @db.ObjectId
+  sessionId  String
+  visitorId  String
+  customerId String?
 
-  modalType   String
-  triggerId   String?
+  modalType String
+  triggerId String?
 
-  action      String   // shown, dismissed, converted, completed
-  data        Json?    // Survey responses, form data, etc.
+  action String // shown, dismissed, converted, completed
+  data   Json? // Survey responses, form data, etc.
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([visitorId])
   @@index([modalType])
@@ -865,25 +882,25 @@ model ModalInteraction {
 
 // Lead magnet signups
 model LeadMagnet {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  email       String
-  name        String?
-  phone       String?
+  id    String  @id @default(auto()) @map("_id") @db.ObjectId
+  email String
+  name  String?
+  phone String?
 
-  source      String   // Which lead magnet/popup
-  segment     String[]
+  source  String // Which lead magnet/popup
+  segment String[]
 
-  downloaded  String[] // Which assets they downloaded
+  downloaded String[] // Which assets they downloaded
 
-  emailsSent  String[] // Which emails they've received
-  emailsOpened String[]
+  emailsSent    String[] // Which emails they've received
+  emailsOpened  String[]
   emailsClicked String[]
 
   convertedToCustomer Boolean @default(false)
-  customerId  String?
+  customerId          String?
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([email])
 }
@@ -894,83 +911,83 @@ model LeadMagnet {
 
 // Meta Business account connection
 model MetaAdAccount {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
   // Account info
-  accountId       String   @unique  // Meta Ad Account ID (act_xxxxx)
-  businessId      String?  // Business Manager ID
-  name            String
-  currency        String   @default("GBP")
-  timezone        String   @default("Europe/London")
+  accountId  String  @unique // Meta Ad Account ID (act_xxxxx)
+  businessId String? // Business Manager ID
+  name       String
+  currency   String  @default("GBP")
+  timezone   String  @default("Europe/London")
 
   // Authentication
-  accessToken     String   // Encrypted access token
-  tokenExpiresAt  DateTime?
-  refreshToken    String?
+  accessToken    String // Encrypted access token
+  tokenExpiresAt DateTime?
+  refreshToken   String?
 
   // Pixel connection
-  pixelId         String?  // Connected Meta Pixel ID
-  pixelName       String?
+  pixelId   String? // Connected Meta Pixel ID
+  pixelName String?
 
   // Status
-  isActive        Boolean  @default(true)
-  lastSyncAt      DateTime?
+  isActive   Boolean   @default(true)
+  lastSyncAt DateTime?
 
   // Relations
-  campaigns       AdCampaign[]
-  audiences       AdAudience[]
+  campaigns AdCampaign[]
+  audiences AdAudience[]
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Google Ads API credentials — stored once by an admin and shared across all
 // OAuth flows. Only one row exists (singleton, keyed by key="default").
 // Storing secrets in DB matches the MetaAdAccount pattern already in use here.
 model GoogleAdsApiConfig {
-  id                String   @id @default(auto()) @map("_id") @db.ObjectId
-  key               String   @unique @default("default")
+  id  String @id @default(auto()) @map("_id") @db.ObjectId
+  key String @unique @default("default")
 
-  developerToken    String   // Google Ads Developer Token (from API Centre)
-  oauthClientId     String   // Google Cloud Console → OAuth 2.0 Client → Client ID
-  oauthClientSecret String   // Google Cloud Console → OAuth 2.0 Client → Secret
-  loginCustomerId   String   // MCC / Manager account ID (10 digits, no dashes)
-  redirectUri       String   // e.g. https://locksafe.uk/api/admin/google-ads/oauth/callback
+  developerToken    String // Google Ads Developer Token (from API Centre)
+  oauthClientId     String // Google Cloud Console → OAuth 2.0 Client → Client ID
+  oauthClientSecret String // Google Cloud Console → OAuth 2.0 Client → Secret
+  loginCustomerId   String // MCC / Manager account ID (10 digits, no dashes)
+  redirectUri       String // e.g. https://locksafe.uk/api/admin/google-ads/oauth/callback
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Google Ads account connection (Phase 1 — read-only; tokens stored unencrypted
 // matching MetaAdAccount convention. TODO(security): apply at-rest encryption
 // across both before Phase 3 autonomy ships.)
 model GoogleAdsAccount {
-  id                  String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
   // Customer ID without dashes, e.g. "1234567890" — NOT the AW-* tag ID
-  customerId          String   @unique
+  customerId      String  @unique
   // Manager / MCC ID under which this customer sits (login-customer-id header)
-  loginCustomerId     String?
-  name                String
-  currency            String   @default("GBP")
-  timezone            String   @default("Europe/London")
+  loginCustomerId String?
+  name            String
+  currency        String  @default("GBP")
+  timezone        String  @default("Europe/London")
 
   // OAuth credentials (long-lived refresh token; access token is short-lived
   // and refreshed on demand by GoogleAdsClient)
-  refreshToken        String
-  accessToken         String?
-  tokenExpiresAt      DateTime?
-  scope               String?
+  refreshToken   String
+  accessToken    String?
+  tokenExpiresAt DateTime?
+  scope          String?
 
   // Status
-  isActive            Boolean  @default(true)
-  lastSyncAt          DateTime?
+  isActive   Boolean   @default(true)
+  lastSyncAt DateTime?
 
   // Relations
-  drafts              GoogleAdsCampaignDraft[]
+  drafts GoogleAdsCampaignDraft[]
 
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Phase 2 — AI-generated Google Ads campaign drafts.
@@ -978,68 +995,68 @@ model GoogleAdsAccount {
 // avoid breaking the 30+ existing accessors of AdCampaign.account.pixelId etc.
 // Drafts move through DRAFT → PENDING_APPROVAL → APPROVED → PUBLISHED.
 model GoogleAdsCampaignDraft {
-  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  accountId         String   @db.ObjectId
-  account           GoogleAdsAccount @relation(fields: [accountId], references: [id])
+  accountId String           @db.ObjectId
+  account   GoogleAdsAccount @relation(fields: [accountId], references: [id])
 
   // Lifecycle
-  status            String   @default("DRAFT")
+  status String @default("DRAFT")
   // DRAFT | PENDING_APPROVAL | APPROVED | REJECTED | PUBLISHING | PUBLISHED | PAUSED | FAILED
 
   // Post-publish IDs (resource names from Google Ads API)
-  googleCampaignId  String?  @unique  // numeric ID
-  googleAdGroupId   String?
-  googleAdId        String?
-  googleBudgetId    String?
+  googleCampaignId String? @unique // numeric ID
+  googleAdGroupId  String?
+  googleAdId       String?
+  googleBudgetId   String?
 
   // Campaign settings
-  name              String
-  dailyBudget       Float    // GBP
-  biddingStrategy   String   @default("MAXIMIZE_CONVERSIONS")
-  targetCpa         Float?
-  channel           String   @default("SEARCH")
+  name            String
+  dailyBudget     Float // GBP
+  biddingStrategy String @default("MAXIMIZE_CONVERSIONS")
+  targetCpa       Float?
+  channel         String @default("SEARCH")
 
   // Targeting
-  geoTargets        String[] @default(["2826"])  // Google geo target constants; 2826 = United Kingdom
-  languageTargets   String[] @default(["1000"])  // 1000 = English
+  geoTargets      String[] @default(["2826"]) // Google geo target constants; 2826 = United Kingdom
+  languageTargets String[] @default(["1000"]) // 1000 = English
 
   // Responsive Search Ad creative
-  headlines         String[]
-  descriptions      String[]
-  finalUrl          String
-  pinnedHeadlines   Json?    // optional pin map { headlineIndex: position }
+  headlines       String[]
+  descriptions    String[]
+  finalUrl        String
+  pinnedHeadlines Json? // optional pin map { headlineIndex: position }
 
   // Keywords
-  keywords          Json     // [{ text, matchType: "EXACT"|"PHRASE"|"BROAD" }]
-  negativeKeywords  String[] @default([])
+  keywords         Json // [{ text, matchType: "EXACT"|"PHRASE"|"BROAD" }]
+  negativeKeywords String[] @default([])
 
   // AI metadata
-  aiGenerated       Boolean  @default(true)
-  aiPrompt          String?
-  aiReasoning       String?
-  agentId           String?  @db.ObjectId
+  aiGenerated Boolean @default(true)
+  aiPrompt    String?
+  aiReasoning String?
+  agentId     String? @db.ObjectId
 
   // Approval tracking
-  approvalId        String?  @db.ObjectId
-  approvedBy        String?
-  approvedAt        DateTime?
-  rejectedReason    String?
+  approvalId     String?   @db.ObjectId
+  approvedBy     String?
+  approvedAt     DateTime?
+  rejectedReason String?
 
   // Performance (synced)
-  totalSpend        Float    @default(0)
-  totalConversions  Int      @default(0)
-  totalRevenue      Float    @default(0)
-  totalClicks       Int      @default(0)
-  totalImpressions  Int      @default(0)
+  totalSpend       Float @default(0)
+  totalConversions Int   @default(0)
+  totalRevenue     Float @default(0)
+  totalClicks      Int   @default(0)
+  totalImpressions Int   @default(0)
 
-  publishError      String?
-  publishedAt       DateTime?
-  pausedAt          DateTime?
+  publishError String?
+  publishedAt  DateTime?
+  pausedAt     DateTime?
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  lastSyncAt        DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  lastSyncAt DateTime?
 
   @@index([accountId])
   @@index([status])
@@ -1050,40 +1067,40 @@ model GoogleAdsCampaignDraft {
 // auto-publish and auto-optimisation path. The "global" row is a master kill
 // switch that overrides per-platform settings.
 model MarketingPolicy {
-  id                       String   @id @default(auto()) @map("_id") @db.ObjectId
-  platform                 String   @unique  // "meta" | "google" | "global"
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  platform String @unique // "meta" | "google" | "global"
 
   // Master kill switch — when false, every auto-action for this platform
   // is blocked, including auto-approve and optimiseGoogleCampaigns.
   // Manual admin actions through the UI are unaffected.
-  autonomyEnabled          Boolean  @default(false)
+  autonomyEnabled Boolean @default(false)
 
   // Hard caps (GBP). 0 = "not enforced" (use parent global row).
-  maxDailySpend            Float    @default(15)   // total per platform per day
-  maxMonthlySpend          Float    @default(300)  // total per platform per calendar month
-  maxCampaignDailyBudget   Float    @default(20)   // largest single-campaign budget the agent may set
-  minCampaignDailyBudget   Float    @default(2)    // smallest budget below which the agent should pause instead
+  maxDailySpend          Float @default(15) // total per platform per day
+  maxMonthlySpend        Float @default(300) // total per platform per calendar month
+  maxCampaignDailyBudget Float @default(20) // largest single-campaign budget the agent may set
+  minCampaignDailyBudget Float @default(2) // smallest budget below which the agent should pause instead
 
   // Auto-approval thresholds. If the agent files an approval whose
   // dailyBudget <= autoApproveMaxBudget AND the platform's autonomyEnabled
   // AND the past 7d spend < maxWeeklyAutoApproveSpend, the system resolves
   // it without admin input. Anything above bumps to manual review.
-  autoApproveMaxBudget     Float    @default(10)   // GBP/day
-  maxWeeklyAutoApproveSpend Float   @default(50)   // GBP rolling 7d agent-initiated
+  autoApproveMaxBudget      Float @default(10) // GBP/day
+  maxWeeklyAutoApproveSpend Float @default(50) // GBP rolling 7d agent-initiated
 
   // Optimisation guards
-  pauseRoasThreshold       Float    @default(0.5)  // pause campaigns under this ROAS after grace
-  pauseGraceDays           Int      @default(3)    // require N days under threshold before pausing
-  minImpressionsForPause   Int      @default(500)  // ignore tiny-volume campaigns
+  pauseRoasThreshold     Float @default(0.5) // pause campaigns under this ROAS after grace
+  pauseGraceDays         Int   @default(3) // require N days under threshold before pausing
+  minImpressionsForPause Int   @default(500) // ignore tiny-volume campaigns
 
   // Notification settings
-  notifyOnAutoAction       Boolean  @default(true) // Telegram/email when agent acts
+  notifyOnAutoAction Boolean @default(true) // Telegram/email when agent acts
 
   // LLM emergency fallback policy (local-first by default).
   // When disabled, agent/model calls must stay on Ollama/Hermes and cannot
   // fail over to OpenAI.
-  openAiFallbackEnabled    Boolean? @default(false)
-  openAiFallbackMinSeverity String? @default("high") // low | medium | high | critical
+  openAiFallbackEnabled     Boolean? @default(false)
+  openAiFallbackMinSeverity String?  @default("high") // low | medium | high | critical
 
   // Operational policy (runtime controls for orchestrator).
   // guardianModeEnabled: when true, only guardian agents (coo, cto) run; other
@@ -1097,11 +1114,11 @@ model MarketingPolicy {
   nonWorkflowHeartbeatMultiplier Int?     @default(1)
 
   // Audit
-  updatedBy                String?
-  notes                    String?
+  updatedBy String?
+  notes     String?
 
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Phase 3 — daily spend ledger keyed by (platform, date).
@@ -1109,14 +1126,14 @@ model MarketingPolicy {
 // snapshot tables, so subsequent guard checks are O(1). Idempotent: re-write
 // safely; the value is the canonical aggregate, not a delta.
 model DailySpendLedger {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  platform    String   // "meta" | "google"
-  date        DateTime // UTC midnight of the day
-  spend       Float    @default(0)
-  agentSpend  Float    @default(0)  // subset spent on agent-initiated campaigns
-  source      String   @default("snapshot")  // "snapshot" | "manual"
-  updatedAt   DateTime @updatedAt
-  createdAt   DateTime @default(now())
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  platform   String // "meta" | "google"
+  date       DateTime // UTC midnight of the day
+  spend      Float    @default(0)
+  agentSpend Float    @default(0) // subset spent on agent-initiated campaigns
+  source     String   @default("snapshot") // "snapshot" | "manual"
+  updatedAt  DateTime @updatedAt
+  createdAt  DateTime @default(now())
 
   @@unique([platform, date])
   @@index([date])
@@ -1124,48 +1141,48 @@ model DailySpendLedger {
 
 // Ad Campaign
 model AdCampaign {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
   // Meta IDs
   // NOTE: not @unique — MongoDB's unique index treats multiple null values as
   // duplicates, which blocks creating a 2nd draft (P2002). Meta's IDs are
   // globally unique by construction, so we rely on the API for uniqueness
   // and use a non-unique index for lookups.
-  metaCampaignId  String?  // ID from Meta after creation
-  accountId       String   @db.ObjectId
-  account         MetaAdAccount @relation(fields: [accountId], references: [id])
+  metaCampaignId String? // ID from Meta after creation
+  accountId      String        @db.ObjectId
+  account        MetaAdAccount @relation(fields: [accountId], references: [id])
 
   // Campaign settings
-  name            String
-  objective       AdObjective
-  status          AdStatus @default(DRAFT)
+  name      String
+  objective AdObjective
+  status    AdStatus    @default(DRAFT)
 
   // Budget
-  dailyBudget     Float?   // Daily budget in currency
-  lifetimeBudget  Float?   // Lifetime budget
-  bidStrategy     String   @default("LOWEST_COST")  // LOWEST_COST, COST_CAP, BID_CAP
+  dailyBudget    Float? // Daily budget in currency
+  lifetimeBudget Float? // Lifetime budget
+  bidStrategy    String @default("LOWEST_COST") // LOWEST_COST, COST_CAP, BID_CAP
 
   // Schedule
-  startDate       DateTime?
-  endDate         DateTime?
+  startDate DateTime?
+  endDate   DateTime?
 
   // Performance tracking
-  totalSpend      Float    @default(0)
-  totalImpressions Int     @default(0)
-  totalClicks     Int      @default(0)
-  totalConversions Int     @default(0)
-  totalRevenue    Float    @default(0)
+  totalSpend       Float @default(0)
+  totalImpressions Int   @default(0)
+  totalClicks      Int   @default(0)
+  totalConversions Int   @default(0)
+  totalRevenue     Float @default(0)
 
   // AI metadata
-  aiGenerated     Boolean  @default(false)
-  aiPrompt        String?  // Original prompt used
+  aiGenerated Boolean @default(false)
+  aiPrompt    String? // Original prompt used
 
   // Relations
-  adSets          AdSet[]
+  adSets AdSet[]
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  lastSyncAt      DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  lastSyncAt DateTime?
 
   @@index([accountId])
   @@index([status])
@@ -1174,58 +1191,58 @@ model AdCampaign {
 
 // Ad Set (targeting and budget at ad set level)
 model AdSet {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
   // Meta IDs (see AdCampaign.metaCampaignId for why this isn't @unique)
-  metaAdSetId     String?
-  campaignId      String   @db.ObjectId
-  campaign        AdCampaign @relation(fields: [campaignId], references: [id])
+  metaAdSetId String?
+  campaignId  String     @db.ObjectId
+  campaign    AdCampaign @relation(fields: [campaignId], references: [id])
 
   // Ad set settings
-  name            String
-  status          AdStatus @default(DRAFT)
+  name   String
+  status AdStatus @default(DRAFT)
 
   // Budget (can override campaign)
-  dailyBudget     Float?
-  lifetimeBudget  Float?
+  dailyBudget    Float?
+  lifetimeBudget Float?
 
   // Schedule
-  startDate       DateTime?
-  endDate         DateTime?
+  startDate DateTime?
+  endDate   DateTime?
 
   // Optimization
-  optimizationGoal String  @default("LEAD")  // LEAD, CONVERSIONS, LINK_CLICKS, etc.
-  billingEvent    String   @default("IMPRESSIONS")  // IMPRESSIONS, LINK_CLICKS
+  optimizationGoal String @default("LEAD") // LEAD, CONVERSIONS, LINK_CLICKS, etc.
+  billingEvent     String @default("IMPRESSIONS") // IMPRESSIONS, LINK_CLICKS
 
   // Targeting
-  targeting       Json     // Full targeting spec (locations, demographics, interests)
+  targeting Json // Full targeting spec (locations, demographics, interests)
 
   // Catalog binding (Advantage+ Catalog Ads). When set, the adset renders
   // dynamic creatives keyed off the product set instead of static images.
-  productSetId    String?  // Meta product_set id
-  serviceSlugs    String[] // catalog item slugs included (== retailer_id list)
-  isCatalogAdset  Boolean  @default(false)
+  productSetId   String? // Meta product_set id
+  serviceSlugs   String[] // catalog item slugs included (== retailer_id list)
+  isCatalogAdset Boolean  @default(false)
   /// "prospecting" | "retargeting" — drives audience composition.
-  catalogMode     String?
+  catalogMode    String?
 
   // Placements
-  placements      String[] // FEED, STORIES, REELS, etc. (empty = automatic)
+  placements String[] // FEED, STORIES, REELS, etc. (empty = automatic)
 
   // Performance
-  spend           Float    @default(0)
-  impressions     Int      @default(0)
-  clicks          Int      @default(0)
-  conversions     Int      @default(0)
-  ctr             Float    @default(0)
-  cpc             Float    @default(0)
-  cpm             Float    @default(0)
+  spend       Float @default(0)
+  impressions Int   @default(0)
+  clicks      Int   @default(0)
+  conversions Int   @default(0)
+  ctr         Float @default(0)
+  cpc         Float @default(0)
+  cpm         Float @default(0)
 
   // Relations
-  ads             Ad[]
-  audienceId      String?  @db.ObjectId
+  ads        Ad[]
+  audienceId String? @db.ObjectId
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([campaignId])
   @@index([metaAdSetId])
@@ -1233,50 +1250,50 @@ model AdSet {
 
 // Individual Ad
 model Ad {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
   // Meta IDs (see AdCampaign.metaCampaignId for why this isn't @unique)
-  metaAdId        String?
-  adSetId         String   @db.ObjectId
-  adSet           AdSet    @relation(fields: [adSetId], references: [id])
+  metaAdId String?
+  adSetId  String  @db.ObjectId
+  adSet    AdSet   @relation(fields: [adSetId], references: [id])
 
   // Ad settings
-  name            String
-  status          AdStatus @default(DRAFT)
+  name   String
+  status AdStatus @default(DRAFT)
 
   // Creative
-  creativeId      String   @db.ObjectId
-  creative        AdCreative @relation(fields: [creativeId], references: [id])
+  creativeId String     @db.ObjectId
+  creative   AdCreative @relation(fields: [creativeId], references: [id])
 
   // Tracking (auto-configured)
-  trackingUrl     String?  // Final URL with UTM + fbclid
-  utmSource       String   @default("facebook")
-  utmMedium       String   @default("paid")
-  utmCampaign     String?  // Auto-set from campaign name
-  utmContent      String?  // Auto-set from ad name
-  pixelEventType  String?  // Lead, Purchase, etc.
+  trackingUrl    String? // Final URL with UTM + fbclid
+  utmSource      String  @default("facebook")
+  utmMedium      String  @default("paid")
+  utmCampaign    String? // Auto-set from campaign name
+  utmContent     String? // Auto-set from ad name
+  pixelEventType String? // Lead, Purchase, etc.
 
   // Performance
-  spend           Float    @default(0)
-  impressions     Int      @default(0)
-  clicks          Int      @default(0)
-  conversions     Int      @default(0)
-  revenue         Float    @default(0)
-  ctr             Float    @default(0)
-  cpc             Float    @default(0)
-  roas            Float    @default(0)
+  spend       Float @default(0)
+  impressions Int   @default(0)
+  clicks      Int   @default(0)
+  conversions Int   @default(0)
+  revenue     Float @default(0)
+  ctr         Float @default(0)
+  cpc         Float @default(0)
+  roas        Float @default(0)
 
   // AI metadata
-  aiGenerated     Boolean  @default(false)
-  aiVariation     String?  // "emotional", "urgency", "social_proof", etc.
+  aiGenerated Boolean @default(false)
+  aiVariation String? // "emotional", "urgency", "social_proof", etc.
 
   // Review status
-  metaReviewStatus String?  // PENDING, APPROVED, REJECTED
+  metaReviewStatus   String? // PENDING, APPROVED, REJECTED
   metaReviewFeedback String?
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  lastSyncAt      DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  lastSyncAt DateTime?
 
   @@index([adSetId])
   @@index([status])
@@ -1285,132 +1302,132 @@ model Ad {
 
 // Ad Creative (reusable across ads)
 model AdCreative {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
   // Meta IDs (see AdCampaign.metaCampaignId for why this isn't @unique)
-  metaCreativeId  String?
+  metaCreativeId String?
 
   // Creative type
-  type            CreativeType @default(IMAGE)
+  type CreativeType @default(IMAGE)
 
   // Content
-  primaryText     String   // Main ad copy
-  headline        String   // Headline
-  description     String?  // Link description
-  callToAction    String   @default("LEARN_MORE")  // CTA button type
+  primaryText  String // Main ad copy
+  headline     String // Headline
+  description  String? // Link description
+  callToAction String  @default("LEARN_MORE") // CTA button type
 
   // Media
-  imageUrl        String?  // Image URL
-  imageHash       String?  // Meta image hash after upload
-  videoUrl        String?
-  videoId         String?  // Meta video ID
-  thumbnailUrl    String?
+  imageUrl     String? // Image URL
+  imageHash    String? // Meta image hash after upload
+  videoUrl     String?
+  videoId      String? // Meta video ID
+  thumbnailUrl String?
 
   // Link
-  destinationUrl  String   // Landing page URL (without UTM)
-  displayUrl      String?  // Display URL shown in ad
+  destinationUrl String // Landing page URL (without UTM)
+  displayUrl     String? // Display URL shown in ad
 
   // AI metadata
-  aiGenerated     Boolean  @default(false)
-  aiPrompt        String?
-  emotionalAngle  String?  // emotional, urgency, social_proof, benefit
+  aiGenerated    Boolean @default(false)
+  aiPrompt       String?
+  emotionalAngle String? // emotional, urgency, social_proof, benefit
 
   // Relations
-  ads             Ad[]
+  ads Ad[]
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Saved Audiences
 model AdAudience {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
   // Meta IDs
-  metaAudienceId  String?  @unique  // Custom/Lookalike audience ID
-  accountId       String   @db.ObjectId
-  account         MetaAdAccount @relation(fields: [accountId], references: [id])
+  metaAudienceId String?       @unique // Custom/Lookalike audience ID
+  accountId      String        @db.ObjectId
+  account        MetaAdAccount @relation(fields: [accountId], references: [id])
 
   // Audience info
-  name            String
-  description     String?
-  type            AudienceType @default(SAVED)
+  name        String
+  description String?
+  type        AudienceType @default(SAVED)
 
   // Targeting definition
-  targeting       Json     // Full targeting spec
+  targeting Json // Full targeting spec
 
   // Size estimates
-  estimatedSize   Int?     // Estimated reach
-  estimatedDaily  Int?     // Estimated daily reach
+  estimatedSize  Int? // Estimated reach
+  estimatedDaily Int? // Estimated daily reach
 
   // AI metadata
-  aiGenerated     Boolean  @default(false)
-  aiSuggestion    String?  // Why AI suggested this audience
+  aiGenerated  Boolean @default(false)
+  aiSuggestion String? // Why AI suggested this audience
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([accountId])
 }
 
 // AI Content Generation Log
 model AIGeneration {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
   // Request
-  type            String   // copy, audience, analysis, optimization
-  prompt          String
-  context         Json?    // Additional context provided
+  type    String // copy, audience, analysis, optimization
+  prompt  String
+  context Json? // Additional context provided
 
   // Response
-  output          Json     // Generated content
-  tokensUsed      Int      @default(0)
-  model           String   @default("gpt-4")
+  output     Json // Generated content
+  tokensUsed Int    @default(0)
+  model      String @default("gpt-4")
 
   // Usage tracking
-  usedInCampaign  String?  @db.ObjectId
-  usedInAd        String?  @db.ObjectId
-  wasAccepted     Boolean  @default(false)
+  usedInCampaign String? @db.ObjectId
+  usedInAd       String? @db.ObjectId
+  wasAccepted    Boolean @default(false)
 
-  createdAt       DateTime @default(now())
+  createdAt DateTime @default(now())
 }
 
 // Ad Performance Snapshots (for historical tracking)
 model AdPerformanceSnapshot {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
   // Platform discriminator. "meta" rows reference adId/adSetId/campaignId
   // (ObjectIds into our DB). "google" rows reference googleCampaignId
   // (string ID from Google Ads API) since we don't mirror Google campaigns
   // into AdCampaign in Phase 1.
-  platform              String   @default("meta")
+  platform String @default("meta")
 
   // Reference
-  adId                  String?  @db.ObjectId
-  adSetId               String?  @db.ObjectId
-  campaignId            String?  @db.ObjectId
+  adId       String? @db.ObjectId
+  adSetId    String? @db.ObjectId
+  campaignId String? @db.ObjectId
 
   // Google-specific identifiers (used when platform = "google")
-  googleAccountId       String?  @db.ObjectId
-  googleCampaignId      String?  // Google Ads numeric campaign ID
-  googleCampaignName    String?  // Denormalised for reporting without an extra fetch
+  googleAccountId    String? @db.ObjectId
+  googleCampaignId   String? // Google Ads numeric campaign ID
+  googleCampaignName String? // Denormalised for reporting without an extra fetch
 
   // Date
-  date            DateTime @db.Date
+  date DateTime @db.Date
 
   // Metrics
-  spend           Float
-  impressions     Int
-  clicks          Int
-  conversions     Int
-  revenue         Float
-  ctr             Float
-  cpc             Float
-  cpm             Float
-  roas            Float
-  frequency       Float?   // Average times shown per person
+  spend       Float
+  impressions Int
+  clicks      Int
+  conversions Int
+  revenue     Float
+  ctr         Float
+  cpc         Float
+  cpm         Float
+  roas        Float
+  frequency   Float? // Average times shown per person
 
-  createdAt       DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([adId, date])
   @@index([campaignId, date])
@@ -1420,56 +1437,56 @@ model AdPerformanceSnapshot {
 
 // UTM Templates
 model UTMTemplate {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  name            String
-  description     String?
+  name        String
+  description String?
 
   // UTM parameters
-  source          String
-  medium          String
-  campaign        String?
-  content         String?
-  term            String?
+  source   String
+  medium   String
+  campaign String?
+  content  String?
+  term     String?
 
   // Usage
-  useCount        Int      @default(0)
+  useCount Int @default(0)
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Enums
 enum AdObjective {
-  AWARENESS       // Brand awareness
-  TRAFFIC         // Link clicks
-  ENGAGEMENT      // Post engagement
-  LEADS           // Lead generation
-  SALES           // Conversions/purchases
-  APP_INSTALLS    // App installs
+  AWARENESS // Brand awareness
+  TRAFFIC // Link clicks
+  ENGAGEMENT // Post engagement
+  LEADS // Lead generation
+  SALES // Conversions/purchases
+  APP_INSTALLS // App installs
 }
 
 enum AdStatus {
-  DRAFT           // Not yet published
-  PENDING_REVIEW  // Submitted to Meta, pending review
-  ACTIVE          // Running
-  PAUSED          // Manually paused
-  REJECTED        // Rejected by Meta
-  COMPLETED       // Budget exhausted or end date reached
-  ARCHIVED        // Archived
+  DRAFT // Not yet published
+  PENDING_REVIEW // Submitted to Meta, pending review
+  ACTIVE // Running
+  PAUSED // Manually paused
+  REJECTED // Rejected by Meta
+  COMPLETED // Budget exhausted or end date reached
+  ARCHIVED // Archived
 }
 
 enum CreativeType {
-  IMAGE           // Single image
-  VIDEO           // Video
-  CAROUSEL        // Multiple images/videos
-  COLLECTION      // Collection ad
+  IMAGE // Single image
+  VIDEO // Video
+  CAROUSEL // Multiple images/videos
+  COLLECTION // Collection ad
 }
 
 enum AudienceType {
-  SAVED           // Saved audience (targeting spec)
-  CUSTOM          // Custom audience (website visitors, customer list)
-  LOOKALIKE       // Lookalike audience
+  SAVED // Saved audience (targeting spec)
+  CUSTOM // Custom audience (website visitors, customer list)
+  LOOKALIKE // Lookalike audience
 }
 
 // ==========================================
@@ -1478,109 +1495,109 @@ enum AudienceType {
 
 // Content pillars/themes for consistent content strategy
 model ContentPillar {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  name            String   @unique  // "anti-fraud", "tips", "stories", etc.
-  displayName     String   // "Anti-Fraud Education"
-  description     String   // What this pillar covers
-  color           String   // Hex color for UI display
-  icon            String   // Lucide icon name
+  name        String @unique // "anti-fraud", "tips", "stories", etc.
+  displayName String // "Anti-Fraud Education"
+  description String // What this pillar covers
+  color       String // Hex color for UI display
+  icon        String // Lucide icon name
 
   // Content guidelines
-  toneGuidelines  String[] // ["authoritative", "protective", "empowering"]
-  topicExamples   String[] // Example topics for AI
-  hashtags        String[] // Default hashtags for this pillar
+  toneGuidelines String[] // ["authoritative", "protective", "empowering"]
+  topicExamples  String[] // Example topics for AI
+  hashtags       String[] // Default hashtags for this pillar
 
   // Scheduling preferences
-  postsPerWeek    Int      @default(2)
-  preferredDays   String[] // ["monday", "wednesday"]
-  preferredTimes  String[] // ["09:00", "18:00"]
+  postsPerWeek   Int      @default(2)
+  preferredDays  String[] // ["monday", "wednesday"]
+  preferredTimes String[] // ["09:00", "18:00"]
 
-  isActive        Boolean  @default(true)
+  isActive Boolean @default(true)
 
   // Relations
-  posts           SocialPost[]
+  posts SocialPost[]
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Individual social media posts (organic)
 model SocialPost {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
   // Content
-  content         String   // Post text/copy
-  headline        String?  // For image overlay or article title
-  hook            String?  // The opening hook line
-  hookType        String?  // "pattern-interrupt", "curiosity-gap", etc.
+  content  String // Post text/copy
+  headline String? // For image overlay or article title
+  hook     String? // The opening hook line
+  hookType String? // "pattern-interrupt", "curiosity-gap", etc.
 
   // Media
-  imageUrl        String?  // Uploaded/generated image URL
-  imageTemplateId String?  @db.ObjectId
+  imageUrl        String? // Uploaded/generated image URL
+  imageTemplateId String?        @db.ObjectId
   imageTemplate   ImageTemplate? @relation(fields: [imageTemplateId], references: [id])
   videoUrl        String?
   carouselImages  String[] // For carousel posts
 
   // Categorization
-  pillarId        String?  @db.ObjectId
-  pillar          ContentPillar? @relation(fields: [pillarId], references: [id])
-  hashtags        String[]
+  pillarId String?        @db.ObjectId
+  pillar   ContentPillar? @relation(fields: [pillarId], references: [id])
+  hashtags String[]
 
   // Platform targeting
-  platforms       SocialPlatform[] @default([FACEBOOK, INSTAGRAM])
+  platforms SocialPlatform[] @default([FACEBOOK, INSTAGRAM])
 
   // AI generation metadata
-  aiGenerated     Boolean  @default(false)
-  aiPrompt        String?  // Original prompt used
-  aiFramework     String?  // "justin-welsh", "russell-brunson", etc.
-  emotionalAngle  String?  // "urgency", "trust", "fear", etc.
+  aiGenerated    Boolean @default(false)
+  aiPrompt       String? // Original prompt used
+  aiFramework    String? // "justin-welsh", "russell-brunson", etc.
+  emotionalAngle String? // "urgency", "trust", "fear", etc.
 
   // Scheduling & Status
-  status          PostStatus @default(DRAFT)
-  scheduledFor    DateTime?
-  publishedAt     DateTime?
+  status       PostStatus @default(DRAFT)
+  scheduledFor DateTime?
+  publishedAt  DateTime?
 
   // Publishing results
-  facebookPostId  String?  // Post ID after publishing to Facebook
-  instagramPostId String?  // Post ID after publishing to Instagram
-  twitterPostId   String?  // Tweet ID after publishing to Twitter/X
+  facebookPostId   String? // Post ID after publishing to Facebook
+  instagramPostId  String? // Post ID after publishing to Instagram
+  twitterPostId    String? // Tweet ID after publishing to Twitter/X
   twitterThreadIds String[] // IDs of all tweets in a thread
-  linkedinPostId  String?  // LinkedIn UGC post URN after publishing
-  tiktokPostId    String?  // TikTok video ID (future auto-publishing)
-  publishError    String?  // Error message if publish failed
+  linkedinPostId   String? // LinkedIn UGC post URN after publishing
+  tiktokPostId     String? // TikTok video ID (future auto-publishing)
+  publishError     String? // Error message if publish failed
 
   // Platform-specific content variants (rewritten for each platform's native style)
-  facebookContent  String?  // Facebook-optimised copy (200-300 chars + 5-8 hashtags)
-  instagramContent String?  // Instagram caption (100-150 chars + 20-30 hashtags)
-  twitterContent   String?  // Single tweet (max 270 chars + 2-3 hashtags)
+  facebookContent    String? // Facebook-optimised copy (200-300 chars + 5-8 hashtags)
+  instagramContent   String? // Instagram caption (100-150 chars + 20-30 hashtags)
+  twitterContent     String? // Single tweet (max 270 chars + 2-3 hashtags)
   twitterThreadParts String[] // Multi-tweet thread parts (3-5 tweets)
-  linkedinContent  String?  // LinkedIn professional post (400-600 chars)
-  tiktokScript     String?  // JSON: { hook, body, cta, caption, hashtags, b_roll }
+  linkedinContent    String? // LinkedIn professional post (400-600 chars)
+  tiktokScript       String? // JSON: { hook, body, cta, caption, hashtags, b_roll }
 
   // Generation metadata
-  contentPillar   String?  // "security-tips" | "success-stories" | "trust-signals" | "behind-scenes" | "engagement"
-  source          String?  // "social-media-agent" | "generate-organic" | "manual"
-  imagePrompt     String?  // DALL-E/Stable Diffusion prompt for a supporting image
+  contentPillar String? // "security-tips" | "success-stories" | "trust-signals" | "behind-scenes" | "engagement"
+  source        String? // "social-media-agent" | "generate-organic" | "manual"
+  imagePrompt   String? // DALL-E/Stable Diffusion prompt for a supporting image
 
   // Approval workflow
-  approvedBy      String?  // Admin ID who approved
+  approvedBy      String? // Admin ID who approved
   approvedAt      DateTime?
   rejectionReason String?
 
   // Performance tracking
-  impressions     Int      @default(0)
-  reach           Int      @default(0)
-  engagement      Int      @default(0) // likes + comments + shares
-  likes           Int      @default(0)
-  comments        Int      @default(0)
-  shares          Int      @default(0)
-  saves           Int      @default(0)
-  clicks          Int      @default(0)
+  impressions Int @default(0)
+  reach       Int @default(0)
+  engagement  Int @default(0) // likes + comments + shares
+  likes       Int @default(0)
+  comments    Int @default(0)
+  shares      Int @default(0)
+  saves       Int @default(0)
+  clicks      Int @default(0)
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  lastSyncAt      DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  lastSyncAt DateTime?
 
   @@index([status])
   @@index([scheduledFor])
@@ -1589,117 +1606,117 @@ model SocialPost {
 
 // Image templates for branded graphics
 model ImageTemplate {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  name            String   @unique
-  description     String?
+  name        String  @unique
+  description String?
 
   // Template design
-  backgroundUrl   String   // Background image URL
-  backgroundType  String   @default("image") // "image", "gradient", "solid"
-  gradientColors  String[] // For gradient backgrounds
-  solidColor      String?  // For solid backgrounds
+  backgroundUrl  String // Background image URL
+  backgroundType String   @default("image") // "image", "gradient", "solid"
+  gradientColors String[] // For gradient backgrounds
+  solidColor     String? // For solid backgrounds
 
   // Layout configuration
-  layout          String   @default("centered") // "centered", "top", "bottom", "left", "right"
-  width           Int      @default(1080)
-  height          Int      @default(1080)
+  layout String @default("centered") // "centered", "top", "bottom", "left", "right"
+  width  Int    @default(1080)
+  height Int    @default(1080)
 
   // Text styling
-  primaryFont     String   @default("Inter")
-  primaryFontSize Int      @default(48)
-  primaryColor    String   @default("#FFFFFF")
-  primaryWeight   String   @default("bold")
+  primaryFont     String @default("Inter")
+  primaryFontSize Int    @default(48)
+  primaryColor    String @default("#FFFFFF")
+  primaryWeight   String @default("bold")
 
-  secondaryFont   String   @default("Inter")
+  secondaryFont     String @default("Inter")
   secondaryFontSize Int    @default(24)
-  secondaryColor  String   @default("#FFFFFF")
-  secondaryWeight String   @default("normal")
+  secondaryColor    String @default("#FFFFFF")
+  secondaryWeight   String @default("normal")
 
   // Logo/branding
-  showLogo        Boolean  @default(true)
-  logoPosition    String   @default("bottom-right") // "top-left", "top-right", "bottom-left", "bottom-right"
-  logoUrl         String?
+  showLogo     Boolean @default(true)
+  logoPosition String  @default("bottom-right") // "top-left", "top-right", "bottom-left", "bottom-right"
+  logoUrl      String?
 
   // Overlays
-  overlayColor    String?  // Semi-transparent overlay
-  overlayOpacity  Float    @default(0.5)
+  overlayColor   String? // Semi-transparent overlay
+  overlayOpacity Float   @default(0.5)
 
   // Category
-  category        String   @default("general") // "tips", "stories", "stats", "quotes"
+  category String @default("general") // "tips", "stories", "stats", "quotes"
 
-  isActive        Boolean  @default(true)
+  isActive Boolean @default(true)
 
   // Relations
-  posts           SocialPost[]
+  posts SocialPost[]
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Autopilot configuration
 model AutopilotConfig {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
   // Enable/disable autopilot
-  isEnabled       Boolean  @default(false)
+  isEnabled Boolean @default(false)
 
   // Generation settings
-  postsPerDay     Int      @default(2)
-  generateAheadDays Int    @default(7) // How many days ahead to generate
+  postsPerDay       Int @default(2)
+  generateAheadDays Int @default(7) // How many days ahead to generate
 
   // Approval settings
-  requireApproval Boolean  @default(true)
+  requireApproval       Boolean @default(true)
   autoApproveAfterHours Int? // Auto-approve if no rejection after X hours
 
   // Publishing settings
-  publishToFacebook Boolean @default(true)
+  publishToFacebook  Boolean @default(true)
   publishToInstagram Boolean @default(true)
 
   // Time preferences (stored as JSON)
-  publishTimes    Json     // { "monday": ["09:00", "18:00"], ... }
+  publishTimes Json // { "monday": ["09:00", "18:00"], ... }
 
   // Pillar distribution
-  pillarWeights   Json     // { "pillarId": 0.3, ... }
+  pillarWeights Json // { "pillarId": 0.3, ... }
 
   // AI preferences
-  preferredFrameworks String[] @default(["justin-welsh", "russell-brunson", "nicholas-cole", "simon-sinek"])
+  preferredFrameworks    String[] @default(["justin-welsh", "russell-brunson", "nicholas-cole", "simon-sinek"])
   emotionalAngleRotation String[] @default(["trust", "urgency", "control", "benefit", "fear"])
 
   // Admin notification
   notifyOnGeneration Boolean @default(true)
-  notifyOnPublish Boolean @default(true)
-  notificationEmail String?
+  notifyOnPublish    Boolean @default(true)
+  notificationEmail  String?
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Social media account connections
 model SocialAccount {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  platform        SocialPlatform
-  accountId       String   // Platform account/page ID
-  accountName     String
-  accountHandle   String?  // @handle
-  profileImage    String?
+  platform      SocialPlatform
+  accountId     String // Platform account/page ID
+  accountName   String
+  accountHandle String? // @handle
+  profileImage  String?
 
   // Authentication
-  accessToken     String   // Encrypted
-  tokenExpiresAt  DateTime?
-  refreshToken    String?
+  accessToken    String // Encrypted
+  tokenExpiresAt DateTime?
+  refreshToken   String?
 
   // Page-specific (Facebook)
   pageId          String?
   pageAccessToken String?
 
   // Status
-  isActive        Boolean  @default(true)
-  lastSyncAt      DateTime?
+  isActive   Boolean   @default(true)
+  lastSyncAt DateTime?
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([platform, accountId])
 }
@@ -1713,15 +1730,15 @@ enum SocialPlatform {
 }
 
 enum PostStatus {
-  DRAFT           // Initial state
+  DRAFT // Initial state
   PENDING_APPROVAL // Waiting for admin approval
-  APPROVED        // Approved, waiting to be scheduled or published
-  SCHEDULED       // Scheduled for future publishing
-  PUBLISHING      // Currently being published
-  PUBLISHED       // Successfully published
-  FAILED          // Publishing failed
-  REJECTED        // Rejected by admin
-  ARCHIVED        // Archived/removed
+  APPROVED // Approved, waiting to be scheduled or published
+  SCHEDULED // Scheduled for future publishing
+  PUBLISHING // Currently being published
+  PUBLISHED // Successfully published
+  FAILED // Publishing failed
+  REJECTED // Rejected by admin
+  ARCHIVED // Archived/removed
 }
 
 // ==========================================
@@ -1730,42 +1747,42 @@ enum PostStatus {
 
 // Email campaign sent to locksmiths
 model EmailCampaign {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
   // Campaign info
-  name            String   // Internal name
-  subject         String   // Email subject line
-  preheader       String?  // Preview text
-  template        String   // Template ID: "announcement", "newsletter", "update", etc.
+  name      String // Internal name
+  subject   String // Email subject line
+  preheader String? // Preview text
+  template  String // Template ID: "announcement", "newsletter", "update", etc.
 
   // Content
-  headline        String?
-  body            String   // Rich HTML body
-  ctaText         String?  // Call to action button text
-  ctaUrl          String?  // Call to action URL
+  headline String?
+  body     String // Rich HTML body
+  ctaText  String? // Call to action button text
+  ctaUrl   String? // Call to action URL
 
   // Styling
-  accentColor     String   @default("#f97316") // Brand color
+  accentColor String @default("#f97316") // Brand color
 
   // Status
-  status          EmailCampaignStatus @default(DRAFT)
-  sentAt          DateTime?
-  scheduledFor    DateTime?
+  status       EmailCampaignStatus @default(DRAFT)
+  sentAt       DateTime?
+  scheduledFor DateTime?
 
   // Stats (aggregated from recipients)
-  totalRecipients Int      @default(0)
-  totalDelivered  Int      @default(0)
-  totalOpened     Int      @default(0)
-  totalClicked    Int      @default(0)
-  totalBounced    Int      @default(0)
+  totalRecipients Int @default(0)
+  totalDelivered  Int @default(0)
+  totalOpened     Int @default(0)
+  totalClicked    Int @default(0)
+  totalBounced    Int @default(0)
 
   // Relations
-  recipients      EmailRecipient[]
+  recipients EmailRecipient[]
 
   // Metadata
-  createdBy       String?  // Admin ID
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdBy String? // Admin ID
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([status])
   @@index([sentAt])
@@ -1773,36 +1790,36 @@ model EmailCampaign {
 
 // Individual email recipient tracking
 model EmailRecipient {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
   // Campaign reference
-  campaignId      String   @db.ObjectId
-  campaign        EmailCampaign @relation(fields: [campaignId], references: [id])
+  campaignId String        @db.ObjectId
+  campaign   EmailCampaign @relation(fields: [campaignId], references: [id])
 
   // Recipient info
-  locksmithId     String   @db.ObjectId
-  email           String
-  name            String
+  locksmithId String @db.ObjectId
+  email       String
+  name        String
 
   // Resend tracking
-  resendEmailId   String?  // ID returned by Resend
+  resendEmailId String? // ID returned by Resend
 
   // Status & events
-  status          String   @default("pending") // pending, sent, delivered, bounced, complained
-  deliveredAt     DateTime?
-  openedAt        DateTime?
-  openCount       Int      @default(0)
-  clickedAt       DateTime?
-  clickCount      Int      @default(0)
-  bouncedAt       DateTime?
-  bounceReason    String?
-  complainedAt    DateTime?
+  status       String    @default("pending") // pending, sent, delivered, bounced, complained
+  deliveredAt  DateTime?
+  openedAt     DateTime?
+  openCount    Int       @default(0)
+  clickedAt    DateTime?
+  clickCount   Int       @default(0)
+  bouncedAt    DateTime?
+  bounceReason String?
+  complainedAt DateTime?
 
   // Click tracking
-  clickedLinks    String[] // URLs that were clicked
+  clickedLinks String[] // URLs that were clicked
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([campaignId, locksmithId])
   @@index([campaignId])
@@ -1811,12 +1828,12 @@ model EmailRecipient {
 }
 
 enum EmailCampaignStatus {
-  DRAFT           // Still being edited
-  SCHEDULED       // Scheduled for future
-  SENDING         // Currently sending
-  SENT            // All emails sent
-  PAUSED          // Paused mid-send
-  CANCELLED       // Cancelled
+  DRAFT // Still being edited
+  SCHEDULED // Scheduled for future
+  SENDING // Currently sending
+  SENT // All emails sent
+  PAUSED // Paused mid-send
+  CANCELLED // Cancelled
 }
 
 // ============================================
@@ -1825,171 +1842,171 @@ enum EmailCampaignStatus {
 
 // Agent definition - autonomous AI workers
 model Agent {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
-  name            String   @unique                    // "ceo", "cto", "cmo", "coo"
-  displayName     String                              // "CEO Agent", "COO Agent"
-  role            String                              // Role description
+  id          String @id @default(auto()) @map("_id") @db.ObjectId
+  name        String @unique // "ceo", "cto", "cmo", "coo"
+  displayName String // "CEO Agent", "COO Agent"
+  role        String // Role description
 
   // Hierarchy
-  parentAgentId   String?  @db.ObjectId
+  parentAgentId String? @db.ObjectId
 
-  status          String   @default("active")         // active, paused, terminated
-  skillsPath      String                              // Path to SKILL.md file
+  status     String @default("active") // active, paused, terminated
+  skillsPath String // Path to SKILL.md file
 
   // Budget Control
-  monthlyBudgetUsd   Float    @default(50)            // Monthly token budget ($)
-  budgetUsedUsd      Float    @default(0)             // Current month usage
-  budgetResetAt      DateTime @default(now())         // When budget resets
+  monthlyBudgetUsd Float    @default(50) // Monthly token budget ($)
+  budgetUsedUsd    Float    @default(0) // Current month usage
+  budgetResetAt    DateTime @default(now()) // When budget resets
 
   // Heartbeat Configuration
-  heartbeatEnabled   Boolean  @default(true)
-  heartbeatCronExpr  String   @default("*/30 * * * *") // Cron expression
-  lastHeartbeat      DateTime?
-  nextHeartbeat      DateTime?
+  heartbeatEnabled  Boolean   @default(true)
+  heartbeatCronExpr String    @default("*/30 * * * *") // Cron expression
+  lastHeartbeat     DateTime?
+  nextHeartbeat     DateTime?
 
   // Permissions
-  permissions        String[] @default([])            // Tool access list
-  governanceLevel    String   @default("autonomous")  // autonomous, supervised, approval_required
+  permissions     String[] @default([]) // Tool access list
+  governanceLevel String   @default("autonomous") // autonomous, supervised, approval_required
 
   // Stats
-  totalTasksCompleted Int     @default(0)
-  totalExecutions     Int     @default(0)
-  successRate         Float   @default(100)
+  totalTasksCompleted Int   @default(0)
+  totalExecutions     Int   @default(0)
+  successRate         Float @default(100)
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  tasks           AgentTask[]
-  executions      AgentExecution[]
-  memories        AgentMemory[]
+  tasks      AgentTask[]
+  executions AgentExecution[]
+  memories   AgentMemory[]
 }
 
 // Task assigned to an agent
 model AgentTask {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  agentId         String   @db.ObjectId
-  agent           Agent    @relation(fields: [agentId], references: [id])
+  agentId String @db.ObjectId
+  agent   Agent  @relation(fields: [agentId], references: [id])
 
-  parentTaskId    String?  @db.ObjectId               // Parent task (delegation)
+  parentTaskId String? @db.ObjectId // Parent task (delegation)
 
-  title           String
-  description     String
-  priority        Int      @default(5)                // 1-10, 10 = highest
-  status          String   @default("pending")        // pending, in_progress, completed, failed, blocked
+  title       String
+  description String
+  priority    Int    @default(5) // 1-10, 10 = highest
+  status      String @default("pending") // pending, in_progress, completed, failed, blocked
 
   // Goal Alignment
-  companyGoalId   String?  @db.ObjectId
-  projectContext  String?                             // Context about what this achieves
+  companyGoalId  String? @db.ObjectId
+  projectContext String? // Context about what this achieves
 
   // Delegation
-  delegatedFrom   String?                             // Agent that delegated this
-  delegatedTo     String?                             // Subagent to execute
+  delegatedFrom String? // Agent that delegated this
+  delegatedTo   String? // Subagent to execute
 
   // Execution
-  assignedAt      DateTime @default(now())
-  startedAt       DateTime?
-  completedAt     DateTime?
-  deadline        DateTime?
+  assignedAt  DateTime  @default(now())
+  startedAt   DateTime?
+  completedAt DateTime?
+  deadline    DateTime?
 
   // Results
-  result          String?                             // JSON result
-  resultSummary   String?                             // Human-readable summary
-  error           String?
+  result        String? // JSON result
+  resultSummary String? // Human-readable summary
+  error         String?
 
   // Cost tracking
-  tokensUsed      Int      @default(0)
-  costUsd         Float    @default(0)
+  tokensUsed Int   @default(0)
+  costUsd    Float @default(0)
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Agent execution log (immutable audit trail)
 model AgentExecution {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  agentId         String   @db.ObjectId
-  agent           Agent    @relation(fields: [agentId], references: [id])
+  agentId String @db.ObjectId
+  agent   Agent  @relation(fields: [agentId], references: [id])
 
-  taskId          String?  @db.ObjectId
-  traceId         String                              // Group related executions
+  taskId  String? @db.ObjectId
+  traceId String // Group related executions
 
   // Execution details
-  actionType      String                              // tool_call, decision, delegation, heartbeat
-  actionName      String                              // Tool name or action description
-  input           String                              // JSON input
-  output          String?                             // JSON output
-  status          String   @default("success")        // success, failed, blocked, pending_approval
+  actionType String // tool_call, decision, delegation, heartbeat
+  actionName String // Tool name or action description
+  input      String // JSON input
+  output     String? // JSON output
+  status     String  @default("success") // success, failed, blocked, pending_approval
 
   // Cost tracking
-  tokensUsed      Int      @default(0)
-  costUsd         Float    @default(0)
-  model           String?                             // AI model used (gpt-4, etc)
+  tokensUsed Int     @default(0)
+  costUsd    Float   @default(0)
+  model      String? // AI model used (gpt-4, etc)
 
   // Timing
-  startedAt       DateTime @default(now())
-  completedAt     DateTime?
-  durationMs      Int?
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  durationMs  Int?
 
   // Approval (if needed)
-  requiresApproval Boolean @default(false)
-  approvedBy       String?                            // Admin who approved
+  requiresApproval Boolean   @default(false)
+  approvedBy       String? // Admin who approved
   approvedAt       DateTime?
 
-  createdAt       DateTime @default(now())
+  createdAt DateTime @default(now())
 }
 
 // Agent memory (short + long term)
 model AgentMemory {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  agentId         String   @db.ObjectId
-  agent           Agent    @relation(fields: [agentId], references: [id])
+  agentId String @db.ObjectId
+  agent   Agent  @relation(fields: [agentId], references: [id])
 
-  type            String   @default("short")          // short, long, system
-  category        String                              // decisions, campaigns, patterns, bugs, etc
+  type     String @default("short") // short, long, system
+  category String // decisions, campaigns, patterns, bugs, etc
 
-  content         String                              // The memory content
-  metadata        String?                             // JSON metadata
+  content  String // The memory content
+  metadata String? // JSON metadata
 
   // Relevance
-  importance      Float    @default(0.5)              // 0-1 importance score
-  lastAccessedAt  DateTime @default(now())
-  accessCount     Int      @default(1)
+  importance     Float    @default(0.5) // 0-1 importance score
+  lastAccessedAt DateTime @default(now())
+  accessCount    Int      @default(1)
 
   // Expiry
-  expiresAt       DateTime?                           // Null = permanent
+  expiresAt DateTime? // Null = permanent
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Company goals (for goal alignment)
 model CompanyGoal {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  title           String
-  description     String
-  type            String   @default("strategic")      // strategic, quarterly, project
+  title       String
+  description String
+  type        String @default("strategic") // strategic, quarterly, project
 
-  status          String   @default("active")         // active, completed, paused
-  priority        Int      @default(5)                // 1-10
+  status   String @default("active") // active, completed, paused
+  priority Int    @default(5) // 1-10
 
   // Metrics
-  targetMetric    String?                             // What we're measuring
-  targetValue     Float?                              // Target value
-  currentValue    Float?                              // Current progress
-  progress        Float    @default(0)                // 0-100%
+  targetMetric String? // What we're measuring
+  targetValue  Float? // Target value
+  currentValue Float? // Current progress
+  progress     Float   @default(0) // 0-100%
 
   // Ownership
-  ownerAgentId    String?  @db.ObjectId               // Primary agent responsible
+  ownerAgentId String? @db.ObjectId // Primary agent responsible
 
-  deadline        DateTime?
-  completedAt     DateTime?
+  deadline    DateTime?
+  completedAt DateTime?
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ==========================================
@@ -1998,75 +2015,75 @@ model CompanyGoal {
 
 // Voice call records from Retell AI
 model VoiceCall {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
   // Retell AI identifiers
-  retellCallId    String   @unique  // Retell's call_id
-  agentId         String?            // Retell agent ID used
+  retellCallId String  @unique // Retell's call_id
+  agentId      String? // Retell agent ID used
 
   // Caller info
-  callerPhone     String?            // Caller's phone number
-  callerName      String?            // Extracted from conversation
-  callerPostcode  String?            // Extracted postcode
+  callerPhone    String? // Caller's phone number
+  callerName     String? // Extracted from conversation
+  callerPostcode String? // Extracted postcode
 
   // Call metadata
-  callType        String   @default("inbound")  // inbound, outbound, web
-  callStatus      String   @default("in_progress") // in_progress, completed, failed, transferred
-  startedAt       DateTime @default(now())
+  callType        String    @default("inbound") // inbound, outbound, web
+  callStatus      String    @default("in_progress") // in_progress, completed, failed, transferred
+  startedAt       DateTime  @default(now())
   endedAt         DateTime?
   durationSeconds Int?
 
   // Classification
-  callCategory    String?  // emergency, appointment, inquiry, complaint, spam
-  urgencyLevel    String?  // critical, high, medium, low
-  problemType     String?  // lockout, broken_lock, security_upgrade, rekeying, consultation
-  propertyType    String?  // residential, commercial, automotive
+  callCategory String? // emergency, appointment, inquiry, complaint, spam
+  urgencyLevel String? // critical, high, medium, low
+  problemType  String? // lockout, broken_lock, security_upgrade, rekeying, consultation
+  propertyType String? // residential, commercial, automotive
 
   // Outcome
-  outcome         String?  // job_created, appointment_booked, info_provided, escalated, abandoned
-  outcomeDetails  Json?    // Details about the outcome
+  outcome        String? // job_created, appointment_booked, info_provided, escalated, abandoned
+  outcomeDetails Json? // Details about the outcome
 
   // Linked entities
-  jobId           String?  @db.ObjectId  // Created job (if any)
-  customerId      String?  @db.ObjectId  // Linked customer (if identified)
-  locksmithId     String?  @db.ObjectId  // Dispatched locksmith (if any)
-  bookingDate     DateTime?              // For appointment bookings
+  jobId       String?   @db.ObjectId // Created job (if any)
+  customerId  String?   @db.ObjectId // Linked customer (if identified)
+  locksmithId String?   @db.ObjectId // Dispatched locksmith (if any)
+  bookingDate DateTime? // For appointment bookings
 
   // Sentiment & quality
-  sentimentScore  Float?   // -1 to 1 (negative to positive)
-  sentimentLabel  String?  // positive, neutral, negative
+  sentimentScore       Float? // -1 to 1 (negative to positive)
+  sentimentLabel       String? // positive, neutral, negative
   customerSatisfaction Int? // 1-5 post-call survey
 
   // Transcript
-  transcript      Json?    // Full transcript array [{role, content, timestamp}]
-  summary         String?  // AI-generated call summary
+  transcript Json? // Full transcript array [{role, content, timestamp}]
+  summary    String? // AI-generated call summary
 
   // Recording
-  recordingUrl    String?
+  recordingUrl      String?
   recordingDuration Int?
 
   // Call analysis from Retell
-  callAnalysis    Json?    // Full analysis object from Retell
+  callAnalysis Json? // Full analysis object from Retell
 
   // Revenue attribution
-  estimatedRevenue Float?  // Estimated revenue from this call
-  actualRevenue    Float?  // Actual revenue (after job completion)
+  estimatedRevenue Float? // Estimated revenue from this call
+  actualRevenue    Float? // Actual revenue (after job completion)
 
   // Deduplication
-  dedupeKey       String?  @unique  // For webhook deduplication
+  dedupeKey String? @unique // For webhook deduplication
 
   // Human escalation
-  wasEscalated    Boolean  @default(false)
+  wasEscalated     Boolean @default(false)
   escalationReason String?
-  escalatedTo     String?  // Phone number or name of human agent
+  escalatedTo      String? // Phone number or name of human agent
 
   // Flags
   flaggedForReview Boolean @default(false)
-  reviewNotes     String?
-  isTestCall      Boolean  @default(false)
+  reviewNotes      String?
+  isTestCall       Boolean @default(false)
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([callerPhone])
   @@index([callCategory])
@@ -2077,67 +2094,67 @@ model VoiceCall {
 
 // Voice agent configuration and prompts
 model VoiceAgentConfig {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  name            String   @unique  // Config name/version
-  isActive        Boolean  @default(false)
+  name     String  @unique // Config name/version
+  isActive Boolean @default(false)
 
   // Retell AI config
-  retellAgentId   String?  // Retell agent ID
-  retellLlmId     String?  // Retell LLM ID
+  retellAgentId String? // Retell agent ID
+  retellLlmId   String? // Retell LLM ID
 
   // Voice settings
-  voiceId         String?  // TTS voice ID
-  language        String   @default("en-GB")
-  speakingRate    Float    @default(1.0)
+  voiceId      String? // TTS voice ID
+  language     String  @default("en-GB")
+  speakingRate Float   @default(1.0)
 
   // Prompts
-  systemPrompt    String   // Main agent prompt
-  greetingMessage String?  // Initial greeting
-  fallbackMessage String?  // When agent can't understand
+  systemPrompt    String // Main agent prompt
+  greetingMessage String? // Initial greeting
+  fallbackMessage String? // When agent can't understand
 
   // Behavior
-  maxCallDuration Int      @default(600) // Max seconds (10 min default)
-  silenceTimeout  Int      @default(10)  // Seconds of silence before prompting
-  enableRecording Boolean  @default(true)
+  maxCallDuration Int     @default(600) // Max seconds (10 min default)
+  silenceTimeout  Int     @default(10) // Seconds of silence before prompting
+  enableRecording Boolean @default(true)
 
   // Business hours
-  businessHoursStart String @default("00:00") // 24/7 by default
-  businessHoursEnd   String @default("23:59")
+  businessHoursStart String  @default("00:00") // 24/7 by default
+  businessHoursEnd   String  @default("23:59")
   afterHoursMessage  String?
 
   // Feature toggles
-  enableDispatch     Boolean @default(true)
-  enableBooking      Boolean @default(true)
-  enableFAQ          Boolean @default(true)
-  enableEscalation   Boolean @default(true)
+  enableDispatch   Boolean @default(true)
+  enableBooking    Boolean @default(true)
+  enableFAQ        Boolean @default(true)
+  enableEscalation Boolean @default(true)
 
   // Status
-  isPaused        Boolean  @default(false)
-  pauseReason     String?
+  isPaused    Boolean @default(false)
+  pauseReason String?
 
   // Blocked numbers
-  blockedNumbers  String[]
+  blockedNumbers String[]
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Daily/hourly call analytics snapshots
 model CallAnalyticsSnapshot {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
   // Time period
-  periodType      String   // hourly, daily, weekly, monthly
-  periodStart     DateTime
-  periodEnd       DateTime
+  periodType  String // hourly, daily, weekly, monthly
+  periodStart DateTime
+  periodEnd   DateTime
 
   // Volume metrics
-  totalCalls      Int      @default(0)
-  emergencyCalls  Int      @default(0)
-  appointmentCalls Int     @default(0)
-  inquiryCalls    Int      @default(0)
-  spamCalls       Int      @default(0)
+  totalCalls       Int @default(0)
+  emergencyCalls   Int @default(0)
+  appointmentCalls Int @default(0)
+  inquiryCalls     Int @default(0)
+  spamCalls        Int @default(0)
 
   // Duration metrics
   avgDurationSeconds Float @default(0)
@@ -2145,28 +2162,28 @@ model CallAnalyticsSnapshot {
   minDurationSeconds Int   @default(0)
 
   // Outcome metrics
-  jobsCreated     Int      @default(0)
-  appointmentsBooked Int   @default(0)
-  escalations     Int      @default(0)
-  abandonedCalls  Int      @default(0)
+  jobsCreated        Int @default(0)
+  appointmentsBooked Int @default(0)
+  escalations        Int @default(0)
+  abandonedCalls     Int @default(0)
 
   // Conversion metrics
-  callToJobRate   Float    @default(0)  // Percentage
-  callToBookingRate Float  @default(0)
+  callToJobRate     Float @default(0) // Percentage
+  callToBookingRate Float @default(0)
 
   // Sentiment
-  avgSentimentScore Float  @default(0)
-  negativeSentimentCount Int @default(0)
+  avgSentimentScore      Float @default(0)
+  negativeSentimentCount Int   @default(0)
 
   // Revenue
-  estimatedRevenue Float   @default(0)
-  actualRevenue    Float   @default(0)
+  estimatedRevenue Float @default(0)
+  actualRevenue    Float @default(0)
 
   // Performance
-  avgResponseTime  Float   @default(0)  // Seconds to first dispatch
-  avgTimeToDispatch Float  @default(0)
+  avgResponseTime   Float @default(0) // Seconds to first dispatch
+  avgTimeToDispatch Float @default(0)
 
-  createdAt       DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@unique([periodType, periodStart])
   @@index([periodType])
@@ -2175,32 +2192,32 @@ model CallAnalyticsSnapshot {
 
 // Agent governance - pending approvals
 model AgentApproval {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  agentId         String   @db.ObjectId
-  executionId     String   @db.ObjectId
+  agentId     String @db.ObjectId
+  executionId String @db.ObjectId
 
-  actionType      String                              // What action needs approval
-  actionDetails   String                              // JSON description
-  reason          String                              // Why approval is needed
+  actionType    String // What action needs approval
+  actionDetails String // JSON description
+  reason        String // Why approval is needed
 
   // Optional structured target reference for fast lookup by approval consumers
   // (e.g. ad publish gate). actionDetails JSON remains the canonical source.
-  targetType      String?                             // e.g. "google_ads_draft", "ad_campaign"
-  targetId        String?                             // FK string to the target row
+  targetType String? // e.g. "google_ads_draft", "ad_campaign"
+  targetId   String? // FK string to the target row
 
-  status          String   @default("pending")        // pending, approved, rejected
+  status String @default("pending") // pending, approved, rejected
 
   // Resolution
-  resolvedBy      String?                             // Admin ID
-  resolvedAt      DateTime?
-  resolution      String?                             // Approval notes
+  resolvedBy String? // Admin ID
+  resolvedAt DateTime?
+  resolution String? // Approval notes
 
   // Notification
-  notifiedVia     String[] @default([])               // telegram, email, dashboard
+  notifiedVia String[] @default([]) // telegram, email, dashboard
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([targetType, targetId, status])
   @@index([status, createdAt])
@@ -2210,8 +2227,8 @@ model AgentApproval {
 model TokenBlacklist {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   token     String   @unique // The JWT token (hashed for security)
-  userId    String   // ID of the user who logged out
-  userType  String   // "admin", "locksmith", or "customer"
+  userId    String // ID of the user who logged out
+  userType  String // "admin", "locksmith", or "customer"
   expiresAt DateTime // When the token would have expired naturally
   createdAt DateTime @default(now())
 
@@ -2227,19 +2244,19 @@ model TokenBlacklist {
 // `src/lib/services-catalog.ts`; this model only stores admin overrides such
 // as a custom-uploaded image and per-item Meta sync state.
 model ServiceCatalogItem {
-  id                  String    @id @default(auto()) @map("_id") @db.ObjectId
-  slug                String    @unique // matches ServiceSlug in code
-  imageUrl            String?   // custom uploaded image (Vercel Blob URL); overrides dynamic OG
-  customTitle         String?
-  customDescription   String?
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+  slug              String    @unique // matches ServiceSlug in code
+  imageUrl          String? // custom uploaded image (Vercel Blob URL); overrides dynamic OG
+  customTitle       String?
+  customDescription String?
   // Meta Catalog sync state
-  metaProductId       String?   // returned product id once synced
-  metaRetailerId      String?   // retailer_id we sent (== slug)
-  lastSyncedAt        DateTime?
-  lastSyncStatus      String?   // "success" | "error"
-  lastSyncMessage     String?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  metaProductId     String? // returned product id once synced
+  metaRetailerId    String? // retailer_id we sent (== slug)
+  lastSyncedAt      DateTime?
+  lastSyncStatus    String? // "success" | "error"
+  lastSyncMessage   String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2249,20 +2266,20 @@ model ServiceCatalogItem {
 // `revalidatePath('/intent/[slug]')` so the SSG page regenerates.
 // ─────────────────────────────────────────────────────────────────────────────
 model IntentLanding {
-  id              String    @id @default(auto()) @map("_id") @db.ObjectId
-  slug            String    @unique
-  title           String
-  pillarKeyword   String?
-  intentTags      String[]  @default([])
-  isActive        Boolean   @default(true)
-  position        Int       @default(0)
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  slug          String   @unique
+  title         String
+  pillarKeyword String?
+  intentTags    String[] @default([])
+  isActive      Boolean  @default(true)
+  position      Int      @default(0)
   /// Full IntentLanding content (matches src/lib/intent-landing.ts shape).
   /// Stored as a single JSON document so the admin form can ship blocks/FAQs
   /// /A-B copy together without flattening to dozens of columns.
-  content         Json
-  updatedBy       String?   // admin id who last touched it
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  content       Json
+  updatedBy     String? // admin id who last touched it
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@index([isActive, position])
 }
@@ -2275,24 +2292,24 @@ model IntentLanding {
 // {county}, {areas}, {landmarks}, {response}, {population}.
 // ─────────────────────────────────────────────────────────────────────────────
 model KeywordTemplate {
-  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
   /// Lowercase kebab keyword stem, e.g. "locksmith-near-me".
-  slug            String    @unique
+  slug           String   @unique
   /// Human label, e.g. "Locksmith Near Me".
-  label           String
+  label          String
   /// Pillar keyword grouping (matches PILLAR_KEYWORDS).
-  pillarKeyword   String?
-  intentTags      String[]  @default([])
-  isActive        Boolean   @default(true)
-  position        Int       @default(0)
+  pillarKeyword  String?
+  intentTags     String[] @default([])
+  isActive       Boolean  @default(true)
+  position       Int      @default(0)
   /// "all" → every UK city; "selected" → only `selectedCities`.
-  citiesMode      String    @default("all")
-  selectedCities  String[]  @default([])
+  citiesMode     String   @default("all")
+  selectedCities String[] @default([])
   /// Title / meta / hero / body templates with token placeholders.
-  content         Json
-  updatedBy       String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  content        Json
+  updatedBy      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@index([isActive, position])
 }
@@ -2301,13 +2318,13 @@ model KeywordTemplate {
 // with `isActive = true` is treated as the active configuration.
 model MetaCatalogConfig {
   id                  String    @id @default(auto()) @map("_id") @db.ObjectId
-  catalogId           String    // FB catalog id (numeric string)
+  catalogId           String // FB catalog id (numeric string)
   catalogName         String?
-  feedId              String?   // optional scheduled-feed id pointing at /api/meta/catalog-feed
+  feedId              String? // optional scheduled-feed id pointing at /api/meta/catalog-feed
   feedUrl             String?
   isActive            Boolean   @default(true)
   lastFullSyncAt      DateTime?
-  lastFullSyncStatus  String?   // "success" | "error" | "partial"
+  lastFullSyncStatus  String? // "success" | "error" | "partial"
   lastFullSyncMessage String?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
@@ -2316,15 +2333,15 @@ model MetaCatalogConfig {
 // Cache mapping from a set of service catalog slugs to a Meta Product Set id.
 // Reused so we don't re-create the same product_set on every campaign launch.
 model ServiceCatalogProductSet {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
-  catalogId       String   // FB catalog id this product_set belongs to
-  productSetId    String   @unique // FB product_set id
-  name            String
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  catalogId    String // FB catalog id this product_set belongs to
+  productSetId String   @unique // FB product_set id
+  name         String
   /// Sorted, comma-joined slug list — used as a stable lookup key.
-  slugsKey        String   @unique
-  slugs           String[] // raw slug array, mirrors slugsKey
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  slugsKey     String   @unique
+  slugs        String[] // raw slug array, mirrors slugsKey
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@index([catalogId])
 }
@@ -2334,26 +2351,25 @@ model ServiceCatalogProductSet {
 // policy snapshot at decision time and whether the action was actually
 // executed (live) or merely proposed (dryRun).
 model AgentDecision {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
-  agent           String   // "cmo" | "meta-optimiser" | "ads-specialist" | etc.
-  platform        String   // "meta" | "google"
-  action          String   // "pause_ad" | "scale_adset" | "rotate_creative" | "exclude_converters"
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  agent          String // "cmo" | "meta-optimiser" | "ads-specialist" | etc.
+  platform       String // "meta" | "google"
+  action         String // "pause_ad" | "scale_adset" | "rotate_creative" | "exclude_converters"
   /// Free-form context — adId/adSetId/campaignId, metric snapshot, reasoning.
-  payload         Json
+  payload        Json
   /// Frozen `MarketingPolicy` view used for the decision. Lets us re-evaluate
   /// historical actions even after the policy is changed.
-  policySnapshot  Json
-  dryRun          Boolean  @default(true)
+  policySnapshot Json
+  dryRun         Boolean   @default(true)
   /// Outcome of execution — "ok", "blocked_by_policy", "blocked_by_spend", "error", or null when dryRun.
-  outcome         String?
-  outcomeMessage  String?
-  executedAt      DateTime?
-  createdAt       DateTime @default(now())
+  outcome        String?
+  outcomeMessage String?
+  executedAt     DateTime?
+  createdAt      DateTime  @default(now())
 
   @@index([agent, createdAt])
   @@index([platform, action, createdAt])
 }
-
 
 // ==========================================
 // REFERRAL SYSTEM
@@ -2361,39 +2377,39 @@ model AgentDecision {
 
 // Tracks every referral link / code
 model Referral {
-  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
   // Who made the referral
-  referrerId      String    @db.ObjectId
-  referrerType    String    // "customer" | "locksmith"
-  referrerName    String
+  referrerId   String @db.ObjectId
+  referrerType String // "customer" | "locksmith"
+  referrerName String
 
   // Unique share code (e.g. SARAH-X4K2)
-  code            String    @unique
+  code String @unique
 
   // Who used the code (filled in on conversion)
-  referredId      String?   @db.ObjectId
-  referredType    String?   // "customer" | "locksmith"
-  referredName    String?
-  referredEmail   String?
+  referredId    String? @db.ObjectId
+  referredType  String? // "customer" | "locksmith"
+  referredName  String?
+  referredEmail String?
 
   // Status lifecycle
-  status          String    @default("active") // active | converted | rewarded | expired
+  status String @default("active") // active | converted | rewarded | expired
 
   // Rewards in GBP
-  referrerReward  Float     @default(10.00)    // credit added to referrer after conversion
-  referredReward  Float     @default(10.00)    // discount applied to referred's first job
+  referrerReward Float @default(10.00) // credit added to referrer after conversion
+  referredReward Float @default(10.00) // discount applied to referred's first job
 
   // Conversion tracking
-  clickCount      Int       @default(0)
-  convertedAt     DateTime?
-  triggerJobId    String?   @db.ObjectId       // Job that completed and triggered reward
+  clickCount   Int       @default(0)
+  convertedAt  DateTime?
+  triggerJobId String?   @db.ObjectId // Job that completed and triggered reward
 
   // Reward paid out
-  rewardedAt      DateTime?
+  rewardedAt DateTime?
 
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([referrerId, referrerType])
   @@index([status])
@@ -2404,51 +2420,51 @@ model Referral {
 // ==========================================
 
 model Dispute {
-  id                  String    @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
   // Stripe chargeback details
-  stripeDisputeId     String    @unique
-  stripeChargeId      String
+  stripeDisputeId       String  @unique
+  stripeChargeId        String
   stripePaymentIntentId String?
 
   // Linked records
-  jobId               String    @db.ObjectId
-  customerId          String?   @db.ObjectId
-  locksmithId         String?   @db.ObjectId
+  jobId       String  @db.ObjectId
+  customerId  String? @db.ObjectId
+  locksmithId String? @db.ObjectId
 
   // Dispute details
-  amount              Float
-  currency            String    @default("gbp")
-  reason              String    // fraudulent | duplicate | product_not_received | unrecognized | credit_not_processed | general
-  status              String    // warning_needs_response | warning_under_review | warning_closed | needs_response | under_review | charge_refunded | won | lost
+  amount   Float
+  currency String @default("gbp")
+  reason   String // fraudulent | duplicate | product_not_received | unrecognized | credit_not_processed | general
+  status   String // warning_needs_response | warning_under_review | warning_closed | needs_response | under_review | charge_refunded | won | lost
 
   // Evidence we have
-  hasGpsData          Boolean   @default(false)
-  hasPhotos           Boolean   @default(false)
-  hasSignature        Boolean   @default(false)
-  hasReport           Boolean   @default(false)
+  hasGpsData   Boolean @default(false)
+  hasPhotos    Boolean @default(false)
+  hasSignature Boolean @default(false)
+  hasReport    Boolean @default(false)
 
   // Evidence packet (auto-generated PDF)
-  evidencePacketUrl   String?
+  evidencePacketUrl     String?
   evidencePacketBuiltAt DateTime?
 
   // Submission to Stripe
-  submittedAt         DateTime?
-  submittedBy         String?   // Admin name who submitted
+  submittedAt DateTime?
+  submittedBy String? // Admin name who submitted
 
   // Response deadline (Stripe gives 7-21 days)
-  dueBy               DateTime?
+  dueBy DateTime?
 
   // Internal notes
-  notes               String?
+  notes String?
 
   // Outcome
-  outcome             String?   // won | lost | withdrawn
-  outcomeAt           DateTime?
-  outcomeReason       String?
+  outcome       String? // won | lost | withdrawn
+  outcomeAt     DateTime?
+  outcomeReason String?
 
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([status])
   @@index([jobId])
@@ -2459,26 +2475,26 @@ model Dispute {
 // ==========================================
 
 model JobMessage {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  jobId       String   @db.ObjectId
-  job         Job      @relation(fields: [jobId], references: [id])
+  jobId String @db.ObjectId
+  job   Job    @relation(fields: [jobId], references: [id])
 
   // Sender details — one of these will be set
-  customerId  String?  @db.ObjectId
-  locksmithId String?  @db.ObjectId
+  customerId     String? @db.ObjectId
+  locksmithId    String? @db.ObjectId
   isAdminMessage Boolean @default(false)
 
   // Sender type for display
-  senderType  String   // "customer" | "locksmith" | "admin" | "system"
-  senderName  String
+  senderType String // "customer" | "locksmith" | "admin" | "system"
+  senderName String
 
-  body        String
+  body          String
   attachmentUrl String? // Optional image/file
 
-  readAt      DateTime? // When the recipient read it
+  readAt DateTime? // When the recipient read it
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([jobId])
   @@index([createdAt])
@@ -2489,74 +2505,74 @@ model JobMessage {
 // ==========================================
 
 model Organisation {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  name            String
-  type            String   @default("landlord") // "landlord" | "letting_agency" | "property_manager" | "business"
-  contactName     String
-  contactEmail    String   @unique
-  contactPhone    String
+  name         String
+  type         String @default("landlord") // "landlord" | "letting_agency" | "property_manager" | "business"
+  contactName  String
+  contactEmail String @unique
+  contactPhone String
 
   // Billing
-  billingEmail    String?
-  vatNumber       String?
+  billingEmail String?
+  vatNumber    String?
 
   // Contract / pricing
-  contractedRate  Float?   // Fixed assessment fee agreed with org (overrides surge)
-  creditBalance   Float    @default(0)
-  paymentTerms    Int      @default(30) // Days to pay invoice (net-30 default)
+  contractedRate Float? // Fixed assessment fee agreed with org (overrides surge)
+  creditBalance  Float  @default(0)
+  paymentTerms   Int    @default(30) // Days to pay invoice (net-30 default)
 
   // Properties managed by this org
-  properties      Property[]
+  properties Property[]
 
   // Members (linked Customer accounts)
-  members         OrgMember[]
+  members OrgMember[]
 
   // Jobs raised under this org
-  jobs            Job[]    @relation("OrgJobs")
+  jobs Job[] @relation("OrgJobs")
 
   // Invoices issued to this org
-  invoices        OrgInvoice[]
+  invoices OrgInvoice[]
 
-  isActive        Boolean  @default(true)
-  notes           String?
+  isActive Boolean @default(true)
+  notes    String?
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([type])
 }
 
 model OrgMember {
-  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  orgId          String   @db.ObjectId
-  org            Organisation @relation(fields: [orgId], references: [id])
+  orgId String       @db.ObjectId
+  org   Organisation @relation(fields: [orgId], references: [id])
 
-  customerId     String   @db.ObjectId
-  customer       Customer @relation(fields: [customerId], references: [id])
+  customerId String   @db.ObjectId
+  customer   Customer @relation(fields: [customerId], references: [id])
 
-  role           String   @default("member") // "owner" | "manager" | "member"
-  addedAt        DateTime @default(now())
+  role    String   @default("member") // "owner" | "manager" | "member"
+  addedAt DateTime @default(now())
 
   @@unique([orgId, customerId])
 }
 
 model Property {
-  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  orgId          String   @db.ObjectId
-  org            Organisation @relation(fields: [orgId], references: [id])
+  orgId String       @db.ObjectId
+  org   Organisation @relation(fields: [orgId], references: [id])
 
-  address        String
-  postcode       String
-  type           String   @default("residential") // "residential" | "commercial"
-  reference      String?  // Internal property reference (e.g. flat number, portfolio code)
+  address   String
+  postcode  String
+  type      String  @default("residential") // "residential" | "commercial"
+  reference String? // Internal property reference (e.g. flat number, portfolio code)
 
   // Jobs at this property
-  jobs           Job[]    @relation("PropertyJobs")
+  jobs Job[] @relation("PropertyJobs")
 
-  createdAt      DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([orgId])
   @@index([postcode])
@@ -2567,33 +2583,33 @@ model Property {
 // ==========================================
 
 model OrgInvoice {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  orgId           String   @db.ObjectId
-  org             Organisation @relation(fields: [orgId], references: [id])
+  orgId String       @db.ObjectId
+  org   Organisation @relation(fields: [orgId], references: [id])
 
-  invoiceNumber   String   @unique  // e.g. INV-2025-01-0042
+  invoiceNumber String @unique // e.g. INV-2025-01-0042
 
-  period          String   // ISO month string: "2025-01"
-  periodStart     DateTime
-  periodEnd       DateTime
+  period      String // ISO month string: "2025-01"
+  periodStart DateTime
+  periodEnd   DateTime
 
-  jobIds          String[] @db.ObjectId
-  jobCount        Int
+  jobIds   String[] @db.ObjectId
+  jobCount Int
 
-  subtotal        Float    // Sum of assessmentFee for all jobs
-  vatAmount       Float    @default(0)
-  total           Float
+  subtotal  Float // Sum of assessmentFee for all jobs
+  vatAmount Float @default(0)
+  total     Float
 
-  dueDate         DateTime // periodEnd + paymentTerms days
+  dueDate DateTime // periodEnd + paymentTerms days
 
-  status          String   @default("sent") // "sent" | "paid" | "overdue" | "void"
+  status String @default("sent") // "sent" | "paid" | "overdue" | "void"
 
-  paidAt          DateTime?
-  pdfUrl          String?  // URL to stored PDF (future: Cloudflare R2 / S3)
+  paidAt DateTime?
+  pdfUrl String? // URL to stored PDF (future: Cloudflare R2 / S3)
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([orgId])
   @@index([status])
@@ -2605,38 +2621,38 @@ model OrgInvoice {
 // ==========================================
 
 model Subscription {
-  id                      String   @id @default(auto()) @map("_id") @db.ObjectId
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  customerId              String   @unique @db.ObjectId
-  customer                Customer @relation(fields: [customerId], references: [id])
+  customerId String   @unique @db.ObjectId
+  customer   Customer @relation(fields: [customerId], references: [id])
 
   // Stripe billing
-  stripeSubscriptionId    String   @unique
-  stripeCustomerId        String
-  stripePriceId           String   // Stripe Price ID for the plan
+  stripeSubscriptionId String @unique
+  stripeCustomerId     String
+  stripePriceId        String // Stripe Price ID for the plan
 
   // Plan details
-  plan                    String   @default("cover_monthly") // "cover_monthly" | "cover_annual"
-  status                  String   @default("active") // active | past_due | canceled | trialing | paused
+  plan   String @default("cover_monthly") // "cover_monthly" | "cover_annual"
+  status String @default("active") // active | past_due | canceled | trialing | paused
 
   // Perks
-  assessmentFeeDiscount   Float    @default(1.0)  // Multiplier on assessment fee (0.5 = 50% off)
-  priorityDispatch        Boolean  @default(true)
-  freeCallouts            Int      @default(0)    // Remaining free callouts this period
-  freeCalloutsTotal       Int      @default(1)    // Free callouts per billing period
+  assessmentFeeDiscount Float   @default(1.0) // Multiplier on assessment fee (0.5 = 50% off)
+  priorityDispatch      Boolean @default(true)
+  freeCallouts          Int     @default(0) // Remaining free callouts this period
+  freeCalloutsTotal     Int     @default(1) // Free callouts per billing period
 
   // Billing period
-  currentPeriodStart      DateTime
-  currentPeriodEnd        DateTime
-  cancelAtPeriodEnd       Boolean  @default(false)
-  canceledAt              DateTime?
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  cancelAtPeriodEnd  Boolean   @default(false)
+  canceledAt         DateTime?
 
   // Trial
-  trialStart              DateTime?
-  trialEnd                DateTime?
+  trialStart DateTime?
+  trialEnd   DateTime?
 
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([status])
   @@index([currentPeriodEnd])

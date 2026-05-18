@@ -54,3 +54,7 @@ next-env.d.ts
 .logs/
 nextjs_space/
 backups/
+
+# Playwright outputs
+playwright-report/
+test-results/
