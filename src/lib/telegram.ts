@@ -687,6 +687,35 @@ export async function sendAdminAlert(data: {
   message: string;
   severity?: "info" | "warning" | "error";
 }): Promise<boolean> {
+  // Runtime alert-sensitivity gate for admin/agent topic noise control.
+  // Defaults are handled by operational policy module if DB fields are null.
+  try {
+    const { getOperationalPolicy } = await import("@/agents/core/operational-policy");
+    const policy = await getOperationalPolicy();
+    const severityRank: Record<"info" | "warning" | "error", number> = {
+      info: 1,
+      warning: 3,
+      error: 4,
+    };
+    const threshold =
+      policy.alertSensitivity === "critical"
+        ? 4
+        : policy.alertSensitivity === "workflow"
+          ? 3
+          : 1;
+    const severity = data.severity || "info";
+
+    if (severityRank[severity] < threshold) {
+      console.log(
+        `[Telegram][gated] sendAdminAlert suppressed severity=${severity} sensitivity=${policy.alertSensitivity} title=${data.title}`,
+      );
+      return true;
+    }
+  } catch (error) {
+    // Fail open on policy read errors to avoid hiding critical incidents.
+    console.warn("[Telegram][gating] policy lookup failed, sending alert:", error);
+  }
+
   const icons = {
     info: "ℹ️",
     warning: "⚠️",
