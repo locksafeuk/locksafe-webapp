@@ -116,7 +116,11 @@ export async function runCTOHeartbeat(): Promise<void> {
     return;
   }
 
-  const result = await executeHeartbeat(agent.id);
+  const result = await executeHeartbeat("cto");
+
+  if (result.errors.length > 0) {
+    throw new Error(`[CTO] Heartbeat errors: ${result.errors.join("; ")}`);
+  }
 
   console.log(`[CTO] Heartbeat completed:
     - Actions: ${result.actionsExecuted}

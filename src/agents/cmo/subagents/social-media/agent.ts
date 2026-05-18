@@ -76,9 +76,17 @@ export async function initializeSocialMediaAgent(): Promise<void> {
 export async function runSocialMediaHeartbeat(): Promise<void> {
   console.log("[SocialMedia] Starting heartbeat...");
 
+  const markHeartbeat = async () => {
+    await prisma.agent.update({
+      where: { name: "social-media" },
+      data: { lastHeartbeat: new Date() },
+    }).catch(() => {});
+  };
+
   const autopilot = await prisma.autopilotConfig.findFirst();
   if (!autopilot?.isEnabled) {
     console.log("[SocialMedia] AutopilotConfig disabled or not seeded — skipping");
+    await markHeartbeat();
     return;
   }
 
@@ -97,6 +105,7 @@ export async function runSocialMediaHeartbeat(): Promise<void> {
 
   if (existingToday >= 3) {
     console.log(`[SocialMedia] ${existingToday} posts already generated today — skipping`);
+    await markHeartbeat();
     return;
   }
 
@@ -105,6 +114,7 @@ export async function runSocialMediaHeartbeat(): Promise<void> {
 
   if (!activeAccounts.length) {
     console.log("[SocialMedia] No active social accounts configured");
+    await markHeartbeat();
     return;
   }
 
@@ -185,10 +195,7 @@ export async function runSocialMediaHeartbeat(): Promise<void> {
   }
 
   // Update agent lastHeartbeat
-  await prisma.agent.update({
-    where: { name: "social-media" },
-    data: { lastHeartbeat: new Date() },
-  }).catch(() => {});
+  await markHeartbeat();
 
   console.log(`[SocialMedia] Heartbeat complete: ${postsCreated} posts created`);
 }

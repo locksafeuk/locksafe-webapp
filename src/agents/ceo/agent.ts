@@ -107,7 +107,11 @@ export async function runCEOHeartbeat(): Promise<void> {
     return;
   }
 
-  const result = await executeHeartbeat(agent.id);
+  const result = await executeHeartbeat("ceo");
+
+  if (result.errors.length > 0) {
+    throw new Error(`[CEO] Heartbeat errors: ${result.errors.join("; ")}`);
+  }
 
   console.log(`[CEO] Heartbeat completed:
     - Actions: ${result.actionsExecuted}

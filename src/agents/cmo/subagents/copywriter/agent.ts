@@ -117,7 +117,11 @@ export async function runCopywriterHeartbeat(): Promise<void> {
     return;
   }
 
-  const result = await executeHeartbeat(agent.id);
+  const result = await executeHeartbeat("copywriter");
+
+  if (result.errors.length > 0) {
+    throw new Error(`[Copywriter] Heartbeat errors: ${result.errors.join("; ")}`);
+  }
 
   console.log(`[Copywriter] Heartbeat completed:
     - Actions: ${result.actionsExecuted}

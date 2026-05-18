@@ -110,7 +110,11 @@ export async function runCMOHeartbeat(): Promise<void> {
     return;
   }
 
-  const result = await executeHeartbeat(agent.id);
+  const result = await executeHeartbeat("cmo");
+
+  if (result.errors.length > 0) {
+    throw new Error(`[CMO] Heartbeat errors: ${result.errors.join("; ")}`);
+  }
 
   console.log(`[CMO] Heartbeat completed:
     - Actions: ${result.actionsExecuted}

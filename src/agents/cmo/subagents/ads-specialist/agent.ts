@@ -123,7 +123,11 @@ export async function runAdsSpecialistHeartbeat(): Promise<void> {
     return;
   }
 
-  const result = await executeHeartbeat(agent.id);
+  const result = await executeHeartbeat("ads-specialist");
+
+  if (result.errors.length > 0) {
+    throw new Error(`[AdsSpecialist] Heartbeat errors: ${result.errors.join("; ")}`);
+  }
 
   console.log(`[AdsSpecialist] Heartbeat completed:
     - Actions: ${result.actionsExecuted}
