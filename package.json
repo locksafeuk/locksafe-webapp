@@ -12,6 +12,8 @@
     "test:coverage": "jest --coverage",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
+    "reliability:daily": "npx tsx --env-file=.env.local --tsconfig tsconfig.scripts.json scripts/daily-reliability-check.ts",
+    "reliability:daily:prod": "RELIABILITY_BASE_URL=https://www.locksafe.uk npx tsx --env-file=.env.local --tsconfig tsconfig.scripts.json scripts/daily-reliability-check.ts",
     "format": "bunx biome format --write",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",

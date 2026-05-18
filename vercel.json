@@ -16,6 +16,7 @@
     { "path": "/api/cron/cmo-autonomous",             "schedule": "0 */6 * * *"     },
     { "path": "/api/cron/sync-meta-performance",      "schedule": "30 */6 * * *"    },
     { "path": "/api/cron/agents-weekly-report",       "schedule": "0 9 * * 1"       },
+    { "path": "/api/cron/daily-reliability",         "schedule": "0 7 * * *"       },
     { "path": "/api/cron/reset-agent-budgets",        "schedule": "5 0 1 * *"       },
     { "path": "/api/cron/morning-briefing",           "schedule": "0 8 * * *"       },
     { "path": "/api/cron/dispatch-scheduled-jobs",    "schedule": "*/5 * * * *"     },
