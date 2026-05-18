@@ -15,6 +15,13 @@
 
 import { chat, Models } from "@/lib/llm-router";
 import { BUSINESS_CONTEXT, getBusinessSummary } from "./business-context";
+import {
+  BASELINE_LOCKSMITH_KEYWORDS,
+  BASELINE_NEGATIVE_KEYWORDS,
+  COMPETITOR_BRAND_NEGATIVES,
+  mergeKeywords,
+  mergeNegativeKeywords,
+} from "./google-ads-keywords";
 
 export const RSA_HEADLINE_MAX = 30;
 export const RSA_DESCRIPTION_MAX = 90;
@@ -93,14 +100,28 @@ RSA constraints exactly:
 - No claims of being "cheapest" or "guaranteed lowest price".
 - Risk reversal allowed: "Automatic refund guarantee".
 
-KEYWORDS: produce 12-25 keywords mixed across match types. Skew towards
-PHRASE and EXACT for high-intent terms ("emergency locksmith london"),
-use BROAD only for discovery themes. Lowercase, no quotes/brackets — the
-match type is conveyed in the JSON field, not the text. No duplicates.
+KEYWORDS — CRITICAL RULES (we are paying real money per click):
+• We already have a hardcoded baseline of ~35 high-intent locksmith keywords.
+  Your job is to ADD campaign-specific terms ON TOP of that baseline — do NOT
+  repeat terms from the baseline, and do NOT produce generic terms already
+  covered (e.g. "emergency locksmith", "locked out", "24 hour locksmith").
+• Produce 10-20 ADDITIONAL keywords specific to the prompt's theme/geography.
+• Match type rules for this LAUNCH campaign (no historical conversion data):
+    – EXACT: use for high-intent emergency terms where we know the intent
+      is to book NOW (e.g. exact city + service combos).
+    – PHRASE: use for [city] + service and [service] + [property type] patterns.
+    – BROAD: DO NOT USE for this launch. We have zero conversion history.
+      Broad match without conversion data = wasted spend. Omit entirely.
+• Lowercase, no quotes/brackets in the text field.
 
-NEGATIVE KEYWORDS: include 8-15 obvious wasteful queries (jobs, training,
-tutorial, free, cheap, salary, course, near me on its own without context,
-plus the supplied competitor brands). Lowercase free-text.
+NEGATIVE KEYWORDS — CRITICAL RULES:
+• We already have a hardcoded list of ~80 permanent negatives (jobs, training,
+  DIY, tools, wrong product types, review sites, etc.).
+• Your job is to ADD campaign-specific negatives that the baseline doesn't cover.
+• Produce at least 20 ADDITIONAL negatives specific to this campaign's theme.
+  Think: wrong city names in the area (if geo-specific), wrong property types,
+  seasonal misfires, competitor services adjacent to this theme, etc.
+• Lowercase free-text (no brackets/quotes).
 
 BUSINESS CONTEXT:
 ${businessContext}
@@ -121,7 +142,14 @@ PROOF POINTS (use specifics, not vague claims):
 PROMPT: ${request.prompt}
 FINAL URL: ${finalUrl}
 RECOMMENDED DAILY BUDGET (GBP): ${request.recommendedDailyBudget ?? 15}
-${competitorBrands.length ? `COMPETITOR BRANDS TO ADD AS NEGATIVES: ${competitorBrands.join(", ")}` : ""}
+${competitorBrands.length ? `EXTRA COMPETITOR BRANDS TO BLOCK: ${competitorBrands.join(", ")}` : ""}
+
+REMINDER:
+- Do NOT include keywords already in our baseline (emergency locksmith, locked out,
+  24 hour locksmith, lock change, broken lock, etc.) — add campaign-specific terms only.
+- Do NOT use BROAD match — EXACT and PHRASE only for this launch campaign.
+- Include at least 20 additional negative keywords beyond the permanent baseline.
+- All keywords lowercase, no brackets or quotes in the text field.
 
 Return a JSON object matching this exact shape (no markdown, no commentary):
 {
@@ -129,9 +157,9 @@ Return a JSON object matching this exact shape (no markdown, no commentary):
   "headlines": ["string", ... 15 items, each <= ${RSA_HEADLINE_MAX} chars],
   "descriptions": ["string", ... 4 items, each <= ${RSA_DESCRIPTION_MAX} chars],
   "keywords": [
-    { "text": "string", "matchType": "EXACT"|"PHRASE"|"BROAD", "reasoning": "short" }
+    { "text": "string", "matchType": "EXACT"|"PHRASE", "reasoning": "short" }
   ],
-  "negativeKeywords": ["string", ...],
+  "negativeKeywords": ["string", ... at least 20 additional terms],
   "recommendedDailyBudget": number,
   "reasoning": "1-3 sentences explaining the angle and expected CAC"
 }`;
@@ -181,31 +209,46 @@ Return a JSON object matching this exact shape (no markdown, no commentary):
     throw new Error(`Google Ads draft requires >= 2 descriptions, got ${descriptions.length}`);
   }
 
-  const keywords: GoogleKeyword[] = dedupe(
+  // Parse the LLM-generated keywords, strip any BROAD that slipped through.
+  const llmKeywords: GoogleKeyword[] = dedupe(
     (parsed.keywords || [])
       .map((k) => ({
         text: String(k?.text || "").toLowerCase().trim(),
-        matchType: (["EXACT", "PHRASE", "BROAD"] as const).includes(
-          k?.matchType as GoogleKeywordMatchType
+        matchType: (["EXACT", "PHRASE"] as const).includes(
+          k?.matchType as "EXACT" | "PHRASE"
         )
-          ? (k.matchType as GoogleKeywordMatchType)
+          ? (k.matchType as "EXACT" | "PHRASE")
           : ("PHRASE" as GoogleKeywordMatchType),
         reasoning: k?.reasoning ? String(k.reasoning).slice(0, 200) : undefined,
       }))
-      .filter((k) => k.text.length > 0 && k.text.length <= 80),
+      // Silently drop any BROAD match — not allowed until we have conversion data.
+      .filter((k) => k.text.length > 0 && k.text.length <= 80 && k.matchType !== "BROAD"),
     (k) => `${k.matchType}:${k.text}`
-  ).slice(0, 30);
+  );
+
+  // Merge baseline + LLM keywords. Baseline always comes first (preserved).
+  // Hard-cap at 50 to stay well within Google Ads limits.
+  const keywords: GoogleKeyword[] = mergeKeywords(
+    // Strip BROAD from baseline too for launch — only EXACT and PHRASE.
+    BASELINE_LOCKSMITH_KEYWORDS.filter((k) => k.matchType !== "BROAD"),
+    llmKeywords,
+  ).slice(0, 50);
 
   if (keywords.length < 5) {
     throw new Error(`Google Ads draft requires >= 5 keywords, got ${keywords.length}`);
   }
 
-  const negativeKeywords = dedupe(
-    [...(parsed.negativeKeywords || []), ...competitorBrands]
-      .map((n) => String(n).toLowerCase().trim())
-      .filter((n) => n.length > 0 && n.length <= 80),
-    (n) => n
-  ).slice(0, 50);
+  // Merge: baseline permanents + LLM-generated additions + competitor brands
+  // passed to this call + our built-in competitor/aggregator brand list.
+  // No hard cap — Google Ads supports thousands of negative keywords at
+  // campaign level.  We impose a generous 500-term cap to prevent oversized
+  // DB payloads while still allowing comprehensive coverage.
+  const negativeKeywords = mergeNegativeKeywords(
+    BASELINE_NEGATIVE_KEYWORDS,
+    (parsed.negativeKeywords || []).map((n) => String(n).toLowerCase().trim()).filter(Boolean),
+    competitorBrands,
+    COMPETITOR_BRAND_NEGATIVES,
+  ).filter((n) => n.length <= 80).slice(0, 500);
 
   const recommendedDailyBudget = Math.max(
     1,

@@ -260,10 +260,22 @@ export interface ActiveCoverageResult {
  * - Falls back to targeting the entire UK if no matches.
  */
 export async function getActiveCoverageGeoTargets(): Promise<ActiveCoverageResult> {
+  // Strict filter: only fully-onboarded, admin-verified locksmiths who have a
+  // working Stripe Connect account.  All three gates must be passed before a
+  // locksmith's area is eligible for paid ad spend.
+  //
+  //   isActive              — not suspended / soft-deleted
+  //   onboardingCompleted   — completed the sign-up & document upload flow
+  //   isVerified            — admin has reviewed and approved the account
+  //   stripeConnectVerified — Stripe Connect account is verified (can receive
+  //                           payouts); without this the locksmith cannot be
+  //                           paid, so targeting their area wastes money.
   const locksmiths = await prisma.locksmith.findMany({
     where: {
       isActive: true,
       onboardingCompleted: true,
+      isVerified: true,
+      stripeConnectVerified: true,
     },
     select: {
       baseAddress: true,
@@ -305,9 +317,15 @@ export async function getActiveCoverageGeoTargets(): Promise<ActiveCoverageResul
   }
 
   if (resolved.size === 0) {
+    // Do NOT fall back to UK-wide targeting — that would spend money on areas
+    // with zero verified/Stripe-ready locksmiths.  Return an empty target list
+    // so the caller can halt campaign creation rather than waste budget.
     return {
-      geoTargets: [UK_GEO_IDS.uk],
-      coverageSummary: ["United Kingdom (fallback — no active locksmiths with locations found)"],
+      geoTargets: [],
+      coverageSummary: [
+        "NO COVERAGE — no fully-onboarded, admin-verified, Stripe-connected locksmiths found. " +
+        "Campaign creation blocked to prevent wasted spend.",
+      ],
       activeLocksmithCount: locksmiths.length,
     };
   }
