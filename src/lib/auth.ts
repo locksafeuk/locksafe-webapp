@@ -69,13 +69,22 @@ function hashToken(token: string): string {
 }
 
 // Check if token is blacklisted
+// Bounded with a short timeout so a slow/unreachable DB cannot hang every admin API request.
 async function isTokenBlacklisted(token: string): Promise<boolean> {
+  const TIMEOUT_MS = 2000;
   try {
     const tokenHash = hashToken(token);
-    const blacklisted = await prisma.tokenBlacklist.findUnique({
-      where: { token: tokenHash },
-    });
-    return !!blacklisted;
+    const lookup = prisma.tokenBlacklist.findUnique({ where: { token: tokenHash } });
+    const timeout = new Promise<"__timeout__">((resolve) =>
+      setTimeout(() => resolve("__timeout__"), TIMEOUT_MS),
+    );
+    const result = await Promise.race([lookup, timeout]);
+    if (result === "__timeout__") {
+      console.error("isTokenBlacklisted: DB lookup timed out after", TIMEOUT_MS, "ms");
+      // Fail secure on timeout to avoid honoring potentially revoked tokens.
+      return true;
+    }
+    return !!result;
   } catch (error) {
     console.error("Error checking token blacklist:", error);
     // Fail secure - if we can't check, assume it's blacklisted

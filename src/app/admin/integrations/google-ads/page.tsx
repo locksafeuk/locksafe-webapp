@@ -61,14 +61,22 @@ function GoogleAdsIntegrationPageInner() {
 
   const refresh = useCallback(async () => {
     setLoading(true);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
     try {
       const [accountsRes, cfgRes] = await Promise.all([
-        fetch("/api/admin/google-ads/accounts"),
-        fetch("/api/admin/google-ads/config"),
+        fetch("/api/admin/google-ads/accounts", { signal: controller.signal }).catch(
+          (err) => ({ ok: false, status: 0, _err: err } as unknown as Response),
+        ),
+        fetch("/api/admin/google-ads/config", { signal: controller.signal }).catch(
+          (err) => ({ ok: false, status: 0, _err: err } as unknown as Response),
+        ),
       ]);
       if (accountsRes.ok) {
         const data = await accountsRes.json();
         setAccounts(data.accounts ?? []);
+      } else {
+        setAccounts([]);
       }
       if (cfgRes.ok) {
         const data = await cfgRes.json();
@@ -89,8 +97,12 @@ function GoogleAdsIntegrationPageInner() {
             redirectUri: prev.redirectUri || `${origin}/api/admin/google-ads/oauth/callback`,
           }));
         }
+      } else {
+        setApiConfig(null);
+        setConfigOpen(true);
       }
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
       setConfigLoading(false);
     }

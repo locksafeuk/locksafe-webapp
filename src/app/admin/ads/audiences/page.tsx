@@ -375,7 +375,7 @@ export default function AudiencesPage() {
                       {new Date(audience.createdAt).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      {audience.metaAudienceId && (
+                      {audience.metaAudienceId && process.env.NEXT_PUBLIC_META_AD_ACCOUNT_ID && (
                         <a
                           href={`https://business.facebook.com/adsmanager/audiences?act=${process.env.NEXT_PUBLIC_META_AD_ACCOUNT_ID}`}
                           target="_blank"

@@ -898,7 +898,7 @@ export default function AdsPage() {
                           {campaign.dailyBudget && (
                             <span>{formatCurrency(campaign.dailyBudget)}/day</span>
                           )}
-                          {campaign.metaCampaignId && (
+                          {campaign.metaCampaignId && process.env.NEXT_PUBLIC_META_AD_ACCOUNT_ID && (
                             <a
                               href={`https://business.facebook.com/adsmanager/manage/campaigns?act=${process.env.NEXT_PUBLIC_META_AD_ACCOUNT_ID}&selected_campaign_ids=${campaign.metaCampaignId}`}
                               target="_blank"

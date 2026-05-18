@@ -56,17 +56,24 @@ export default function GoogleAdsDraftsListPage() {
 
   const refresh = useCallback(async () => {
     setLoading(true);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
     try {
       const url =
         filter === "ALL"
           ? "/api/admin/google-ads/drafts"
           : `/api/admin/google-ads/drafts?status=${filter}`;
-      const res = await fetch(url);
+      const res = await fetch(url, { signal: controller.signal }).catch(
+        (err) => ({ ok: false, status: 0, _err: err } as unknown as Response),
+      );
       if (res.ok) {
         const data = await res.json();
         setDrafts(data.drafts ?? []);
+      } else {
+        setDrafts([]);
       }
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   }, [filter]);
