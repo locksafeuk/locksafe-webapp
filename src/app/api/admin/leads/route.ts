@@ -101,7 +101,7 @@ export async function GET(req: NextRequest) {
   const [leads, filteredTotal] = await Promise.all([
     prisma.locksmithLead.findMany({
       where,
-      orderBy: [{ status: "asc" }, { reviewCount: "desc" }],
+      orderBy: [{ createdAt: "desc" }, { reviewCount: "desc" }],
       take: limit,
       skip,
     }),
