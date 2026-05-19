@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { aggregateOutreachStats } from "@/lib/lead-outreach";
+import { aggregateOutreachStats, parseOutreachMeta } from "@/lib/lead-outreach";
 
 async function verifyAdmin() {
   const cookieStore = await cookies();
@@ -16,6 +16,79 @@ async function verifyAdmin() {
 export async function GET(req: NextRequest) {
   const admin = await verifyAdmin();
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Keep dashboard statuses in sync with actual engagement and signup outcomes.
+  const leadsForSync = await prisma.locksmithLead.findMany({
+    where: {
+      OR: [
+        { status: { in: ["new", "contacted", "replied"] } },
+        { email: { not: null }, status: { not: "onboarded" } },
+      ],
+    },
+    select: {
+      id: true,
+      email: true,
+      status: true,
+      notes: true,
+    },
+  });
+
+  const leadEmails = Array.from(
+    new Set(
+      leadsForSync
+        .map((lead) => lead.email?.trim().toLowerCase())
+        .filter((email): email is string => Boolean(email))
+    )
+  );
+
+  const locksmithsByEmail = new Set<string>();
+  if (leadEmails.length > 0) {
+    const onboardedLocksmiths = await prisma.locksmith.findMany({
+      where: { email: { in: leadEmails } },
+      select: { email: true },
+    });
+    for (const ls of onboardedLocksmiths) {
+      locksmithsByEmail.add(ls.email.trim().toLowerCase());
+    }
+  }
+
+  const syncUpdates: Promise<unknown>[] = [];
+  for (const lead of leadsForSync) {
+    const email = lead.email?.trim().toLowerCase();
+
+    if (email && locksmithsByEmail.has(email) && lead.status !== "onboarded") {
+      syncUpdates.push(
+        prisma.locksmithLead.update({
+          where: { id: lead.id },
+          data: {
+            status: "onboarded",
+            contactedBy: "auto-onboard-sync",
+          },
+        })
+      );
+      continue;
+    }
+
+    if (lead.status === "new" || lead.status === "contacted") {
+      const meta = parseOutreachMeta(lead.notes);
+      const clickCount = Object.values(meta.clicks).reduce((sum, value) => sum + value, 0);
+      if (clickCount > 0) {
+        syncUpdates.push(
+          prisma.locksmithLead.update({
+            where: { id: lead.id },
+            data: {
+              status: "replied",
+              contactedBy: "auto-click-sync",
+            },
+          })
+        );
+      }
+    }
+  }
+
+  if (syncUpdates.length > 0) {
+    await Promise.all(syncUpdates);
+  }
 
   const { searchParams } = req.nextUrl;
   const status = searchParams.get("status");

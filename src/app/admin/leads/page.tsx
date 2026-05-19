@@ -114,6 +114,7 @@ export default function AdminLeadsPage() {
   const [notesLead, setNotesLead] = useState<Lead | null>(null);
   const [notesText, setNotesText] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
+  const hasActiveFilters = Boolean(search || statusFilter !== "all" || cityFilter !== "all");
 
   /** True for UK mobile numbers: 07xxx, +447xxx, 00447xxx */
   const isUKMobile = (phone: string | null): boolean => {
@@ -327,6 +328,12 @@ export default function AdminLeadsPage() {
     a.download = `locksmith-leads-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const clearFilters = () => {
+    setSearch("");
+    setStatusFilter("all");
+    setCityFilter("all");
   };
 
   return (
@@ -549,11 +556,31 @@ export default function AdminLeadsPage() {
           ) : leads.length === 0 ? (
             <div className="py-20 text-center text-slate-400">
               <Users2 className="w-12 h-12 mx-auto mb-3 opacity-30" />
-              <p className="font-medium">No leads found</p>
-              <p className="text-sm mt-1">Run the scraper script to populate this list.</p>
-              <code className="mt-3 block text-xs bg-slate-100 rounded px-3 py-2 text-slate-600 max-w-xl mx-auto">
-                npx ts-node --compiler-options &apos;&#123;&quot;module&quot;:&quot;CommonJS&quot;,&quot;strict&quot;:false&#125;&apos; scripts/find-independent-locksmiths.ts
-              </code>
+              {stats && stats.total > 0 ? (
+                <>
+                  <p className="font-medium">No leads match current filters</p>
+                  <p className="text-sm mt-1">Try clearing filters to view all leads.</p>
+                  <Button variant="outline" size="sm" onClick={clearFilters} className="mt-3">
+                    <X className="w-4 h-4 mr-1" /> Clear Filters
+                  </Button>
+                </>
+              ) : hasActiveFilters ? (
+                <>
+                  <p className="font-medium">No leads match current filters</p>
+                  <p className="text-sm mt-1">Try a broader search or clear filters.</p>
+                  <Button variant="outline" size="sm" onClick={clearFilters} className="mt-3">
+                    <X className="w-4 h-4 mr-1" /> Clear Filters
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <p className="font-medium">No leads found</p>
+                  <p className="text-sm mt-1">Run the scraper script to populate this list.</p>
+                  <code className="mt-3 block text-xs bg-slate-100 rounded px-3 py-2 text-slate-600 max-w-xl mx-auto">
+                    npx ts-node --compiler-options &apos;&#123;&quot;module&quot;:&quot;CommonJS&quot;,&quot;strict&quot;:false&#125;&apos; scripts/find-independent-locksmiths.ts
+                  </code>
+                </>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">
