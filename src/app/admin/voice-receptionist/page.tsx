@@ -804,10 +804,24 @@ function SettingsTab({ config, onUpdate }: { config: AgentConfig | null; onUpdat
   const [creatingVersion, setCreatingVersion] = useState(false);
   const [baselineLoading, setBaselineLoading] = useState(false);
   const [baseline, setBaseline] = useState<VoiceBaseline | null>(null);
+  const [realismLoading, setRealismLoading] = useState(false);
+  const [realismSaving, setRealismSaving] = useState(false);
+  const [opsRunning, setOpsRunning] = useState<string | null>(null);
+  const [opsMessage, setOpsMessage] = useState<string>("");
+  const [reviewsAvgNaturalness, setReviewsAvgNaturalness] = useState<number>(0);
+  const [scorecard, setScorecard] = useState<any>(null);
+  const [realismProfile, setRealismProfile] = useState({
+    interruptionSensitivity: "medium",
+    backchannelFrequency: "medium",
+    pauseStyle: "natural",
+    noiseHandling: "adaptive",
+  });
 
   useEffect(() => {
     fetchVersions();
     fetchBaseline();
+    fetchRealism();
+    fetchReviewMetrics();
     // eslint-disable-next-line
   }, []);
 
@@ -836,6 +850,181 @@ function SettingsTab({ config, onUpdate }: { config: AgentConfig | null; onUpdat
       setBaselineLoading(false);
     }
   }
+
+  async function fetchRealism() {
+    setRealismLoading(true);
+    try {
+      const res = await fetch("/api/retell/realism");
+      const data = await res.json();
+      if (data?.success && data?.profile) {
+        setRealismProfile({
+          interruptionSensitivity: data.profile.interruptionSensitivity ?? "medium",
+          backchannelFrequency: data.profile.backchannelFrequency ?? "medium",
+          pauseStyle: data.profile.pauseStyle ?? "natural",
+          noiseHandling: data.profile.noiseHandling ?? "adaptive",
+        });
+      }
+    } catch {
+      // noop
+    } finally {
+      setRealismLoading(false);
+    }
+  }
+
+  async function fetchReviewMetrics() {
+    try {
+      const res = await fetch("/api/retell/reviews");
+      const data = await res.json();
+      if (data?.success) {
+        setReviewsAvgNaturalness(data?.metrics?.avgNaturalness ?? 0);
+      }
+    } catch {
+      setReviewsAvgNaturalness(0);
+    }
+  }
+
+  const saveRealismProfile = async () => {
+    setRealismSaving(true);
+    setOpsMessage("");
+    try {
+      const res = await fetch("/api/retell/realism", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(realismProfile),
+      });
+      const data = await res.json();
+      if (data?.success) {
+        setOpsMessage("Realism profile saved.");
+      } else {
+        setOpsMessage(data?.error ?? "Failed to save realism profile.");
+      }
+    } catch {
+      setOpsMessage("Failed to save realism profile.");
+    } finally {
+      setRealismSaving(false);
+    }
+  };
+
+  const runDatasetJob = async () => {
+    setOpsRunning("dataset");
+    setOpsMessage("");
+    try {
+      const res = await fetch("/api/retell/dataset/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "incremental", runNow: true, limit: 500 }),
+      });
+      const data = await res.json();
+      if (data?.success) {
+        setOpsMessage(`Dataset job completed with ${data?.job?.rowCount ?? 0} rows.`);
+      } else {
+        setOpsMessage(data?.error ?? "Dataset job failed.");
+      }
+    } catch {
+      setOpsMessage("Dataset job failed.");
+    } finally {
+      setOpsRunning(null);
+    }
+  };
+
+  const runSimulations = async () => {
+    setOpsRunning("simulation");
+    setOpsMessage("");
+    try {
+      const res = await fetch("/api/retell/simulations/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          collectedFields: ["name", "postcode", "phone"],
+          naturalnessScore: Math.max(3.5, reviewsAvgNaturalness || 3.5),
+          escalated: false,
+        }),
+      });
+      const data = await res.json();
+      if (data?.success) {
+        setOpsMessage(`Simulations complete. Pass rate: ${data?.metrics?.passRate ?? 0}%.`);
+      } else {
+        setOpsMessage(data?.error ?? "Simulation run failed.");
+      }
+    } catch {
+      setOpsMessage("Simulation run failed.");
+    } finally {
+      setOpsRunning(null);
+    }
+  };
+
+  const buildDailyScorecard = async () => {
+    setOpsRunning("scorecard");
+    setOpsMessage("");
+    try {
+      const res = await fetch("/api/retell/scorecard/daily", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (data?.success) {
+        setScorecard(data.scorecard ?? null);
+        setOpsMessage(`Scorecard built. Alerts: ${data?.alerts?.length ?? 0}.`);
+      } else {
+        setOpsMessage(data?.error ?? "Scorecard build failed.");
+      }
+    } catch {
+      setOpsMessage("Scorecard build failed.");
+    } finally {
+      setOpsRunning(null);
+    }
+  };
+
+  const manageExperiment = async () => {
+    setOpsRunning("experiment");
+    setOpsMessage("");
+    try {
+      const listRes = await fetch("/api/retell/experiments");
+      const listData = await listRes.json();
+      const running = (listData?.experiments ?? []).find((e: any) => e?.status === "running");
+
+      if (running?.id) {
+        const evalRes = await fetch("/api/retell/experiments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "evaluate", experimentId: running.id }),
+        });
+        const evalData = await evalRes.json();
+        if (evalData?.success) {
+          setOpsMessage(`Experiment evaluated. Winner: ${evalData?.summary?.winnerVersionId ?? "pending"}.`);
+        } else {
+          setOpsMessage(evalData?.error ?? "Experiment evaluation failed.");
+        }
+      } else if ((versions ?? []).length >= 2) {
+        const newest = versions[0];
+        const previous = versions[1];
+        const createRes = await fetch("/api/retell/experiments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: `Voice A/B v${previous.version} vs v${newest.version}`,
+            controlVersionId: previous.id,
+            challengerVersionId: newest.id,
+            trafficSplit: 50,
+            stopLossThreshold: 15,
+          }),
+        });
+        const createData = await createRes.json();
+        if (createData?.success) {
+          setOpsMessage("Experiment started with latest two versions.");
+        } else {
+          setOpsMessage(createData?.error ?? "Failed to start experiment.");
+        }
+      } else {
+        setOpsMessage("Need at least 2 versions to start an experiment.");
+      }
+    } catch {
+      setOpsMessage("Experiment action failed.");
+    } finally {
+      setOpsRunning(null);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -1039,6 +1228,102 @@ function SettingsTab({ config, onUpdate }: { config: AgentConfig | null; onUpdat
             </div>
           </div>
         )}
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm p-6 space-y-4">
+        <h3 className="font-semibold text-slate-900">Realism Tuning</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs text-slate-600 mb-1">Interruption Sensitivity</label>
+            <select
+              value={realismProfile.interruptionSensitivity}
+              onChange={(e: any) => setRealismProfile((prev: any) => ({ ...(prev ?? {}), interruptionSensitivity: e?.target?.value ?? "medium" }))}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+              disabled={realismLoading}
+            >
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-600 mb-1">Backchannel Frequency</label>
+            <select
+              value={realismProfile.backchannelFrequency}
+              onChange={(e: any) => setRealismProfile((prev: any) => ({ ...(prev ?? {}), backchannelFrequency: e?.target?.value ?? "medium" }))}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+              disabled={realismLoading}
+            >
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-600 mb-1">Pause Style</label>
+            <select
+              value={realismProfile.pauseStyle}
+              onChange={(e: any) => setRealismProfile((prev: any) => ({ ...(prev ?? {}), pauseStyle: e?.target?.value ?? "natural" }))}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+              disabled={realismLoading}
+            >
+              <option value="concise">Concise</option>
+              <option value="natural">Natural</option>
+              <option value="empathetic">Empathetic</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-600 mb-1">Noise Handling</label>
+            <select
+              value={realismProfile.noiseHandling}
+              onChange={(e: any) => setRealismProfile((prev: any) => ({ ...(prev ?? {}), noiseHandling: e?.target?.value ?? "adaptive" }))}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+              disabled={realismLoading}
+            >
+              <option value="adaptive">Adaptive</option>
+              <option value="strict">Strict</option>
+              <option value="lenient">Lenient</option>
+            </select>
+          </div>
+        </div>
+        <Button onClick={saveRealismProfile} disabled={realismSaving || realismLoading} className="bg-slate-900 hover:bg-slate-800 text-white">
+          {realismSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+          Save Realism Profile
+        </Button>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm p-6 space-y-4">
+        <h3 className="font-semibold text-slate-900">Ops Controls</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <Button size="sm" variant="outline" onClick={runDatasetJob} disabled={!!opsRunning}>
+            {opsRunning === "dataset" ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+            Run Dataset Incremental Job
+          </Button>
+          <Button size="sm" variant="outline" onClick={runSimulations} disabled={!!opsRunning}>
+            {opsRunning === "simulation" ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+            Run Simulation Suite
+          </Button>
+          <Button size="sm" variant="outline" onClick={manageExperiment} disabled={!!opsRunning}>
+            {opsRunning === "experiment" ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+            Start/Evaluate Experiment
+          </Button>
+          <Button size="sm" variant="outline" onClick={buildDailyScorecard} disabled={!!opsRunning}>
+            {opsRunning === "scorecard" ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+            Build Daily Scorecard
+          </Button>
+        </div>
+        <div className="text-xs text-slate-600">
+          Reviewer naturalness average: <span className="font-semibold text-slate-900">{reviewsAvgNaturalness.toFixed(2)}</span>
+        </div>
+        {scorecard ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+            <div className="rounded-md bg-slate-50 p-2">Calls: <span className="font-semibold">{scorecard.totalCalls}</span></div>
+            <div className="rounded-md bg-slate-50 p-2">Completion: <span className="font-semibold">{scorecard.completionRate}%</span></div>
+            <div className="rounded-md bg-slate-50 p-2">Call-to-Job: <span className="font-semibold">{scorecard.callToJobRate}%</span></div>
+            <div className="rounded-md bg-slate-50 p-2">Escalation: <span className="font-semibold">{scorecard.escalationRate}%</span></div>
+          </div>
+        ) : null}
+        {opsMessage ? <div className="text-xs text-orange-700 bg-orange-50 border border-orange-100 rounded-md px-3 py-2">{opsMessage}</div> : null}
       </div>
 
       {/* Version History & Deployment Controls */}
