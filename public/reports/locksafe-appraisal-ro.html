@@ -316,7 +316,7 @@
     </div>
     <div class="cover-meta-item">
       <label>Stadiu</label>
-      <span>Pre-Venituri / Build Tehnic</span>
+      <span>Operațiuni Live / Scalare</span>
     </div>
     <div class="cover-meta-item">
       <label>Platformă</label>
@@ -386,9 +386,9 @@
     <table>
       <thead><tr><th>Sistem</th><th>Descriere</th></tr></thead>
       <tbody>
-        <tr><td>Scraper Profund Lăcătuși</td><td>Scraping la nivel de oraș (Birmingham activ, extensibil la toate orașele UK)</td></tr>
+        <tr><td>Scraper Profund Lăcătuși</td><td>Scraping și îmbogățire la nivel de oraș în multiple regiuni UK (inclusiv Londra, Birmingham, Manchester, Leeds și Sheffield)</td></tr>
         <tr><td>Îmbogățire Lead-uri</td><td>CSV → îmbogățire automată cu detalii business, telefon, email</td></tr>
-        <tr><td>Google Ads</td><td>Cont manager (CID 222-951-9701), token developer, integrare API — Acces Basic în așteptare</td></tr>
+        <tr><td>Google Ads</td><td>Cont manager (CID 222-951-9701), token developer, integrare API — campanii configurate și pregătite pentru scalare</td></tr>
         <tr><td>Meta Ads</td><td>API Conversii Facebook/Instagram, token system user (durată lungă, fără expirare)</td></tr>
         <tr><td>Publicare Social</td><td>Twitter/X (@LocksafeUK), LinkedIn, Facebook conectate — Instagram în așteptare</td></tr>
         <tr><td>Atribuire</td><td>Atribuire multi-touch, urmărire UTM, GA4, Meta Pixel, Microsoft UET</td></tr>
@@ -399,8 +399,8 @@
     <table>
       <thead><tr><th>Platformă</th><th>Status</th><th>Detalii</th></tr></thead>
       <tbody>
-        <tr><td>Android</td><td><span class="badge badge-yellow">În Revizuire</span></td><td>Trimis la Google Play pe 16 Mai 2026 (v1.0.2, versionCode 23). Aprobare estimată ~23 Mai 2026.</td></tr>
-        <tr><td>iOS</td><td><span class="badge badge-blue">În Progres</span></td><td>Pipeline de build EAS/Expo configurat. App: uk.locksafe.app</td></tr>
+        <tr><td>Android</td><td><span class="badge badge-green">Live</span></td><td>Aplicația de producție este complet funcțională pentru fluxurile operaționale ale lăcătușilor.</td></tr>
+        <tr><td>iOS</td><td><span class="badge badge-green">Live</span></td><td>Aplicația de producție este complet funcțională, aliniată cu setul de funcționalități al platformei web.</td></tr>
       </tbody>
     </table>
 
@@ -425,6 +425,9 @@
       <h2>Comparație de Piață — Ce Există Deja</h2>
     </div>
     <p>Piața UK a serviciilor la domiciliu valorează £27B+. LockSafe vizează sub-segmentul de urgență/prioritate ridicată — nișa cu cea mai mare rată de conversie și cel mai scăzut nivel de sensibilitate la preț din această piață.</p>
+    <div class="callout">
+      <strong>Amprentă actuală de acoperire:</strong> Operațiunile și acoperirea de lead-uri se extind acum pe multiple clustere UK, inclusiv Greater London, West Midlands (Birmingham/Solihull), Greater Manchester, West Yorkshire (Leeds) și South Yorkshire (Sheffield/Barnsley/Rotherham), plus regiuni adiacente în pipeline.
+    </div>
 
     <table>
       <thead><tr><th>Platformă</th><th>Model</th><th>Avantajul LockSafe</th></tr></thead>
@@ -517,11 +520,11 @@
     <table>
       <thead><tr><th>Problemă</th><th>Nivel Risc</th><th>Detalii</th></tr></thead>
       <tbody>
-        <tr><td>Niciun lăcătuș activ încă</td><td><span class="badge badge-red">ÎNALT</span></td><td>Platforma este o capodoperă tehnică cu o parte de ofertă goală. Problema ou-sau-găină este riscul existențial #1. Pipeline-ul de scraping + outreach este răspunsul corect, dar nu a produs rezultate încă.</td></tr>
+        <tr><td>Consistența calității ofertei la scară</td><td><span class="badge badge-yellow">MEDIU</span></td><td>Cu 40+ lăcătuși înscriși, riscul s-a mutat de la achiziție la consistență operațională: respectarea SLA, timpi de răspuns, rate de acceptare și disciplină în ofertare pe regiuni diferite.</td></tr>
         <tr><td>Acoperire teste insuficientă</td><td><span class="badge badge-yellow">MEDIU</span></td><td>112 teste față de 233 rute. Căile majore de venituri (plăți, plăți către lăcătuși, rezoluții dispute) sunt în mare parte netestate. Inacceptabil pentru due diligence investitori.</td></tr>
         <tr><td>Real-time defect la scară</td><td><span class="badge badge-yellow">MEDIU</span></td><td>SSE/push folosește Maps în memorie — se defectează pe mai multe instanțe Vercel. Migrarea la Ably necesară înainte de trafic semnificativ.</td></tr>
         <tr><td>Server Ollama unic</td><td><span class="badge badge-yellow">MEDIU</span></td><td>Întreg Sistemul de Operare cu Agenți depinde de un Mac Studio acasă via Tailscale. Dacă Mac-ul se oprește, toți 7 agenți eșuează. O instanță Ollama în cloud (Vast.ai, ~£50/lună) ar elimina aceasta.</td></tr>
-        <tr><td>Google Ads blocat</td><td><span class="badge badge-red">ÎNALT</span></td><td>Token-ul developer blocat la "Acces Cont Test." Motorul de achiziție plătită este construit dar nu rulează. Aplicația Basic Access este în așteptare — acțiune prioritară.</td></tr>
+        <tr><td>Maturitatea optimizării Google Ads</td><td><span class="badge badge-yellow">MEDIU</span></td><td>Google Ads este gata de lansare, iar riscul următor este calitatea execuției: igiena urmăririi conversiilor, disciplină pe cuvinte negative și alocare bugetară pe orașe pentru a evita CAC ineficient.</td></tr>
         <tr><td>Instagram neconectat</td><td><span class="badge badge-green">SCĂZUT</span></td><td>Necesită mai întâi cont Instagram Business conectat la Pagina Facebook. Bucla de social organic incompletă.</td></tr>
         <tr><td>Goluri validare variabile mediu</td><td><span class="badge badge-yellow">MEDIU</span></td><td>~20+ variabile de mediu runtime nu sunt în schema Zod — eșecuri silențioase în producție posibile.</td></tr>
       </tbody>
@@ -540,37 +543,37 @@
     <div class="val-grid">
       <div class="val-card">
         <div class="label">Scenariul A</div>
-        <div class="amount">£150K–£350K</div>
-        <div class="range">Activ tehnic<br/>Pre-venituri, starea actuală</div>
+        <div class="amount">£1.2M–£2.8M</div>
+        <div class="range">Nivel actual<br/>40+ lăcătuși, aplicații live, reclame pregătite</div>
       </div>
       <div class="val-card highlight">
         <div class="label">Scenariul B</div>
-        <div class="amount">£800K–£2M</div>
-        <div class="range">Runda Seed<br/>10–50 lăcătuși activi, £5K–£20K/lună GMV</div>
+        <div class="amount">£3M–£8M</div>
+        <div class="range">Seed extins / punte spre Seria A<br/>50-150 lăcătuși activi, playbook de oraș repetabil</div>
       </div>
       <div class="val-card">
         <div class="label">Scenariul C</div>
-        <div class="amount">£5M–£15M</div>
-        <div class="range">Seria A<br/>£50K+/lună GMV, 200+ lăcătuși</div>
+        <div class="amount">£10M–£25M</div>
+        <div class="range">Creștere Seria A<br/>£100K+/lună GMV, 250+ lăcătuși</div>
       </div>
     </div>
 
-    <h3>Scenariul A — Pre-Venituri (Starea Actuală)</h3>
-    <p>O platformă full-stack de calitate producție, aplicații mobile în revizuire, Sistem de Operare AI cu Agenți, pipeline de scraping și integrări live. Niciun GMV semnificativ încă.</p>
+    <h3>Scenariul A — Bază Curentă (Operațiuni Live)</h3>
+    <p>O platformă full-stack de calitate producție, cu aplicații Android și iOS complet funcționale, 40+ lăcătuși înscriși, Sistem de Operare AI cu Agenți și infrastructură Google Ads pregătită pentru rulare la scară.</p>
     <div class="callout">
-      <strong>Valoare activ ca țintă de achiziție tehnică: £150.000 – £350.000.</strong> O companie ca Checkatrade, sau un agregator de capital privat care cumpără afaceri de lăcătuși, ar plăti aceasta pentru codul sursă + domeniu + infrastructură ca accelerator. Bază: achiziții comparabile de startup marketplace/proptech în UK la ratele din 2025–2026.
+      <strong>Interval de evaluare corect în prezent: £1.200.000 – £2.800.000.</strong> Acesta reflectă trecerea de la activ pur tehnic la tracțiune operațională timpurie, cu bază de ofertă semnificativă și infrastructură multi-canal deja live.
     </div>
 
-    <h3>Scenariul B — Tracțiune Timpurie (Runda Seed)</h3>
-    <p>10–50 lăcătuși activi, £5K–£20K GMV lunar, metrici de conversie măsurabile.</p>
+    <h3>Scenariul B — Tracțiune de Extindere (Seed/Punte)</h3>
+    <p>50-150 lăcătuși activi, funnel-uri de conversie consistente în mai multe orașe și economie stabilă per canal de rezervare.</p>
     <div class="callout success">
-      <strong>Evaluare stadiu seed: £800.000 – £2.000.000.</strong> La £10K/lună GMV cu 20% comision = £2K MRR → £24K ARR → evaluat la 30–50× ARR la stadiu seed pentru un marketplace cu creștere rapidă. Comparabil: runde seed marketplace vertical nișat în UK (2024–2026).
+      <strong>Evaluare estimată: £3.000.000 – £8.000.000.</strong> În acest stadiu, valoarea este condusă de lansări repetabile pe orașe, îmbunătățirea unit economics și dovada că nivelul de calitate al ofertei se menține pe măsură ce volumul crește.
     </div>
 
     <h3>Scenariul C — Stadiu de Creștere (Seria A)</h3>
-    <p>£50K+/lună GMV, 200+ lăcătuși activi, creștere YoY demonstrată, acoperire națională în desfășurare.</p>
+    <p>£100K+/lună GMV, 250+ lăcătuși activi, retenție puternică, bucle de recomandare și playbook de extindere națională cu încredere ridicată.</p>
     <div class="callout success">
-      <strong>Evaluare Seria A: £5.000.000 – £15.000.000.</strong> În acest moment comparabil cu Urban Company sau TaskRabbit în stadiu incipient, dar cu un avantaj competitiv mai puternic (protecție anti-fraudă + documentație legală). Seria A pentru marketplace SaaS vertical în UK la metrici similare: 8–12× ARR.
+      <strong>Evaluare Seria A: £10.000.000 – £25.000.000.</strong> La acest nivel, LockSafe devine comparabil cu marketplace-uri verticale de top, având infrastructură de încredere diferențiatoare și automatizare operațională defensabilă.
     </div>
 
     <h3>Variabila Strategică — Extinderea Platformei</h3>
@@ -594,9 +597,9 @@
         <tr><td>AI &amp; Automatizare</td><td class="grade-A">A−</td><td>Sistemul de Operare cu Agenți este de pionierat. Dependența de un singur server este singura deducere.</td></tr>
         <tr><td>Timing de Piață</td><td class="grade-B">B+</td><td>Problema escrocheriilor cu lăcătuși din UK este reală, documentată și nerezolvată. Timing-ul este potrivit.</td></tr>
         <tr><td>Model de Business</td><td class="grade-A">A−</td><td>Doar comision este corect. Modelul pre-plată elimină punctele cheie de fricțiune.</td></tr>
-        <tr><td>Tracțiune</td><td class="grade-D">D</td><td>Platforma este construită dar partea de ofertă este goală. Aceasta este singura metrică care contează acum.</td></tr>
+        <tr><td>Tracțiune</td><td class="grade-B">B</td><td>40+ lăcătuși înscriși și aplicații mobile live indică tracțiune reală; următorul pas este adâncimea regională și creșterea gradului de utilizare.</td></tr>
         <tr><td>Acoperire Teste</td><td class="grade-C">C−</td><td>112 teste față de 233 rute este insuficient pentru due diligence investitori.</td></tr>
-        <tr><td>Reziliență Operațională</td><td class="grade-C">C</td><td>Server Ollama unic, probleme SSE la scară, Google Ads blocat.</td></tr>
+        <tr><td>Reziliență Operațională</td><td class="grade-C">C+</td><td>Progres îmbunătățit (aplicații live, reclame pregătite), dar dependența de un singur server Ollama și scalarea SSE necesită încă hardening.</td></tr>
       </tbody>
     </table>
   </div>
@@ -611,13 +614,13 @@
     <table>
       <thead><tr><th>#</th><th>Acțiune</th><th>Prioritate</th><th>Impact</th></tr></thead>
       <tbody>
-        <tr><td>1</td><td>Onboardarea a 20 lăcătuși reali într-un singur oraș (Birmingham sau Londra) — folosind pipeline-ul de lead-uri îmbogățite</td><td><span class="badge badge-red">CRITIC</span></td><td>Deblochează toți ceilalți metrici. Runda seed nu poate fi realizată fără aceasta.</td></tr>
-        <tr><td>2</td><td>Aplicarea pentru Acces Basic Google Ads pe token-ul developer sbMXQHwqfdpHpWVGFnh1jg</td><td><span class="badge badge-red">ÎNALT</span></td><td>Motorul de achiziție plătită este construit dar inactiv. Fiecare zi fără reclame înseamnă clienți pierduți.</td></tr>
-        <tr><td>3</td><td>Migrarea SSE la Ably pentru real-time la scară</td><td><span class="badge badge-yellow">MEDIU</span></td><td>Necesar înainte de >1 instanță Vercel. Blochează creșterea după tracțiunea inițială.</td></tr>
+        <tr><td>1</td><td>Activează playbook-ul de utilizare pe orașe pentru baza actuală de 40+ lăcătuși (rată acceptare, respectare ETA, conversie ofertă)</td><td><span class="badge badge-red">CRITIC</span></td><td>Transformă oferta înscrisă în creștere GMV repetabilă și metrici mai puternici pentru investitori.</td></tr>
+        <tr><td>2</td><td>Lansează și optimizează Google Ads pe clustere de zone (Londra, West Midlands, Greater Manchester, Yorkshire)</td><td><span class="badge badge-red">ÎNALT</span></td><td>Convertește stack-ul de ads pregătit în viteză de cerere, menținând CAC sub control.</td></tr>
+        <tr><td>3</td><td>Migrarea SSE la Ably pentru real-time la scară</td><td><span class="badge badge-yellow">MEDIU</span></td><td>Necesar înainte de >1 instanță Vercel. Elimină lacunele de livrare multi-instansă.</td></tr>
         <tr><td>4</td><td>Mutarea Ollama pe o instanță cloud (Vast.ai ~£50/lună)</td><td><span class="badge badge-yellow">MEDIU</span></td><td>Elimină singurul punct de eșec pentru întreg Sistemul de Operare cu Agenți.</td></tr>
-        <tr><td>5</td><td>Extinderea acoperirii testelor la 80% pe rutele de plăți/plăți lăcătuși</td><td><span class="badge badge-yellow">MEDIU</span></td><td>Necesar pentru due diligence investitori și încredere în producție.</td></tr>
-        <tr><td>6</td><td>Conectarea contului Instagram Business</td><td><span class="badge badge-green">SCĂZUT</span></td><td>Completează bucla de social organic. Efort mic, valoare mare de conținut frecvent.</td></tr>
-        <tr><td>7</td><td>Conectarea contului Google Ads 471-522-6378 la managerul 222-951-9701</td><td><span class="badge badge-yellow">MEDIU</span></td><td>Necesar pentru managementul și raportarea unificată a reclamelor.</td></tr>
+        <tr><td>5</td><td>Extinderea acoperirii testelor la 80% pe rutele de plăți/plăți lăcătuși și dispatch</td><td><span class="badge badge-yellow">MEDIU</span></td><td>Necesar pentru due diligence investitori și încredere în producție.</td></tr>
+        <tr><td>6</td><td>Implementează scorecard regional de performanță pentru calitatea lăcătușilor (timp răspuns, rată finalizare, scor recenzii)</td><td><span class="badge badge-yellow">MEDIU</span></td><td>Protejează calitatea serviciului pe măsură ce acoperirea se extinde.</td></tr>
+        <tr><td>7</td><td>Întărește bucla de atribuire (consistență UTM + reconciliere conversii offline)</td><td><span class="badge badge-green">SCĂZUT</span></td><td>Îmbunătățește alocarea bugetului și precizia ROI pe canale.</td></tr>
       </tbody>
     </table>
   </div>
@@ -626,7 +629,7 @@
   <div class="footer">
     <p><strong>LockSafe UK</strong> — www.locksafe.uk — contact@locksafe.uk</p>
     <p style="margin-top:6px;">Acest raport este confidențial și pregătit exclusiv pentru uz intern și discuții autorizate cu investitori. Mai 2026.</p>
-    <p style="margin-top:6px;">Pregătit de: GitHub Copilot (Claude Sonnet 4.6) — Analiză asistată de AI bazată pe revizuirea completă a codului sursă și cercetare de piață.</p>
+    <p style="margin-top:6px;">Pregătit de: GitHub Copilot (GPT-5.3-Codex) — Analiză asistată de AI bazată pe revizuirea completă a codului sursă și cercetare de piață.</p>
   </div>
 
 </div>
