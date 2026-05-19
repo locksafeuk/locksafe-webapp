@@ -441,7 +441,6 @@ export default function AutopilotSettingsPage() {
                     <div className="flex gap-2">
                       <button
                         type="button"
-                        onClick={() => setAccountFormPlatform("FACEBOOK")}
                         className={`flex items-center gap-2 px-4 py-2 rounded-lg border ${
                           accountFormPlatform === "FACEBOOK"
                             ? "bg-blue-100 border-blue-500 text-blue-700"
@@ -497,7 +496,7 @@ export default function AutopilotSettingsPage() {
                         </p>
                       </div>
                     </>
-                  )}
+                  ) : null}
 
                   <div className="flex gap-2">
                     <Button
@@ -539,7 +538,7 @@ export default function AutopilotSettingsPage() {
                         <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
                           <Facebook className="w-5 h-5 text-blue-600" />
                         </div>
-                      )}
+                      ) : null}
                       <div>
                         <p className="font-medium text-slate-900">{account.accountName}</p>
                         <p className="text-xs text-slate-500">
