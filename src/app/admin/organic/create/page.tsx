@@ -15,7 +15,6 @@ import {
   Eye,
   CheckCircle,
   Facebook,
-  Instagram,
 } from "lucide-react";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
 import { Button } from "@/components/ui/button";
@@ -62,7 +61,7 @@ export default function CreateOrganicPostPage() {
   const [selectedPillar, setSelectedPillar] = useState<string>("");
   const [selectedFramework, setSelectedFramework] = useState("mixed");
   const [selectedAngle, setSelectedAngle] = useState("trust");
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(["FACEBOOK", "INSTAGRAM"]);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(["FACEBOOK"]);
   const [imageUrl, setImageUrl] = useState("");
   const [scheduledFor, setScheduledFor] = useState("");
 
@@ -381,18 +380,7 @@ export default function CreateOrganicPostPage() {
                   <Facebook className="w-4 h-4" />
                   Facebook
                 </button>
-                <button
-                  type="button"
-                  onClick={() => togglePlatform("INSTAGRAM")}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
-                    selectedPlatforms.includes("INSTAGRAM")
-                      ? "border-pink-500 bg-pink-50 text-pink-700"
-                      : "border-slate-300 text-slate-600 hover:border-slate-400"
-                  }`}
-                >
-                  <Instagram className="w-4 h-4" />
-                  Instagram
-                </button>
+
               </div>
             </div>
 
@@ -458,9 +446,7 @@ export default function CreateOrganicPostPage() {
                   placeholder="https://example.com/image.jpg"
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
-                <p className="text-xs text-slate-500 mt-1">
-                  Required for Instagram posts
-                </p>
+
               </div>
 
               {/* Hashtags */}

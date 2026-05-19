@@ -11,7 +11,6 @@ import {
   RefreshCw,
   Twitter,
   Linkedin,
-  Instagram,
   Facebook,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -32,7 +31,6 @@ function PlatformIcon({ platform }: { platform: string }) {
   switch (platform) {
     case "TWITTER":   return <Twitter className={cls} />;
     case "LINKEDIN":  return <Linkedin className={cls} />;
-    case "INSTAGRAM": return <Instagram className={cls} />;
     case "FACEBOOK":  return <Facebook className={cls} />;
     default:          return <AlertCircle className={cls} />;
   }
@@ -41,25 +39,22 @@ function PlatformIcon({ platform }: { platform: string }) {
 const platformColor: Record<string, string> = {
   TWITTER:   "text-sky-500 bg-sky-50",
   LINKEDIN:  "text-blue-600 bg-blue-50",
-  INSTAGRAM: "text-pink-500 bg-pink-50",
   FACEBOOK:  "text-blue-700 bg-blue-50",
 };
 
 const platformLabel: Record<string, string> = {
   TWITTER:   "Twitter / X",
   LINKEDIN:  "LinkedIn",
-  INSTAGRAM: "Instagram",
   FACEBOOK:  "Facebook",
 };
 
 const connectPaths: Record<string, string | null> = {
   TWITTER:   "/api/admin/social/twitter/connect",
   LINKEDIN:  "/api/admin/social/linkedin/connect",
-  INSTAGRAM: "/api/admin/social/instagram/connect",
   FACEBOOK:  null, // Managed via Meta Business Suite directly
 };
 
-const ALL_PLATFORMS = ["TWITTER", "LINKEDIN", "INSTAGRAM", "FACEBOOK"];
+const ALL_PLATFORMS = ["TWITTER", "LINKEDIN", "FACEBOOK"];
 
 function SocialConnectContent() {
   const searchParams = useSearchParams();
@@ -261,12 +256,7 @@ function SocialConnectContent() {
               <code className="bg-slate-200 px-1 rounded text-xs">LINKEDIN_CLIENT_SECRET</code>.
               Register callback: <code className="bg-slate-200 px-1 rounded text-xs">/api/admin/social/linkedin/callback</code>
             </li>
-            <li>
-              <span className="font-medium">Instagram:</span> Add{" "}
-              <code className="bg-slate-200 px-1 rounded text-xs">FACEBOOK_APP_ID</code> &{" "}
-              <code className="bg-slate-200 px-1 rounded text-xs">FACEBOOK_APP_SECRET</code>.
-              Register callback: <code className="bg-slate-200 px-1 rounded text-xs">/api/admin/social/instagram/callback</code>
-            </li>
+
           </ul>
         </div>
       </div>

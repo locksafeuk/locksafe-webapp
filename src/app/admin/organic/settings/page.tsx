@@ -11,7 +11,6 @@ import {
   Clock,
   Bell,
   Facebook,
-  Instagram,
   CheckCircle,
   Settings,
   Sparkles,
@@ -29,7 +28,6 @@ interface AutopilotConfig {
   generateAheadDays: number;
   requireApproval: boolean;
   publishToFacebook: boolean;
-  publishToInstagram: boolean;
   publishTimes: Record<string, string[]>;
   pillarWeights: Record<string, number>;
   preferredFrameworks: string[];
@@ -59,7 +57,7 @@ const EMOTIONAL_ANGLES = [
 
 interface SocialAccount {
   id: string;
-  platform: "FACEBOOK" | "INSTAGRAM";
+  platform: "FACEBOOK";
   accountId: string;
   accountName: string;
   accountHandle?: string;
@@ -78,7 +76,7 @@ export default function AutopilotSettingsPage() {
   // Social accounts state
   const [socialAccounts, setSocialAccounts] = useState<SocialAccount[]>([]);
   const [showAccountForm, setShowAccountForm] = useState(false);
-  const [accountFormPlatform, setAccountFormPlatform] = useState<"FACEBOOK" | "INSTAGRAM">("FACEBOOK");
+  const [accountFormPlatform] = useState<"FACEBOOK">("FACEBOOK");
   const [accountFormData, setAccountFormData] = useState({
     accountId: "",
     accountName: "",
@@ -94,7 +92,7 @@ export default function AutopilotSettingsPage() {
   const [generateAheadDays, setGenerateAheadDays] = useState(7);
   const [requireApproval, setRequireApproval] = useState(true);
   const [publishToFacebook, setPublishToFacebook] = useState(true);
-  const [publishToInstagram, setPublishToInstagram] = useState(true);
+
   const [publishTimes, setPublishTimes] = useState<Record<string, string[]>>({});
   const [preferredFrameworks, setPreferredFrameworks] = useState<string[]>([]);
   const [emotionalAngleRotation, setEmotionalAngleRotation] = useState<string[]>([]);
@@ -193,7 +191,7 @@ export default function AutopilotSettingsPage() {
         setGenerateAheadDays(cfg.generateAheadDays);
         setRequireApproval(cfg.requireApproval);
         setPublishToFacebook(cfg.publishToFacebook);
-        setPublishToInstagram(cfg.publishToInstagram);
+
         setPublishTimes(cfg.publishTimes || {});
         setPreferredFrameworks(cfg.preferredFrameworks || []);
         setEmotionalAngleRotation(cfg.emotionalAngleRotation || []);
@@ -233,7 +231,6 @@ export default function AutopilotSettingsPage() {
           generateAheadDays,
           requireApproval,
           publishToFacebook,
-          publishToInstagram,
           publishTimes,
           preferredFrameworks,
           emotionalAngleRotation,
@@ -454,18 +451,7 @@ export default function AutopilotSettingsPage() {
                         <Facebook className="w-4 h-4" />
                         Facebook
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setAccountFormPlatform("INSTAGRAM")}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg border ${
-                          accountFormPlatform === "INSTAGRAM"
-                            ? "bg-pink-100 border-pink-500 text-pink-700"
-                            : "bg-white border-slate-300 text-slate-600"
-                        }`}
-                      >
-                        <Instagram className="w-4 h-4" />
-                        Instagram
-                      </button>
+
                     </div>
                   </div>
 
@@ -511,45 +497,6 @@ export default function AutopilotSettingsPage() {
                         </p>
                       </div>
                     </>
-                  ) : (
-                    <>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                          Instagram Business Account ID *
-                        </label>
-                        <input
-                          type="text"
-                          value={accountFormData.accountId}
-                          onChange={(e) => setAccountFormData({ ...accountFormData, accountId: e.target.value })}
-                          placeholder="17841400000000000"
-                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                          Account Name *
-                        </label>
-                        <input
-                          type="text"
-                          value={accountFormData.accountName}
-                          onChange={(e) => setAccountFormData({ ...accountFormData, accountName: e.target.value })}
-                          placeholder="@locksafeuk"
-                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                          Access Token *
-                        </label>
-                        <input
-                          type="password"
-                          value={accountFormData.accessToken}
-                          onChange={(e) => setAccountFormData({ ...accountFormData, accessToken: e.target.value })}
-                          placeholder="EAAxxxxxxxx..."
-                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
-                        />
-                      </div>
-                    </>
                   )}
 
                   <div className="flex gap-2">
@@ -577,7 +524,7 @@ export default function AutopilotSettingsPage() {
                 <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-3" />
                 <p className="text-slate-600 mb-1">No accounts connected</p>
                 <p className="text-sm text-slate-500">
-                  Connect your Facebook Page or Instagram Business account to start publishing
+                  Connect your Facebook Page to start publishing
                 </p>
               </div>
             ) : (
@@ -591,10 +538,6 @@ export default function AutopilotSettingsPage() {
                       {account.platform === "FACEBOOK" ? (
                         <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
                           <Facebook className="w-5 h-5 text-blue-600" />
-                        </div>
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-pink-100 flex items-center justify-center">
-                          <Instagram className="w-5 h-5 text-pink-600" />
                         </div>
                       )}
                       <div>
@@ -634,17 +577,6 @@ export default function AutopilotSettingsPage() {
                 />
                 <Facebook className="w-5 h-5 text-blue-600" />
                 <span className="text-sm text-slate-700">Facebook</span>
-              </label>
-
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={publishToInstagram}
-                  onChange={(e) => setPublishToInstagram(e.target.checked)}
-                  className="w-4 h-4 text-pink-600 bg-slate-100 border-slate-300 rounded focus:ring-pink-500"
-                />
-                <Instagram className="w-5 h-5 text-pink-600" />
-                <span className="text-sm text-slate-700">Instagram</span>
               </label>
             </div>
           </div>

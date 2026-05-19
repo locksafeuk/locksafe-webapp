@@ -13,7 +13,6 @@ import {
   Sparkles,
   CheckCircle,
   Facebook,
-  Instagram,
 } from "lucide-react";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
 import { Button } from "@/components/ui/button";
@@ -323,9 +322,7 @@ export default function ContentCalendarPage() {
                               {post.platforms.includes("FACEBOOK") && (
                                 <Facebook className="w-3 h-3 text-blue-600" />
                               )}
-                              {post.platforms.includes("INSTAGRAM") && (
-                                <Instagram className="w-3 h-3 text-pink-600" />
-                              )}
+
                             </div>
                           </>
                         )}

@@ -452,18 +452,6 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                         <Facebook className="w-4 h-4" />
                         Facebook
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => togglePlatform("INSTAGRAM")}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg border ${
-                          selectedPlatforms.includes("INSTAGRAM")
-                            ? "border-pink-500 bg-pink-50 text-pink-700"
-                            : "border-slate-300 text-slate-600"
-                        }`}
-                      >
-                        <Instagram className="w-4 h-4" />
-                        Instagram
-                      </button>
                     </div>
                   </div>
 
