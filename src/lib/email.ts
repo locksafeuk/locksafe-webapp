@@ -3372,6 +3372,152 @@ export async function sendLocksmithInviteEmail(
   });
 }
 
+export async function sendLocksmithFollowUpEmail(
+  locksmithEmail: string,
+  data: {
+    locksmithName: string;
+    city: string;
+  },
+  options?: {
+    subject?: string;
+    signupUrl?: string;
+    ctaText?: string;
+    trackPixelUrl?: string;
+    track: "independent" | "manager";
+  },
+) {
+  const signupUrl = options?.signupUrl || `${SITE_URL}/for-locksmiths?utm_source=lead_email&utm_medium=outreach&utm_campaign=lead-sequence_followup`;
+  const subject = options?.subject || "It seems like the numbers matter";
+  const ctaText = options?.ctaText || (options?.track === "manager" ? "Review Team Setup" : "Review the Breakdown");
+  const trackingPixel = options?.trackPixelUrl
+    ? `<img src="${options.trackPixelUrl}" width="1" height="1" alt="" style="display:block;width:1px;height:1px;" />`
+    : "";
+
+  const benefits = options?.track === "manager"
+    ? [
+        "Bring your team onto one clear workflow instead of juggling separate job streams.",
+        "Keep split settings visible so you can decide what works best for your operation.",
+        "Use one platform for lead flow, team coordination, and customer communication.",
+      ]
+    : [
+        "Receive verified local jobs without paying monthly fees.",
+        "Keep control over which jobs you accept and how you work them.",
+        "Move faster with a clear payment flow and less admin.",
+      ];
+
+  const commissionRows =
+    options?.track === "manager"
+      ? [
+          ["Assessment fee", "15% standard platform commission"],
+          ["Work quote", "25% standard platform commission"],
+          ["Team structure", "Split settings can be discussed with your team setup"],
+        ]
+      : [
+          ["Assessment fee", "15% platform commission"],
+          ["Work quote", "25% platform commission"],
+          ["Payouts", "Clear, tracked job-by-job earnings"],
+        ];
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>${subject}</title>
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1e293b; }
+        .wrapper { max-width: 620px; margin: 32px auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+        .header { background: linear-gradient(135deg, #7c2d12 0%, #f97316 100%); padding: 36px 40px 28px; text-align: center; color: #ffffff; }
+        .badge { display: inline-block; background: rgba(255,255,255,0.16); color: #fff; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 6px 14px; border-radius: 20px; margin-bottom: 16px; }
+        .header h1 { font-size: 26px; line-height: 1.3; }
+        .body { padding: 40px; }
+        .intro { font-size: 16px; line-height: 1.75; color: #334155; margin-bottom: 20px; }
+        .section { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 12px; padding: 18px 20px; margin-bottom: 20px; }
+        .section h3 { font-size: 15px; color: #9a3412; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+        .list { padding-left: 20px; color: #7c2d12; line-height: 1.7; }
+        .list li { margin-bottom: 8px; }
+        .table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .table td { padding: 10px 0; border-top: 1px solid #fdba74; vertical-align: top; }
+        .table td:first-child { font-weight: 600; color: #7c2d12; width: 42%; padding-right: 16px; }
+        .table td:last-child { color: #9a3412; }
+        .cta { text-align: center; background: #f8fafc; border-radius: 12px; padding: 28px 24px; margin: 24px 0; }
+        .button { display: inline-block; background: #f97316; color: #ffffff !important; text-decoration: none; font-size: 16px; font-weight: 700; padding: 16px 34px; border-radius: 10px; }
+        .cta-sub { font-size: 12px; color: #94a3b8; margin-top: 12px; }
+        .closing { font-size: 15px; color: #475569; line-height: 1.7; }
+        .footer { background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 24px 40px; text-align: center; }
+        .footer p { font-size: 12px; color: #94a3b8; line-height: 1.6; }
+        .footer a { color: #f97316; text-decoration: none; }
+        @media only screen and (max-width: 600px) {
+          .wrapper { margin: 0; border-radius: 0; }
+          .body { padding: 24px; }
+          .header { padding: 28px 24px 22px; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="wrapper">
+        <div class="header">
+          <div class="badge">LockSafe UK</div>
+          <h1>${options?.track === "manager" ? "It seems like team clarity matters" : "It seems like the numbers matter"}</h1>
+        </div>
+        <div class="body">
+          <p class="intro">Hi ${data.locksmithName},</p>
+          <p class="intro">It seems like the main question after the first email is simple: what does this actually look like for your time and earnings?</p>
+
+          <div class="section">
+            <h3>What locksmiths usually want to know</h3>
+            <ul class="list">
+              ${benefits.map((item) => `<li>${item}</li>`).join("")}
+            </ul>
+          </div>
+
+          <div class="section">
+            <h3>Commission structure</h3>
+            <table class="table">
+              <tbody>
+                ${commissionRows.map(([label, value]) => `<tr><td>${label}</td><td>${value}</td></tr>`).join("")}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="cta">
+            <a href="${signupUrl}" class="button">${ctaText}</a>
+            <p class="cta-sub">If something in the setup would need to be different for your business, reply and tell us what would make it work.</p>
+          </div>
+
+          <p class="closing">
+            Thanks for taking a look, ${data.locksmithName}. If the structure is close but not quite right, reply with the part that matters most to you and we’ll work from there.<br /><br />
+            Best regards,<br />
+            <strong>Alex Pido</strong><br />
+            Co-founder, LockSafe UK
+          </p>
+        </div>
+        <div class="footer">
+          <p>
+            LockSafe UK Ltd — UK's First Anti-Fraud Locksmith Platform<br />
+            <a href="https://locksafe.uk">locksafe.uk</a> · <a href="mailto:contact@locksafe.uk">contact@locksafe.uk</a>
+          </p>
+          <p style="margin-top:10px;">
+            You're receiving this because your business appeared in our search for trusted locksmiths in ${data.city}.<br />
+            <a href="https://locksafe.uk/unsubscribe">Unsubscribe</a>
+          </p>
+        </div>
+      </div>
+      ${trackingPixel}
+    </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to: locksmithEmail,
+    subject,
+    replyTo: "contact@locksafe.uk",
+    html,
+  });
+}
+
 // ============================================
 // REVIEW REQUEST EMAIL
 // ============================================

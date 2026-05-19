@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { sendLocksmithInviteEmail } from "@/lib/email";
+import { sendLocksmithFollowUpEmail, sendLocksmithInviteEmail } from "@/lib/email";
 import {
   appendSendEvent,
   hasTouchForTrack,
@@ -92,6 +92,59 @@ function getInviteContent(
     signupUrl: trackedCta,
     trackPixelUrl: trackPixel,
     introOverride: `${touchOpeners[config.touch] || touchOpeners[1]} ${config.track === "manager" ? managerIntro : independentIntro}`,
+  };
+}
+
+function getFollowUpContent(
+  lead: { name: string; city: string; id: string },
+  config: {
+    track: OutreachTrack;
+    style: OutreachSubjectStyle;
+    touch: number;
+    variant: number;
+    baseUrl: string;
+  },
+) {
+  const key = variantKey(config.track, config.style, config.touch, config.variant);
+  const directSubjects: Record<OutreachTrack, string[]> = {
+    independent: [
+      "Commission structure for locksmith partners",
+      "Your LockSafe payout breakdown",
+      "Earnings split for your next locksmith job",
+    ],
+    manager: [
+      "Commission structure for team managers",
+      "Team split settings and payout clarity",
+      "Your team onboarding and commission breakdown",
+    ],
+  };
+
+  const benefitSubjects: Record<OutreachTrack, string[]> = {
+    independent: [
+      "It seems like the numbers matter",
+      "A clearer look at the locksmith partner offer",
+      "What the earnings breakdown looks like",
+    ],
+    manager: [
+      "It seems like team flexibility matters",
+      "A clearer look at team onboarding",
+      "What the split structure looks like",
+    ],
+  };
+
+  const subjects = config.style === "direct" ? directSubjects : benefitSubjects;
+  const safeIndex = Math.max(0, Math.min(config.variant - 1, subjects[config.track].length - 1));
+  const subject = subjects[config.track][safeIndex];
+  const signupTarget = `${config.baseUrl}/for-locksmiths?utm_source=lead_email&utm_medium=outreach&utm_campaign=lead-sequence_followup&utm_content=${encodeURIComponent(key)}`;
+  const trackedCta = `${config.baseUrl}/api/admin/leads/track?type=click&leadId=${lead.id}&key=${encodeURIComponent(key)}&url=${encodeURIComponent(signupTarget)}`;
+  const trackPixel = `${config.baseUrl}/api/admin/leads/track?type=open&leadId=${lead.id}&key=${encodeURIComponent(key)}`;
+
+  return {
+    key,
+    subject,
+    ctaText: config.track === "manager" ? "Review Team Setup" : "Review the Breakdown",
+    signupUrl: trackedCta,
+    trackPixelUrl: trackPixel,
   };
 }
 
@@ -227,16 +280,42 @@ export async function POST(req: NextRequest) {
         },
       );
 
-      const emailResult = await sendLocksmithInviteEmail(lead.email, {
-        locksmithName: lead.name,
-        city: lead.city,
-      }, {
-        subject: content.subject,
-        signupUrl: content.signupUrl,
-        ctaText: content.ctaText,
-        introOverride: content.introOverride,
-        trackPixelUrl: content.trackPixelUrl,
-      });
+      const emailResult =
+        touch === 2 && mode === "sequence"
+          ? await sendLocksmithFollowUpEmail(
+              lead.email,
+              {
+                locksmithName: lead.name,
+                city: lead.city,
+              },
+              {
+                ...getFollowUpContent(
+                  { id: lead.id, name: lead.name, city: lead.city },
+                  {
+                    track,
+                    style,
+                    touch,
+                    variant,
+                    baseUrl,
+                  },
+                ),
+                track,
+              },
+            )
+          : await sendLocksmithInviteEmail(
+              lead.email,
+              {
+                locksmithName: lead.name,
+                city: lead.city,
+              },
+              {
+                subject: content.subject,
+                signupUrl: content.signupUrl,
+                ctaText: content.ctaText,
+                introOverride: content.introOverride,
+                trackPixelUrl: content.trackPixelUrl,
+              },
+            );
 
       if (emailResult.success) {
         const nextNotes = appendSendEvent(lead.notes, {
