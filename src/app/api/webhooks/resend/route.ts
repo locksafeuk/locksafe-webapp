@@ -150,6 +150,11 @@ export async function POST(request: NextRequest) {
             totalBounced: { increment: 1 },
           },
         });
+
+        await prisma.locksmith.update({
+          where: { id: recipient.locksmithId },
+          data: { emailNotifications: false },
+        });
         break;
 
       case "email.complained":

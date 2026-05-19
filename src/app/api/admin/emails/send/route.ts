@@ -51,6 +51,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const locksmithIds = campaign.recipients.map((recipient) => recipient.locksmithId);
+    const allowedLocksmiths = await prisma.locksmith.findMany({
+      where: {
+        id: { in: locksmithIds },
+        emailNotifications: true,
+      },
+      select: { id: true },
+    });
+    const allowedIds = new Set(allowedLocksmiths.map((locksmith) => locksmith.id));
+    const eligibleRecipients = campaign.recipients.filter((recipient) => allowedIds.has(recipient.locksmithId));
+
+    if (eligibleRecipients.length === 0) {
+      return NextResponse.json(
+        { error: "No eligible recipients to send to" },
+        { status: 400 }
+      );
+    }
+
     // Update campaign status to sending
     await prisma.emailCampaign.update({
       where: { id: campaignId },
@@ -64,7 +82,7 @@ export async function POST(request: NextRequest) {
       errors: [] as string[],
     };
 
-    for (const recipient of campaign.recipients) {
+    for (const recipient of eligibleRecipients) {
       try {
         const result = await sendCampaignEmail({
           to: recipient.email,
@@ -124,6 +142,7 @@ export async function POST(request: NextRequest) {
       data: {
         status: "SENT",
         sentAt: new Date(),
+        totalRecipients: eligibleRecipients.length,
         totalDelivered: results.sent,
         totalBounced: results.failed,
       },
