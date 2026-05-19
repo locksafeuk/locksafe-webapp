@@ -880,7 +880,7 @@ export default function AdminLocksmithsPage() {
 
         {/* Locksmith Detail Modal */}
         {selectedLocksmith && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
             <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-xl">
               <div className="p-6 border-b">
                 <div className="flex items-start justify-between">
@@ -1718,7 +1718,7 @@ export default function AdminLocksmithsPage() {
 
         {/* Delete Confirmation Modal */}
         {deleteLocksmithId && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4" onClick={() => setDeleteLocksmithId(null)}>
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[10000] p-4" onClick={() => setDeleteLocksmithId(null)}>
             <div className="bg-white rounded-2xl w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
               <div className="p-4 border-b flex items-center justify-between">
                 <h3 className="font-bold text-slate-900 flex items-center gap-2">
