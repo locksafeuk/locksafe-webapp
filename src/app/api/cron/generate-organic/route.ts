@@ -72,19 +72,19 @@ export async function GET(request: NextRequest) {
       config = await prisma.autopilotConfig.create({
         data: {
           isEnabled: false, // Disabled by default
-          postsPerDay: 2,
+          postsPerDay: 1,
           generateAheadDays: 7,
-          requireApproval: true,
+          requireApproval: false,
           publishToFacebook: true,
-          publishToInstagram: true,
+          publishToInstagram: false,
           publishTimes: {
-            monday: ["09:00", "18:00"],
-            tuesday: ["09:00", "18:00"],
-            wednesday: ["09:00", "18:00"],
-            thursday: ["09:00", "18:00"],
-            friday: ["09:00", "18:00"],
-            saturday: ["10:00", "15:00"],
-            sunday: ["10:00", "15:00"],
+            monday: ["15:00"],
+            tuesday: ["15:00"],
+            wednesday: ["15:00"],
+            thursday: ["15:00"],
+            friday: ["15:00"],
+            saturday: ["15:00"],
+            sunday: ["15:00"],
           },
           pillarWeights: {},
           preferredFrameworks: ["justin-welsh", "russell-brunson", "nicholas-cole", "simon-sinek"],
@@ -193,10 +193,15 @@ export async function GET(request: NextRequest) {
           const [hours, minutes] = slot.time.split(":").map(Number);
           scheduledDate.setHours(hours, minutes, 0, 0);
 
-          // Determine platforms
-          const platforms: ("FACEBOOK" | "INSTAGRAM")[] = [];
-          if (config.publishToFacebook) platforms.push("FACEBOOK");
-          if (config.publishToInstagram) platforms.push("INSTAGRAM");
+          // Determine platforms from active social accounts
+          const activeAccounts = await prisma.socialAccount.findMany({ where: { isActive: true } });
+          const activePlatforms = [...new Set(activeAccounts.map((a) => a.platform))] as ("FACEBOOK" | "INSTAGRAM" | "TWITTER" | "LINKEDIN" | "TIKTOK")[];
+          // If no accounts connected yet, fall back to config flags
+          const platforms = activePlatforms.length > 0
+            ? activePlatforms.filter((p) => p !== "INSTAGRAM") // Instagram suspended
+            : ([] as typeof activePlatforms).concat(
+                config.publishToFacebook ? ["FACEBOOK"] : [],
+              );
 
           // Create post in database
           const savedPost = await prisma.socialPost.create({

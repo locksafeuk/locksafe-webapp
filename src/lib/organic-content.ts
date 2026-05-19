@@ -488,24 +488,24 @@ export function generateContentCalendar(
   // Shuffle for variety
   const shuffledPillars = pillarRotation.sort(() => Math.random() - 0.5);
 
-  const publishTimes = ['09:00', '12:00', '18:00', '20:00'];
+  const publishTimes = ['15:00']; // 4 PM UK (BST = UTC+1); 3 PM UTC
   let pillarIndex = 0;
 
   for (let d = 0; d < days; d++) {
     const date = new Date(startDate);
     date.setDate(date.getDate() + d);
 
-    // 2 posts per day
-    const postsPerDay = 2;
+    // 1 post per day at 4 PM UK
+    const postsPerDay = 1;
     for (let p = 0; p < postsPerDay; p++) {
       const pillar = shuffledPillars[pillarIndex % shuffledPillars.length];
-      const time = publishTimes[(d * postsPerDay + p) % publishTimes.length];
+      const time = publishTimes[0];
 
       slots.push({
         date: new Date(date),
         time,
         pillar,
-        platform: p % 2 === 0 ? 'both' : 'facebook', // Alternate platforms
+        platform: 'both',
       });
 
       pillarIndex++;

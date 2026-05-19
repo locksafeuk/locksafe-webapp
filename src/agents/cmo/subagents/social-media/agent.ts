@@ -41,8 +41,8 @@ const CONTENT_PILLARS = [
 
 type ContentPillar = typeof CONTENT_PILLARS[number]["name"];
 
-// Posting slots in UK time (UTC in summer = UTC+1)
-const POSTING_SLOTS = ["09:00", "13:00", "18:00"];
+// Posting slot: 4 PM UK (BST = UTC+1 in summer) → 15:00 UTC
+const POSTING_SLOTS = ["15:00"];
 
 // ─── Agent Init ───────────────────────────────────────────────────────────────
 
