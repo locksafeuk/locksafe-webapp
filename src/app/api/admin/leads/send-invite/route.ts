@@ -70,7 +70,7 @@ function getInviteContent(
   const safeIndex = Math.max(0, Math.min(config.variant - 1, subjects[config.track].length - 1));
   const subject = subjects[config.track][safeIndex];
 
-  const signupTarget = `${config.baseUrl}/for-locksmiths?utm_source=lead_email&utm_medium=outreach&utm_campaign=lead-sequence&utm_content=${encodeURIComponent(key)}`;
+  const signupTarget = `${config.baseUrl}/locksmith-signup?utm_source=lead_email&utm_medium=outreach&utm_campaign=lead-sequence&utm_content=${encodeURIComponent(key)}`;
   const trackedCta = `${config.baseUrl}/api/admin/leads/track?type=click&leadId=${lead.id}&key=${encodeURIComponent(key)}&url=${encodeURIComponent(signupTarget)}`;
   const trackPixel = `${config.baseUrl}/api/admin/leads/track?type=open&leadId=${lead.id}&key=${encodeURIComponent(key)}`;
 

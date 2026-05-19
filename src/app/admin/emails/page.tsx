@@ -132,7 +132,7 @@ const OUTREACH_PRESETS: Record<OutreachTrack, {
     preheader: "Get started quickly, choose jobs you want, and get paid fast.",
     body: "<p>You are invited to join LockSafe UK as an independent locksmith partner.</p><p>Why many independent engineers choose LockSafe:</p><ul><li><strong>More control:</strong> apply only to jobs you want</li><li><strong>Transparent earnings:</strong> no hidden lead fees</li><li><strong>Fast payout flow:</strong> secure and trackable payment process</li></ul><p>If you complete onboarding now, you can start receiving local opportunities immediately.</p>",
     ctaText: "Complete Locksmith Signup",
-    ctaUrl: "https://www.locksafe.uk/for-locksmiths",
+    ctaUrl: "https://www.locksafe.uk/locksmith-signup",
     accentColor: "#f97316",
     subjects: {
       direct: [
@@ -153,7 +153,7 @@ const OUTREACH_PRESETS: Record<OutreachTrack, {
     preheader: "Onboard engineers under one team and configure custom splits.",
     body: "<p>If you manage multiple locksmith engineers, LockSafe can help you scale faster with one operational flow.</p><p>Team manager advantages:</p><ul><li><strong>Multi-engineer onboarding:</strong> bring your team into one platform</li><li><strong>Custom split flexibility:</strong> configure member-level commission structure</li><li><strong>Centralized operations:</strong> one system for team growth and job flow</li></ul><p>Complete setup and start onboarding your engineers this week.</p>",
     ctaText: "Start Team Onboarding",
-    ctaUrl: "https://www.locksafe.uk/for-locksmiths",
+    ctaUrl: "https://www.locksafe.uk/locksmith-signup",
     accentColor: "#3b82f6",
     subjects: {
       direct: [
