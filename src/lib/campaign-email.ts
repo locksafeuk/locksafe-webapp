@@ -366,6 +366,7 @@ export async function sendCampaignEmail(
       to: data.to,
       subject: data.subject,
       html,
+      replyTo: SUPPORT_EMAIL,
       headers: {
         "X-Entity-Ref-ID": data.recipientId || "",
       },
