@@ -7,7 +7,7 @@ import {
   ArrowUpRight, ArrowDownRight, Search, Filter, RefreshCw,
   ChevronLeft, ChevronRight, Flag, CheckCircle2, XCircle,
   TestTube2, Volume2, User, MapPin, Calendar, MessageSquare,
-  Loader2, Eye, Star, Zap, Shield, Activity,
+  Loader2, Eye, Star, Zap, Shield, Activity, Plus,
 } from "lucide-react";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
 import { Button } from "@/components/ui/button";
@@ -76,6 +76,27 @@ interface AgentConfig {
   enableEscalation: boolean;
   maxCallDuration: number;
   blockedNumbers: string[];
+}
+
+interface VoiceBaseline {
+  generatedAt: string;
+  environment: {
+    hasRetellApiKey: boolean;
+    hasRetellAgentId: boolean;
+    hasRetellWebhookSecret: boolean;
+    configuredPhoneNumber: string | null;
+  };
+  traffic: {
+    totalCalls: number;
+    calls7d: number;
+    calls30d: number;
+    lastCallAt: string | null;
+  };
+  quality: {
+    reviewRate7d: number;
+    completionRate7d: number;
+    callToJobRate7d: number;
+  };
 }
 
 type TabId = "overview" | "calls" | "analytics" | "settings";
@@ -777,6 +798,44 @@ function SettingsTab({ config, onUpdate }: { config: AgentConfig | null; onUpdat
     enableEscalation: config?.enableEscalation ?? true,
     language: config?.language ?? "en-GB",
   });
+  const [versions, setVersions] = useState<any[]>([]);
+  const [versionsLoading, setVersionsLoading] = useState(false);
+  const [deploying, setDeploying] = useState<string | null>(null);
+  const [creatingVersion, setCreatingVersion] = useState(false);
+  const [baselineLoading, setBaselineLoading] = useState(false);
+  const [baseline, setBaseline] = useState<VoiceBaseline | null>(null);
+
+  useEffect(() => {
+    fetchVersions();
+    fetchBaseline();
+    // eslint-disable-next-line
+  }, []);
+
+  async function fetchVersions() {
+    setVersionsLoading(true);
+    try {
+      const res = await fetch("/api/retell/config/versions");
+      const data = await res.json();
+      if (data?.success) setVersions(data.versions ?? []);
+    } catch (err) {
+      setVersions([]);
+    } finally {
+      setVersionsLoading(false);
+    }
+  }
+
+  async function fetchBaseline() {
+    setBaselineLoading(true);
+    try {
+      const res = await fetch("/api/retell/baseline");
+      const data = await res.json();
+      if (data?.success) setBaseline(data.baseline ?? null);
+    } catch {
+      setBaseline(null);
+    } finally {
+      setBaselineLoading(false);
+    }
+  }
 
   const handleSave = async () => {
     setSaving(true);
@@ -791,6 +850,60 @@ function SettingsTab({ config, onUpdate }: { config: AgentConfig | null; onUpdat
       console.error("Failed to save:", err);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeploy = async (versionId: string) => {
+    setDeploying(versionId);
+    try {
+      await fetch("/api/retell/config/versions/deploy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ versionId }),
+      });
+      await fetchVersions();
+    } catch (err) {
+      // handle error
+    } finally {
+      setDeploying(null);
+    }
+  };
+
+  const handleRollback = async (versionId: string) => {
+    setDeploying(versionId);
+    try {
+      await fetch("/api/retell/config/versions/deploy", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ versionId }),
+      });
+      await fetchVersions();
+    } catch (err) {
+      // handle error
+    } finally {
+      setDeploying(null);
+    }
+  };
+
+  const handleCreateVersion = async () => {
+    setCreatingVersion(true);
+    try {
+      const now = new Date();
+      const title = `Manual snapshot ${now.toLocaleDateString("en-GB")} ${now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
+      await fetch("/api/retell/config/versions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          notes: "Created from admin Voice Receptionist settings",
+          createdBy: "admin-ui",
+        }),
+      });
+      await fetchVersions();
+    } catch {
+      // noop
+    } finally {
+      setCreatingVersion(false);
     }
   };
 
@@ -858,6 +971,114 @@ function SettingsTab({ config, onUpdate }: { config: AgentConfig | null; onUpdat
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-slate-900">Baseline Health</h3>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={fetchBaseline}
+            disabled={baselineLoading}
+            className="gap-2"
+          >
+            {baselineLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            Refresh
+          </Button>
+        </div>
+
+        {!baseline ? (
+          <div className="text-sm text-slate-500">No baseline data available.</div>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="rounded-lg bg-slate-50 p-3">
+                <div className="text-xs text-slate-500">Total Calls</div>
+                <div className="text-lg font-semibold text-slate-900">{baseline.traffic.totalCalls}</div>
+              </div>
+              <div className="rounded-lg bg-slate-50 p-3">
+                <div className="text-xs text-slate-500">Calls 7d</div>
+                <div className="text-lg font-semibold text-slate-900">{baseline.traffic.calls7d}</div>
+              </div>
+              <div className="rounded-lg bg-slate-50 p-3">
+                <div className="text-xs text-slate-500">Completion 7d</div>
+                <div className="text-lg font-semibold text-slate-900">{baseline.quality.completionRate7d}%</div>
+              </div>
+              <div className="rounded-lg bg-slate-50 p-3">
+                <div className="text-xs text-slate-500">Call-to-Job 7d</div>
+                <div className="text-lg font-semibold text-slate-900">{baseline.quality.callToJobRate7d}%</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+              <div className="flex items-center justify-between rounded-md border border-slate-100 px-3 py-2">
+                <span className="text-slate-600">Retell API Key</span>
+                <span className={baseline.environment.hasRetellApiKey ? "text-green-600" : "text-red-600"}>
+                  {baseline.environment.hasRetellApiKey ? "Configured" : "Missing"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between rounded-md border border-slate-100 px-3 py-2">
+                <span className="text-slate-600">Retell Agent ID</span>
+                <span className={baseline.environment.hasRetellAgentId ? "text-green-600" : "text-red-600"}>
+                  {baseline.environment.hasRetellAgentId ? "Configured" : "Missing"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between rounded-md border border-slate-100 px-3 py-2">
+                <span className="text-slate-600">Webhook Secret</span>
+                <span className={baseline.environment.hasRetellWebhookSecret ? "text-green-600" : "text-red-600"}>
+                  {baseline.environment.hasRetellWebhookSecret ? "Configured" : "Missing"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between rounded-md border border-slate-100 px-3 py-2">
+                <span className="text-slate-600">Last Call</span>
+                <span className="text-slate-900">
+                  {baseline.traffic.lastCallAt ? formatDate(baseline.traffic.lastCallAt) : "--"}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Version History & Deployment Controls */}
+      <div className="bg-white rounded-xl shadow-sm p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-slate-900">Config Versions</h3>
+          <Button size="sm" onClick={handleCreateVersion} disabled={creatingVersion} className="gap-2">
+            {creatingVersion ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            Snapshot Current
+          </Button>
+        </div>
+        {versionsLoading ? (
+          <div className="text-slate-400">Loading versions...</div>
+        ) : versions.length === 0 ? (
+          <div className="text-slate-400">No versions found.</div>
+        ) : (
+          <div className="space-y-2">
+            {versions.map((v: any) => (
+              <div key={v.id} className="flex items-center justify-between border-b border-slate-100 py-2">
+                <div>
+                  <div className="font-medium text-slate-900">v{v.version} {v.title ? `- ${v.title}` : ""}</div>
+                  <div className="text-xs text-slate-500">{v.notes}</div>
+                  <div className="text-xs text-slate-400">Created: {v.createdAt ? new Date(v.createdAt).toLocaleString() : "-"}</div>
+                  {v.isDeployed && <span className="inline-block text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full mt-1">DEPLOYED</span>}
+                </div>
+                <div className="flex gap-2">
+                  {!v.isDeployed ? (
+                    <Button size="sm" disabled={!!deploying} onClick={() => handleDeploy(v.id)}>
+                      {deploying === v.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4 mr-1" />} Deploy
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="outline" disabled={!!deploying} onClick={() => handleRollback(v.id)}>
+                      {deploying === v.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4 mr-1" />} Rollback
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <Button onClick={handleSave} disabled={saving} className="bg-orange-500 hover:bg-orange-600 text-white">
