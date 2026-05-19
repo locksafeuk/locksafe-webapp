@@ -4,13 +4,13 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
-import { requireAdminFromCookies } from "@/lib/agent-api-auth";
+import { requireAdminFromCookies, requireAdminOrCron } from "@/lib/agent-api-auth";
 import { logAgentApiMutation } from "@/lib/agent-api-audit";
 
 export async function GET(request: NextRequest) {
   try {
-    const admin = await requireAdminFromCookies();
-    if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireAdminOrCron(request);
+    if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { searchParams } = new URL(request.url);
     const agentId = searchParams.get("agentId");

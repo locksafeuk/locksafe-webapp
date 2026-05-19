@@ -8,6 +8,7 @@
  *
  * Usage:
  *   npx ts-node --compiler-options '{"module":"CommonJS","strict":false}' scripts/find-independent-locksmiths.ts
+ *   npx ts-node --compiler-options '{"module":"CommonJS","strict":false}' scripts/find-independent-locksmiths.ts --resume
  *
  * Requires: GOOGLE_PLACES_API_KEY in .env
  */
@@ -234,13 +235,52 @@ interface Lead {
   reviewCount: number;
 }
 
+const PROGRESS_FILE = "/tmp/scraper-progress.json";
+
+interface Progress {
+  completedCities: string[];
+}
+
+function loadProgress(): Progress {
+  try {
+    if (fs.existsSync(PROGRESS_FILE)) {
+      return JSON.parse(fs.readFileSync(PROGRESS_FILE, "utf8")) as Progress;
+    }
+  } catch { /* ignore */ }
+  return { completedCities: [] };
+}
+
+function saveProgress(completedCities: string[]) {
+  fs.writeFileSync(PROGRESS_FILE, JSON.stringify({ completedCities }, null, 2), "utf8");
+}
+
 async function main() {
+  const isResume = process.argv.includes("--resume");
   console.log("🔍  Searching for independent locksmiths across the UK...\n");
 
   const seen = new Set<string>();
   const leads: Lead[] = [];
 
+  // On --resume: pre-load existing place IDs from DB and skip completed cities
+  let completedCities: string[] = [];
+  if (isResume) {
+    console.log("▶️  Resume mode — loading existing place IDs from DB...");
+    const existing = await (prisma as unknown as { locksmithLead: { findMany: (args: unknown) => Promise<{ googlePlaceId: string }[]> } }).locksmithLead.findMany({
+      select: { googlePlaceId: true },
+    });
+    for (const { googlePlaceId } of existing) {
+      if (!googlePlaceId.startsWith("mla-")) seen.add(googlePlaceId);
+    }
+    const progress = loadProgress();
+    completedCities = progress.completedCities;
+    console.log(`   Loaded ${seen.size} existing place IDs, ${completedCities.length} cities already done.\n`);
+  }
+
   for (const city of UK_CITIES) {
+    if (completedCities.includes(city)) {
+      console.log(`📍 ${city}... ⏭  skipped (already done)`);
+      continue;
+    }
     console.log(`📍 ${city}...`);
 
     for (const buildQuery of SEARCH_QUERIES) {
@@ -289,7 +329,14 @@ async function main() {
 
       await sleep(500); // brief pause between query types
     }
+
+    // Mark city as complete and persist progress
+    completedCities.push(city);
+    saveProgress(completedCities);
   }
+
+  // Clean up progress file on full completion
+  try { fs.unlinkSync(PROGRESS_FILE); } catch { /* ignore */ }
 
   console.log(`\n✨  Found ${leads.length} independent locksmiths.\n`);
 

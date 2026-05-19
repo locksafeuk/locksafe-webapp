@@ -114,13 +114,22 @@ export async function runDailyReliabilityChecks(options?: {
     details: `health=${healthStatus}, database=${String(dbCheck.status || "unknown")}`,
   });
 
-  // 3) Workflow endpoints
+  // 3) Workflow endpoints — send minimal valid payloads so the validators accept them
+  const dailyVisitorId = `daily-reliability-${Date.now()}`;
   const marketingSession = await requestJson(endpoint(baseUrl, "/api/marketing/session"), {
     method: "POST",
-    body: JSON.stringify({ pageUrl: baseUrl, referrer: "" }),
+    body: JSON.stringify({
+      visitorId: dailyVisitorId,
+      landingPage: "/",
+      referrer: "",
+      userAgent: "locksafe-daily-reliability/1.0",
+    }),
   });
   const sessionPass = marketingSession.status === 200;
   const sessionWarn = marketingSession.status >= 400 && marketingSession.status < 500;
+  const sessionBody = marketingSession.body || {};
+  const sessionObj = (sessionBody.session as JsonMap) || {};
+  const createdSessionId = typeof sessionObj.id === "string" ? sessionObj.id : "";
   results.push({
     id: "workflow_marketing_session",
     category: "workflow",
@@ -138,7 +147,13 @@ export async function runDailyReliabilityChecks(options?: {
 
   const marketingTrack = await requestJson(endpoint(baseUrl, "/api/marketing/track"), {
     method: "POST",
-    body: JSON.stringify({ event: "daily_reliability_ping", properties: { source: "daily-reliability-check" } }),
+    body: JSON.stringify({
+      type: "event",
+      sessionId: createdSessionId || dailyVisitorId,
+      eventType: "daily_reliability_ping",
+      element: "daily-reliability-check",
+      eventData: { source: "daily-reliability-check" },
+    }),
   });
   const trackPass = marketingTrack.status === 200;
   const trackWarn = marketingTrack.status >= 400 && marketingTrack.status < 500;
@@ -168,8 +183,14 @@ export async function runDailyReliabilityChecks(options?: {
     details: locksmiths.status === 200 ? "Locksmith listing available" : `Expected 200, got ${locksmiths.status}`,
   });
 
-  // 4) Agents and tasks health
-  const agents = await requestJson(endpoint(baseUrl, "/api/agents"), { method: "GET" });
+  // 4) Agents and tasks health (cron-authenticated to bypass admin-cookie gate)
+  const cronAuthHeaders: Record<string, string> = process.env.CRON_SECRET
+    ? { Authorization: `Bearer ${process.env.CRON_SECRET}` }
+    : {};
+  const agents = await requestJson(endpoint(baseUrl, "/api/agents"), {
+    method: "GET",
+    headers: cronAuthHeaders,
+  });
   const agentsBody = agents.body || {};
   const agentList = (agentsBody.agents as Array<JsonMap>) || [];
   const activeAgents = agentList.filter((a) => a.status === "active");
@@ -192,7 +213,10 @@ export async function runDailyReliabilityChecks(options?: {
     details: `active=${activeAgents.length}, stale>${staleThresholdMins}m=${staleAgents.length}`,
   });
 
-  const tasks = await requestJson(endpoint(baseUrl, "/api/agents/tasks"), { method: "GET" });
+  const tasks = await requestJson(endpoint(baseUrl, "/api/agents/tasks"), {
+    method: "GET",
+    headers: cronAuthHeaders,
+  });
   const tasksBody = tasks.body || {};
   const summary = (tasksBody.summary as JsonMap) || {};
   const pending = Number(summary.pending || 0);

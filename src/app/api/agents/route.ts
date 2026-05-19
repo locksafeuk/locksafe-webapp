@@ -4,12 +4,12 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
-import { requireAdminFromCookies } from "@/lib/agent-api-auth";
+import { requireAdminOrCron } from "@/lib/agent-api-auth";
 
 export async function GET(request: NextRequest) {
   try {
-    const admin = await requireAdminFromCookies();
-    if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireAdminOrCron(request);
+    if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const agents = await prisma.agent.findMany({
       include: {

@@ -415,7 +415,10 @@ export const createRepairTaskTool: AgentTool = {
  */
 export const controlAgentHeartbeatTool: AgentTool = {
   name: "controlAgentHeartbeat",
-  description: "Pause or resume an agent heartbeat to contain or recover from repeated failures",
+  description:
+    "Pause or resume an agent heartbeat to contain or recover from repeated failures. " +
+    "agentName MUST be one of the seeded agents (ceo, coo, cmo, cto, copywriter, ads-specialist, social-media). " +
+    "If you do not know the exact name, call getDashboardStats / listAgents first instead of guessing — invented names will be rejected and will NOT auto-create agents.",
   category: "communication",
   permissions: ["repair_system", "ceo", "cto"],
   parameters: [
@@ -423,7 +426,10 @@ export const controlAgentHeartbeatTool: AgentTool = {
       name: "agentName",
       type: "string",
       required: true,
-      description: "Target agent name (e.g. cmo, ads-specialist)",
+      description:
+        "Target agent name. Must exactly match a seeded agent in the database " +
+        "(ceo, coo, cmo, cto, copywriter, ads-specialist, social-media). " +
+        "Do not invent names like 'reliability-sentinel' or 'monitor' — they will be rejected.",
     },
     {
       name: "action",
@@ -449,6 +455,20 @@ export const controlAgentHeartbeatTool: AgentTool = {
     }
     if (action !== "pause" && action !== "resume") {
       return { success: false, error: "action must be pause or resume" };
+    }
+
+    // Validate against the live agents table BEFORE attempting state mutation.
+    // This stops the LLM looping on hallucinated names like "reliability-sentinel".
+    const { prisma } = await import("@/lib/prisma");
+    const knownAgents = await prisma.agent.findMany({ select: { name: true } });
+    const knownNames = knownAgents.map((a) => a.name);
+    if (!knownNames.includes(agentName)) {
+      return {
+        success: false,
+        error:
+          `Agent "${agentName}" does not exist. Valid agent names are: ${knownNames.join(", ")}. ` +
+          `Do not retry with invented names — only use one of the listed agents or skip this action.`,
+      };
     }
 
     // Ensure runtime state exists for DB-backed agents before state mutation.
