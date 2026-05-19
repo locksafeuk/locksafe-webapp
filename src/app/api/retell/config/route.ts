@@ -44,12 +44,16 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
+    const createVersion = body?.createVersion === true;
+    const versionTitle = typeof body?.versionTitle === "string" ? body.versionTitle : undefined;
+    const versionNotes = typeof body?.versionNotes === "string" ? body.versionNotes : undefined;
     let config = await prisma.voiceAgentConfig.findFirst({ where: { isActive: true } });
 
     const updateData: any = {};
     const allowedFields = [
       "systemPrompt", "greetingMessage", "fallbackMessage",
       "language", "speakingRate", "voiceId",
+      "realismProfile",
       "maxCallDuration", "silenceTimeout", "enableRecording",
       "businessHoursStart", "businessHoursEnd", "afterHoursMessage",
       "enableDispatch", "enableBooking", "enableFAQ", "enableEscalation",
@@ -75,6 +79,48 @@ export async function PUT(request: NextRequest) {
           isActive: true,
           systemPrompt: body?.systemPrompt ?? generateVoiceAgentPrompt(),
           ...updateData,
+        },
+      });
+    }
+
+    if (createVersion && config) {
+      const latest = await prisma.voiceAgentConfigVersion.findFirst({
+        where: { configId: config.id },
+        orderBy: { version: "desc" },
+        select: { version: true },
+      });
+
+      const nextVersion = (latest?.version ?? 0) + 1;
+
+      await prisma.voiceAgentConfigVersion.create({
+        data: {
+          configId: config.id,
+          version: nextVersion,
+          title: versionTitle,
+          notes: versionNotes,
+          createdBy: "admin",
+          systemPrompt: config.systemPrompt,
+          greetingMessage: config.greetingMessage,
+          fallbackMessage: config.fallbackMessage,
+          language: config.language,
+          speakingRate: config.speakingRate,
+          voiceId: config.voiceId,
+          realismProfile: config.realismProfile,
+          maxCallDuration: config.maxCallDuration,
+          silenceTimeout: config.silenceTimeout,
+          enableRecording: config.enableRecording,
+          businessHoursStart: config.businessHoursStart,
+          businessHoursEnd: config.businessHoursEnd,
+          afterHoursMessage: config.afterHoursMessage,
+          enableDispatch: config.enableDispatch,
+          enableBooking: config.enableBooking,
+          enableFAQ: config.enableFAQ,
+          enableEscalation: config.enableEscalation,
+          isPaused: config.isPaused,
+          pauseReason: config.pauseReason,
+          blockedNumbers: config.blockedNumbers,
+          retellAgentId: config.retellAgentId,
+          retellLlmId: config.retellLlmId,
         },
       });
     }

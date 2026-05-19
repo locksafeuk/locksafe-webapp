@@ -45,7 +45,7 @@ LockSafe UK is a **full-stack emergency locksmith marketplace** that connects:
 | Channel | Description | Status |
 |---------|-------------|--------|
 | **Web** | Full booking flow at locksafe.uk | ✅ Live |
-| **Phone** | AI Voice Agent (Bland.ai) | ✅ Live |
+| **Phone** | AI Voice Agent (Retell) | ✅ Live |
 | **WhatsApp** | WhatsApp Business API | ⏳ Pending Meta Verification |
 | **Email** | Transactional & support emails | ✅ Live |
 | **SMS** | Critical notifications (Twilio) | ✅ Live |
@@ -128,6 +128,8 @@ LockSafe UK is a **full-stack emergency locksmith marketplace** that connects:
 | [TELEGRAM_SETUP.md](./TELEGRAM_SETUP.md) | Telegram bot configuration |
 | [WHATSAPP_SETUP.md](./WHATSAPP_SETUP.md) | WhatsApp Business API setup |
 | [WHATSAPP_WEBHOOK_SETUP.md](./WHATSAPP_WEBHOOK_SETUP.md) | Detailed webhook configuration |
+| [RETELL_RETRAINING_RUNBOOK.md](./RETELL_RETRAINING_RUNBOOK.md) | Retell training/eval/deploy runbook |
+| [ZADARMA_PHONE_SETUP.md](./ZADARMA_PHONE_SETUP.md) | Retell number/SIP routing setup |
 | [BLAND_AI_SETUP.md](./BLAND_AI_SETUP.md) | Voice AI phone agent setup |
 | [BLAND_PATHWAY_MANUAL_SETUP.md](./BLAND_PATHWAY_MANUAL_SETUP.md) | Bland.ai pathway configuration |
 | [BLAND_WEBHOOK_AUTH.md](./BLAND_WEBHOOK_AUTH.md) | Bland.ai webhook authentication |
@@ -177,7 +179,7 @@ LockSafe UK is a **full-stack emergency locksmith marketplace** that connects:
 | **Payments** | Stripe Connect |
 | **Email** | Resend |
 | **SMS** | Twilio |
-| **Voice AI** | Bland.ai |
+| **Voice AI** | Retell AI |
 | **Maps** | Mapbox |
 | **AI/NLP** | OpenAI GPT-4 |
 | **Hosting** | Netlify |
@@ -198,7 +200,7 @@ All integrations require environment variables. See `.env.example` for the compl
 ### Communication Channels
 - `TELEGRAM_BOT_TOKEN` - Telegram bot
 - `WHATSAPP_*` - WhatsApp Business API
-- `BLAND_API_KEY` - Voice AI
+- `RETELL_API_KEY` - Voice AI
 - `TWILIO_*` - SMS
 
 ### Marketing & AI

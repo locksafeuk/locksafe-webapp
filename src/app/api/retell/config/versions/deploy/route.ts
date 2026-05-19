@@ -61,6 +61,7 @@ export async function PATCH(request: NextRequest) {
         isDeployed: false,
         deployedAt: null,
         deployedBy: null,
+        publishStatus: "rolled_back",
       },
     });
     return NextResponse.json({ success: true, rolledBack });

@@ -856,7 +856,7 @@ function SettingsTab({ config, onUpdate }: { config: AgentConfig | null; onUpdat
   const handleDeploy = async (versionId: string) => {
     setDeploying(versionId);
     try {
-      await fetch("/api/retell/config/versions/deploy", {
+      await fetch("/api/retell/config/versions/publish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ versionId }),
@@ -1062,6 +1062,8 @@ function SettingsTab({ config, onUpdate }: { config: AgentConfig | null; onUpdat
                   <div className="font-medium text-slate-900">v{v.version} {v.title ? `- ${v.title}` : ""}</div>
                   <div className="text-xs text-slate-500">{v.notes}</div>
                   <div className="text-xs text-slate-400">Created: {v.createdAt ? new Date(v.createdAt).toLocaleString() : "-"}</div>
+                  <div className="text-xs text-slate-400">Publish: {v.publishStatus ?? "draft"}{v.publishedAt ? ` (${new Date(v.publishedAt).toLocaleString()})` : ""}</div>
+                  {v.publishError ? <div className="text-xs text-red-500">{v.publishError}</div> : null}
                   {v.isDeployed && <span className="inline-block text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full mt-1">DEPLOYED</span>}
                 </div>
                 <div className="flex gap-2">

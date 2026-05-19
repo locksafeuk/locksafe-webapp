@@ -2020,6 +2020,7 @@ model VoiceCall {
   // Retell AI identifiers
   retellCallId String  @unique // Retell's call_id
   agentId      String? // Retell agent ID used
+  configVersionId String? @db.ObjectId
 
   // Caller info
   callerPhone    String? // Caller's phone number
@@ -2082,6 +2083,8 @@ model VoiceCall {
   reviewNotes      String?
   isTestCall       Boolean @default(false)
 
+  reviews VoiceCallReview[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -2107,6 +2110,7 @@ model VoiceAgentConfig {
   voiceId      String? // TTS voice ID
   language     String  @default("en-GB")
   speakingRate Float   @default(1.0)
+  realismProfile Json?
 
   // Prompts
   systemPrompt    String // Main agent prompt
@@ -2135,6 +2139,189 @@ model VoiceAgentConfig {
 
   // Blocked numbers
   blockedNumbers String[]
+
+  // Version history
+  versions VoiceAgentConfigVersion[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model VoiceAgentConfigVersion {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  configId String           @db.ObjectId
+  config   VoiceAgentConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+
+  version     Int
+  title       String?
+  notes       String?
+  isDeployed  Boolean   @default(false)
+  deployedAt  DateTime?
+  deployedBy  String?
+  createdBy   String?
+  createdAt   DateTime  @default(now())
+
+  systemPrompt    String
+  greetingMessage String?
+  fallbackMessage String?
+
+  language     String
+  speakingRate Float
+  voiceId      String?
+  realismProfile Json?
+
+  maxCallDuration Int
+  silenceTimeout  Int
+  enableRecording Boolean
+
+  businessHoursStart String
+  businessHoursEnd   String
+  afterHoursMessage  String?
+
+  enableDispatch   Boolean
+  enableBooking    Boolean
+  enableFAQ        Boolean
+  enableEscalation Boolean
+
+  isPaused      Boolean
+  pauseReason   String?
+  blockedNumbers String[]
+
+  retellAgentId String?
+  retellLlmId   String?
+
+  // Publish/deploy orchestration state
+  publishStatus     String   @default("draft") // draft | publishing | published | failed | rolled_back
+  retellVersionId   String?
+  publishedAt       DateTime?
+  publishError      String?
+
+  deployments VoiceConfigDeployment[]
+  simulations VoiceSimulationRun[]
+
+  @@unique([configId, version])
+  @@index([configId, createdAt])
+  @@index([isDeployed, deployedAt])
+}
+
+model VoiceConfigDeployment {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  versionId String                 @db.ObjectId
+  version   VoiceAgentConfigVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  provider        String   @default("retell")
+  providerAgentId String?
+  providerLlmId   String?
+  providerVersionId String?
+  status          String   @default("pending") // pending | deployed | failed | rolled_back
+  notes           String?
+  deployedBy      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([versionId, createdAt])
+  @@index([status, createdAt])
+}
+
+model VoiceDatasetExportJob {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  requestedBy String?
+  mode        String   @default("incremental") // full | incremental
+  status      String   @default("pending") // pending | running | completed | failed
+  since       DateTime?
+  until       DateTime?
+  limit       Int      @default(500)
+  rowCount    Int      @default(0)
+  filtersJson Json?
+  outputJson  Json?
+  error       String?
+  createdAt   DateTime @default(now())
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  @@index([status, createdAt])
+  @@index([mode, createdAt])
+}
+
+model VoiceCallReview {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  callId String   @db.ObjectId
+  call   VoiceCall @relation(fields: [callId], references: [id], onDelete: Cascade)
+
+  reviewerId String?
+  labels     String[]
+  notes      String?
+
+  naturalnessScore Int? // 1-5
+  accuracyScore    Int? // 1-5
+  empathyScore     Int? // 1-5
+  complianceScore  Int? // 1-5
+
+  shouldEscalate   Boolean @default(false)
+  isGoldenExample  Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([callId, createdAt])
+  @@index([reviewerId, createdAt])
+}
+
+model VoiceSimulationRun {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  versionId String?                  @db.ObjectId
+  version   VoiceAgentConfigVersion? @relation(fields: [versionId], references: [id], onDelete: SetNull)
+
+  scenario     String
+  inputJson    Json?
+  outputJson   Json?
+  passed       Boolean
+  score        Float?
+  failureReason String?
+  runBy        String?
+  createdAt    DateTime @default(now())
+
+  @@index([scenario, createdAt])
+  @@index([passed, createdAt])
+}
+
+model VoiceExperiment {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  name        String
+  status      String   @default("draft") // draft | running | stopped | completed
+  controlVersionId   String? @db.ObjectId
+  challengerVersionId String? @db.ObjectId
+  trafficSplit Int      @default(50) // challenger traffic percentage
+  stopLossThreshold Float @default(15) // percent regression threshold
+  winnerVersionId String? @db.ObjectId
+  summaryJson Json?
+  createdBy   String?
+  startedAt   DateTime?
+  endedAt     DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status, createdAt])
+}
+
+model VoiceDailyScorecard {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  date DateTime @unique
+
+  totalCalls Int @default(0)
+  completionRate Float @default(0)
+  callToJobRate Float @default(0)
+  escalationRate Float @default(0)
+  avgNaturalness Float @default(0)
+  alertCount Int @default(0)
+  alertsJson Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

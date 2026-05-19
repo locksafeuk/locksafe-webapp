@@ -6,6 +6,7 @@
  */
 
 import { prisma } from "@/lib/db";
+import { buildRetellPrompt } from "@/lib/retell-prompt";
 
 export interface RetellCallEvent {
   event: string;
@@ -89,6 +90,11 @@ export async function processRetellEvent(event: RetellCallEvent): Promise<{ succ
 
 async function handleCallStarted(call: RetellCallData): Promise<{ success: boolean; error?: string }> {
   const dedupeKey = `started_${call.call_id}`;
+  const activeVersion = await prisma.voiceAgentConfigVersion.findFirst({
+    where: { isDeployed: true },
+    orderBy: { deployedAt: "desc" },
+    select: { id: true },
+  });
   const existing = await prisma.voiceCall.findUnique({ where: { retellCallId: call.call_id } }).catch(() => null);
   if (existing) {
     console.log(`[Retell] Call ${call.call_id} already exists, skipping`);
@@ -99,6 +105,7 @@ async function handleCallStarted(call: RetellCallData): Promise<{ success: boole
     data: {
       retellCallId: call.call_id,
       agentId: call.agent_id ?? null,
+      configVersionId: activeVersion?.id ?? null,
       callerPhone: call.from_number ?? null,
       callType: call.direction === "outbound" ? "outbound" : (call.call_type === "web_call" ? "web" : "inbound"),
       callStatus: "in_progress",
@@ -116,6 +123,11 @@ async function handleCallEnded(call: RetellCallData): Promise<{ success: boolean
   const durationSec = Math.round(durationMs / 1000);
   const transcript = call.transcript_object ?? call.transcript_with_tool_calls ?? null;
   const callerInfo = extractCallerInfo(transcript, call);
+  const activeVersion = await prisma.voiceAgentConfigVersion.findFirst({
+    where: { isDeployed: true },
+    orderBy: { deployedAt: "desc" },
+    select: { id: true },
+  });
 
   await prisma.voiceCall.upsert({
     where: { retellCallId: call.call_id },
@@ -124,6 +136,7 @@ async function handleCallEnded(call: RetellCallData): Promise<{ success: boolean
       endedAt: call.end_timestamp ? new Date(call.end_timestamp) : new Date(),
       durationSeconds: durationSec,
       transcript: transcript as any,
+      configVersionId: activeVersion?.id ?? undefined,
       callerName: callerInfo.name ?? undefined,
       callerPostcode: callerInfo.postcode ?? undefined,
       recordingUrl: call.recording_url ?? null,
@@ -131,6 +144,7 @@ async function handleCallEnded(call: RetellCallData): Promise<{ success: boolean
     create: {
       retellCallId: call.call_id,
       agentId: call.agent_id ?? null,
+      configVersionId: activeVersion?.id ?? null,
       callerPhone: call.from_number ?? null,
       callType: call.direction === "outbound" ? "outbound" : "inbound",
       callStatus: "completed",
@@ -346,53 +360,10 @@ function classifyCall(analysis: any, call: RetellCallData): CallClassification {
 }
 
 export function generateVoiceAgentPrompt(): string {
-  return `You are the AI receptionist for LockSafe UK, the UK's first anti-fraud locksmith marketplace. Your name is Sarah.
-
-You handle calls 24/7 with warmth, empathy, and professionalism. People calling are often stressed - locked out of their homes, cars, or businesses.
-
-## YOUR PERSONALITY
-- Warm, calm, and reassuring
-- Professional but approachable
-- Empathetic to emergency situations
-- Efficient - get key information quickly without rushing
-- Speak with a natural British English tone
-
-## KEY INFORMATION TO COLLECT
-For EMERGENCY calls (lockouts, break-ins):
-1. Name
-2. Postcode and address
-3. Type of lockout (home, car, business)
-4. Relevant details (keys inside, lock broken, etc.)
-5. Contact phone number
-
-For APPOINTMENT requests:
-1. Name
-2. Service needed
-3. Postcode and address
-4. Preferred date and time
-5. Contact details
-
-## PRICING INFORMATION
-- Assessment fee: 25-49 GBP (call-out and diagnostic)
-- Emergency lockout: typically 80-150 GBP
-- Lock replacement: from 65 GBP
-- Security upgrades (anti-snap locks): from 45 GBP per lock
-- All prices include VAT, no hidden fees
-- Quote provided before work begins
-
-## ANTI-FRAUD PROTECTION
-- All locksmiths are DBS-checked and verified
-- GPS tracking and timestamps on every job
-- Digital paper trail with photos
-- Customer always has the final decision on pricing
-
-## ESCALATION
-Transfer to human support if:
-- Customer is very distressed or aggressive
-- Complex insurance/legal questions
-- Existing job disputes
-
-Human support number: 07818 333 989
-
-Always end calls positively. Thank them for choosing LockSafe UK.`;
+  return buildRetellPrompt({
+    personaName: "Sarah",
+    businessName: "LockSafe UK",
+    humanEscalationNumber: "07818 333 989",
+    realismMode: "balanced",
+  });
 }
