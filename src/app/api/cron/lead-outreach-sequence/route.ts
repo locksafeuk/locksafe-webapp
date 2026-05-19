@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { sendAdminAlert } from "@/lib/telegram";
 
 type Track = "independent" | "manager";
 type Style = "direct" | "benefit";
@@ -153,6 +154,31 @@ export async function GET(request: NextRequest) {
     sent: results.reduce((sum, r) => sum + r.sent, 0),
     failed: results.reduce((sum, r) => sum + r.failed, 0),
   };
+
+  if (summary.sent > 0) {
+    try {
+      const perTouchLines = results
+        .filter((r) => r.sent > 0)
+        .map(
+          (r) =>
+            `• Touch ${r.touch} · ${r.track} · ${r.style} v${r.variant} → sent ${r.sent}${r.failed ? ` (failed ${r.failed})` : ""}`,
+        )
+        .join("\n");
+
+      const body =
+        `Sent: ${summary.sent} · Failed: ${summary.failed} · Attempted: ${summary.attempted}\n` +
+        `Run: ${now.toISOString()}` +
+        (perTouchLines ? `\n\n${perTouchLines}` : "");
+
+      await sendAdminAlert({
+        title: "Outreach digest",
+        message: body,
+        severity: summary.failed > 0 ? "warning" : "info",
+      });
+    } catch (telegramErr) {
+      console.error("[Lead Outreach Cron] Telegram digest failed:", telegramErr);
+    }
+  }
 
   return NextResponse.json({
     success: true,
