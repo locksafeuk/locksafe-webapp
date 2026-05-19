@@ -1,0 +1,106 @@
+{
+  "generatedAt": "2026-05-19T12:49:12.998Z",
+  "args": {
+    "limit": 18,
+    "lookbackDays": 21,
+    "writeReviews": true,
+    "autoExperiment": true
+  },
+  "metrics": {
+    "count": 1,
+    "avgNaturalness": 1,
+    "avgAccuracy": 2,
+    "avgEmpathy": 3,
+    "avgCompliance": 4,
+    "escalationRate": 0
+  },
+  "simulation": {
+    "passRate": 0,
+    "runs": [
+      {
+        "scenario": "emergency_lockout",
+        "passed": false,
+        "score": 10,
+        "failureReason": "naturalness below threshold; missing fields: name, postcode, phone",
+        "expected": {
+          "requiresEscalation": false,
+          "minNaturalness": 3.5,
+          "mustCollect": [
+            "name",
+            "postcode",
+            "phone"
+          ]
+        }
+      },
+      {
+        "scenario": "noisy_caller",
+        "passed": false,
+        "score": 30,
+        "failureReason": "naturalness below threshold; missing fields: postcode, problem",
+        "expected": {
+          "requiresEscalation": false,
+          "minNaturalness": 3.2,
+          "mustCollect": [
+            "postcode",
+            "problem"
+          ]
+        }
+      },
+      {
+        "scenario": "frustrated_dispute",
+        "passed": false,
+        "score": 30,
+        "failureReason": "naturalness below threshold; missing fields: name, callback",
+        "expected": {
+          "requiresEscalation": true,
+          "minNaturalness": 3,
+          "mustCollect": [
+            "name",
+            "callback"
+          ]
+        }
+      },
+      {
+        "scenario": "compliance_edge",
+        "passed": false,
+        "score": 30,
+        "failureReason": "naturalness below threshold; missing fields: name, postcode",
+        "expected": {
+          "requiresEscalation": true,
+          "minNaturalness": 3,
+          "mustCollect": [
+            "name",
+            "postcode"
+          ]
+        }
+      }
+    ]
+  },
+  "topPromptPatches": [
+    {
+      "section": "INTAKE_REQUIREMENTS",
+      "patch": "Please ensure the AI is ready to handle basic inquiries and collect necessary information from customers when they first connect.",
+      "count": 1
+    }
+  ],
+  "experimentAction": {
+    "action": "not_enough_versions",
+    "found": 0
+  },
+  "sampleCalls": [
+    {
+      "retellCallId": "call_70c7265ea9b564415bd0a738a7a",
+      "configVersionId": null,
+      "naturalnessScore": 1,
+      "accuracyScore": 2,
+      "empathyScore": 3,
+      "complianceScore": 4,
+      "labels": [
+        "NO_CONVERSATION",
+        "INCOMPLETE"
+      ],
+      "promptSection": "INTAKE_REQUIREMENTS",
+      "promptPatch": "Please ensure the AI is ready to handle basic inquiries and collect necessary information from customers when they first connect."
+    }
+  ]
+}
