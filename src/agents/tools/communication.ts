@@ -19,11 +19,17 @@ import {
 // Telegram config
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+const TELEGRAM_TOPIC_AGENTS = process.env.TELEGRAM_TOPIC_AGENTS
+  ? Number.parseInt(process.env.TELEGRAM_TOPIC_AGENTS, 10)
+  : undefined;
 
 /**
  * Send a message via Telegram Bot API (with rate limiting)
  */
-async function sendTelegramMessage(message: string): Promise<{ sent: boolean; reason?: string }> {
+async function sendTelegramMessage(
+  message: string,
+  threadId?: number,
+): Promise<{ sent: boolean; reason?: string }> {
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
     // Graceful degradation: log locally, don't fail the agent action
     console.log("[Telegram] Message logged (no token configured):", message.slice(0, 120));
@@ -39,17 +45,22 @@ async function sendTelegramMessage(message: string): Promise<{ sent: boolean; re
   try {
     const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
 
+    const body: Record<string, unknown> = {
+      chat_id: TELEGRAM_CHAT_ID,
+      text: message,
+      parse_mode: "HTML",
+      disable_web_page_preview: true,
+    };
+    if (threadId && Number.isFinite(threadId)) {
+      body.message_thread_id = threadId;
+    }
+
     const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        chat_id: TELEGRAM_CHAT_ID,
-        text: message,
-        parse_mode: "HTML",
-        disable_web_page_preview: true,
-      }),
+      body: JSON.stringify(body),
     });
 
     const data = await response.json();
@@ -142,7 +153,7 @@ ${message}
 <i>Sent at ${new Date().toLocaleTimeString()}</i>`;
 
     try {
-      const result = await sendTelegramMessage(formattedMessage);
+      const result = await sendTelegramMessage(formattedMessage, TELEGRAM_TOPIC_AGENTS);
       // Treat missing-token as a graceful success so agents don't retry in loops
       const isSuccess = result.sent || result.reason?.includes("not configured");
       return {
