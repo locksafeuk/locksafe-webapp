@@ -3201,7 +3201,7 @@ export async function sendLocksmithInviteEmail(
     trackPixelUrl?: string;
   },
 ) {
-  const signupUrl = options?.signupUrl || `${SITE_URL}/locksmith-signup?utm_source=invite&utm_medium=email&utm_campaign=partner-outreach`;
+  const signupUrl = options?.signupUrl || `${SITE_URL}/for-locksmiths?utm_source=invite&utm_medium=email&utm_campaign=partner-outreach`;
   const subject = options?.subject || `${data.locksmithName} — join LockSafe UK's verified locksmith network (free)`;
   const ctaText = options?.ctaText || "Apply to Join — It's Free";
   const introParagraph =
