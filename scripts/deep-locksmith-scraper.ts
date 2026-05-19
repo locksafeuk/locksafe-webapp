@@ -635,6 +635,38 @@ async function runScrape(isResume: boolean) {
   }
 
   console.log(`\nDatabase: ${saved} saved, ${skipped} skipped`);
+
+  // ── Notify agent of new batch ──────────────────────────────────────────────
+  if (saved > 0) {
+    const batchId = `scrape-${Date.now()}`;
+    try {
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.locksafe.uk";
+      const cronSecret = process.env.CRON_SECRET || "dev-secret";
+      
+      const intakeRes = await fetch(`${siteUrl}/api/admin/leads/intake`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-cron-secret": cronSecret,
+        },
+        body: JSON.stringify({
+          batchId,
+          leadCount: saved,
+          source: "scraper",
+        }),
+      });
+
+      if (intakeRes.ok) {
+        const intakeData = await intakeRes.json();
+        console.log(`\n📡 Agent notified: ${intakeData.message}`);
+      } else {
+        console.warn(`⚠️  Agent notification failed: HTTP ${intakeRes.status}`);
+      }
+    } catch (err) {
+      console.error("⚠️  Failed to notify agent:", err);
+    }
+  }
+
   console.log("\n🎉  Done!\n");
   await prisma.$disconnect();
 }

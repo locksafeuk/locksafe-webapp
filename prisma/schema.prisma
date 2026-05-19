@@ -44,6 +44,23 @@ model LocksmithLead {
   updatedAt     DateTime  @updatedAt
 }
 
+// Lead batch intake tracking (for scraper → agent monitoring)
+model LeadBatch {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  batchId       String    @unique // External batch ID from scraper
+  source        String    @default("scraper") // scraper, manual, import, etc.
+  leadCount     Int // Number of leads in this batch
+  leadIds       String[]  @default([]) // Optional: specific lead IDs in this batch
+  status        String    @default("received") // received, processing, completed, failed
+  processedAt   DateTime  @default(now())
+  completedAt   DateTime?
+  errorMessage  String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status, processedAt])
+}
+
 // Customer/Client model
 model Customer {
   id           String  @id @default(auto()) @map("_id") @db.ObjectId
