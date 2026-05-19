@@ -448,8 +448,8 @@ export default function AdminLeadsPage() {
         <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
-              <h2 className="text-sm font-semibold text-slate-900">Lead Email Sequence</h2>
-              <p className="text-xs text-slate-500">Run Touch 1/2/3 with track + A/B variant targeting.</p>
+              <h2 className="text-sm font-semibold text-slate-900">Autonomous Lead Email Sequence</h2>
+              <p className="text-xs text-slate-500">Touch 1, 2, and 3 run automatically with track + A/B variant targeting.</p>
             </div>
             <Button
               size="sm"
@@ -458,7 +458,7 @@ export default function AdminLeadsPage() {
               className="bg-indigo-600 hover:bg-indigo-700 text-white"
             >
               {sequenceSending ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Send className="w-4 h-4 mr-1.5" />}
-              Run Touch {sequenceTouch}
+              Run Automated Touch {sequenceTouch}
             </Button>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -483,9 +483,9 @@ export default function AdminLeadsPage() {
               onChange={(e) => setSequenceTouch(Number(e.target.value) as 1 | 2 | 3)}
               className="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
-              <option value={1}>Touch 1 (new leads)</option>
-              <option value={2}>Touch 2 (&gt;= 3 days)</option>
-              <option value={3}>Touch 3 (&gt;= 7 days)</option>
+              <option value={1}>Touch 1 (automatic first send)</option>
+              <option value={2}>Touch 2 (automatic after 3 days)</option>
+              <option value={3}>Touch 3 (automatic after 7 days)</option>
             </select>
             <select
               value={sequenceVariant}

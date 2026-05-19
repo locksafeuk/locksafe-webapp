@@ -192,6 +192,47 @@ function buildFollowUpEmailCopy(track: OutreachTrack, leadName: string, city: st
   ].join("\n");
 }
 
+function buildSequenceEmailCopy(
+  track: OutreachTrack,
+  touch: number,
+  leadName: string,
+  city: string,
+) {
+  if (touch === 2) {
+    return buildFollowUpEmailCopy(track, leadName, city);
+  }
+
+  const benefits =
+    track === "manager"
+      ? [
+          "Bring your team onto one clear workflow instead of juggling separate job streams.",
+          "Keep split settings visible so you can decide what works best for your operation.",
+          "Use one platform for lead flow, team coordination, and customer communication.",
+        ]
+      : [
+          "Receive verified local jobs without paying monthly fees.",
+          "Keep control over which jobs you accept and how you work them.",
+          "Move faster with a clear payment flow and less admin.",
+        ];
+
+  const opener =
+    touch === 1
+      ? `We're reaching out because your locksmith business in ${city} looks like a strong fit for LockSafe UK.`
+      : `Final nudge from us for now: we still have active demand in ${city} and can onboard you quickly.`;
+
+  return [
+    `Hi ${leadName},`,
+    "",
+    opener,
+    "",
+    "Benefits:",
+    ...benefits.map((benefit) => `• ${benefit}`),
+    "",
+    `CTA: ${track === "manager" ? "Start Team Onboarding" : "Complete Locksmith Signup"}`,
+    `Location context: ${city}`,
+  ].join("\n");
+}
+
 function filterEligibleSequenceLeads(
   leads: LeadForOutreach[],
   cfg: { track: OutreachTrack; touch: number; now: Date },
@@ -421,6 +462,38 @@ export async function POST(req: NextRequest) {
         "",
         "Email copy:",
         buildFollowUpEmailCopy(track, "[Lead Name]", "[City]"),
+      ].join("\n"),
+      severity: "info",
+    });
+  }
+
+  if (mode === "sequence" && (touch === 1 || touch === 3) && results.some((result) => result.success)) {
+    const previewLead = targets[0];
+    const sequenceContent = getInviteContent(
+      { id: previewLead.id, name: previewLead.name, city: previewLead.city },
+      {
+        track,
+        style,
+        touch,
+        variant,
+        baseUrl,
+      },
+    );
+
+    await sendAdminAlert({
+      title: `${touch === 1 ? "Initial" : "Final"} sequence email sent (${track})`,
+      message: [
+        `Touch: ${touch}`,
+        `Track: ${track}`,
+        `Style: ${style}`,
+        `Variant: ${variant}`,
+        `Recipients attempted: ${targets.length}`,
+        `Sent: ${results.filter((result) => result.success).length}`,
+        `Failed: ${results.filter((result) => !result.success).length}`,
+        `Subject: ${sequenceContent.subject}`,
+        "",
+        "Email copy:",
+        buildSequenceEmailCopy(track, touch, "[Lead Name]", "[City]"),
       ].join("\n"),
       severity: "info",
     });
