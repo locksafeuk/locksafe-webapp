@@ -25,26 +25,32 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-function fetchHtml(url: string): Promise<string> {
+function fetchHtml(url: string, redirects = 0): Promise<string> {
+  if (redirects > 3) return Promise.resolve("");
   return new Promise((resolve) => {
     const protocol = url.startsWith("https") ? https : http;
-    const timeout = setTimeout(() => resolve(""), 8000);
+    let settled = false;
+    const done = (val: string) => { if (!settled) { settled = true; resolve(val); } };
+    const timer = setTimeout(() => { req.destroy(); done(""); }, 7000);
+    let req: ReturnType<typeof http.get>;
     try {
-      const req = protocol.get(url, { headers: { "User-Agent": "Mozilla/5.0" } }, (res) => {
+      req = protocol.get(url, { headers: { "User-Agent": "Mozilla/5.0" }, timeout: 7000 }, (res) => {
         if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-          clearTimeout(timeout);
-          fetchHtml(res.headers.location).then(resolve);
+          clearTimeout(timer);
+          res.resume();
+          fetchHtml(res.headers.location, redirects + 1).then(done);
           return;
         }
         let data = "";
-        res.on("data", (chunk) => { data += chunk; });
-        res.on("end", () => { clearTimeout(timeout); resolve(data); });
-        res.on("error", () => { clearTimeout(timeout); resolve(""); });
+        res.on("data", (chunk) => { data += chunk; if (data.length > 500_000) { req.destroy(); done(data); } });
+        res.on("end", () => { clearTimeout(timer); done(data); });
+        res.on("error", () => { clearTimeout(timer); done(""); });
       });
-      req.on("error", () => { clearTimeout(timeout); resolve(""); });
+      req.on("timeout", () => { req.destroy(); clearTimeout(timer); done(""); });
+      req.on("error", () => { clearTimeout(timer); done(""); });
     } catch {
-      clearTimeout(timeout);
-      resolve("");
+      clearTimeout(timer);
+      done("");
     }
   });
 }
@@ -81,7 +87,7 @@ async function main() {
     : undefined;
 
   const where: Record<string, unknown> = {
-    email: null,
+    email: { equals: null },
     website: { not: null },
   };
 
