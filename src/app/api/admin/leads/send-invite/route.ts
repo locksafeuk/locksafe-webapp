@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { sendLocksmithFollowUpEmail, sendLocksmithInviteEmail } from "@/lib/email";
+import { sendAdminAlert } from "@/lib/telegram";
 import {
   appendSendEvent,
   hasTouchForTrack,
@@ -146,6 +147,49 @@ function getFollowUpContent(
     signupUrl: trackedCta,
     trackPixelUrl: trackPixel,
   };
+}
+
+function buildFollowUpEmailCopy(track: OutreachTrack, leadName: string, city: string) {
+  const benefits =
+    track === "manager"
+      ? [
+          "Bring your team onto one clear workflow instead of juggling separate job streams.",
+          "Keep split settings visible so you can decide what works best for your operation.",
+          "Use one platform for lead flow, team coordination, and customer communication.",
+        ]
+      : [
+          "Receive verified local jobs without paying monthly fees.",
+          "Keep control over which jobs you accept and how you work them.",
+          "Move faster with a clear payment flow and less admin.",
+        ];
+
+  const commissionRows =
+    track === "manager"
+      ? [
+          "Assessment fee: 15% standard platform commission",
+          "Work quote: 25% standard platform commission",
+          "Team structure: split settings can be discussed with your team setup",
+        ]
+      : [
+          "Assessment fee: 15% platform commission",
+          "Work quote: 25% platform commission",
+          "Payouts: clear, tracked job-by-job earnings",
+        ];
+
+  return [
+    `Hi ${leadName},`,
+    "",
+    "It seems like the main question after the first email is simple: what does this actually look like for your time and earnings?",
+    "",
+    "What locksmiths usually want to know:",
+    ...benefits.map((benefit) => `• ${benefit}`),
+    "",
+    "Commission structure:",
+    ...commissionRows.map((row) => `• ${row}`),
+    "",
+    `CTA: ${track === "manager" ? "Review Team Setup" : "Review the Breakdown"}`,
+    `Location context: ${city}`,
+  ].join("\n");
 }
 
 function filterEligibleSequenceLeads(
@@ -348,6 +392,38 @@ export async function POST(req: NextRequest) {
     if (targets.length > 1) {
       await new Promise((r) => setTimeout(r, 200));
     }
+  }
+
+  if (mode === "sequence" && touch === 2 && results.some((result) => result.success)) {
+    const previewLead = targets[0];
+    const followUpContent = getFollowUpContent(
+      { id: previewLead.id, name: previewLead.name, city: previewLead.city },
+      {
+        track,
+        style,
+        touch,
+        variant,
+        baseUrl,
+      },
+    );
+
+    await sendAdminAlert({
+      title: `Follow-up email batch sent (${track})`,
+      message: [
+        `Touch: 2-day follow-up`,
+        `Track: ${track}`,
+        `Style: ${style}`,
+        `Variant: ${variant}`,
+        `Recipients attempted: ${targets.length}`,
+        `Sent: ${results.filter((result) => result.success).length}`,
+        `Failed: ${results.filter((result) => !result.success).length}`,
+        `Subject: ${followUpContent.subject}`,
+        "",
+        "Email copy:",
+        buildFollowUpEmailCopy(track, "[Lead Name]", "[City]"),
+      ].join("\n"),
+      severity: "info",
+    });
   }
 
   const sent = results.filter((r) => r.success).length;
