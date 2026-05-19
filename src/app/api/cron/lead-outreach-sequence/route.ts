@@ -16,7 +16,7 @@ type SequenceResult = {
 };
 
 const UK_SEND_WINDOW_START_HOUR = 7;
-const UK_SEND_WINDOW_END_HOUR = 21;
+const UK_SEND_WINDOW_END_HOUR = 22;
 
 function hasCronAuth(request: NextRequest): boolean {
   if (request.headers.get("x-vercel-cron") === "1") return true;
@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
       success: true,
       runAt: now.toISOString(),
       skipped: true,
-      message: `Outside UK outreach send window (07:00-21:00). Current UK hour: ${ukHour}:00`,
+      message: `Outside UK outreach send window (07:00-22:00). Current UK hour: ${ukHour}:00`,
       summary: {
         attempted: 0,
         sent: 0,

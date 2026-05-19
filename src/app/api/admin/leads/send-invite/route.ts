@@ -23,7 +23,7 @@ type LeadForOutreach = {
 };
 
 const UK_SEND_WINDOW_START_HOUR = 7;
-const UK_SEND_WINDOW_END_HOUR = 21;
+const UK_SEND_WINDOW_END_HOUR = 22;
 
 function daysBetween(from: Date, to: Date) {
   return (to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24);
@@ -325,7 +325,7 @@ export async function POST(req: NextRequest) {
           variant,
           attempted: 0,
         },
-        message: `Outreach sends are allowed only between 07:00 and 21:00 UK time. Current UK hour: ${ukHour}:00`,
+        message: `Outreach sends are allowed only between 07:00 and 22:00 UK time. Current UK hour: ${ukHour}:00`,
       },
       { status: 200 },
     );
