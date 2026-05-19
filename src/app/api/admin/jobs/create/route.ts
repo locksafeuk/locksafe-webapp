@@ -103,7 +103,9 @@ export async function POST(request: NextRequest) {
           data: {
             name: customerName,
             phone: customerPhone,
-            email: customerEmail || null,
+            // Only set `email` when provided. Writing `null` collides with
+            // MongoDB's unique index, which treats null as a single shared value.
+            ...(customerEmail ? { email: customerEmail } : {}),
             createdVia: "admin",
             emailVerified: false,
             verificationToken: onboardingToken,

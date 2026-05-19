@@ -1,3 +1,83 @@
+// ============================================
+// STRIPE ONBOARDING REMINDER EMAIL
+// ============================================
+
+export async function sendStripeOnboardingReminderEmail(
+  locksmithEmail: string,
+  data: {
+    locksmithName: string;
+    stripeOnboardingUrl: string;
+  },
+) {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>Complete Your LockSafe Payout Setup</title>
+      <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f7f7f9; color: #222; margin: 0; padding: 0; }
+        .container { max-width: 520px; margin: 40px auto; background: #fff; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.07); padding: 32px 28px; }
+        h1 { color: #1a73e8; font-size: 1.7em; margin-bottom: 0.5em; }
+        .cta-btn {
+          display: inline-block;
+          background: #1a73e8;
+          color: #fff !important;
+          text-decoration: none;
+          font-weight: 600;
+          padding: 16px 32px;
+          border-radius: 6px;
+          font-size: 1.1em;
+          margin: 24px 0 16px 0;
+          box-shadow: 0 2px 6px rgba(26,115,232,0.08);
+          transition: background 0.2s;
+        }
+        .cta-btn:hover { background: #155ab6; }
+        ul { margin: 18px 0 18px 18px; }
+        li { margin-bottom: 10px; }
+        .footer { color: #888; font-size: 0.95em; margin-top: 32px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>You're One Step Away from More Jobs</h1>
+        <p>Hi ${data.locksmithName},</p>
+        <p>
+          You’re almost ready to unlock the full power of LockSafe.<br>
+          <strong>Just complete your Stripe payout setup to start receiving leads and payments instantly.</strong>
+        </p>
+        <ul>
+          <li><strong>Get more jobs:</strong> Appear as a verified locksmith and get matched with real customers in your area.</li>
+          <li><strong>Get paid fast:</strong> Secure, direct payouts to your bank account — no delays, no hassle.</li>
+          <li><strong>Stand out & build trust:</strong> Verified pros win more business and earn higher ratings.</li>
+          <li><strong>We bring you customers:</strong> Focus on your work while we handle the marketing and admin.</li>
+        </ul>
+        <p>
+          <strong>Don’t leave money on the table.</strong> It only takes a minute to finish — and you’ll be ready to grow your business with LockSafe.
+        </p>
+        <p style="text-align:center;">
+          <a class="cta-btn" href="${data.stripeOnboardingUrl}" target="_blank">
+            Complete Stripe Setup & Get Started
+          </a>
+        </p>
+        <p>
+          Questions or need help? Just reply to this email — our team is here for you.
+        </p>
+        <div class="footer">
+          LockSafe UK<br>
+          Helping locksmiths grow, one job at a time.
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to: locksmithEmail,
+    subject: 'Unlock More Jobs: Complete Your LockSafe Payout Setup',
+    html,
+  });
+}
 import { Resend } from "resend";
 import { SITE_NAME, SITE_URL, SUPPORT_EMAIL } from "./config";
 

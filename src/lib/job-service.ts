@@ -109,7 +109,9 @@ async function findOrCreateCustomer(params: {
     data: {
       name: params.name,
       phone: normalizedPhone,
-      email: params.email || null,
+      // Only set `email` when provided. Writing `null` collides with
+      // MongoDB's unique index, which treats null as a single shared value.
+      ...(params.email ? { email: params.email } : {}),
       createdVia: params.createdVia || "phone",
     },
     select: { id: true, name: true, phone: true, email: true },

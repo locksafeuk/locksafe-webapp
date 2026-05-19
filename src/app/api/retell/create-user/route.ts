@@ -190,7 +190,7 @@ export async function POST(request: NextRequest) {
       data: {
         name: full_name,
         phone: normalizedPhone,
-        email: normalizedEmail || null,
+        ...(normalizedEmail ? { email: normalizedEmail } : {}),
         createdVia: "phone",
         // Onboarding flags - all false initially
         onboardingCompleted: false,

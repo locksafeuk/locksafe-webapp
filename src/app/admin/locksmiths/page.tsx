@@ -129,6 +129,10 @@ export default function AdminLocksmithsPage() {
 
   // Welcome emails state
   const [sendingWelcomeEmails, setSendingWelcomeEmails] = useState(false);
+  const [sendingStripeReminders, setSendingStripeReminders] = useState(false);
+  const [reminderLog, setReminderLog] = useState<{ sentAt: string; adminEmail: string }[]>([]);
+  const [loadingReminderLog, setLoadingReminderLog] = useState(false);
+  const [sendingStripeReminder, setSendingStripeReminder] = useState(false);
 
   // Profile editing state
   const [editingProfile, setEditingProfile] = useState(false);
@@ -260,6 +264,31 @@ export default function AdminLocksmithsPage() {
       .catch(() => { /* silently ignore postcode lookup failures */ });
   }, [locksmiths]);
 
+  const fetchReminderLog = useCallback(async (locksmithId: string) => {
+    setLoadingReminderLog(true);
+    try {
+      const res = await fetch(`/api/admin/locksmiths/stripe-reminder-log?locksmithId=${locksmithId}`);
+      const data = await res.json();
+      if (data.success) {
+        setReminderLog(data.log);
+      } else {
+        setReminderLog([]);
+      }
+    } catch {
+      setReminderLog([]);
+    } finally {
+      setLoadingReminderLog(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedLocksmith && !selectedLocksmith.stripeConnectOnboarded) {
+      fetchReminderLog(selectedLocksmith.id);
+    } else {
+      setReminderLog([]);
+    }
+  }, [selectedLocksmith, fetchReminderLog]);
+
   // Handle locksmith actions (verify, suspend, etc.)
   const handleLocksmithAction = async (locksmithId: string, action: string) => {
     try {
@@ -355,6 +384,65 @@ export default function AdminLocksmithsPage() {
       alert("❌ An error occurred while sending welcome emails");
     } finally {
       setSendingWelcomeEmails(false);
+    }
+  };
+
+  const handleSendStripeReminders = async () => {
+    const eligibleCount = locksmiths.filter((ls) => !ls.stripeConnectOnboarded).length;
+    if (eligibleCount === 0) {
+      alert("No locksmiths are currently waiting on Stripe onboarding.");
+      return;
+    }
+
+    if (!confirm(`Send Stripe onboarding reminders to ${eligibleCount} locksmith${eligibleCount === 1 ? "" : "s"} who have not completed onboarding?`)) {
+      return;
+    }
+
+    setSendingStripeReminders(true);
+    try {
+      const response = await fetch("/api/admin/locksmiths/send-stripe-reminders", {
+        method: "POST",
+      });
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        alert(`✅ Successfully sent Stripe reminders to ${data.totalSent} locksmiths!\n\nEligible: ${data.totalEligible}\nSent: ${data.totalSent}\nFailed: ${data.failed}${data.failed > 0 ? `\n\nFailed emails: ${data.failedEmails.join(", ")}` : ""}`);
+      } else {
+        alert(`❌ ${data.error || "Failed to send Stripe reminders"}`);
+      }
+    } catch (error) {
+      console.error("Error sending Stripe reminders:", error);
+      alert("❌ An error occurred while sending Stripe reminders");
+    } finally {
+      setSendingStripeReminders(false);
+    }
+  };
+
+  const handleSendStripeReminder = async (locksmithId: string) => {
+    if (!confirm("Send Stripe onboarding reminder to this locksmith?")) {
+      return;
+    }
+
+    setSendingStripeReminder(true);
+    try {
+      const response = await fetch("/api/admin/locksmiths/send-stripe-reminder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ locksmithId }),
+      });
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        alert("Stripe onboarding reminder sent!");
+        fetchReminderLog(locksmithId);
+      } else {
+        alert(data.error || "Failed to send reminder");
+      }
+    } catch (error) {
+      console.error("Error sending Stripe reminder:", error);
+      alert("Error sending reminder");
+    } finally {
+      setSendingStripeReminder(false);
     }
   };
 
@@ -656,6 +744,26 @@ export default function AdminLocksmithsPage() {
                     <Send className="w-4 h-4" />
                     <span className="hidden sm:inline">Send Welcome Emails</span>
                     <span className="sm:hidden">Welcome</span>
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={handleSendStripeReminders}
+                disabled={sendingStripeReminders || locksmiths.filter(ls => !ls.stripeConnectOnboarded).length === 0}
+                className="px-3 lg:px-4 py-2 flex items-center gap-2 text-xs lg:text-sm font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Send Stripe onboarding reminders to locksmiths who have not completed onboarding"
+              >
+                {sendingStripeReminders ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="hidden sm:inline">Sending...</span>
+                  </>
+                ) : (
+                  <>
+                    <CreditCard className="w-4 h-4" />
+                    <span className="hidden sm:inline">Send Stripe Reminders</span>
+                    <span className="sm:hidden">Stripe</span>
                   </>
                 )}
               </button>
@@ -1036,6 +1144,60 @@ export default function AdminLocksmithsPage() {
                     )}
                   </div>
                 </div>
+
+                {!selectedLocksmith.stripeConnectOnboarded && (
+                  <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <h3 className="text-sm font-semibold text-slate-900">Stripe onboarding reminder</h3>
+                        <p className="mt-1 text-sm text-slate-600">
+                          Send a follow-up email with a fresh Stripe onboarding link so this locksmith can finish payout setup.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleSendStripeReminder(selectedLocksmith.id)}
+                        disabled={sendingStripeReminder}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        {sendingStripeReminder ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Send className="w-4 h-4" />
+                        )}
+                        {sendingStripeReminder ? "Sending..." : "Send Stripe Reminder"}
+                      </button>
+                    </div>
+
+                    <div className="mt-4">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Reminder Log</div>
+                      {loadingReminderLog ? (
+                        <div className="mt-2 text-sm text-slate-500">Loading...</div>
+                      ) : reminderLog.length === 0 ? (
+                        <div className="mt-2 text-sm text-slate-500">No reminders sent yet.</div>
+                      ) : (
+                        <div className="mt-2 overflow-hidden rounded-lg border border-slate-200 bg-white">
+                          <table className="w-full text-sm">
+                            <thead className="bg-slate-50 text-slate-600">
+                              <tr>
+                                <th className="px-3 py-2 text-left font-medium">Date/Time</th>
+                                <th className="px-3 py-2 text-left font-medium">Sent By</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {reminderLog.map((log, idx) => (
+                                <tr key={`${log.sentAt}-${idx}`}>
+                                  <td className="px-3 py-2">{new Date(log.sentAt).toLocaleString()}</td>
+                                  <td className="px-3 py-2">{log.adminEmail}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Contact Info */}
                 <div>

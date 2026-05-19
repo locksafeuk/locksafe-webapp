@@ -1,3 +1,11 @@
+// Stripe onboarding reminder log for auditing admin sends
+model StripeReminderLog {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  locksmithId  String   @db.ObjectId
+  locksmith    Locksmith @relation(fields: [locksmithId], references: [id])
+  adminEmail   String
+  sentAt       DateTime @default(now())
+}
 //
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
@@ -286,7 +294,11 @@ model Locksmith {
   applications     LocksmithApplication[]
   payouts          Payout[]
   reviews          Review[]
+
   auctionsAccepted JobAuction[]
+
+  // Stripe onboarding reminder log relation
+  stripeReminderLogs StripeReminderLog[]
 
   // Performance indexes for dispatch / matcher queries (Locksmith lookups by
   // active+available status combined with base location). MongoDB B-tree
