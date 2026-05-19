@@ -6,6 +6,7 @@ import {
   getCommissionRate,
 } from "@/lib/stripe";
 import prisma from "@/lib/db";
+import { validatePaymentAmount } from "@/lib/risk-controls";
 
 export async function POST(request: NextRequest) {
   try {
@@ -35,10 +36,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate amount
-    if (typeof amount !== "number" || amount <= 0) {
+    const amountValidationError = validatePaymentAmount(amount);
+    if (amountValidationError) {
       console.error("[Payment Intent] Invalid amount:", amount);
       return NextResponse.json(
-        { error: "Invalid payment amount" },
+        { error: amountValidationError },
         { status: 400 }
       );
     }

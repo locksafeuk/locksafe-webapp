@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
+import { requireAdminOrCron, unauthorizedAgentApiResponse } from "@/lib/agent-api-auth";
 
 // Platform fee percentage (15%)
 const PLATFORM_FEE_PERCENTAGE = 0.15;
@@ -45,19 +46,14 @@ const CRON_SECRET = process.env.CRON_SECRET || "your-cron-secret-key";
 
 export async function POST(request: NextRequest) {
   try {
-    // Verify cron authorization
-    const authHeader = request.headers.get("authorization");
-    const token = authHeader?.replace("Bearer ", "");
+    const auth = await requireAdminOrCron(request);
 
     // Also check for Vercel cron header
     const vercelCron = request.headers.get("x-vercel-cron");
 
-    if (token !== CRON_SECRET && !vercelCron) {
+    if (!auth && !vercelCron) {
       console.log("[Cron] Unauthorized request to generate-payouts");
-      return NextResponse.json(
-        { success: false, error: "Unauthorized" },
-        { status: 401 }
-      );
+      return unauthorizedAgentApiResponse();
     }
 
     console.log("[Cron] Starting weekly payout generation...");

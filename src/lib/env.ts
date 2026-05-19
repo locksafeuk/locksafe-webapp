@@ -16,11 +16,15 @@ const envSchema = z.object({
 
   // Auth
   JWT_SECRET: z.string().min(16, "JWT_SECRET must be at least 16 characters").optional(),
+  AUTH_RATE_LIMIT_ATTEMPTS: z.string().regex(/^\d+$/).optional(),
+  AUTH_RATE_LIMIT_WINDOW_SECONDS: z.string().regex(/^\d+$/).optional(),
 
   // Stripe
   STRIPE_SECRET_KEY: z.string().startsWith("sk_").optional(),
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().startsWith("pk_").optional(),
   STRIPE_WEBHOOK_SECRET: z.string().startsWith("whsec_").optional(),
+  PAYMENT_MIN_AMOUNT_GBP: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
+  PAYMENT_MAX_AMOUNT_GBP: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
 
   // OpenAI
   OPENAI_API_KEY: z.string().startsWith("sk-").optional(),
@@ -53,6 +57,8 @@ const envSchema = z.object({
   // Agent Operating System
   AGENTS_ENABLED: z.enum(["true", "false"]).optional().default("false"),
   CRON_SECRET: z.string().optional(),
+  FRAUD_CHECK_CUSTOMER_MAX_JOBS_24H: z.string().regex(/^\d+$/).optional(),
+  FRAUD_CHECK_DUPLICATE_JOBS_WINDOW_MINUTES: z.string().regex(/^\d+$/).optional(),
 
   // Telegram notifications
   TELEGRAM_BOT_TOKEN: z.string().optional(),

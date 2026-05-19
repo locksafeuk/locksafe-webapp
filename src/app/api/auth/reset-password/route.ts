@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
+import { enforceAuthRateLimit } from "@/lib/auth-rate-limit";
 
 export async function POST(request: NextRequest) {
   try {
+    const rateLimitedResponse = enforceAuthRateLimit(request, "auth-reset-password");
+    if (rateLimitedResponse) {
+      return rateLimitedResponse;
+    }
+
     const body = await request.json();
     const { token, password, userType } = body;
 

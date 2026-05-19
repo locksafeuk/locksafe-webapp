@@ -22,6 +22,7 @@ import {
 import { createCheckoutSession } from "@/lib/stripe";
 import { EMERGENCY_SMS_TEMPLATES } from "@/lib/sms-templates";
 import { createNotification } from "@/lib/notifications";
+import { evaluateEmergencyJobRisk, getEmergencyJobRiskConfig } from "@/lib/risk-controls";
 
 // ============================================
 // TYPES
@@ -166,10 +167,52 @@ export async function createEmergencyJob(
 
     console.log(`[Job Service] Customer ${isNew ? "created" : "found"}: ${customer.id}`);
 
+    const normalizedPostcode = input.postcode.toUpperCase();
+    const riskConfig = getEmergencyJobRiskConfig();
+    const now = new Date();
+    const duplicateWindowStart = new Date(now.getTime() - riskConfig.duplicateWindowMinutes * 60 * 1000);
+    const jobs24HoursStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    const [recentCustomerJobs24h, recentDuplicateRequests] = await Promise.all([
+      prisma.job.count({
+        where: {
+          customerId: customer.id,
+          createdAt: { gte: jobs24HoursStart },
+        },
+      }),
+      prisma.job.count({
+        where: {
+          customerId: customer.id,
+          postcode: normalizedPostcode,
+          isEmergency: true,
+          createdAt: { gte: duplicateWindowStart },
+        },
+      }),
+    ]);
+
+    const riskError = evaluateEmergencyJobRisk({
+      recentCustomerJobs24h,
+      recentDuplicateRequests,
+    });
+
+    if (riskError) {
+      console.warn("[Job Service] Blocked emergency job creation:", {
+        customerId: customer.id,
+        postcode: normalizedPostcode,
+        recentCustomerJobs24h,
+        recentDuplicateRequests,
+        riskError,
+      });
+      return {
+        success: false,
+        error: riskError,
+      };
+    }
+
     // 2. Geocode postcode
-    const coords = await geocodePostcode(input.postcode);
+    const coords = await geocodePostcode(normalizedPostcode);
     if (!coords) {
-      console.warn(`[Job Service] Could not geocode postcode: ${input.postcode}`);
+      console.warn(`[Job Service] Could not geocode postcode: ${normalizedPostcode}`);
     }
 
     // 3. Create job
@@ -182,7 +225,7 @@ export async function createEmergencyJob(
         problemType: input.problemType,
         propertyType: input.propertyType || "house",
         description: input.description || input.emergencyDetails,
-        postcode: input.postcode.toUpperCase(),
+        postcode: normalizedPostcode,
         address: input.address,
         latitude: coords?.latitude || null,
         longitude: coords?.longitude || null,
@@ -242,13 +285,13 @@ export async function createEmergencyJob(
           jobId: job.id,
           jobNumber: job.jobNumber,
           customerName: customer.name,
-          postcode: input.postcode,
+          postcode: normalizedPostcode,
         })
       : EMERGENCY_SMS_TEMPLATES.CUSTOMER_NO_LOCKSMITHS({
           jobId: job.id,
           jobNumber: job.jobNumber,
           customerName: customer.name,
-          postcode: input.postcode,
+          postcode: normalizedPostcode,
         });
 
     sendSMS(customer.phone, customerSms, {

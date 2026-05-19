@@ -14,6 +14,7 @@ import { NextRequest } from "next/server";
 const mockAdminFindUnique = jest.fn();
 const mockLocksmithFindUnique = jest.fn();
 const mockCustomerFindUnique = jest.fn();
+const mockEnforceAuthRateLimit = jest.fn();
 
 jest.mock("@/lib/db", () => ({
   __esModule: true,
@@ -33,6 +34,10 @@ jest.mock("@/lib/auth", () => ({
   verifyPassword: (...a: unknown[]) => mockVerifyPassword(...a),
   getRedirectPath: (...a: unknown[]) => mockGetRedirectPath(...a),
   AUTH_COOKIE_OPTIONS: { httpOnly: true, sameSite: "lax", path: "/" },
+}));
+
+jest.mock("@/lib/auth-rate-limit", () => ({
+  enforceAuthRateLimit: (...a: unknown[]) => mockEnforceAuthRateLimit(...a),
 }));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -57,11 +62,25 @@ beforeEach(() => {
   mockLocksmithFindUnique.mockReset().mockResolvedValue(null);
   mockCustomerFindUnique.mockReset().mockResolvedValue(null);
   mockVerifyPassword.mockReset().mockReturnValue(false);
+  mockEnforceAuthRateLimit.mockReset().mockReturnValue(null);
   mockGenerateToken.mockReset().mockImplementation((payload) => `token-for-${JSON.stringify(payload)}`);
   mockGetRedirectPath.mockReset().mockImplementation((kind) => `/${kind}`);
 });
 
 describe("POST /api/auth/login", () => {
+  it("returns 429 when the auth rate limit is exceeded", async () => {
+    mockEnforceAuthRateLimit.mockReturnValueOnce(
+      new Response(JSON.stringify({ error: "Too many attempts" }), {
+        status: 429,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    const res = await POST(makeRequest({ email: "user@example.com", password: "secret" }));
+    expect(res.status).toBe(429);
+    expect(mockAdminFindUnique).not.toHaveBeenCalled();
+  });
+
   it("returns 400 when email is missing", async () => {
     const res = await POST(makeRequest({ password: "secret" }));
     expect(res.status).toBe(400);

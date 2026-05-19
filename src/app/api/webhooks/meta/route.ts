@@ -14,12 +14,35 @@
  * 4. Copy the verify token and set META_WEBHOOK_VERIFY_TOKEN in .env
  */
 
+import { createHmac, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { sendAdminAlert } from "@/lib/telegram";
 
 // Verify token for Meta webhook verification
 const VERIFY_TOKEN = process.env.META_WEBHOOK_VERIFY_TOKEN || "locksafe_meta_webhook_verify_token";
+
+function verifyMetaSignature(rawBody: string, signatureHeader: string | null): boolean {
+  const appSecret = process.env.META_APP_SECRET;
+  if (!appSecret) {
+    console.error("[Meta Webhook] META_APP_SECRET is not configured");
+    return false;
+  }
+
+  if (!signatureHeader?.startsWith("sha256=")) {
+    console.warn("[Meta Webhook] Missing or invalid x-hub-signature-256 header");
+    return false;
+  }
+
+  const expected = createHmac("sha256", appSecret).update(rawBody).digest("hex");
+  const provided = signatureHeader.slice("sha256=".length);
+
+  if (expected.length !== provided.length) {
+    return false;
+  }
+
+  return timingSafeEqual(Buffer.from(expected), Buffer.from(provided));
+}
 
 // Types for Meta webhook events
 interface MetaWebhookEntry {
@@ -76,7 +99,14 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const rawBody = await request.text();
+    const signatureHeader = request.headers.get("x-hub-signature-256");
+
+    if (!verifyMetaSignature(rawBody, signatureHeader)) {
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    }
+
+    const body = JSON.parse(rawBody);
 
     console.log("[Meta Webhook] Event received:", JSON.stringify(body, null, 2));
 
