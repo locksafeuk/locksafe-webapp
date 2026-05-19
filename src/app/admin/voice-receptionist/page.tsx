@@ -1383,6 +1383,52 @@ function SettingsTab({ config, onUpdate }: { config: AgentConfig | null; onUpdat
 function CallDetailModal({ call, onClose }: { call: VoiceCall; onClose: () => void }) {
   const transcript = call?.transcript;
   const messages: Array<{ role: string; content: string }> = Array.isArray(transcript) ? transcript : [];
+  const [reviewSaving, setReviewSaving] = useState(false);
+  const [reviewMessage, setReviewMessage] = useState("");
+  const [labelsInput, setLabelsInput] = useState("");
+  const [naturalnessScore, setNaturalnessScore] = useState(4);
+  const [accuracyScore, setAccuracyScore] = useState(4);
+  const [empathyScore, setEmpathyScore] = useState(4);
+  const [complianceScore, setComplianceScore] = useState(4);
+  const [shouldEscalate, setShouldEscalate] = useState(false);
+  const [reviewNotes, setReviewNotes] = useState("");
+
+  const submitReview = async () => {
+    setReviewSaving(true);
+    setReviewMessage("");
+    try {
+      const labels = labelsInput
+        .split(",")
+        .map((x: string) => x.trim())
+        .filter((x: string) => x.length > 0);
+
+      const res = await fetch("/api/retell/reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          callId: call.id,
+          labels,
+          notes: reviewNotes,
+          naturalnessScore,
+          accuracyScore,
+          empathyScore,
+          complianceScore,
+          shouldEscalate,
+        }),
+      });
+
+      const data = await res.json();
+      if (data?.success) {
+        setReviewMessage("Review saved successfully.");
+      } else {
+        setReviewMessage(data?.error ?? "Failed to save review.");
+      }
+    } catch {
+      setReviewMessage("Failed to save review.");
+    } finally {
+      setReviewSaving(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -1476,6 +1522,50 @@ function CallDetailModal({ call, onClose }: { call: VoiceCall; onClose: () => vo
             </div>
           )}
 
+          <div className="bg-slate-50 rounded-lg p-4 space-y-3">
+            <h4 className="text-sm font-medium text-slate-800">QA Review</h4>
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">Labels (comma separated)</label>
+              <input
+                type="text"
+                value={labelsInput}
+                onChange={(e: any) => setLabelsInput(e?.target?.value ?? "")}
+                placeholder="natural, complete, compliant"
+                className="w-full px-3 py-2 rounded-md border border-slate-200 text-sm"
+              />
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <ScorePicker label="Naturalness" value={naturalnessScore} setValue={setNaturalnessScore} />
+              <ScorePicker label="Accuracy" value={accuracyScore} setValue={setAccuracyScore} />
+              <ScorePicker label="Empathy" value={empathyScore} setValue={setEmpathyScore} />
+              <ScorePicker label="Compliance" value={complianceScore} setValue={setComplianceScore} />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">Notes</label>
+              <textarea
+                value={reviewNotes}
+                onChange={(e: any) => setReviewNotes(e?.target?.value ?? "")}
+                className="w-full px-3 py-2 rounded-md border border-slate-200 text-sm h-20"
+                placeholder="What worked and what should improve"
+              />
+            </div>
+            <label className="flex items-center gap-2 text-xs text-slate-600">
+              <input
+                type="checkbox"
+                checked={shouldEscalate}
+                onChange={(e: any) => setShouldEscalate(Boolean(e?.target?.checked))}
+              />
+              Mark for escalation review
+            </label>
+            <div className="flex items-center gap-2">
+              <Button size="sm" onClick={submitReview} disabled={reviewSaving}>
+                {reviewSaving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}
+                Save QA Review
+              </Button>
+              {reviewMessage ? <span className="text-xs text-slate-600">{reviewMessage}</span> : null}
+            </div>
+          </div>
+
           {/* Revenue */}
           {(call?.estimatedRevenue ?? 0) > 0 && (
             <div className="bg-green-50 rounded-lg p-3 flex items-center gap-3">
@@ -1488,6 +1578,25 @@ function CallDetailModal({ call, onClose }: { call: VoiceCall; onClose: () => vo
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function ScorePicker({ label, value, setValue }: { label: string; value: number; setValue: (x: number) => void }) {
+  return (
+    <div>
+      <label className="block text-xs text-slate-500 mb-1">{label}</label>
+      <select
+        value={value}
+        onChange={(e: any) => setValue(parseInt(e?.target?.value ?? "4", 10))}
+        className="w-full px-2 py-2 rounded-md border border-slate-200 text-sm"
+      >
+        <option value={1}>1</option>
+        <option value={2}>2</option>
+        <option value={3}>3</option>
+        <option value={4}>4</option>
+        <option value={5}>5</option>
+      </select>
     </div>
   );
 }
