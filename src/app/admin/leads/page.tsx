@@ -404,17 +404,26 @@ export default function AdminLeadsPage() {
         {stats && (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             {[
-              { label: "Total", value: stats.total, colour: "text-slate-900" },
-              { label: "New", value: stats.new, colour: "text-blue-600" },
-              { label: "Contacted", value: stats.contacted, colour: "text-yellow-600" },
-              { label: "Replied", value: stats.replied, colour: "text-purple-600" },
-              { label: "Onboarded", value: stats.onboarded, colour: "text-emerald-600" },
-              { label: "Not Interested", value: stats.not_interested, colour: "text-slate-400" },
+              { key: "all", label: "Total", value: stats.total, colour: "text-slate-900" },
+              { key: "new", label: "New", value: stats.new, colour: "text-blue-600" },
+              { key: "contacted", label: "Contacted", value: stats.contacted, colour: "text-yellow-600" },
+              { key: "replied", label: "Replied", value: stats.replied, colour: "text-purple-600" },
+              { key: "onboarded", label: "Onboarded", value: stats.onboarded, colour: "text-emerald-600" },
+              { key: "not_interested", label: "Not Interested", value: stats.not_interested, colour: "text-slate-400" },
             ].map(s => (
-              <div key={s.label} className="bg-white rounded-xl border border-slate-200 p-4 text-center">
+              <button
+                key={s.label}
+                type="button"
+                onClick={() => setStatusFilter(s.key)}
+                className={`rounded-xl border p-4 text-center transition-colors ${
+                  statusFilter === s.key
+                    ? "bg-orange-50 border-orange-300"
+                    : "bg-white border-slate-200 hover:border-slate-300"
+                }`}
+              >
                 <div className={`text-2xl font-bold ${s.colour}`}>{s.value}</div>
                 <div className="text-xs text-slate-500 mt-0.5">{s.label}</div>
-              </div>
+              </button>
             ))}
           </div>
         )}
