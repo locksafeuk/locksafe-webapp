@@ -25,6 +25,14 @@ import * as dotenv from "dotenv";
 
 dotenv.config();
 
+// Catch anything that escapes the per-area try/catch so the process never dies silently
+process.on("uncaughtException", (err) => {
+  console.error("💥 uncaughtException:", err);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("💥 unhandledRejection:", reason);
+});
+
 const prisma = new PrismaClient();
 const API_KEY = process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
 if (!API_KEY) {
@@ -355,6 +363,23 @@ async function extractEmailFromWebsite(websiteUrl: string): Promise<string> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Progress file (resume support)
+// ─────────────────────────────────────────────────────────────────────────────
+const PROGRESS_FILE = "/tmp/bham-scrape-progress.json";
+
+function loadCompletedAreas(): string[] {
+  try {
+    if (fs.existsSync(PROGRESS_FILE)) return JSON.parse(fs.readFileSync(PROGRESS_FILE, "utf8"));
+  } catch { /* ignore */ }
+  return [];
+}
+
+function saveCompletedArea(area: string, completed: string[]) {
+  completed.push(area);
+  fs.writeFileSync(PROGRESS_FILE, JSON.stringify(completed, null, 2), "utf8");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Lead type
 // ─────────────────────────────────────────────────────────────────────────────
 interface Lead {
@@ -363,13 +388,17 @@ interface Lead {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Process a batch of Place results
+// Counters (module-level so processBatch can increment)
+// ─────────────────────────────────────────────────────────────────────────────
+let totalSaved = 0;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Process a batch of Place results — saves each lead to DB immediately
 // ─────────────────────────────────────────────────────────────────────────────
 async function processBatch(
   results: PlaceResult[],
   areaLabel: string,
-  seen: Set<string>,
-  leads: Lead[]
+  seen: Set<string>
 ) {
   for (const place of results) {
     if (seen.has(place.place_id)) continue;
@@ -385,19 +414,33 @@ async function processBatch(
 
     const phone = details.formatted_phone_number || details.international_phone_number || "";
     const email = await extractEmailFromWebsite(details.website || "");
-    leads.push({
-      placeId: place.place_id,
-      name: details.name,
-      city: areaLabel,
-      address: details.formatted_address || place.formatted_address,
-      phone,
-      email,
-      website: details.website || "",
-      rating: details.rating || 0,
-      reviewCount: details.user_ratings_total || 0,
-    });
     const tag = email ? `📧 ${email}` : "—";
     console.log(`   ✅ ${details.name} | ${phone || "no phone"} | ${tag}`);
+
+    // Save immediately — so a crash never loses data
+    try {
+      await (prisma as unknown as { locksmithLead: { upsert: (a: unknown) => Promise<unknown> } }).locksmithLead.upsert({
+        where: { googlePlaceId: place.place_id },
+        update: {
+          name: details.name, city: areaLabel,
+          address: details.formatted_address || place.formatted_address,
+          phone: phone || null, email: email || null,
+          website: details.website || null,
+          rating: details.rating || 0, reviewCount: details.user_ratings_total || 0,
+        },
+        create: {
+          googlePlaceId: place.place_id, name: details.name, city: areaLabel,
+          address: details.formatted_address || place.formatted_address,
+          phone: phone || null, email: email || null,
+          website: details.website || null,
+          rating: details.rating || 0, reviewCount: details.user_ratings_total || 0,
+          status: "new",
+        },
+      });
+      totalSaved++;
+    } catch (e) {
+      console.warn(`   ⚠  DB save failed for ${details.name}: ${e}`);
+    }
   }
 }
 
@@ -406,11 +449,13 @@ async function processBatch(
 // ─────────────────────────────────────────────────────────────────────────────
 async function main() {
   const doEnrich = process.argv.includes("--enrich");
+  const isResume = process.argv.includes("--resume");
 
   console.log("🏙  Birmingham & West Midlands hyper-local locksmith scrape\n");
   console.log(`   Areas:       ${BHAM_AREAS.length} named areas × 7 query types`);
   console.log(`   Grid points: ${GRID_POINTS.length} coordinate points × nearby search`);
-  console.log(`   Enrichment:  ${doEnrich ? "enabled" : "disabled (pass --enrich to enable)"}\n`);
+  console.log(`   Enrichment:  ${doEnrich ? "enabled" : "disabled (pass --enrich to enable)"}`);
+  console.log(`   Resume:      ${isResume ? "yes" : "no (pass --resume to skip completed areas)"}\n`);
 
   // Load existing place IDs so we don't double-process
   type R = { googlePlaceId: string };
@@ -420,7 +465,11 @@ async function main() {
   const seen = new Set<string>(existing.map((e) => e.googlePlaceId));
   console.log(`   Existing DB records: ${seen.size} (will skip these place IDs)\n`);
 
-  const leads: Lead[] = [];
+  const completedAreas = isResume ? loadCompletedAreas() : [];
+  if (isResume && completedAreas.length > 0) {
+    console.log(`   Resuming — ${completedAreas.length} areas already done.\n`);
+  }
+
   let phase1done = 0;
 
   // ── Phase 1: Named area text searches ────────────────────────────────────
@@ -429,22 +478,37 @@ async function main() {
   console.log("═══════════════════════════════════════════════════════\n");
 
   for (const area of BHAM_AREAS) {
+    if (completedAreas.includes(area)) {
+      console.log(`📍 ${area} ⏭  skipped`);
+      phase1done++;
+      continue;
+    }
     console.log(`\n📍 ${area}`);
-    for (const buildQuery of SEARCH_QUERIES) {
-      const query = buildQuery(area);
-      let pageToken: string | undefined;
-      let page = 0;
-      do {
-        if (page > 0) await sleep(2500);
-        const { results, nextPageToken } = await textSearch(query, pageToken);
-        pageToken = nextPageToken;
-        page++;
-        await processBatch(results, area, seen, leads);
-      } while (pageToken && page < 3);
-      await sleep(400);
+    try {
+      for (const buildQuery of SEARCH_QUERIES) {
+        const query = buildQuery(area);
+        let pageToken: string | undefined;
+        let page = 0;
+        do {
+          if (page > 0) await sleep(2500);
+          try {
+            const { results, nextPageToken } = await textSearch(query, pageToken);
+            pageToken = nextPageToken;
+            page++;
+            await processBatch(results, area, seen);
+          } catch (queryErr) {
+            console.warn(`   ⚠  Query failed for "${query}": ${queryErr}`);
+            break; // skip remaining pages for this query, continue to next
+          }
+        } while (pageToken && page < 3);
+        await sleep(400);
+      }
+    } catch (areaErr) {
+      console.warn(`   ⚠  Area ${area} failed: ${areaErr}`);
     }
     phase1done++;
-    console.log(`   → ${leads.length} new leads so far (${phase1done}/${BHAM_AREAS.length} areas done)`);
+    saveCompletedArea(area, completedAreas);
+    console.log(`   → ${totalSaved} total saved so far (${phase1done}/${BHAM_AREAS.length} areas done)`);
   }
 
   // ── Phase 2: Coordinate grid nearby searches ─────────────────────────────
@@ -453,44 +517,37 @@ async function main() {
   console.log("═══════════════════════════════════════════════════════\n");
 
   for (const point of GRID_POINTS) {
+    if (completedAreas.includes(point.label)) {
+      console.log(`🗺  ${point.label} ⏭  skipped`);
+      continue;
+    }
     console.log(`\n🗺  ${point.label} (${point.lat}, ${point.lng})`);
-    let pageToken: string | undefined;
-    let page = 0;
-    do {
-      if (page > 0) await sleep(2500);
-      const { results, nextPageToken } = await nearbySearch(point.lat, point.lng, pageToken);
-      pageToken = nextPageToken;
-      page++;
-      await processBatch(results, point.label, seen, leads);
-    } while (pageToken && page < 3);
-    console.log(`   → ${leads.length} new leads so far`);
-  }
-
-  console.log(`\n\n✨  Found ${leads.length} new Birmingham-area locksmiths.\n`);
-
-  // ── Save to DB ─────────────────────────────────────────────────────────────
-  console.log("💾  Saving to database…");
-  let saved = 0, skipped = 0;
-  for (const lead of leads) {
     try {
-      await (prisma as unknown as { locksmithLead: { upsert: (a: unknown) => Promise<unknown> } }).locksmithLead.upsert({
-        where: { googlePlaceId: lead.placeId },
-        update: {
-          name: lead.name, city: lead.city, address: lead.address,
-          phone: lead.phone || null, email: lead.email || null,
-          website: lead.website || null, rating: lead.rating, reviewCount: lead.reviewCount,
-        },
-        create: {
-          googlePlaceId: lead.placeId, name: lead.name, city: lead.city, address: lead.address,
-          phone: lead.phone || null, email: lead.email || null,
-          website: lead.website || null, rating: lead.rating, reviewCount: lead.reviewCount,
-          status: "new",
-        },
-      });
-      saved++;
-    } catch { skipped++; }
+      let pageToken: string | undefined;
+      let page = 0;
+      do {
+        if (page > 0) await sleep(2500);
+        try {
+          const { results, nextPageToken } = await nearbySearch(point.lat, point.lng, pageToken);
+          pageToken = nextPageToken;
+          page++;
+          await processBatch(results, point.label, seen);
+        } catch (pageErr) {
+          console.warn(`   ⚠  Nearby page failed for ${point.label}: ${pageErr}`);
+          break;
+        }
+      } while (pageToken && page < 3);
+    } catch (pointErr) {
+      console.warn(`   ⚠  Grid point ${point.label} failed: ${pointErr}`);
+    }
+    saveCompletedArea(point.label, completedAreas);
+    console.log(`   → ${totalSaved} total saved so far`);
   }
-  console.log(`   Saved: ${saved}  |  Skipped (errors): ${skipped}`);
+
+  // Clean up progress file on successful completion
+  try { fs.unlinkSync(PROGRESS_FILE); } catch { /* ignore */ }
+
+  console.log(`\n\n✨  Scrape complete — ${totalSaved} new Birmingham-area locksmiths saved.\n`);
 
   // ── Optional email enrichment ─────────────────────────────────────────────
   if (doEnrich) {
@@ -523,7 +580,7 @@ async function main() {
     console.log(`\n   Enriched: ${enriched} leads`);
   }
 
-  console.log("\n🎉  Birmingham deep scrape complete!\n");
+  console.log("🎉  Birmingham deep scrape complete!\n");
   await prisma.$disconnect();
 }
 
