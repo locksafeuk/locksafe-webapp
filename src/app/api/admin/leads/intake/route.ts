@@ -3,6 +3,69 @@ import { verifyToken } from "@/lib/auth";
 import prisma from "@/lib/db";
 import { sendAdminAlert } from "@/lib/telegram";
 
+type IntakeTouchKickoff = {
+  track: "independent" | "manager";
+  sent: number;
+  failed: number;
+  attempted: number;
+  message?: string;
+};
+
+async function triggerImmediateTouchOne(baseUrl: string, cronSecret: string): Promise<IntakeTouchKickoff[]> {
+  const tracks: Array<"independent" | "manager"> = ["independent", "manager"];
+  const results: IntakeTouchKickoff[] = [];
+
+  for (const track of tracks) {
+    try {
+      const response = await fetch(`${baseUrl}/api/admin/leads/send-invite`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          authorization: `Bearer ${cronSecret}`,
+        },
+        body: JSON.stringify({
+          mode: "sequence",
+          touch: 1,
+          track,
+          subjectStyle: "benefit",
+          variant: 1,
+        }),
+        cache: "no-store",
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        results.push({
+          track,
+          sent: 0,
+          failed: 0,
+          attempted: 0,
+          message: data?.error || `HTTP ${response.status}`,
+        });
+        continue;
+      }
+
+      results.push({
+        track,
+        sent: Number(data?.sent || 0),
+        failed: Number(data?.failed || 0),
+        attempted: Number(data?.sequence?.attempted || 0),
+        message: typeof data?.message === "string" ? data.message : undefined,
+      });
+    } catch (error) {
+      results.push({
+        track,
+        sent: 0,
+        failed: 0,
+        attempted: 0,
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+
+  return results;
+}
+
 /**
  * POST /api/admin/leads/intake
  *
@@ -86,13 +149,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_BASE_URL || request.nextUrl.origin).replace(/\/$/, "");
+    const cronSecret = process.env.CRON_SECRET;
+    const immediateTouchResults = cronSecret
+      ? await triggerImmediateTouchOne(baseUrl, cronSecret)
+      : [];
+
     // 4. Send Telegram alert to admin
+    const immediateSummary = immediateTouchResults.length > 0
+      ? immediateTouchResults
+          .map((result) => `  - ${result.track}: sent ${result.sent}/${result.attempted}${result.message ? ` (${result.message})` : ""}`)
+          .join("\n")
+      : "  - skipped (CRON_SECRET missing)";
+
     const summary = `
 • Batch ID: \`${batchId}\`
 • New leads in batch: ${leadCount}
 • Total uncontacted in queue: ${uncontactedCount}
 • Source: ${source}
 • Time: ${new Date().toISOString()}
+• Immediate touch-1 kickoff:
+${immediateSummary}
 
 Agent will start outreach immediately for eligible leads.
     `.trim();
@@ -117,6 +194,7 @@ Agent will start outreach immediately for eligible leads.
         nextOutreachTime: "Immediately via cron (next 30-min window)",
         estimatedTouchCount: uncontactedCount, // Each gets Touch 1
       },
+      immediateTouch1: immediateTouchResults,
       message: `Batch ${batchId} received and queued for autonomous outreach.`,
     });
   } catch (error) {

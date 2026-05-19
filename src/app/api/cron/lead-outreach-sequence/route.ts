@@ -14,6 +14,9 @@ type SequenceResult = {
   message?: string;
 };
 
+const UK_SEND_WINDOW_START_HOUR = 7;
+const UK_SEND_WINDOW_END_HOUR = 21;
+
 function hasCronAuth(request: NextRequest): boolean {
   if (request.headers.get("x-vercel-cron") === "1") return true;
   const auth = request.headers.get("authorization");
@@ -29,6 +32,22 @@ function pickStyle(date: Date): Style {
 function pickVariant(date: Date): 1 | 2 | 3 {
   const n = (date.getUTCDate() % 3) + 1;
   return n as 1 | 2 | 3;
+}
+
+function getUkHour(date: Date): number {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    hour: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
+  return Number.isFinite(hour) ? hour : 0;
+}
+
+function isWithinUkSendWindow(date: Date): boolean {
+  const hour = getUkHour(date);
+  return hour >= UK_SEND_WINDOW_START_HOUR && hour < UK_SEND_WINDOW_END_HOUR;
 }
 
 async function runTouch(baseUrl: string, authHeader: string, payload: {
@@ -92,6 +111,23 @@ export async function GET(request: NextRequest) {
 
   const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_BASE_URL || "https://www.locksafe.uk").replace(/\/$/, "");
   const now = new Date();
+
+  if (!isWithinUkSendWindow(now)) {
+    const ukHour = getUkHour(now);
+    return NextResponse.json({
+      success: true,
+      runAt: now.toISOString(),
+      skipped: true,
+      message: `Outside UK outreach send window (07:00-21:00). Current UK hour: ${ukHour}:00`,
+      summary: {
+        attempted: 0,
+        sent: 0,
+        failed: 0,
+      },
+      results: [],
+    });
+  }
+
   const style = pickStyle(now);
   const variant = pickVariant(now);
   const authHeader = `Bearer ${cronSecret}`;

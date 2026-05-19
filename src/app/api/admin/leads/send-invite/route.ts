@@ -22,8 +22,27 @@ type LeadForOutreach = {
   notes: string | null;
 };
 
+const UK_SEND_WINDOW_START_HOUR = 7;
+const UK_SEND_WINDOW_END_HOUR = 21;
+
 function daysBetween(from: Date, to: Date) {
   return (to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24);
+}
+
+function getUkHour(date: Date): number {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    hour: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
+  return Number.isFinite(hour) ? hour : 0;
+}
+
+function isWithinUkSendWindow(date: Date): boolean {
+  const hour = getUkHour(date);
+  return hour >= UK_SEND_WINDOW_START_HOUR && hour < UK_SEND_WINDOW_END_HOUR;
 }
 
 function variantKey(track: OutreachTrack, style: OutreachSubjectStyle, touch: number, variant: number) {
@@ -288,7 +307,29 @@ export async function POST(req: NextRequest) {
   const style: OutreachSubjectStyle = body.subjectStyle === "direct" ? "direct" : "benefit";
   const touch = Number(body.touch || 1);
   const variant = Number(body.variant || 1);
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://www.locksafe.uk";
+  const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_BASE_URL || "https://www.locksafe.uk").replace(/\/$/, "");
+  const now = new Date();
+
+  if (!isWithinUkSendWindow(now)) {
+    const ukHour = getUkHour(now);
+    return NextResponse.json(
+      {
+        sent: 0,
+        failed: 0,
+        results: [],
+        sequence: {
+          mode,
+          track,
+          style,
+          touch: mode === "sequence" ? touch : 1,
+          variant,
+          attempted: 0,
+        },
+        message: `Outreach sends are allowed only between 07:00 and 21:00 UK time. Current UK hour: ${ukHour}:00`,
+      },
+      { status: 200 },
+    );
+  }
 
   let targets: LeadForOutreach[] = [];
 
