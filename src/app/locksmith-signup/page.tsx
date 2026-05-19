@@ -36,6 +36,12 @@ const RADIUS_OPTIONS = [
   { value: 50, label: "50 miles" },
 ];
 
+// Restrict signup to UK + Ireland (incl. Crown Dependencies). Bounding box
+// covers Shetland → Channel Islands and western Ireland → East Anglia.
+function isUkOrIreland(lat: number, lng: number): boolean {
+  return lat >= 49.0 && lat <= 61.0 && lng >= -10.8 && lng <= 2.1;
+}
+
 export default function LocksmithSignupPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -71,6 +77,11 @@ export default function LocksmithSignupPage() {
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
+        if (!isUkOrIreland(latitude, longitude)) {
+          setError("LockSafe partners are currently only accepted in the United Kingdom and Ireland.");
+          setLocationLoading(false);
+          return;
+        }
         setBaseLat(latitude);
         setBaseLng(longitude);
 
@@ -125,8 +136,14 @@ export default function LocksmithSignupPage() {
 
       if (data && data.length > 0) {
         const { lat, lon, display_name } = data[0];
-        setBaseLat(Number.parseFloat(lat));
-        setBaseLng(Number.parseFloat(lon));
+        const parsedLat = Number.parseFloat(lat);
+        const parsedLng = Number.parseFloat(lon);
+        if (!isUkOrIreland(parsedLat, parsedLng)) {
+          setError("LockSafe partners are currently only accepted in the United Kingdom and Ireland.");
+          return;
+        }
+        setBaseLat(parsedLat);
+        setBaseLng(parsedLng);
         // Extract a shorter address
         const parts = display_name.split(", ");
         const shortAddress = parts.slice(0, 3).join(", ");
@@ -163,6 +180,12 @@ export default function LocksmithSignupPage() {
     // Location validation
     if (!baseLat || !baseLng) {
       setError("Please set your base location to continue");
+      setLoading(false);
+      return;
+    }
+
+    if (!isUkOrIreland(baseLat, baseLng)) {
+      setError("LockSafe partners are currently only accepted in the United Kingdom and Ireland.");
       setLoading(false);
       return;
     }

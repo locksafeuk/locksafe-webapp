@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { sendLocksmithVerifiedEmail } from "@/lib/email";
+import { isInUkOrIreland } from "@/lib/geo-guard";
 
 // GET /api/locksmiths/[id] - Get locksmith public profile with reviews
 export async function GET(
@@ -251,6 +252,21 @@ export async function PATCH(
     for (const field of allowedFields) {
       if (updateData[field] !== undefined) {
         filteredData[field] = updateData[field];
+      }
+    }
+
+    // If base location is being changed, enforce UK + Ireland restriction
+    if (filteredData.baseLat !== undefined || filteredData.baseLng !== undefined) {
+      const newLat = Number(filteredData.baseLat ?? updateData.baseLat);
+      const newLng = Number(filteredData.baseLng ?? updateData.baseLng);
+      if (Number.isFinite(newLat) && Number.isFinite(newLng)) {
+        const geoCheck = await isInUkOrIreland(newLat, newLng);
+        if (!geoCheck.ok) {
+          return NextResponse.json(
+            { success: false, error: geoCheck.reason ?? "Location not supported" },
+            { status: 400 }
+          );
+        }
       }
     }
 

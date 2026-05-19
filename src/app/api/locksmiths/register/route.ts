@@ -3,6 +3,7 @@ import prisma from "@/lib/db";
 import { hashPassword, generateToken, AUTH_COOKIE_OPTIONS } from "@/lib/auth";
 import { notifyNewLocksmith } from "@/lib/telegram";
 import { sendLocksmithWelcomeEmail } from "@/lib/email";
+import { isInUkOrIreland } from "@/lib/geo-guard";
 
 // POST - Locksmith registration
 export async function POST(request: NextRequest) {
@@ -31,6 +32,15 @@ export async function POST(request: NextRequest) {
     if (!baseLat || !baseLng) {
       return NextResponse.json(
         { success: false, error: "Base location is required" },
+        { status: 400 }
+      );
+    }
+
+    // Restrict to UK + Ireland (incl. Crown Dependencies)
+    const geoCheck = await isInUkOrIreland(Number(baseLat), Number(baseLng));
+    if (!geoCheck.ok) {
+      return NextResponse.json(
+        { success: false, error: geoCheck.reason ?? "Location not supported" },
         { status: 400 }
       );
     }
