@@ -17,20 +17,15 @@ export async function GET(req: NextRequest) {
   const admin = await verifyAdmin();
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Keep dashboard statuses in sync with actual engagement and signup outcomes.
+  // Cap sync to recently-contacted leads only (max 200) to avoid timeout on large DB.
   const leadsForSync = await prisma.locksmithLead.findMany({
     where: {
-      OR: [
-        { status: { in: ["new", "contacted", "replied"] } },
-        { email: { not: null }, status: { not: "onboarded" } },
-      ],
+      status: { in: ["contacted", "replied"] },
+      contactedAt: { not: null },
     },
-    select: {
-      id: true,
-      email: true,
-      status: true,
-      notes: true,
-    },
+    select: { id: true, email: true, status: true, notes: true },
+    orderBy: { contactedAt: "desc" },
+    take: 200,
   });
 
   const leadEmails = Array.from(
@@ -60,10 +55,7 @@ export async function GET(req: NextRequest) {
       syncUpdates.push(
         prisma.locksmithLead.update({
           where: { id: lead.id },
-          data: {
-            status: "onboarded",
-            contactedBy: "auto-onboard-sync",
-          },
+          data: { status: "onboarded", contactedBy: "auto-onboard-sync" },
         })
       );
       continue;
@@ -76,10 +68,7 @@ export async function GET(req: NextRequest) {
         syncUpdates.push(
           prisma.locksmithLead.update({
             where: { id: lead.id },
-            data: {
-              status: "replied",
-              contactedBy: "auto-click-sync",
-            },
+            data: { status: "replied", contactedBy: "auto-click-sync" },
           })
         );
       }
@@ -94,6 +83,9 @@ export async function GET(req: NextRequest) {
   const status = searchParams.get("status");
   const city = searchParams.get("city");
   const search = searchParams.get("search");
+  const page = Math.max(1, Number(searchParams.get("page") || "1"));
+  const limit = Math.min(200, Math.max(10, Number(searchParams.get("limit") || "100")));
+  const skip = (page - 1) * limit;
 
   const where: Record<string, unknown> = {};
   if (status && status !== "all") where.status = status;
@@ -106,10 +98,15 @@ export async function GET(req: NextRequest) {
     ];
   }
 
-  const leads = await prisma.locksmithLead.findMany({
-    where,
-    orderBy: [{ status: "asc" }, { reviewCount: "desc" }],
-  });
+  const [leads, filteredTotal] = await Promise.all([
+    prisma.locksmithLead.findMany({
+      where,
+      orderBy: [{ status: "asc" }, { reviewCount: "desc" }],
+      take: limit,
+      skip,
+    }),
+    prisma.locksmithLead.count({ where }),
+  ]);
 
   const cities = await prisma.locksmithLead.findMany({
     distinct: ["city"],
@@ -117,20 +114,36 @@ export async function GET(req: NextRequest) {
     orderBy: { city: "asc" },
   });
 
+  const [totalCount, newCount, contactedCount, repliedCount, onboardedCount, notInterestedCount] =
+    await Promise.all([
+      prisma.locksmithLead.count(),
+      prisma.locksmithLead.count({ where: { status: "new" } }),
+      prisma.locksmithLead.count({ where: { status: "contacted" } }),
+      prisma.locksmithLead.count({ where: { status: "replied" } }),
+      prisma.locksmithLead.count({ where: { status: "onboarded" } }),
+      prisma.locksmithLead.count({ where: { status: "not_interested" } }),
+    ]);
+
   const stats = {
-    total: await prisma.locksmithLead.count(),
-    new: await prisma.locksmithLead.count({ where: { status: "new" } }),
-    contacted: await prisma.locksmithLead.count({ where: { status: "contacted" } }),
-    replied: await prisma.locksmithLead.count({ where: { status: "replied" } }),
-    onboarded: await prisma.locksmithLead.count({ where: { status: "onboarded" } }),
-    not_interested: await prisma.locksmithLead.count({ where: { status: "not_interested" } }),
+    total: totalCount,
+    new: newCount,
+    contacted: contactedCount,
+    replied: repliedCount,
+    onboarded: onboardedCount,
+    not_interested: notInterestedCount,
   };
 
   const outreachStats = aggregateOutreachStats(
     leads.map((lead) => ({ status: lead.status, notes: lead.notes }))
   );
 
-  return NextResponse.json({ leads, cities: cities.map(c => c.city), stats, outreachStats });
+  return NextResponse.json({
+    leads,
+    cities: cities.map(c => c.city),
+    stats,
+    outreachStats,
+    pagination: { page, limit, total: filteredTotal, pages: Math.ceil(filteredTotal / limit) },
+  });
 }
 
 export async function PATCH(req: NextRequest) {

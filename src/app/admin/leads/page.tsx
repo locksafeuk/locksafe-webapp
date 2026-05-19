@@ -54,6 +54,13 @@ interface Stats {
   not_interested: number;
 }
 
+interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  pages: number;
+}
+
 interface OutreachVariantStat {
   key: string;
   sends: number;
@@ -84,10 +91,12 @@ export default function AdminLeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [cities, setCities] = useState<string[]>([]);
+  const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 100, total: 0, pages: 1 });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [cityFilter, setCityFilter] = useState("all");
+  const [page, setPage] = useState(1);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [inviteSending, setInviteSending] = useState<string | null>(null);
@@ -130,6 +139,8 @@ export default function AdminLeadsPage() {
       if (statusFilter !== "all") params.set("status", statusFilter);
       if (cityFilter !== "all") params.set("city", cityFilter);
       if (search) params.set("search", search);
+      params.set("page", String(page));
+      params.set("limit", "100");
       const res = await fetch(`/api/admin/leads?${params}`);
       const data = await res.json();
       if (!res.ok) return;
@@ -137,12 +148,16 @@ export default function AdminLeadsPage() {
       setStats(data.stats || null);
       setCities(data.cities || []);
       setOutreachStats(data.outreachStats || null);
+      if (data.pagination) setPagination(data.pagination);
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, cityFilter, search]);
+  }, [statusFilter, cityFilter, search, page]);
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => { setPage(1); }, [statusFilter, cityFilter, search]);
 
   const updateStatus = async (id: string, status: string) => {
     setActionLoading(id + status);
@@ -334,6 +349,7 @@ export default function AdminLeadsPage() {
     setSearch("");
     setStatusFilter("all");
     setCityFilter("all");
+    setPage(1);
   };
 
   return (
@@ -816,10 +832,33 @@ export default function AdminLeadsPage() {
             </div>
           )}
 
-          {/* Footer count */}
+          {/* Footer: count + pagination */}
           {!loading && leads.length > 0 && (
-            <div className="px-4 py-3 border-t border-slate-100 text-sm text-slate-500">
-              Showing {leads.length} lead{leads.length !== 1 ? "s" : ""}
+            <div className="px-4 py-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+              <span className="text-sm text-slate-500">
+                Showing {((pagination.page - 1) * pagination.limit) + 1}–{Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total.toLocaleString()} lead{pagination.total !== 1 ? "s" : ""}
+              </span>
+              {pagination.pages > 1 && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={pagination.page <= 1}
+                    className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg disabled:opacity-40 hover:bg-slate-50"
+                  >
+                    ← Prev
+                  </button>
+                  <span className="px-3 py-1.5 text-sm text-slate-600">
+                    {pagination.page} / {pagination.pages}
+                  </span>
+                  <button
+                    onClick={() => setPage(p => Math.min(pagination.pages, p + 1))}
+                    disabled={pagination.page >= pagination.pages}
+                    className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg disabled:opacity-40 hover:bg-slate-50"
+                  >
+                    Next →
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
