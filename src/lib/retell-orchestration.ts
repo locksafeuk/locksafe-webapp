@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { Retell } from "retell-sdk";
 
 type PublishResult = {
   ok: boolean;
@@ -24,40 +25,41 @@ async function syncVersionToRetell(params: {
     };
   }
 
-  // Best-effort Retell sync. If endpoint contracts change, we still keep
-  // local deployment audit trail and return a clear error.
-  const response = await fetch(`https://api.retellai.com/v2/agent/${params.agentId}`, {
-    method: "PATCH",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      llm_id: params.llmId ?? undefined,
-      prompt: params.systemPrompt,
-      language: params.language,
-      voice_id: params.voiceId ?? undefined,
-      speaking_rate: params.speakingRate,
-      first_message: params.greetingMessage ?? undefined,
-    }),
-  });
+  try {
+    const client = new Retell({ apiKey });
 
-  if (!response.ok) {
-    const text = await response.text();
+    const existingAgent = await client.agent.retrieve(params.agentId);
+    const derivedLlmId =
+      params.llmId ??
+      (((existingAgent as any)?.response_engine?.type === "retell-llm"
+        ? (existingAgent as any)?.response_engine?.llm_id
+        : null) as string | null);
+
+    if (derivedLlmId) {
+      await client.llm.update(derivedLlmId, {
+        general_prompt: params.systemPrompt,
+        begin_message: params.greetingMessage ?? undefined,
+      } as any);
+    }
+
+    const updatedAgent = await client.agent.update(params.agentId, {
+      language: params.language as any,
+      voice_id: params.voiceId ?? undefined,
+      voice_speed: params.speakingRate,
+    } as any);
+
+    const providerVersionId =
+      String((updatedAgent as any)?.version ?? "") ||
+      `${params.agentId}:${Date.now()}`;
+
+    return { ok: true, providerVersionId };
+  } catch (error: any) {
     return {
       ok: false,
       providerVersionId: null,
-      message: `Retell sync failed (${response.status}): ${text.slice(0, 500)}`,
+      message: `Retell sync failed: ${error?.message ?? "Unknown Retell SDK error"}`,
     };
   }
-
-  const data = (await response.json()) as Record<string, any>;
-  const providerVersionId =
-    (typeof data?.version_id === "string" && data.version_id) ||
-    (typeof data?.id === "string" && data.id) ||
-    `${params.agentId}:${Date.now()}`;
-
-  return { ok: true, providerVersionId };
 }
 
 export async function publishVoiceConfigVersion(params: {
