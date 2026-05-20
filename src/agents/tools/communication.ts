@@ -343,21 +343,28 @@ Time: ${new Date().toISOString()}`);
  */
 export const createRepairTaskTool: AgentTool = {
   name: "createRepairTask",
-  description: "Create a remediation task when heartbeat or tool execution errors are detected",
+  description:
+    "Create a remediation task for ANOTHER agent only when you have evidence of a concrete failure " +
+    "(specific error message, failed AgentExecution row, or observed symptom). " +
+    "Valid targetAgent values are EXACTLY: ceo, coo, cmo, cto, copywriter, ads-specialist, social-media. " +
+    "errorSummary MUST be at least 20 characters and cite the actual error. " +
+    "Do NOT file repair tasks against generic names like 'agent1', 'agent2', 'site', 'monitor' — they will be rejected.",
   category: "communication",
-  permissions: ["repair_system", "ceo", "cto"],
+  permissions: ["repair_system", "ceo"],
   parameters: [
     {
       name: "targetAgent",
       type: "string",
       required: true,
-      description: "Agent name that should own the remediation task (e.g. cto, cmo)",
+      description:
+        "Target agent name. MUST be one of: ceo, coo, cmo, cto, copywriter, ads-specialist, social-media.",
     },
     {
       name: "errorSummary",
       type: "string",
       required: true,
-      description: "Short summary of the failure that needs fixing",
+      description:
+        "Concrete failure description (>=20 chars). Must cite a specific error, failed run id, or observed symptom — not 'agent failure' or other placeholders.",
     },
     {
       name: "recommendedAction",
@@ -384,6 +391,37 @@ export const createRepairTaskTool: AgentTool = {
     }
     if (!errorSummary) {
       return { success: false, error: "errorSummary is required" };
+    }
+
+    // Validate against live agents to block hallucinated names (agent1, agent2, site, monitor, ...).
+    const { prisma } = await import("@/lib/prisma");
+    const knownNames = (await prisma.agent.findMany({ select: { name: true } })).map((a) => a.name);
+    if (!knownNames.includes(targetAgent)) {
+      return {
+        success: false,
+        error:
+          `Repair task rejected: targetAgent "${targetAgent}" does not exist. ` +
+          `Valid agent names are: ${knownNames.join(", ")}. ` +
+          `Do NOT retry with invented names. If unsure which agent owns the failure, do nothing this cycle.`,
+      };
+    }
+
+    // Reject placeholder/templated summaries that have been driving the loop.
+    const placeholderSummaries = new Set([
+      "agent failure",
+      "investigate and resolve agent failure",
+      "unknown failure",
+      "error detected",
+    ]);
+    if (errorSummary.length < 20 || placeholderSummaries.has(errorSummary.toLowerCase())) {
+      return {
+        success: false,
+        error:
+          `Repair task rejected: errorSummary must be >=20 chars and cite a concrete failure ` +
+          `(specific error message, failed run id, or observed symptom). ` +
+          `Generic phrases like "agent failure" are not accepted. ` +
+          `If you have no concrete evidence, do NOT file a repair task.`,
+      };
     }
 
     const boundedPriority = Number.isFinite(priority)
