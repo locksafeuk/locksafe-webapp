@@ -6,7 +6,7 @@
   <title>LockSafe UK — Partner Presentation</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:wght@700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;0,800;0,900;1,700;1,900&display=swap" rel="stylesheet">
   <style>
     :root {
       --bg-0: #03081a;
@@ -19,12 +19,15 @@
       --line: #1f3563;
       --line-soft: #16284f;
       --gold: #d6b357;
+      --gold-2: #e6c97a;
       --gold-soft: #f0d68a;
       --accent: #5fa7ff;
       --accent-soft: #8cc0ff;
       --green: #2ad28a;
       --red: #ff7878;
-      --shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+      --shadow-lg: 0 30px 80px rgba(0, 0, 0, 0.55);
+      --shadow-card: 0 10px 30px rgba(0, 0, 0, 0.35);
+      --slide-duration: 9s;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
@@ -41,203 +44,366 @@
       position: fixed;
       inset: 0;
       background:
-        radial-gradient(1100px 700px at 85% -10%, rgba(95, 167, 255, 0.18) 0%, transparent 60%),
-        radial-gradient(900px 600px at -5% 110%, rgba(214, 179, 87, 0.14) 0%, transparent 60%),
-        radial-gradient(800px 500px at 50% 50%, rgba(40, 80, 160, 0.10) 0%, transparent 70%);
+        radial-gradient(1100px 700px at 88% -10%, rgba(95, 167, 255, 0.20) 0%, transparent 60%),
+        radial-gradient(900px 600px at -5% 110%, rgba(214, 179, 87, 0.16) 0%, transparent 60%),
+        radial-gradient(700px 500px at 50% 50%, rgba(40, 80, 160, 0.10) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+      background-size: 64px 64px;
+      mask-image: radial-gradient(ellipse at center, rgba(0,0,0,0.7) 0%, transparent 75%);
+      -webkit-mask-image: radial-gradient(ellipse at center, rgba(0,0,0,0.7) 0%, transparent 75%);
       pointer-events: none;
       z-index: 0;
     }
 
+    /* Top progress bar */
     .progress {
       position: fixed; top: 0; left: 0; right: 0;
-      height: 3px; background: rgba(255, 255, 255, 0.06); z-index: 100;
+      height: 3px;
+      background: rgba(255, 255, 255, 0.06);
+      z-index: 100;
     }
     .progress > .fill {
       height: 100%;
-      background: linear-gradient(90deg, var(--gold), var(--accent));
-      width: 0%; transition: width 0.4s ease;
+      background: linear-gradient(90deg, var(--gold) 0%, var(--gold-2) 50%, var(--accent) 100%);
+      width: 0%;
+      transition: width 0.5s cubic-bezier(.2,.7,.2,1);
+      box-shadow: 0 0 20px rgba(214, 179, 87, 0.6);
     }
 
+    /* Top bar */
     .topbar {
-      position: fixed; top: 14px; left: 24px; right: 24px;
+      position: fixed;
+      top: 16px; left: 28px; right: 28px;
       display: flex; justify-content: space-between; align-items: center;
-      z-index: 90; pointer-events: none;
+      z-index: 90;
+      pointer-events: none;
     }
     .brand {
-      pointer-events: auto; display: flex; align-items: center; gap: 10px;
-      font-weight: 800; letter-spacing: 0.6px; font-size: 14px; color: var(--ink);
+      pointer-events: auto;
+      display: flex; align-items: center; gap: 12px;
+      font: 800 14px 'Inter', sans-serif;
+      letter-spacing: 0.6px;
+      color: var(--ink);
     }
-    .brand .dot {
-      width: 10px; height: 10px; border-radius: 50%;
-      background: var(--gold); box-shadow: 0 0 18px rgba(214, 179, 87, 0.7);
+    .brand .mark {
+      width: 32px; height: 32px;
+      border-radius: 9px;
+      background: linear-gradient(135deg, var(--gold) 0%, var(--gold-2) 100%);
+      display: flex; align-items: center; justify-content: center;
+      color: #1a1304; font-weight: 900; font-size: 13px;
+      box-shadow: 0 6px 18px rgba(214, 179, 87, 0.45);
     }
     .brand b { color: var(--gold); font-weight: 800; }
-    .topbar .right { pointer-events: auto; display: flex; gap: 8px; }
+
+    .topbar .right { pointer-events: auto; display: flex; gap: 8px; align-items: center; }
     .btn {
-      border: 1px solid var(--line); background: rgba(8, 18, 40, 0.7);
-      color: var(--ink-soft); padding: 8px 14px; border-radius: 999px;
-      font: 600 12px 'Inter', sans-serif; letter-spacing: 0.4px; cursor: pointer;
-      backdrop-filter: blur(10px); transition: all 0.2s ease;
+      border: 1px solid var(--line);
+      background: rgba(8, 18, 40, 0.7);
+      color: var(--ink-soft);
+      padding: 9px 16px;
+      border-radius: 999px;
+      font: 600 12px 'Inter', sans-serif;
+      letter-spacing: 0.4px;
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+      transition: all 0.2s ease;
     }
     .btn:hover { border-color: var(--gold); color: var(--gold-soft); }
 
+    /* Stage = horizontal track */
     .stage {
-      position: relative; height: 100vh; overflow-y: scroll;
-      scroll-snap-type: y mandatory; scroll-behavior: smooth; z-index: 1;
+      position: relative;
+      height: 100vh;
+      width: 100vw;
+      overflow-x: scroll;
+      overflow-y: hidden;
+      scroll-snap-type: x mandatory;
+      scroll-behavior: smooth;
+      z-index: 1;
+      display: flex;
+      flex-direction: row;
     }
     .stage::-webkit-scrollbar { display: none; }
 
     .slide {
-      position: relative; min-height: 100vh;
-      padding: 80px 8vw 120px;
-      scroll-snap-align: start; scroll-snap-stop: always;
-      display: flex; flex-direction: column; justify-content: center;
-      animation: fadeUp 0.7s ease both;
+      position: relative;
+      flex: 0 0 100vw;
+      width: 100vw;
+      height: 100vh;
+      padding: 84px 7vw 110px;
+      scroll-snap-align: start;
+      scroll-snap-stop: always;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      overflow: hidden;
     }
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(18px); }
-      to { opacity: 1; transform: translateY(0); }
+    .slide.active .slide-inner { animation: enterIn 0.85s cubic-bezier(.2,.7,.2,1) both; }
+    .slide-inner { width: 100%; max-width: 1280px; margin: 0 auto; }
+    @keyframes enterIn {
+      from { opacity: 0; transform: translateY(28px) scale(0.985); filter: blur(6px); }
+      to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
     }
 
     .slide-num {
-      position: absolute; top: 70px; left: 8vw;
-      font: 700 11px 'Inter', sans-serif; letter-spacing: 3px;
-      color: var(--gold); text-transform: uppercase;
+      position: absolute; top: 76px; left: 7vw;
+      font: 700 11px 'Inter', sans-serif;
+      letter-spacing: 3px;
+      color: var(--gold);
+      text-transform: uppercase;
     }
     .slide-num::before {
-      content: ""; display: inline-block; width: 28px; height: 1px;
-      background: var(--gold); vertical-align: middle;
-      margin-right: 12px; transform: translateY(-2px);
+      content: ""; display: inline-block;
+      width: 32px; height: 1px;
+      background: var(--gold);
+      vertical-align: middle;
+      margin-right: 12px;
+      transform: translateY(-2px);
     }
 
     .footer-bar {
-      position: absolute; bottom: 32px; left: 8vw; right: 8vw;
-      display: flex; justify-content: space-between; align-items: center;
-      font: 500 11px 'Inter', sans-serif; color: var(--muted);
-      letter-spacing: 1.2px; text-transform: uppercase;
+      position: absolute;
+      bottom: 36px; left: 7vw; right: 7vw;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font: 500 11px 'Inter', sans-serif;
+      color: var(--muted);
+      letter-spacing: 1.4px;
+      text-transform: uppercase;
     }
 
     h1, h2, h3 {
       font-family: 'Playfair Display', Georgia, serif;
-      color: #ffffff; letter-spacing: -0.5px;
+      color: #ffffff;
+      letter-spacing: -0.5px;
     }
-    h1 { font-size: clamp(48px, 7vw, 96px); line-height: 1; font-weight: 800; }
-    h2 { font-size: clamp(36px, 4.5vw, 60px); line-height: 1.05; font-weight: 700; margin-bottom: 24px; }
-    h3 { font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 8px;
-         font-family: 'Inter', sans-serif; letter-spacing: 0; }
-    p { color: var(--ink-soft); line-height: 1.6; font-size: 16px; }
-    .lead { font-size: clamp(18px, 1.6vw, 22px); color: #d8e3fa; line-height: 1.55; max-width: 880px; }
+    h1 { font-size: clamp(48px, 6.4vw, 92px); line-height: 1; font-weight: 800; }
+    h2 {
+      font-size: clamp(34px, 4vw, 56px);
+      line-height: 1.05; font-weight: 700;
+      margin-bottom: 22px;
+    }
+    h3 {
+      font-size: 19px; font-weight: 700; color: #fff;
+      margin-bottom: 8px;
+      font-family: 'Inter', sans-serif; letter-spacing: 0;
+    }
+    p { color: var(--ink-soft); line-height: 1.6; font-size: 15px; }
+    .lead { font-size: clamp(17px, 1.4vw, 21px); color: #d8e3fa; line-height: 1.55; max-width: 880px; }
     .eyebrow {
       display: inline-block;
-      font: 700 11px 'Inter', sans-serif; letter-spacing: 3px;
-      color: var(--gold); text-transform: uppercase; margin-bottom: 18px;
+      font: 700 11px 'Inter', sans-serif;
+      letter-spacing: 3px;
+      color: var(--gold);
+      text-transform: uppercase;
+      margin-bottom: 16px;
     }
 
-    .grid { display: grid; gap: 18px; }
+    .grid { display: grid; gap: 16px; }
     .grid.c2 { grid-template-columns: repeat(2, 1fr); }
     .grid.c3 { grid-template-columns: repeat(3, 1fr); }
     .grid.c4 { grid-template-columns: repeat(4, 1fr); }
     .grid.c5 { grid-template-columns: repeat(5, 1fr); }
 
     .card {
-      background: linear-gradient(160deg, rgba(16, 36, 73, 0.85) 0%, rgba(10, 25, 55, 0.95) 100%);
-      border: 1px solid var(--line); border-radius: 16px; padding: 22px;
-      position: relative; overflow: hidden;
-      transition: border-color 0.3s ease, transform 0.3s ease;
+      background:
+        linear-gradient(160deg, rgba(20, 42, 82, 0.85) 0%, rgba(10, 25, 55, 0.95) 100%);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 22px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: var(--shadow-card);
+      transition: border-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
     }
-    .card:hover { border-color: rgba(214, 179, 87, 0.5); transform: translateY(-2px); }
+    .card::before {
+      content: "";
+      position: absolute; inset: 0;
+      border-radius: 16px;
+      padding: 1px;
+      background: linear-gradient(160deg, rgba(214,179,87,0.0), rgba(214,179,87,0.25));
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor; mask-composite: exclude;
+      pointer-events: none; opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    .card:hover { transform: translateY(-3px); border-color: rgba(214,179,87,0.55); }
+    .card:hover::before { opacity: 1; }
     .card .corner {
-      position: absolute; top: 0; right: 0; width: 60px; height: 60px;
-      background: radial-gradient(circle at top right, rgba(214, 179, 87, 0.15) 0%, transparent 70%);
+      position: absolute; top: 0; right: 0;
+      width: 80px; height: 80px;
+      background: radial-gradient(circle at top right, rgba(214, 179, 87, 0.18) 0%, transparent 70%);
       pointer-events: none;
     }
     .card ul { list-style: none; }
     .card li {
-      color: var(--ink-soft); font-size: 14px; line-height: 1.55;
-      padding-left: 18px; position: relative; margin-bottom: 8px;
+      color: var(--ink-soft);
+      font-size: 14px; line-height: 1.55;
+      padding-left: 20px; position: relative;
+      margin-bottom: 8px;
     }
     .card li::before {
-      content: ""; position: absolute; left: 0; top: 9px;
-      width: 6px; height: 6px; border-radius: 50%; background: var(--gold);
+      content: ""; position: absolute;
+      left: 0; top: 9px;
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--gold);
+      box-shadow: 0 0 8px rgba(214, 179, 87, 0.6);
     }
 
     .stat {
-      background: linear-gradient(160deg, rgba(16, 36, 73, 0.8), rgba(10, 25, 55, 0.95));
-      border: 1px solid var(--line); border-radius: 16px; padding: 24px;
-      position: relative; overflow: hidden;
+      background:
+        linear-gradient(160deg, rgba(20, 42, 82, 0.8), rgba(10, 25, 55, 0.95));
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 24px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: var(--shadow-card);
+    }
+    .stat::after {
+      content: "";
+      position: absolute; bottom: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--gold), transparent);
     }
     .stat .label {
-      font: 700 11px 'Inter', sans-serif; letter-spacing: 2px;
-      color: var(--gold); text-transform: uppercase;
+      font: 700 11px 'Inter', sans-serif;
+      letter-spacing: 2px;
+      color: var(--gold);
+      text-transform: uppercase;
     }
     .stat .value {
       font-family: 'Playfair Display', serif;
-      font-size: clamp(40px, 4.5vw, 56px); font-weight: 800;
-      color: #fff; line-height: 1.05; margin: 8px 0 4px;
+      font-size: clamp(40px, 4.4vw, 56px);
+      font-weight: 800;
+      color: #fff; line-height: 1.05;
+      margin: 8px 0 4px;
     }
     .stat .desc { color: var(--muted); font-size: 13px; }
 
     .pill {
-      display: inline-block; padding: 5px 11px; border-radius: 999px;
-      font: 700 10px 'Inter', sans-serif; letter-spacing: 1.4px;
-      text-transform: uppercase; border: 1px solid transparent;
+      display: inline-block;
+      padding: 5px 11px;
+      border-radius: 999px;
+      font: 700 10px 'Inter', sans-serif;
+      letter-spacing: 1.4px;
+      text-transform: uppercase;
+      border: 1px solid transparent;
     }
     .pill.gold { background: rgba(214, 179, 87, 0.15); color: var(--gold-soft); border-color: rgba(214, 179, 87, 0.4); }
     .pill.blue { background: rgba(95, 167, 255, 0.15); color: var(--accent-soft); border-color: rgba(95, 167, 255, 0.4); }
     .pill.green { background: rgba(42, 210, 138, 0.15); color: #6fe5ad; border-color: rgba(42, 210, 138, 0.4); }
     .pill.red { background: rgba(255, 120, 120, 0.15); color: #ff9b9b; border-color: rgba(255, 120, 120, 0.4); }
 
-    table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 14px; }
-    th, td { text-align: left; padding: 14px 12px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+    table {
+      width: 100%; border-collapse: collapse;
+      margin-top: 12px; font-size: 14px;
+    }
+    th, td {
+      text-align: left;
+      padding: 14px 12px;
+      border-bottom: 1px solid var(--line-soft);
+      vertical-align: top;
+    }
     thead th {
-      font: 700 11px 'Inter', sans-serif; letter-spacing: 1.6px;
-      color: var(--gold); text-transform: uppercase; border-bottom: 1px solid var(--line);
+      font: 700 11px 'Inter', sans-serif;
+      letter-spacing: 1.6px;
+      color: var(--gold);
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--line);
     }
     td { color: var(--ink-soft); }
-    tbody tr:hover { background: rgba(214, 179, 87, 0.04); }
+    tbody tr { transition: background 0.2s ease; }
+    tbody tr:hover { background: rgba(214, 179, 87, 0.05); }
 
     .flow {
-      display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 10px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px; margin-top: 10px;
     }
     .flow .node {
-      background: linear-gradient(160deg, rgba(16, 36, 73, 0.8), rgba(10, 25, 55, 0.95));
-      border: 1px solid var(--line); border-radius: 14px; padding: 18px;
-      position: relative; min-height: 130px;
-      display: flex; flex-direction: column; justify-content: center; text-align: center;
+      background: linear-gradient(160deg, rgba(20, 42, 82, 0.8), rgba(10, 25, 55, 0.95));
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 20px;
+      position: relative;
+      min-height: 130px;
+      display: flex; flex-direction: column; justify-content: center;
+      text-align: center;
+      box-shadow: var(--shadow-card);
     }
     .flow .node .step-num {
-      position: absolute; top: -12px; left: 18px;
-      background: var(--gold); color: #1a1304;
-      font: 800 11px 'Inter', sans-serif; letter-spacing: 1px;
-      padding: 4px 10px; border-radius: 999px;
+      position: absolute;
+      top: -12px; left: 18px;
+      background: linear-gradient(135deg, var(--gold) 0%, var(--gold-2) 100%);
+      color: #1a1304;
+      font: 800 11px 'Inter', sans-serif;
+      letter-spacing: 1px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      box-shadow: 0 6px 14px rgba(214, 179, 87, 0.4);
     }
-    .flow .node strong { color: #fff; display: block; font-size: 15px; margin-bottom: 6px; }
+    .flow .node strong {
+      color: #fff; display: block;
+      font-size: 15px; margin-bottom: 6px;
+    }
     .flow .node span { color: var(--muted); font-size: 12px; line-height: 1.4; }
     .flow .node:not(:last-child)::after {
-      content: "→"; position: absolute; right: -12px; top: 50%;
-      transform: translateY(-50%); color: var(--gold);
-      font-size: 18px; font-weight: 700; z-index: 2;
+      content: "→";
+      position: absolute;
+      right: -14px; top: 50%;
+      transform: translateY(-50%);
+      color: var(--gold);
+      font-size: 18px; font-weight: 700;
+      z-index: 2;
+      text-shadow: 0 0 10px rgba(214, 179, 87, 0.5);
     }
 
     .shot {
-      border-radius: 14px; overflow: hidden; border: 1px solid var(--line);
-      background: rgba(8, 18, 40, 0.6); box-shadow: var(--shadow);
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      background: rgba(8, 18, 40, 0.6);
+      box-shadow: var(--shadow-lg);
+      transition: transform 0.4s ease;
     }
-    .shot img { width: 100%; height: 280px; object-fit: cover; display: block; }
+    .shot:hover { transform: translateY(-2px); }
+    .shot img {
+      width: 100%; height: 240px;
+      object-fit: cover; display: block;
+    }
     .shot .cap {
-      padding: 12px 16px; font-size: 12px; color: var(--muted);
-      border-top: 1px solid var(--line-soft); letter-spacing: 0.6px;
+      padding: 12px 16px;
+      font-size: 12px;
+      color: var(--muted);
+      border-top: 1px solid var(--line-soft);
+      letter-spacing: 0.6px;
     }
     .shot .cap b { color: var(--ink); font-weight: 700; }
 
+    /* Cover */
     .cover { align-items: flex-start; }
     .cover .display-title {
       font-family: 'Playfair Display', serif;
-      font-size: clamp(72px, 11vw, 160px); font-weight: 900;
-      line-height: 0.92; letter-spacing: -3px;
+      font-size: clamp(64px, 9.5vw, 144px);
+      font-weight: 900; line-height: 0.92;
+      letter-spacing: -3px;
       background: linear-gradient(180deg, #ffffff 0%, #c8d6f2 70%, #8aa0c8 100%);
       -webkit-background-clip: text; background-clip: text;
-      -webkit-text-fill-color: transparent; margin-bottom: 24px;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 22px;
     }
     .cover .display-title em {
       font-style: italic;
@@ -246,84 +412,185 @@
       -webkit-text-fill-color: transparent;
     }
     .cover .tagline {
-      font-size: clamp(20px, 1.8vw, 26px); color: var(--ink-soft);
-      max-width: 720px; line-height: 1.5; margin-bottom: 40px; font-weight: 400;
+      font-size: clamp(18px, 1.5vw, 24px);
+      color: var(--ink-soft);
+      max-width: 760px; line-height: 1.55;
+      margin-bottom: 36px; font-weight: 400;
     }
     .cover .meta {
-      display: flex; gap: 32px; flex-wrap: wrap;
-      padding-top: 28px; border-top: 1px solid var(--line); max-width: 800px;
+      display: flex; gap: 36px; flex-wrap: wrap;
+      padding-top: 26px;
+      border-top: 1px solid var(--line);
+      max-width: 860px;
     }
     .cover .meta div span {
-      display: block; font: 700 10px 'Inter', sans-serif;
-      letter-spacing: 2.4px; color: var(--gold);
-      text-transform: uppercase; margin-bottom: 6px;
+      display: block;
+      font: 700 10px 'Inter', sans-serif;
+      letter-spacing: 2.4px;
+      color: var(--gold);
+      text-transform: uppercase;
+      margin-bottom: 6px;
     }
-    .cover .meta div b { font: 600 14px 'Inter', sans-serif; color: var(--ink); }
+    .cover .meta div b {
+      font: 600 14px 'Inter', sans-serif;
+      color: var(--ink);
+    }
 
     .closing { text-align: center; align-items: center; }
     .closing h1 { text-align: center; }
 
+    /* Floating nav arrows (left/right for horizontal) */
     .nav-arrows {
-      position: fixed; right: 32px; bottom: 32px; z-index: 95;
-      display: flex; flex-direction: column; gap: 10px;
+      position: fixed;
+      bottom: 36px;
+      right: 36px;
+      z-index: 95;
+      display: flex; gap: 12px;
     }
     .nav-btn {
-      width: 56px; height: 56px; border-radius: 50%;
-      border: 1px solid var(--line); background: rgba(8, 18, 40, 0.85);
-      backdrop-filter: blur(12px); color: var(--ink); cursor: pointer;
-      font-size: 22px; display: flex; align-items: center; justify-content: center;
-      transition: all 0.25s ease; box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
+      width: 56px; height: 56px;
+      border-radius: 50%;
+      border: 1px solid var(--line);
+      background: rgba(8, 18, 40, 0.85);
+      backdrop-filter: blur(12px);
+      color: var(--ink);
+      cursor: pointer;
+      font-size: 22px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.25s ease;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
     }
     .nav-btn:hover {
-      background: linear-gradient(135deg, var(--gold) 0%, #e6c97a 100%);
-      color: #1a1304; border-color: transparent; transform: scale(1.08);
+      background: linear-gradient(135deg, var(--gold) 0%, var(--gold-2) 100%);
+      color: #1a1304;
+      border-color: transparent;
+      transform: scale(1.08);
     }
     .nav-btn:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
     .nav-btn:disabled:hover {
-      background: rgba(8, 18, 40, 0.85); color: var(--ink);
-      border-color: var(--line); transform: none;
+      background: rgba(8, 18, 40, 0.85);
+      color: var(--ink); border-color: var(--line); transform: none;
     }
     .nav-next {
       width: 64px; height: 64px;
-      background: linear-gradient(135deg, var(--gold) 0%, #e6c97a 100%);
-      color: #1a1304; border-color: transparent; font-weight: 700;
+      background: linear-gradient(135deg, var(--gold) 0%, var(--gold-2) 100%);
+      color: #1a1304; border-color: transparent;
       animation: pulse 2.4s ease-in-out infinite;
     }
     .nav-next:hover { filter: brightness(1.05); transform: scale(1.1); }
     @keyframes pulse {
-      0%, 100% { box-shadow: 0 12px 28px rgba(0,0,0,0.5), 0 0 0 0 rgba(214,179,87,0.5); }
+      0%, 100% { box-shadow: 0 12px 28px rgba(0,0,0,0.5), 0 0 0 0 rgba(214,179,87,0.55); }
       50% { box-shadow: 0 12px 28px rgba(0,0,0,0.5), 0 0 0 14px rgba(214,179,87,0); }
     }
 
-    .nav-counter {
-      position: fixed; left: 32px; bottom: 32px; z-index: 95;
-      font: 700 13px 'Inter', sans-serif; letter-spacing: 2px;
-      color: var(--ink-soft); background: rgba(8, 18, 40, 0.7);
-      backdrop-filter: blur(10px); padding: 10px 16px;
-      border-radius: 999px; border: 1px solid var(--line);
+    /* Counter / Play / Pause cluster (left) */
+    .control-cluster {
+      position: fixed;
+      bottom: 36px; left: 36px;
+      z-index: 95;
+      display: flex; align-items: center; gap: 12px;
+      background: rgba(8, 18, 40, 0.7);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 8px 8px 8px 18px;
     }
-    .nav-counter b { color: var(--gold); font-weight: 800; }
+    .control-cluster .counter {
+      font: 700 13px 'Inter', sans-serif;
+      letter-spacing: 2px;
+      color: var(--ink-soft);
+    }
+    .control-cluster .counter b { color: var(--gold); font-weight: 800; }
+    .ctrl-btn {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      border: 1px solid var(--line);
+      background: rgba(8, 18, 40, 0.6);
+      color: var(--ink);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s ease;
+    }
+    .ctrl-btn:hover { border-color: var(--gold); color: var(--gold-soft); }
+    .ctrl-btn svg { width: 14px; height: 14px; }
 
+    /* Slide auto-progress ring */
+    .slide-progress {
+      position: fixed;
+      bottom: 38px; left: 50%;
+      transform: translateX(-50%);
+      z-index: 95;
+      display: flex; gap: 6px;
+      background: rgba(8, 18, 40, 0.7);
+      backdrop-filter: blur(12px);
+      padding: 10px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+    }
+    .slide-progress .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.18);
+      transition: all 0.3s ease;
+    }
+    .slide-progress .dot.active {
+      width: 22px; border-radius: 4px;
+      background: linear-gradient(90deg, var(--gold) 0%, var(--gold-2) 100%);
+      box-shadow: 0 0 12px rgba(214, 179, 87, 0.6);
+    }
+    .slide-progress .dot.passed { background: rgba(214, 179, 87, 0.5); }
+
+    /* Auto-advance timer bar at bottom of each slide */
+    .timer-bar {
+      position: fixed;
+      bottom: 0; left: 0;
+      height: 2px; width: 0%;
+      background: linear-gradient(90deg, var(--gold), var(--gold-2));
+      z-index: 99;
+      box-shadow: 0 0 10px rgba(214, 179, 87, 0.7);
+      transition: width 0.1s linear;
+    }
+    .timer-bar.paused { opacity: 0.4; }
+
+    /* Scroll hint on first slide */
     .scroll-hint {
-      position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%);
-      color: var(--muted); font: 600 11px 'Inter', sans-serif;
-      letter-spacing: 2.4px; text-transform: uppercase;
-      opacity: 0.7; animation: bounce 2s ease-in-out infinite;
+      position: absolute;
+      bottom: 110px; left: 50%;
+      transform: translateX(-50%);
+      color: var(--muted);
+      font: 600 11px 'Inter', sans-serif;
+      letter-spacing: 2.4px;
+      text-transform: uppercase;
+      opacity: 0.7;
+      animation: bounceX 2s ease-in-out infinite;
+      white-space: nowrap;
     }
-    @keyframes bounce {
+    @keyframes bounceX {
       0%, 100% { transform: translate(-50%, 0); }
-      50% { transform: translate(-50%, 8px); }
+      50% { transform: translate(calc(-50% + 8px), 0); }
     }
 
+    /* Print export — flow vertically as A4 landscape pages */
     @media print {
       html, body { overflow: visible; height: auto; }
-      body::before, .topbar, .progress, .nav-arrows, .nav-counter, .scroll-hint { display: none; }
-      .stage { height: auto; overflow: visible; }
-      .slide {
-        height: 200mm; min-height: 200mm; padding: 18mm 16mm;
-        page-break-after: always; scroll-snap-align: none; animation: none;
+      body::before, body::after,
+      .topbar, .progress, .nav-arrows,
+      .control-cluster, .slide-progress, .timer-bar, .scroll-hint { display: none; }
+      .stage {
+        display: block;
+        height: auto; width: auto;
+        overflow: visible;
       }
-      .card:hover, .nav-btn:hover { transform: none; }
+      .slide {
+        flex: none;
+        width: 297mm; height: 200mm;
+        min-height: 200mm;
+        padding: 18mm 16mm;
+        page-break-after: always;
+        scroll-snap-align: none;
+      }
+      .slide-inner { animation: none !important; }
+      .card:hover, .nav-btn:hover, .shot:hover { transform: none; }
     }
     @page { size: A4 landscape; margin: 0; }
   </style>
@@ -333,7 +600,10 @@
 <div class="progress"><div class="fill" id="progressFill"></div></div>
 
 <div class="topbar">
-  <div class="brand"><span class="dot"></span> Lock<b>Safe</b> UK</div>
+  <div class="brand">
+    <span class="mark">L</span>
+    Lock<b>Safe</b>&nbsp;UK
+  </div>
   <div class="right">
     <button class="btn" onclick="window.print()">Export PDF</button>
   </div>
@@ -343,147 +613,159 @@
 
   <!-- 1 — Cover -->
   <section class="slide cover" id="s1">
-    <div class="slide-num">01 — Opening</div>
-    <div style="max-width:1100px;">
-      <div class="eyebrow">Partner Presentation · 2026</div>
-      <h1 class="display-title">Trust,<br>made <em>operational</em>.</h1>
-      <p class="tagline">LockSafe UK is a full-stack emergency locksmith platform that combines verified service execution, automated dispatch, and partner-aligned economics — engineered to scale without compromising trust.</p>
-      <div class="meta">
-        <div><span>Stage</span><b>Live operations · scaling</b></div>
-        <div><span>Coverage</span><b>UK clusters · multi-region</b></div>
-        <div><span>Audience</span><b>Enterprise &amp; SMB partners</b></div>
-        <div><span>Date</span><b>May 2026</b></div>
+    <div class="slide-inner">
+      <div class="slide-num">01 — Opening</div>
+      <div style="max-width:1100px;">
+        <div class="eyebrow">Partner Presentation · 2026</div>
+        <h1 class="display-title">Trust,<br>made <em>operational</em>.</h1>
+        <p class="tagline">LockSafe UK is a full-stack emergency locksmith platform that combines verified service execution, automated dispatch, and partner-aligned economics — engineered to scale without compromising trust.</p>
+        <div class="meta">
+          <div><span>Stage</span><b>Live operations · scaling</b></div>
+          <div><span>Coverage</span><b>UK clusters · multi-region</b></div>
+          <div><span>Audience</span><b>Enterprise &amp; SMB partners</b></div>
+          <div><span>Date</span><b>May 2026</b></div>
+        </div>
       </div>
     </div>
-    <div class="scroll-hint">Scroll · or use arrow keys</div>
+    <div class="scroll-hint">Auto-advance · arrow keys · space to pause</div>
     <div class="footer-bar"><span>LockSafe UK · locksafe.uk</span><span>01 / 15</span></div>
   </section>
 
   <!-- 2 — Problem -->
   <section class="slide" id="s2">
-    <div class="slide-num">02 — The problem</div>
-    <div class="eyebrow">Where the market fails</div>
-    <h2>An emergency category, built on guesswork.</h2>
-    <p class="lead" style="margin-bottom:32px;">Locksmith service is one of the most stressful, time-sensitive purchases a customer can make. Today it runs on opaque pricing, fragmented supply, and no proof of work — a structural trust deficit that hurts both sides.</p>
-    <div class="grid c2">
-      <div class="card">
-        <div class="corner"></div>
-        <span class="pill red">Customer side</span>
-        <h3 style="margin-top:14px;">Panic without proof</h3>
-        <ul>
-          <li>Hidden pricing and bait-and-switch quotes.</li>
-          <li>No verifiable evidence of arrival, work, or condition.</li>
-          <li>Disputes are word-against-word; resolution is slow.</li>
-        </ul>
-      </div>
-      <div class="card">
-        <div class="corner"></div>
-        <span class="pill red">Provider side</span>
-        <h3 style="margin-top:14px;">Cost without certainty</h3>
-        <ul>
-          <li>Lead-fee platforms charge on intent, not outcome.</li>
-          <li>No-shows and dead-end calls erode margin daily.</li>
-          <li>Payouts are slow, opaque, and disconnected from quality.</li>
-        </ul>
+    <div class="slide-inner">
+      <div class="slide-num">02 — The problem</div>
+      <div class="eyebrow">Where the market fails</div>
+      <h2>An emergency category, built on guesswork.</h2>
+      <p class="lead" style="margin-bottom:28px;">Locksmith service is one of the most stressful, time-sensitive purchases a customer can make. Today it runs on opaque pricing, fragmented supply, and no proof of work — a structural trust deficit that hurts both sides.</p>
+      <div class="grid c2">
+        <div class="card">
+          <div class="corner"></div>
+          <span class="pill red">Customer side</span>
+          <h3 style="margin-top:14px;">Panic without proof</h3>
+          <ul>
+            <li>Hidden pricing and bait-and-switch quotes.</li>
+            <li>No verifiable evidence of arrival, work, or condition.</li>
+            <li>Disputes are word-against-word; resolution is slow.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="corner"></div>
+          <span class="pill red">Provider side</span>
+          <h3 style="margin-top:14px;">Cost without certainty</h3>
+          <ul>
+            <li>Lead-fee platforms charge on intent, not outcome.</li>
+            <li>No-shows and dead-end calls erode margin daily.</li>
+            <li>Payouts are slow, opaque, and disconnected from quality.</li>
+          </ul>
+        </div>
       </div>
     </div>
     <div class="footer-bar"><span>The market gap</span><span>02 / 15</span></div>
   </section>
 
-  <!-- 3 — Why existing fails -->
+  <!-- 3 — Existing models -->
   <section class="slide" id="s3">
-    <div class="slide-num">03 — Existing models</div>
-    <div class="eyebrow">Why the status quo underperforms</div>
-    <h2>Four models. Four structural weaknesses.</h2>
-    <table>
-      <thead>
-        <tr><th>Model</th><th>How it works</th><th>Main weakness</th><th>LockSafe difference</th></tr>
-      </thead>
-      <tbody>
-        <tr><td><b style="color:#fff">Lead marketplaces</b></td><td>Charge trades per lead</td><td>Misaligned: paid even when leads don't convert</td><td>Commission on completed value only</td></tr>
-        <tr><td><b style="color:#fff">Directories</b></td><td>Listings &amp; reviews</td><td>No execution control or payment rails</td><td>End-to-end managed workflow</td></tr>
-        <tr><td><b style="color:#fff">Call centers</b></td><td>Manual phone operations</td><td>Costly staffing, inconsistent quality</td><td>24/7 AI voice intake + automation</td></tr>
-        <tr><td><b style="color:#fff">Generic home apps</b></td><td>Broad service categories</td><td>No locksmith-specific anti-fraud system</td><td>Locksmith-first trust infrastructure</td></tr>
-      </tbody>
-    </table>
+    <div class="slide-inner">
+      <div class="slide-num">03 — Existing models</div>
+      <div class="eyebrow">Why the status quo underperforms</div>
+      <h2>Four models. Four structural weaknesses.</h2>
+      <table>
+        <thead>
+          <tr><th>Model</th><th>How it works</th><th>Main weakness</th><th>LockSafe difference</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><b style="color:#fff">Lead marketplaces</b></td><td>Charge trades per lead</td><td>Misaligned: paid even when leads don't convert</td><td>Commission on completed value only</td></tr>
+          <tr><td><b style="color:#fff">Directories</b></td><td>Listings &amp; reviews</td><td>No execution control or payment rails</td><td>End-to-end managed workflow</td></tr>
+          <tr><td><b style="color:#fff">Call centers</b></td><td>Manual phone operations</td><td>Costly staffing, inconsistent quality</td><td>24/7 AI voice intake + automation</td></tr>
+          <tr><td><b style="color:#fff">Generic home apps</b></td><td>Broad service categories</td><td>No locksmith-specific anti-fraud system</td><td>Locksmith-first trust infrastructure</td></tr>
+        </tbody>
+      </table>
+    </div>
     <div class="footer-bar"><span>Competitive landscape</span><span>03 / 15</span></div>
   </section>
 
   <!-- 4 — Platform -->
   <section class="slide" id="s4">
-    <div class="slide-num">04 — The platform</div>
-    <div class="eyebrow">What LockSafe is</div>
-    <h2>One platform. Four engines. Verified end-to-end.</h2>
-    <p class="lead" style="margin-bottom:30px;">A full-stack emergency locksmith platform that connects demand, supply, trust controls, and payout infrastructure into a single operational fabric.</p>
-    <div class="flow">
-      <div class="node"><span class="step-num">01</span><strong>Customer Request</strong><span>Web · Phone AI · WhatsApp · SMS</span></div>
-      <div class="node"><span class="step-num">02</span><strong>Dispatch &amp; Match</strong><span>Availability, ETA, distance, scoring</span></div>
-      <div class="node"><span class="step-num">03</span><strong>Verified Job Flow</strong><span>GPS · photos · digital signature</span></div>
-      <div class="node"><span class="step-num">04</span><strong>Automated Settlement</strong><span>Stripe split &amp; reporting</span></div>
-    </div>
-    <div class="grid c3" style="margin-top:24px;">
-      <div class="card"><span class="pill blue">Demand</span><p style="margin-top:10px;">Paid, organic, referral, and AI voice channels.</p></div>
-      <div class="card"><span class="pill blue">Supply</span><p style="margin-top:10px;">Signed locksmith network with workflow tools.</p></div>
-      <div class="card"><span class="pill blue">Control</span><p style="margin-top:10px;">Real-time admin oversight and automation loops.</p></div>
+    <div class="slide-inner">
+      <div class="slide-num">04 — The platform</div>
+      <div class="eyebrow">What LockSafe is</div>
+      <h2>One platform. Four engines. Verified end-to-end.</h2>
+      <p class="lead" style="margin-bottom:26px;">A full-stack emergency locksmith platform that connects demand, supply, trust controls, and payout infrastructure into a single operational fabric.</p>
+      <div class="flow">
+        <div class="node"><span class="step-num">01</span><strong>Customer Request</strong><span>Web · Phone AI · WhatsApp · SMS</span></div>
+        <div class="node"><span class="step-num">02</span><strong>Dispatch &amp; Match</strong><span>Availability, ETA, distance, scoring</span></div>
+        <div class="node"><span class="step-num">03</span><strong>Verified Job Flow</strong><span>GPS · photos · digital signature</span></div>
+        <div class="node"><span class="step-num">04</span><strong>Automated Settlement</strong><span>Stripe split &amp; reporting</span></div>
+      </div>
+      <div class="grid c3" style="margin-top:22px;">
+        <div class="card"><span class="pill blue">Demand</span><p style="margin-top:10px;">Paid, organic, referral, and AI voice channels.</p></div>
+        <div class="card"><span class="pill blue">Supply</span><p style="margin-top:10px;">Signed locksmith network with workflow tools.</p></div>
+        <div class="card"><span class="pill blue">Control</span><p style="margin-top:10px;">Real-time admin oversight and automation loops.</p></div>
+      </div>
     </div>
     <div class="footer-bar"><span>Product definition</span><span>04 / 15</span></div>
   </section>
 
   <!-- 5 — Lifecycle -->
   <section class="slide" id="s5">
-    <div class="slide-num">05 — Lifecycle</div>
-    <div class="eyebrow">From distress call to verified close</div>
-    <h2>The five-step trust workflow.</h2>
-    <div class="grid c5" style="margin-top:18px;">
-      <div class="card"><span class="pill gold">01</span><h3 style="margin-top:10px;">Intake</h3><p style="font-size:13px;">Urgency, location, problem captured.</p></div>
-      <div class="card"><span class="pill gold">02</span><h3 style="margin-top:10px;">Dispatch</h3><p style="font-size:13px;">Best candidate matched in real time.</p></div>
-      <div class="card"><span class="pill gold">03</span><h3 style="margin-top:10px;">Arrival</h3><p style="font-size:13px;">GPS check-in &amp; before-photos logged.</p></div>
-      <div class="card"><span class="pill gold">04</span><h3 style="margin-top:10px;">Quote &amp; Work</h3><p style="font-size:13px;">Customer approves transparent quote.</p></div>
-      <div class="card"><span class="pill gold">05</span><h3 style="margin-top:10px;">Close</h3><p style="font-size:13px;">Signature, PDF report, payout split.</p></div>
-    </div>
-    <div class="grid c2" style="margin-top:24px;">
-      <div class="card"><h3>Trust by design</h3><ul>
-        <li>Time-stamped events at every stage.</li>
-        <li>Photo evidence trail bound to job ID.</li>
-        <li>Digital signature with location.</li>
-      </ul></div>
-      <div class="card"><h3>Operational outcomes</h3><ul>
-        <li>Fewer disputes, faster resolution.</li>
-        <li>Stronger customer confidence at scale.</li>
-        <li>Clear accountability per job and partner.</li>
-      </ul></div>
+    <div class="slide-inner">
+      <div class="slide-num">05 — Lifecycle</div>
+      <div class="eyebrow">From distress call to verified close</div>
+      <h2>The five-step trust workflow.</h2>
+      <div class="grid c5" style="margin-top:18px;">
+        <div class="card"><span class="pill gold">01</span><h3 style="margin-top:10px;">Intake</h3><p style="font-size:13px;">Urgency, location, problem captured.</p></div>
+        <div class="card"><span class="pill gold">02</span><h3 style="margin-top:10px;">Dispatch</h3><p style="font-size:13px;">Best candidate matched in real time.</p></div>
+        <div class="card"><span class="pill gold">03</span><h3 style="margin-top:10px;">Arrival</h3><p style="font-size:13px;">GPS check-in &amp; before-photos logged.</p></div>
+        <div class="card"><span class="pill gold">04</span><h3 style="margin-top:10px;">Quote &amp; Work</h3><p style="font-size:13px;">Customer approves transparent quote.</p></div>
+        <div class="card"><span class="pill gold">05</span><h3 style="margin-top:10px;">Close</h3><p style="font-size:13px;">Signature, PDF report, payout split.</p></div>
+      </div>
+      <div class="grid c2" style="margin-top:22px;">
+        <div class="card"><h3>Trust by design</h3><ul>
+          <li>Time-stamped events at every stage.</li>
+          <li>Photo evidence trail bound to job ID.</li>
+          <li>Digital signature with location.</li>
+        </ul></div>
+        <div class="card"><h3>Operational outcomes</h3><ul>
+          <li>Fewer disputes, faster resolution.</li>
+          <li>Stronger customer confidence at scale.</li>
+          <li>Clear accountability per job and partner.</li>
+        </ul></div>
+      </div>
     </div>
     <div class="footer-bar"><span>Job lifecycle</span><span>05 / 15</span></div>
   </section>
 
   <!-- 6 — Moat -->
   <section class="slide" id="s6">
-    <div class="slide-num">06 — The moat</div>
-    <div class="eyebrow">Defensibility</div>
-    <h2>Anti-fraud infrastructure as a product.</h2>
-    <p class="lead" style="margin-bottom:30px;">LockSafe is not a lead source. It's a proof-backed service execution platform. Every job leaves an audit trail by design.</p>
-    <div class="grid c2">
-      <div class="card">
-        <div class="corner"></div>
-        <span class="pill green">Evidence stack</span>
-        <h3 style="margin-top:14px;">What we capture</h3>
-        <ul>
-          <li>GPS events through the full lifecycle.</li>
-          <li>Before / after media tied to job events.</li>
-          <li>Digital completion signature with metadata.</li>
-          <li>Auto-generated PDF timeline report.</li>
-        </ul>
-      </div>
-      <div class="card">
-        <div class="corner"></div>
-        <span class="pill green">Business impact</span>
-        <h3 style="margin-top:14px;">What it produces</h3>
-        <ul>
-          <li>Reduced dispute resolution time.</li>
-          <li>Higher trust signals in emergency context.</li>
-          <li>Stronger compliance posture for partners.</li>
-          <li>Defensible position in a low-trust category.</li>
-        </ul>
+    <div class="slide-inner">
+      <div class="slide-num">06 — The moat</div>
+      <div class="eyebrow">Defensibility</div>
+      <h2>Anti-fraud infrastructure as a product.</h2>
+      <p class="lead" style="margin-bottom:26px;">LockSafe is not a lead source. It's a proof-backed service execution platform. Every job leaves an audit trail by design.</p>
+      <div class="grid c2">
+        <div class="card">
+          <div class="corner"></div>
+          <span class="pill green">Evidence stack</span>
+          <h3 style="margin-top:14px;">What we capture</h3>
+          <ul>
+            <li>GPS events through the full lifecycle.</li>
+            <li>Before / after media tied to job events.</li>
+            <li>Digital completion signature with metadata.</li>
+            <li>Auto-generated PDF timeline report.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="corner"></div>
+          <span class="pill green">Business impact</span>
+          <h3 style="margin-top:14px;">What it produces</h3>
+          <ul>
+            <li>Reduced dispute resolution time.</li>
+            <li>Higher trust signals in emergency context.</li>
+            <li>Stronger compliance posture for partners.</li>
+            <li>Defensible position in a low-trust category.</li>
+          </ul>
+        </div>
       </div>
     </div>
     <div class="footer-bar"><span>Trust as infrastructure</span><span>06 / 15</span></div>
@@ -491,34 +773,36 @@
 
   <!-- 7 — Architecture -->
   <section class="slide" id="s7">
-    <div class="slide-num">07 — Architecture</div>
-    <div class="eyebrow">Engineered to scale</div>
-    <h2>Production-grade. Multi-channel. Always on.</h2>
-    <div class="grid c3" style="margin-top:14px;">
-      <div class="card"><span class="pill blue">Platform</span><ul style="margin-top:12px;">
-        <li>Next.js · TypeScript · Prisma</li>
-        <li>Serverless deployment</li>
-        <li>Role-based admin &amp; portals</li>
-      </ul></div>
-      <div class="card"><span class="pill blue">Core integrations</span><ul style="margin-top:12px;">
-        <li>Stripe Connect</li>
-        <li>Twilio · Bland AI · Retell</li>
-        <li>Meta &amp; Google Ads APIs</li>
-      </ul></div>
-      <div class="card"><span class="pill blue">Ops layer</span><ul style="margin-top:12px;">
-        <li>Cron-driven automation</li>
-        <li>Agent orchestration</li>
-        <li>Real-time monitoring</li>
-      </ul></div>
-    </div>
-    <div class="grid c2" style="margin-top:22px;">
-      <div class="shot">
-        <img src="/reports/decks/images/admin-voice-receptionist.png" alt="LockSafe admin voice receptionist" />
-        <div class="cap"><b>Admin operations</b> — live voice receptionist console</div>
+    <div class="slide-inner">
+      <div class="slide-num">07 — Architecture</div>
+      <div class="eyebrow">Engineered to scale</div>
+      <h2>Production-grade. Multi-channel. Always on.</h2>
+      <div class="grid c3" style="margin-top:14px;">
+        <div class="card"><span class="pill blue">Platform</span><ul style="margin-top:12px;">
+          <li>Next.js · TypeScript · Prisma</li>
+          <li>Serverless deployment</li>
+          <li>Role-based admin &amp; portals</li>
+        </ul></div>
+        <div class="card"><span class="pill blue">Core integrations</span><ul style="margin-top:12px;">
+          <li>Stripe Connect</li>
+          <li>Twilio · Bland AI · Retell</li>
+          <li>Meta &amp; Google Ads APIs</li>
+        </ul></div>
+        <div class="card"><span class="pill blue">Ops layer</span><ul style="margin-top:12px;">
+          <li>Cron-driven automation</li>
+          <li>Agent orchestration</li>
+          <li>Real-time monitoring</li>
+        </ul></div>
       </div>
-      <div class="shot">
-        <img src="/reports/decks/images/vercel-deployment.png" alt="Vercel production deployment" />
-        <div class="cap"><b>Deployment</b> — production release pipeline</div>
+      <div class="grid c2" style="margin-top:20px;">
+        <div class="shot">
+          <img src="/reports/decks/images/admin-voice-receptionist.png" alt="LockSafe admin voice receptionist" />
+          <div class="cap"><b>Admin operations</b> — live voice receptionist console</div>
+        </div>
+        <div class="shot">
+          <img src="/reports/decks/images/vercel-deployment.png" alt="Vercel production deployment" />
+          <div class="cap"><b>Deployment</b> — production release pipeline</div>
+        </div>
       </div>
     </div>
     <div class="footer-bar"><span>Architecture &amp; proof</span><span>07 / 15</span></div>
@@ -526,31 +810,33 @@
 
   <!-- 8 — Automation -->
   <section class="slide" id="s8">
-    <div class="slide-num">08 — Automation</div>
-    <div class="eyebrow">AI-assisted operations</div>
-    <h2>An autonomous workforce, with human oversight.</h2>
-    <div class="grid c2">
-      <div class="card"><h3>Agent workforce</h3><ul>
-        <li><b style="color:#fff">COO</b> — operational oversight &amp; dispatch monitoring.</li>
-        <li><b style="color:#fff">CMO &amp; Ads Specialist</b> — campaign iteration loops.</li>
-        <li><b style="color:#fff">CTO</b> — reliability &amp; incident workflows.</li>
-        <li><b style="color:#fff">Content agents</b> — organic channel execution.</li>
-      </ul></div>
-      <div class="card"><h3>Why partners care</h3><ul>
-        <li>Lower manual coordination overhead.</li>
-        <li>Faster response to operational issues.</li>
-        <li>Scalable execution without linear staffing growth.</li>
-        <li>Discipline: AI-assisted, never unsupervised.</li>
-      </ul></div>
-    </div>
-    <div class="grid c2" style="margin-top:22px;">
-      <div class="shot">
-        <img src="/reports/decks/images/retell-agent-dashboard.png" alt="Retell AI agent dashboard" />
-        <div class="cap"><b>Voice AI</b> — Retell agent orchestration</div>
+    <div class="slide-inner">
+      <div class="slide-num">08 — Automation</div>
+      <div class="eyebrow">AI-assisted operations</div>
+      <h2>An autonomous workforce, with human oversight.</h2>
+      <div class="grid c2">
+        <div class="card"><h3>Agent workforce</h3><ul>
+          <li><b style="color:#fff">COO</b> — operational oversight &amp; dispatch monitoring.</li>
+          <li><b style="color:#fff">CMO &amp; Ads Specialist</b> — campaign iteration loops.</li>
+          <li><b style="color:#fff">CTO</b> — reliability &amp; incident workflows.</li>
+          <li><b style="color:#fff">Content agents</b> — organic channel execution.</li>
+        </ul></div>
+        <div class="card"><h3>Why partners care</h3><ul>
+          <li>Lower manual coordination overhead.</li>
+          <li>Faster response to operational issues.</li>
+          <li>Scalable execution without linear staffing growth.</li>
+          <li>Discipline: AI-assisted, never unsupervised.</li>
+        </ul></div>
       </div>
-      <div class="shot">
-        <img src="/reports/decks/images/google-ads-apicenter.png" alt="Google Ads API center" />
-        <div class="cap"><b>Ads infrastructure</b> — Google Ads API control center</div>
+      <div class="grid c2" style="margin-top:20px;">
+        <div class="shot">
+          <img src="/reports/decks/images/retell-agent-dashboard.png" alt="Retell AI agent dashboard" />
+          <div class="cap"><b>Voice AI</b> — Retell agent orchestration</div>
+        </div>
+        <div class="shot">
+          <img src="/reports/decks/images/google-ads-apicenter.png" alt="Google Ads API center" />
+          <div class="cap"><b>Ads infrastructure</b> — Google Ads API control center</div>
+        </div>
       </div>
     </div>
     <div class="footer-bar"><span>AI operations</span><span>08 / 15</span></div>
@@ -558,159 +844,173 @@
 
   <!-- 9 — Partner value -->
   <section class="slide" id="s9">
-    <div class="slide-num">09 — Why partners win</div>
-    <div class="eyebrow">Partner value proposition</div>
-    <h2>Three reasons partners choose LockSafe.</h2>
-    <div class="grid c3" style="margin-top:18px;">
-      <div class="card"><div class="corner"></div><span class="pill gold">Commercial</span><h3 style="margin-top:14px;">Margin-aligned model</h3><p>Commission tied to completed value, not vanity lead volume. Incentives stay aligned long term.</p></div>
-      <div class="card"><div class="corner"></div><span class="pill gold">Operational</span><h3 style="margin-top:14px;">Verified execution</h3><p>Structured workflow and evidence reduce reconciliation friction and customer disputes.</p></div>
-      <div class="card"><div class="corner"></div><span class="pill gold">Strategic</span><h3 style="margin-top:14px;">Scalable platform</h3><p>Built for regional rollout without rebuilding infrastructure or hiring linearly.</p></div>
+    <div class="slide-inner">
+      <div class="slide-num">09 — Why partners win</div>
+      <div class="eyebrow">Partner value proposition</div>
+      <h2>Three reasons partners choose LockSafe.</h2>
+      <div class="grid c3" style="margin-top:18px;">
+        <div class="card"><div class="corner"></div><span class="pill gold">Commercial</span><h3 style="margin-top:14px;">Margin-aligned model</h3><p>Commission tied to completed value, not vanity lead volume. Incentives stay aligned long term.</p></div>
+        <div class="card"><div class="corner"></div><span class="pill gold">Operational</span><h3 style="margin-top:14px;">Verified execution</h3><p>Structured workflow and evidence reduce reconciliation friction and customer disputes.</p></div>
+        <div class="card"><div class="corner"></div><span class="pill gold">Strategic</span><h3 style="margin-top:14px;">Scalable platform</h3><p>Built for regional rollout without rebuilding infrastructure or hiring linearly.</p></div>
+      </div>
+      <table style="margin-top:22px;">
+        <thead><tr><th>Partner goal</th><th>LockSafe mechanism</th><th>Expected effect</th></tr></thead>
+        <tbody>
+          <tr><td>Improve service trust</td><td>Evidence-backed job flow</td><td>Higher conversion confidence</td></tr>
+          <tr><td>Reduce manual ops</td><td>Automation &amp; dashboards</td><td>Lean partner operations</td></tr>
+          <tr><td>Scale regionally</td><td>Multi-city demand &amp; supply model</td><td>Faster expansion velocity</td></tr>
+        </tbody>
+      </table>
     </div>
-    <table style="margin-top:24px;">
-      <thead><tr><th>Partner goal</th><th>LockSafe mechanism</th><th>Expected effect</th></tr></thead>
-      <tbody>
-        <tr><td>Improve service trust</td><td>Evidence-backed job flow</td><td>Higher conversion confidence</td></tr>
-        <tr><td>Reduce manual ops</td><td>Automation &amp; dashboards</td><td>Lean partner operations</td></tr>
-        <tr><td>Scale regionally</td><td>Multi-city demand &amp; supply model</td><td>Faster expansion velocity</td></tr>
-      </tbody>
-    </table>
     <div class="footer-bar"><span>Partner fit</span><span>09 / 15</span></div>
   </section>
 
   <!-- 10 — Coverage -->
   <section class="slide" id="s10">
-    <div class="slide-num">10 — Coverage</div>
-    <div class="eyebrow">Geographic strategy</div>
-    <h2>Cluster-led expansion across the UK.</h2>
-    <div class="grid c2" style="margin-top:18px;">
-      <div class="card"><h3>Current clusters</h3><ul>
-        <li>Greater London</li>
-        <li>West Midlands — Birmingham &amp; Solihull</li>
-        <li>Greater Manchester</li>
-        <li>West &amp; South Yorkshire</li>
-      </ul></div>
-      <div class="card"><h3>Expansion logic</h3><ul>
-        <li>Cluster-by-cluster demand ramp.</li>
-        <li>Utilize signed supply before widening radius.</li>
-        <li>Ads &amp; dispatch tuned per region.</li>
-        <li>Quality scorecards before expansion gate.</li>
-      </ul></div>
-    </div>
-    <div class="card" style="margin-top:22px;">
-      <span class="pill blue">Discipline</span>
-      <p style="margin-top:10px;">External coverage messaging stays tied to active operational zones and validated partner capacity — never aspirational.</p>
+    <div class="slide-inner">
+      <div class="slide-num">10 — Coverage</div>
+      <div class="eyebrow">Geographic strategy</div>
+      <h2>Cluster-led expansion across the UK.</h2>
+      <div class="grid c2" style="margin-top:18px;">
+        <div class="card"><h3>Current clusters</h3><ul>
+          <li>Greater London</li>
+          <li>West Midlands — Birmingham &amp; Solihull</li>
+          <li>Greater Manchester</li>
+          <li>West &amp; South Yorkshire</li>
+        </ul></div>
+        <div class="card"><h3>Expansion logic</h3><ul>
+          <li>Cluster-by-cluster demand ramp.</li>
+          <li>Utilize signed supply before widening radius.</li>
+          <li>Ads &amp; dispatch tuned per region.</li>
+          <li>Quality scorecards before expansion gate.</li>
+        </ul></div>
+      </div>
+      <div class="card" style="margin-top:20px;">
+        <span class="pill blue">Discipline</span>
+        <p style="margin-top:10px;">External coverage messaging stays tied to active operational zones and validated partner capacity — never aspirational.</p>
+      </div>
     </div>
     <div class="footer-bar"><span>Coverage strategy</span><span>10 / 15</span></div>
   </section>
 
   <!-- 11 — Traction -->
   <section class="slide" id="s11">
-    <div class="slide-num">11 — Traction</div>
-    <div class="eyebrow">Where we are today</div>
-    <h2>Beyond build. Into scale.</h2>
-    <div class="grid c4" style="margin-top:18px;">
-      <div class="stat"><div class="label">Signed supply</div><div class="value">40+</div><div class="desc">Locksmiths onboarded</div></div>
-      <div class="stat"><div class="label">Platform</div><div class="value">LIVE</div><div class="desc">Production operations</div></div>
-      <div class="stat"><div class="label">Mobile</div><div class="value">2 / 2</div><div class="desc">Android &amp; iOS active</div></div>
-      <div class="stat"><div class="label">Ad stack</div><div class="value">READY</div><div class="desc">Google &amp; Meta enabled</div></div>
-    </div>
-    <div class="card" style="margin-top:24px;">
-      <h3>What this stage means</h3>
-      <p>LockSafe is past the concept and build phases. The priority has shifted to partner-enabled throughput, regional consistency, and reliable growth economics — not feature creation.</p>
+    <div class="slide-inner">
+      <div class="slide-num">11 — Traction</div>
+      <div class="eyebrow">Where we are today</div>
+      <h2>Beyond build. Into scale.</h2>
+      <div class="grid c4" style="margin-top:18px;">
+        <div class="stat"><div class="label">Signed supply</div><div class="value">40+</div><div class="desc">Locksmiths onboarded</div></div>
+        <div class="stat"><div class="label">Platform</div><div class="value">LIVE</div><div class="desc">Production operations</div></div>
+        <div class="stat"><div class="label">Mobile</div><div class="value">2 / 2</div><div class="desc">Android &amp; iOS active</div></div>
+        <div class="stat"><div class="label">Ad stack</div><div class="value">READY</div><div class="desc">Google &amp; Meta enabled</div></div>
+      </div>
+      <div class="card" style="margin-top:22px;">
+        <h3>What this stage means</h3>
+        <p>LockSafe is past the concept and build phases. The priority has shifted to partner-enabled throughput, regional consistency, and reliable growth economics — not feature creation.</p>
+      </div>
     </div>
     <div class="footer-bar"><span>Current stage</span><span>11 / 15</span></div>
   </section>
 
   <!-- 12 — Commercial -->
   <section class="slide" id="s12">
-    <div class="slide-num">12 — Commercial model</div>
-    <div class="eyebrow">Aligned economics</div>
-    <h2>Locksmiths keep more. Platform earns on outcome.</h2>
-    <div class="grid c2" style="margin-top:18px;">
-      <div class="card">
-        <h3>Unit economics structure</h3>
-        <table style="margin-top:6px;">
-          <thead><tr><th>Component</th><th>Locksmith</th><th>Platform</th></tr></thead>
-          <tbody>
-            <tr><td>Assessment fee</td><td><b style="color:#fff">85%</b></td><td>15%</td></tr>
-            <tr><td>Work quote</td><td><b style="color:#fff">75%</b></td><td>25%</td></tr>
-            <tr><td>Blended</td><td>High retained value</td><td>Performance-linked margin</td></tr>
-          </tbody>
-        </table>
+    <div class="slide-inner">
+      <div class="slide-num">12 — Commercial model</div>
+      <div class="eyebrow">Aligned economics</div>
+      <h2>Locksmiths keep more. Platform earns on outcome.</h2>
+      <div class="grid c2" style="margin-top:18px;">
+        <div class="card">
+          <h3>Unit economics structure</h3>
+          <table style="margin-top:6px;">
+            <thead><tr><th>Component</th><th>Locksmith</th><th>Platform</th></tr></thead>
+            <tbody>
+              <tr><td>Assessment fee</td><td><b style="color:#fff">85%</b></td><td>15%</td></tr>
+              <tr><td>Work quote</td><td><b style="color:#fff">75%</b></td><td>25%</td></tr>
+              <tr><td>Blended</td><td>High retained value</td><td>Performance-linked margin</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card"><h3>Partner revenue logic</h3><ul>
+          <li>Transparent split on completed value events.</li>
+          <li>No reliance on opaque lead monetization.</li>
+          <li>Long-term retention through aligned incentives.</li>
+          <li>Predictable, auditable settlement flow.</li>
+        </ul></div>
       </div>
-      <div class="card"><h3>Partner revenue logic</h3><ul>
-        <li>Transparent split on completed value events.</li>
-        <li>No reliance on opaque lead monetization.</li>
-        <li>Long-term retention through aligned incentives.</li>
-        <li>Predictable, auditable settlement flow.</li>
-      </ul></div>
     </div>
     <div class="footer-bar"><span>Monetization</span><span>12 / 15</span></div>
   </section>
 
   <!-- 13 — Integration -->
   <section class="slide" id="s13">
-    <div class="slide-num">13 — Integration</div>
-    <div class="eyebrow">How partners onboard</div>
-    <h2>From handshake to scale in four steps.</h2>
-    <div class="flow" style="margin-top:18px;">
-      <div class="node"><span class="step-num">01</span><strong>Commercial alignment</strong><span>Scope, SLA, KPIs defined.</span></div>
-      <div class="node"><span class="step-num">02</span><strong>Operational setup</strong><span>Routing, accounts, channels configured.</span></div>
-      <div class="node"><span class="step-num">03</span><strong>City pilot</strong><span>Scorecards &amp; weekly governance.</span></div>
-      <div class="node"><span class="step-num">04</span><strong>Scale</strong><span>Repeatable expansion playbook.</span></div>
-    </div>
-    <div class="grid c2" style="margin-top:24px;">
-      <div class="card"><h3>Typical 30 — 60 — 90</h3><ul>
-        <li><b style="color:#fff">30:</b> pilot readiness &amp; SLA definition.</li>
-        <li><b style="color:#fff">60:</b> throughput &amp; quality tuning.</li>
-        <li><b style="color:#fff">90:</b> expansion decision gate.</li>
-      </ul></div>
-      <div class="card"><h3>Shared KPIs</h3><ul>
-        <li>Response &amp; acceptance rates.</li>
-        <li>Completion quality &amp; review signal.</li>
-        <li>Channel-level acquisition efficiency.</li>
-      </ul></div>
+    <div class="slide-inner">
+      <div class="slide-num">13 — Integration</div>
+      <div class="eyebrow">How partners onboard</div>
+      <h2>From handshake to scale in four steps.</h2>
+      <div class="flow" style="margin-top:18px;">
+        <div class="node"><span class="step-num">01</span><strong>Commercial alignment</strong><span>Scope, SLA, KPIs defined.</span></div>
+        <div class="node"><span class="step-num">02</span><strong>Operational setup</strong><span>Routing, accounts, channels configured.</span></div>
+        <div class="node"><span class="step-num">03</span><strong>City pilot</strong><span>Scorecards &amp; weekly governance.</span></div>
+        <div class="node"><span class="step-num">04</span><strong>Scale</strong><span>Repeatable expansion playbook.</span></div>
+      </div>
+      <div class="grid c2" style="margin-top:22px;">
+        <div class="card"><h3>Typical 30 — 60 — 90</h3><ul>
+          <li><b style="color:#fff">30:</b> pilot readiness &amp; SLA definition.</li>
+          <li><b style="color:#fff">60:</b> throughput &amp; quality tuning.</li>
+          <li><b style="color:#fff">90:</b> expansion decision gate.</li>
+        </ul></div>
+        <div class="card"><h3>Shared KPIs</h3><ul>
+          <li>Response &amp; acceptance rates.</li>
+          <li>Completion quality &amp; review signal.</li>
+          <li>Channel-level acquisition efficiency.</li>
+        </ul></div>
+      </div>
     </div>
     <div class="footer-bar"><span>Integration pathway</span><span>13 / 15</span></div>
   </section>
 
   <!-- 14 — Risk -->
   <section class="slide" id="s14">
-    <div class="slide-num">14 — Risk &amp; controls</div>
-    <div class="eyebrow">Governance posture</div>
-    <h2>Ambitious. Disciplined. Mitigation-first.</h2>
-    <table style="margin-top:18px;">
-      <thead><tr><th>Risk</th><th>Current control</th><th>Next strengthening move</th></tr></thead>
-      <tbody>
-        <tr><td>Service inconsistency at scale</td><td>Workflow enforcement &amp; admin visibility</td><td>Regional performance scorecards</td></tr>
-        <tr><td>Real-time delivery across instances</td><td>Existing SSE streams</td><td>Migrate to managed realtime fabric</td></tr>
-        <tr><td>Single-host AI dependency</td><td>Operational fallback patterns</td><td>Cloud failover deployment</td></tr>
-        <tr><td>CAC variance across regions</td><td>Ads stack ready, attribution in place</td><td>Cluster-level budget governance</td></tr>
-      </tbody>
-    </table>
-    <div class="card" style="margin-top:22px;">
-      <span class="pill red">Governance</span>
-      <p style="margin-top:10px;">LockSafe is positioned as ambitious but disciplined — strong differentiation paired with explicit, dated mitigation plans for every scaling risk.</p>
+    <div class="slide-inner">
+      <div class="slide-num">14 — Risk &amp; controls</div>
+      <div class="eyebrow">Governance posture</div>
+      <h2>Ambitious. Disciplined. Mitigation-first.</h2>
+      <table style="margin-top:18px;">
+        <thead><tr><th>Risk</th><th>Current control</th><th>Next strengthening move</th></tr></thead>
+        <tbody>
+          <tr><td>Service inconsistency at scale</td><td>Workflow enforcement &amp; admin visibility</td><td>Regional performance scorecards</td></tr>
+          <tr><td>Real-time delivery across instances</td><td>Existing SSE streams</td><td>Migrate to managed realtime fabric</td></tr>
+          <tr><td>Single-host AI dependency</td><td>Operational fallback patterns</td><td>Cloud failover deployment</td></tr>
+          <tr><td>CAC variance across regions</td><td>Ads stack ready, attribution in place</td><td>Cluster-level budget governance</td></tr>
+        </tbody>
+      </table>
+      <div class="card" style="margin-top:20px;">
+        <span class="pill red">Governance</span>
+        <p style="margin-top:10px;">LockSafe is positioned as ambitious but disciplined — strong differentiation paired with explicit, dated mitigation plans for every scaling risk.</p>
+      </div>
     </div>
     <div class="footer-bar"><span>Risk posture</span><span>14 / 15</span></div>
   </section>
 
   <!-- 15 — Closing -->
   <section class="slide closing" id="s15">
-    <div class="slide-num">15 — Partnership ask</div>
-    <div style="max-width:900px; margin:0 auto;">
-      <div class="eyebrow" style="margin-bottom:18px;">Let's build it together</div>
-      <h1 style="font-size:clamp(56px,8vw,108px); margin-bottom:24px;">Pilot.<br>Prove. <em style="font-style:italic; color:var(--gold);">Scale.</em></h1>
-      <p class="lead" style="margin: 0 auto 36px; max-width:760px;">Run a structured city-cluster pilot, validate performance against shared KPIs, and convert proof points into a scaled commercial rollout — on a contract that aligns incentives end to end.</p>
-      <div class="grid c3" style="margin-top:8px;">
-        <div class="card" style="text-align:left;"><h3>Pilot scope</h3><p style="font-size:14px;">One focused region, clear SLA &amp; channel mix.</p></div>
-        <div class="card" style="text-align:left;"><h3>Measurement</h3><p style="font-size:14px;">Shared KPI dashboard &amp; weekly cadence.</p></div>
-        <div class="card" style="text-align:left;"><h3>Scale trigger</h3><p style="font-size:14px;">Pre-agreed thresholds for expansion.</p></div>
-      </div>
-      <div style="margin-top:48px; padding-top:28px; border-top:1px solid var(--line); text-align:center;">
-        <div style="font:700 11px 'Inter',sans-serif; letter-spacing:3px; color:var(--gold); text-transform:uppercase; margin-bottom:10px;">Contact</div>
-        <div style="font-size:18px; color:#fff; font-weight:600;">LockSafe UK · www.locksafe.uk</div>
-        <div style="margin-top:6px; color:var(--muted); font-size:13px;">Partner presentation package — May 2026</div>
+    <div class="slide-inner">
+      <div class="slide-num">15 — Partnership ask</div>
+      <div style="max-width:920px; margin:0 auto;">
+        <div class="eyebrow" style="margin-bottom:18px;">Let's build it together</div>
+        <h1 style="font-size:clamp(56px,8vw,108px); margin-bottom:24px;">Pilot.<br>Prove. <em style="font-style:italic; color:var(--gold);">Scale.</em></h1>
+        <p class="lead" style="margin: 0 auto 32px; max-width:760px;">Run a structured city-cluster pilot, validate performance against shared KPIs, and convert proof points into a scaled commercial rollout — on a contract that aligns incentives end to end.</p>
+        <div class="grid c3" style="margin-top:8px;">
+          <div class="card" style="text-align:left;"><h3>Pilot scope</h3><p style="font-size:14px;">One focused region, clear SLA &amp; channel mix.</p></div>
+          <div class="card" style="text-align:left;"><h3>Measurement</h3><p style="font-size:14px;">Shared KPI dashboard &amp; weekly cadence.</p></div>
+          <div class="card" style="text-align:left;"><h3>Scale trigger</h3><p style="font-size:14px;">Pre-agreed thresholds for expansion.</p></div>
+        </div>
+        <div style="margin-top:42px; padding-top:24px; border-top:1px solid var(--line); text-align:center;">
+          <div style="font:700 11px 'Inter',sans-serif; letter-spacing:3px; color:var(--gold); text-transform:uppercase; margin-bottom:10px;">Contact</div>
+          <div style="font-size:18px; color:#fff; font-weight:600;">LockSafe UK · www.locksafe.uk</div>
+          <div style="margin-top:6px; color:var(--muted); font-size:13px;">Partner presentation package — May 2026</div>
+        </div>
       </div>
     </div>
     <div class="footer-bar"><span>Thank you</span><span>15 / 15</span></div>
@@ -718,12 +1018,26 @@
 
 </div>
 
-<div class="nav-counter"><b id="navCurrent">01</b> / <span id="navTotal">15</span></div>
+<!-- Slide progress dots (center) -->
+<div class="slide-progress" id="dots"></div>
 
-<div class="nav-arrows">
-  <button class="nav-btn" id="prevBtn" onclick="goPrev()" aria-label="Previous slide">↑</button>
-  <button class="nav-btn nav-next" id="nextBtn" onclick="goNext()" aria-label="Next slide">↓</button>
+<!-- Control cluster (left) -->
+<div class="control-cluster">
+  <span class="counter"><b id="navCurrent">01</b> / <span id="navTotal">15</span></span>
+  <button class="ctrl-btn" id="playPauseBtn" aria-label="Toggle auto-advance">
+    <svg id="playIcon" viewBox="0 0 16 16" fill="currentColor" style="display:none;"><polygon points="3,2 13,8 3,14"/></svg>
+    <svg id="pauseIcon" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="2" width="3.5" height="12"/><rect x="9.5" y="2" width="3.5" height="12"/></svg>
+  </button>
 </div>
+
+<!-- Nav arrows (right) -->
+<div class="nav-arrows">
+  <button class="nav-btn" id="prevBtn" aria-label="Previous slide">‹</button>
+  <button class="nav-btn nav-next" id="nextBtn" aria-label="Next slide">›</button>
+</div>
+
+<!-- Auto-advance timer bar -->
+<div class="timer-bar" id="timerBar"></div>
 
 <script>
 (function() {
@@ -735,49 +1049,144 @@
   const fill = document.getElementById('progressFill');
   const prevBtn = document.getElementById('prevBtn');
   const nextBtn = document.getElementById('nextBtn');
+  const playPauseBtn = document.getElementById('playPauseBtn');
+  const playIcon = document.getElementById('playIcon');
+  const pauseIcon = document.getElementById('pauseIcon');
+  const timerBar = document.getElementById('timerBar');
+  const dotsWrap = document.getElementById('dots');
 
   totalEl.textContent = String(total).padStart(2, '0');
+
+  // Build dots
+  for (let i = 0; i < total; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot';
+    d.dataset.idx = i;
+    d.addEventListener('click', () => { scrollToIdx(i); resetAuto(); });
+    dotsWrap.appendChild(d);
+  }
+  const dots = Array.from(dotsWrap.children);
+
+  // Auto-advance config
+  const SLIDE_MS = 9000;
   let activeIndex = 0;
+  let isPlaying = true;
+  let timerStart = 0;
+  let timerPausedAt = 0;
+  let rafId = null;
 
   function update(idx) {
     activeIndex = Math.max(0, Math.min(total - 1, idx));
     current.textContent = String(activeIndex + 1).padStart(2, '0');
     fill.style.width = ((activeIndex + 1) / total * 100) + '%';
     prevBtn.disabled = activeIndex === 0;
-    nextBtn.disabled = activeIndex === total - 1;
-  }
-  function scrollTo(idx) {
-    const target = slides[idx];
-    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    nextBtn.disabled = false; // never fully disable so loop works
+    slides.forEach((s, i) => s.classList.toggle('active', i === activeIndex));
+    dots.forEach((d, i) => {
+      d.classList.toggle('active', i === activeIndex);
+      d.classList.toggle('passed', i < activeIndex);
+    });
   }
 
-  window.goNext = function() { scrollTo(activeIndex + 1); };
-  window.goPrev = function() { scrollTo(activeIndex - 1); };
+  function scrollToIdx(idx) {
+    const wrap = (idx + total) % total;
+    const target = slides[wrap];
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
+  }
 
+  function goNext() { scrollToIdx(activeIndex + 1); resetAuto(); }
+  function goPrev() { scrollToIdx(activeIndex - 1); resetAuto(); }
+
+  prevBtn.addEventListener('click', goPrev);
+  nextBtn.addEventListener('click', goNext);
+
+  // Detect active slide
   const observer = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       if (entry.isIntersecting && entry.intersectionRatio > 0.55) {
         const idx = slides.indexOf(entry.target);
-        if (idx !== -1) update(idx);
+        if (idx !== -1 && idx !== activeIndex) {
+          update(idx);
+          resetAutoTimerOnly();
+        } else if (idx !== -1) {
+          update(idx);
+        }
       }
     });
-  }, { threshold: [0.55, 0.75] });
-
+  }, { root: stage, threshold: [0.55, 0.75] });
   slides.forEach(s => observer.observe(s));
 
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ' || e.key === 'ArrowRight') {
-      e.preventDefault(); goNext();
-    } else if (e.key === 'ArrowUp' || e.key === 'PageUp' || e.key === 'ArrowLeft') {
-      e.preventDefault(); goPrev();
-    } else if (e.key === 'Home') {
-      e.preventDefault(); scrollTo(0);
-    } else if (e.key === 'End') {
-      e.preventDefault(); scrollTo(total - 1);
+  // Timer tick
+  function tick(ts) {
+    if (!isPlaying) return;
+    if (!timerStart) timerStart = ts;
+    const elapsed = ts - timerStart;
+    const pct = Math.min(100, (elapsed / SLIDE_MS) * 100);
+    timerBar.style.width = pct + '%';
+    if (elapsed >= SLIDE_MS) {
+      // advance
+      timerStart = 0;
+      const next = (activeIndex + 1) % total;
+      scrollToIdx(next);
     }
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function resetAutoTimerOnly() {
+    timerStart = 0;
+    timerBar.style.width = '0%';
+  }
+  function resetAuto() {
+    resetAutoTimerOnly();
+  }
+
+  function play() {
+    isPlaying = true;
+    timerBar.classList.remove('paused');
+    playIcon.style.display = 'none';
+    pauseIcon.style.display = '';
+    if (!rafId) rafId = requestAnimationFrame(tick);
+  }
+  function pause() {
+    isPlaying = false;
+    timerBar.classList.add('paused');
+    playIcon.style.display = '';
+    pauseIcon.style.display = 'none';
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+  }
+  function togglePlay() { isPlaying ? pause() : play(); }
+  playPauseBtn.addEventListener('click', togglePlay);
+
+  // Keyboard
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); goNext(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); goPrev(); }
+    else if (e.key === ' ') { e.preventDefault(); togglePlay(); }
+    else if (e.key === 'Home') { e.preventDefault(); scrollToIdx(0); resetAuto(); }
+    else if (e.key === 'End') { e.preventDefault(); scrollToIdx(total - 1); resetAuto(); }
+  });
+
+  // Pause on hover over the deck (subtle UX)
+  stage.addEventListener('mouseenter', () => { if (isPlaying) { /* keep playing */ } });
+
+  // Pause when tab hidden
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) pause(); else play();
+  });
+
+  // Touch-swipe (horizontal)
+  let touchX = null;
+  stage.addEventListener('touchstart', (e) => { touchX = e.touches[0].clientX; }, { passive: true });
+  stage.addEventListener('touchend', (e) => {
+    if (touchX == null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 60) { dx < 0 ? goNext() : goPrev(); }
+    touchX = null;
   });
 
   update(0);
+  play();
 })();
 </script>
 
