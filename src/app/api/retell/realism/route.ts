@@ -3,36 +3,11 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-
-const DEFAULT_PROFILE = {
-  interruptionSensitivity: "medium",
-  backchannelFrequency: "medium",
-  pauseStyle: "natural",
-  noiseHandling: "adaptive",
-  pronunciationHints: [] as string[],
-};
-
-function buildExperimentMatrix(profile: any) {
-  const interruptionLevels = ["low", "medium", "high"];
-  const backchannelLevels = ["low", "medium", "high"];
-  const pauseStyles = ["concise", "natural", "empathetic"];
-
-  const matrix = [];
-  for (const i of interruptionLevels) {
-    for (const b of backchannelLevels) {
-      for (const p of pauseStyles) {
-        matrix.push({
-          interruptionSensitivity: i,
-          backchannelFrequency: b,
-          pauseStyle: p,
-          noiseHandling: profile?.noiseHandling ?? "adaptive",
-        });
-      }
-    }
-  }
-
-  return matrix;
-}
+import {
+  DEFAULT_REALISM_PROFILE,
+  buildRealismExperimentMatrix,
+  normalizeRealismProfile,
+} from "@/lib/retell-realism";
 
 export async function GET() {
   try {
@@ -46,8 +21,8 @@ export async function GET() {
       return NextResponse.json({ error: "Active config not found" }, { status: 404 });
     }
 
-    const profile = (config.realismProfile as any) ?? DEFAULT_PROFILE;
-    const matrix = buildExperimentMatrix(profile);
+    const profile = normalizeRealismProfile(config.realismProfile ?? DEFAULT_REALISM_PROFILE);
+    const matrix = buildRealismExperimentMatrix(profile);
 
     return NextResponse.json({ success: true, profile, matrix });
   } catch (error: any) {
@@ -69,24 +44,18 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const profile = {
-      interruptionSensitivity:
-        typeof body?.interruptionSensitivity === "string" ? body.interruptionSensitivity : "medium",
-      backchannelFrequency:
-        typeof body?.backchannelFrequency === "string" ? body.backchannelFrequency : "medium",
-      pauseStyle: typeof body?.pauseStyle === "string" ? body.pauseStyle : "natural",
-      noiseHandling: typeof body?.noiseHandling === "string" ? body.noiseHandling : "adaptive",
-      pronunciationHints: Array.isArray(body?.pronunciationHints)
-        ? body.pronunciationHints.filter((x: any) => typeof x === "string")
-        : [],
-    };
+    const profile = normalizeRealismProfile(body);
 
     const updated = await prisma.voiceAgentConfig.update({
       where: { id: config.id },
       data: { realismProfile: profile },
     });
 
-    return NextResponse.json({ success: true, realismProfile: updated.realismProfile, matrix: buildExperimentMatrix(profile) });
+    return NextResponse.json({
+      success: true,
+      realismProfile: updated.realismProfile,
+      matrix: buildRealismExperimentMatrix(profile),
+    });
   } catch (error: any) {
     console.error("[API] Error updating realism profile:", error);
     return NextResponse.json({ error: "Failed to update realism profile" }, { status: 500 });
