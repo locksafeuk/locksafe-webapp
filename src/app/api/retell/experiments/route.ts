@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { computeExperimentSummary } from "@/lib/retell-experiments";
+import { computeExperimentSummary, ensureNoConflictingExperiment, evaluateRolloutGuardrails } from "@/lib/retell-experiments";
 
 export async function GET() {
   try {
@@ -51,9 +51,29 @@ export async function POST(request: NextRequest) {
     const name = typeof body?.name === "string" ? body.name : "Voice Experiment";
     const controlVersionId = typeof body?.controlVersionId === "string" ? body.controlVersionId : null;
     const challengerVersionId = typeof body?.challengerVersionId === "string" ? body.challengerVersionId : null;
+    const trafficSplit = typeof body?.trafficSplit === "number" ? body.trafficSplit : 50;
+    const stopLossThreshold = typeof body?.stopLossThreshold === "number" ? body.stopLossThreshold : 15;
 
-    if (!controlVersionId || !challengerVersionId) {
-      return NextResponse.json({ error: "controlVersionId and challengerVersionId are required" }, { status: 400 });
+    const guardrailIssues = evaluateRolloutGuardrails({
+      controlVersionId,
+      challengerVersionId,
+      trafficSplit,
+      stopLossThreshold,
+    });
+
+    if (guardrailIssues.length > 0) {
+      return NextResponse.json(
+        { error: "Rollout guardrails failed", guardrailIssues },
+        { status: 400 }
+      );
+    }
+
+    const conflict = await ensureNoConflictingExperiment();
+    if (conflict) {
+      return NextResponse.json(
+        { error: conflict.message, guardrailIssues: [conflict] },
+        { status: 409 }
+      );
     }
 
     const experiment = await prisma.voiceExperiment.create({
@@ -62,9 +82,8 @@ export async function POST(request: NextRequest) {
         status: "running",
         controlVersionId,
         challengerVersionId,
-        trafficSplit: typeof body?.trafficSplit === "number" ? body.trafficSplit : 50,
-        stopLossThreshold:
-          typeof body?.stopLossThreshold === "number" ? body.stopLossThreshold : 15,
+        trafficSplit,
+        stopLossThreshold,
         createdBy: admin.email || "admin",
         startedAt: new Date(),
       },
