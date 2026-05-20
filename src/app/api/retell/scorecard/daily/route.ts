@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
     if (alertSummary.critical > 0 || alertSummary.warning > 0) {
       await sendAdminAlert({
         title: alertSummary.critical > 0 ? "Voice AI critical alert" : "Voice AI warning",
-        severity: alertSummary.critical > 0 ? "critical" : "warning",
+        severity: alertSummary.critical > 0 ? "error" : "warning",
         message: alerts.map((alert) => `[${alert.severity}] ${alert.message}`).join("\n"),
       });
     }
