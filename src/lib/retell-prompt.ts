@@ -8,6 +8,8 @@ export type VoicePromptContext = {
   businessName?: string;
   humanEscalationNumber?: string;
   realismMode?: "balanced" | "empathetic" | "efficient";
+  includeScenarios?: Array<"emergency" | "appointment" | "objection" | "interruption">;
+  maxClarificationLoops?: number;
 };
 
 function basePersonaSection(ctx: VoicePromptContext): PromptSection {
@@ -27,6 +29,7 @@ function basePersonaSection(ctx: VoicePromptContext): PromptSection {
 
 function realismSection(ctx: VoicePromptContext): PromptSection {
   const mode = ctx.realismMode ?? "balanced";
+  const maxClarifications = Math.max(1, Math.min(3, ctx.maxClarificationLoops ?? 2));
   const styleLine =
     mode === "empathetic"
       ? "Prioritize empathy, pacing, and reassurance over speed."
@@ -42,6 +45,7 @@ function realismSection(ctx: VoicePromptContext): PromptSection {
       "Do not over-talk. Ask one question at a time.",
       "If interrupted, acknowledge and adapt instead of repeating verbatim.",
       "If unsure, clarify once, then provide the safest next step.",
+      `Do not exceed ${maxClarifications} clarification attempts before escalation or fallback.`,
     ].join("\n"),
   };
 }
@@ -95,6 +99,52 @@ function pricingSection(): PromptSection {
   };
 }
 
+function emergencyRoutingSection(): PromptSection {
+  return {
+    title: "EMERGENCY_ROUTING",
+    body: [
+      "For emergency lockout calls, prioritize speed and reassurance.",
+      "Fast-path field order: caller name, postcode/location, lockout type, callback number.",
+      "If safety risk is implied, advise caller to move to a safe location while dispatch is arranged.",
+      "Keep emergency flow concise and avoid non-essential questions until core details are secured.",
+    ].join("\n"),
+  };
+}
+
+function appointmentRoutingSection(): PromptSection {
+  return {
+    title: "APPOINTMENT_ROUTING",
+    body: [
+      "For non-emergency bookings, run structured intake: caller name, postcode, service needed, preferred date/time, callback number.",
+      "Offer concise availability guidance and confirm next steps before ending the call.",
+      "Use a consultative tone for upgrades, replacements, and planned visits.",
+    ].join("\n"),
+  };
+}
+
+function objectionHandlingSection(): PromptSection {
+  return {
+    title: "OBJECTION_HANDLING",
+    body: [
+      "If caller objects to price or timing, acknowledge concern first and respond with value and transparency.",
+      "Do not pressure. Offer options: clarify scope, confirm callout expectations, or escalate to human support.",
+      "When caller mentions competitors, stay neutral and focus on response time, safety, and upfront quoting.",
+    ].join("\n"),
+  };
+}
+
+function interruptionRecoverySection(ctx: VoicePromptContext): PromptSection {
+  const maxClarifications = Math.max(1, Math.min(3, ctx.maxClarificationLoops ?? 2));
+  return {
+    title: "INTERRUPTION_RECOVERY",
+    body: [
+      "If background noise or interruption prevents understanding, ask a short clarification question.",
+      `If still unclear after ${maxClarifications} attempts, offer escalation or fallback.` ,
+      "Mirror caller pace and keep each question short to reduce cognitive load in noisy conditions.",
+    ].join("\n"),
+  };
+}
+
 function endingSection(): PromptSection {
   return {
     title: "CALL_ENDING",
@@ -106,11 +156,17 @@ function endingSection(): PromptSection {
 }
 
 export function buildRetellPrompt(ctx: VoicePromptContext = {}): string {
-  const sections = [
+  const includeScenarios = new Set(ctx.includeScenarios ?? ["emergency", "appointment", "objection", "interruption"]);
+
+  const sections: PromptSection[] = [
     basePersonaSection(ctx),
     realismSection(ctx),
     intakeSection(),
     toolPolicySection(),
+    ...(includeScenarios.has("emergency") ? [emergencyRoutingSection()] : []),
+    ...(includeScenarios.has("appointment") ? [appointmentRoutingSection()] : []),
+    ...(includeScenarios.has("objection") ? [objectionHandlingSection()] : []),
+    ...(includeScenarios.has("interruption") ? [interruptionRecoverySection(ctx)] : []),
     escalationSection(ctx),
     pricingSection(),
     endingSection(),

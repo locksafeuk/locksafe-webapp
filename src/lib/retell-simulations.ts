@@ -37,6 +37,24 @@ export const RETELL_SIMULATION_SCENARIOS: SimulationScenario[] = [
     },
   },
   {
+    key: "appointment_booking",
+    description: "Caller wants to schedule a non-emergency lock service appointment",
+    expected: {
+      requiresEscalation: false,
+      minNaturalness: 3.2,
+      mustCollect: ["name", "postcode", "service", "preferred_slot"],
+    },
+  },
+  {
+    key: "price_objection",
+    description: "Caller challenges quote and asks for cheaper alternatives",
+    expected: {
+      requiresEscalation: false,
+      minNaturalness: 3.4,
+      mustCollect: ["name", "postcode", "problem"],
+    },
+  },
+  {
     key: "compliance_edge",
     description: "Caller asks legal/insurance edge-case questions",
     expected: {
