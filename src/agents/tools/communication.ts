@@ -428,19 +428,17 @@ export const controlAgentHeartbeatTool: AgentTool = {
   name: "controlAgentHeartbeat",
   description:
     "Pause or resume an agent heartbeat to contain or recover from repeated failures. " +
-    "agentName MUST be one of the seeded agents (ceo, coo, cmo, cto, copywriter, ads-specialist, social-media). " +
-    "If you do not know the exact name, call getDashboardStats / listAgents first instead of guessing — invented names will be rejected and will NOT auto-create agents.",
+    "Valid agentName values are EXACTLY: ceo, coo, cmo, cto, copywriter, ads-specialist, social-media. " +
+    "Any other value will be rejected. Do NOT invoke this tool unless you have observed >=3 failed AgentExecution rows for the target agent in the last hour; otherwise the tool will refuse the action.",
   category: "communication",
-  permissions: ["repair_system", "ceo", "cto"],
+  permissions: ["repair_system", "ceo"],
   parameters: [
     {
       name: "agentName",
       type: "string",
       required: true,
       description:
-        "Target agent name. Must exactly match a seeded agent in the database " +
-        "(ceo, coo, cmo, cto, copywriter, ads-specialist, social-media). " +
-        "Do not invent names like 'reliability-sentinel' or 'monitor' — they will be rejected.",
+        "Target agent name. MUST be one of: ceo, coo, cmo, cto, copywriter, ads-specialist, social-media. Anything else is rejected.",
     },
     {
       name: "action",
