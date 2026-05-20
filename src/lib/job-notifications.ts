@@ -74,39 +74,107 @@ export async function notifyNearbyLocksmiths(job: JobForNotification): Promise<{
       nativeTokenPlatform: string | null;
     }> = [];
 
-    for (const locksmith of locksmiths) {
-      if (!locksmith.baseLat || !locksmith.baseLng) continue;
+    // Pre-compute distance for every candidate so we can do the in-radius pass
+    // and (if empty) fall back to progressively wider radii without re-querying.
+    const scored = locksmiths
+      .filter((l) => l.baseLat != null && l.baseLng != null)
+      .map((l) => ({
+        l,
+        distance: calculateDistanceMiles(
+          l.baseLat as number,
+          l.baseLng as number,
+          job.latitude as number,
+          job.longitude as number,
+        ),
+      }));
 
-      const distance = calculateDistanceMiles(
-        locksmith.baseLat,
-        locksmith.baseLng,
-        job.latitude,
-        job.longitude,
-      );
-
-      const coverageRadius = locksmith.coverageRadius || 10;
-
+    // Normal pass — respect each locksmith's own coverageRadius (default 10mi)
+    for (const { l, distance } of scored) {
+      const coverageRadius = l.coverageRadius || 10;
       if (distance <= coverageRadius) {
         nearbyLocksmiths.push({
-          id: locksmith.id,
-          name: locksmith.name,
-          email: locksmith.email,
+          id: l.id,
+          name: l.name,
+          email: l.email,
           distance: Math.round(distance * 10) / 10,
-          nativeDeviceToken: locksmith.nativeDeviceToken,
-          nativeTokenType: locksmith.nativeTokenType,
-          nativeTokenPlatform: locksmith.nativeTokenPlatform,
+          nativeDeviceToken: l.nativeDeviceToken,
+          nativeTokenType: l.nativeTokenType,
+          nativeTokenPlatform: l.nativeTokenPlatform,
         });
         console.log(
-          `[Job Notifications] Locksmith ${locksmith.name} (${locksmith.id}) is ${distance.toFixed(1)} miles away - within ${coverageRadius} mile radius`,
+          `[Job Notifications] Locksmith ${l.name} (${l.id}) is ${distance.toFixed(1)} miles away - within ${coverageRadius} mile radius`,
         );
       }
     }
 
+    // ── Fallback widening: no one in their advertised radius → notify the
+    // closest few anyway. Better to wake a locksmith 25mi away who may still
+    // accept than to leave a customer stranded with zero outreach.
+    let widenedRadiusUsed: number | null = null;
+    if (nearbyLocksmiths.length === 0 && scored.length > 0) {
+      const FALLBACK_RADII = [15, 30, 50, 100];
+      const sorted = [...scored].sort((a, b) => a.distance - b.distance);
+      for (const radius of FALLBACK_RADII) {
+        const within = sorted.filter((s) => s.distance <= radius).slice(0, 5);
+        if (within.length > 0) {
+          widenedRadiusUsed = radius;
+          for (const { l, distance } of within) {
+            nearbyLocksmiths.push({
+              id: l.id,
+              name: l.name,
+              email: l.email,
+              distance: Math.round(distance * 10) / 10,
+              nativeDeviceToken: l.nativeDeviceToken,
+              nativeTokenType: l.nativeTokenType,
+              nativeTokenPlatform: l.nativeTokenPlatform,
+            });
+          }
+          console.log(
+            `[Job Notifications] No locksmiths in their own radius for ${job.jobNumber}; widened to ${radius}mi and found ${within.length}`,
+          );
+          break;
+        }
+      }
+    }
+
+    // Still nobody → escalate. Tell admin so a human can hand-dispatch.
     if (nearbyLocksmiths.length === 0) {
       console.log(
-        `[Job Notifications] No locksmiths within range for job ${job.jobNumber}`,
+        `[Job Notifications] No locksmiths within any radius for job ${job.jobNumber} — escalating to admin`,
       );
+      try {
+        const { sendAdminAlert } = await import("@/lib/telegram");
+        await sendAdminAlert({
+          title: "🚨 No locksmith coverage for new job",
+          message:
+            `Job ${job.jobNumber} at ${job.postcode} (${job.address ?? "no address"}) ` +
+            `has zero locksmiths within 100mi.\n\n` +
+            `Fleet size: ${locksmiths.length} available. ` +
+            `Hand-dispatch via admin panel or escalate to recruitment.`,
+          severity: "error",
+        });
+      } catch (e) {
+        console.warn("[Job Notifications] Admin escalation failed:", e);
+      }
       return { notifiedCount: 0, locksmithIds: [] };
+    }
+
+    // If we had to widen, also let admin know (warning, not error) so they
+    // can track coverage gaps.
+    if (widenedRadiusUsed !== null) {
+      try {
+        const { sendAdminAlert } = await import("@/lib/telegram");
+        await sendAdminAlert({
+          title: "⚠️ Job dispatched outside normal radius",
+          message:
+            `Job ${job.jobNumber} at ${job.postcode}: no locksmith in their ` +
+            `own coverage radius. Notified ${nearbyLocksmiths.length} ` +
+            `locksmith(s) within ${widenedRadiusUsed}mi as fallback.`,
+          severity: "warning",
+        });
+      } catch {
+        /* non-fatal */
+      }
     }
 
     console.log(
