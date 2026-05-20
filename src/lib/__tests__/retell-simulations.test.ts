@@ -23,4 +23,22 @@ describe("retell simulation scenarios", () => {
     expect(result.passed).toBe(false);
     expect(result.failureReason).toContain("missing fields");
   });
+
+  it("requires email and job reference sms linkage in emergency scenario", () => {
+    const scenario = RETELL_SIMULATION_SCENARIOS.find((s) => s.key === "emergency_lockout");
+    expect(scenario).toBeDefined();
+
+    const result = scoreSimulationOutput({
+      transcript: "",
+      collectedFields: ["name", "postcode", "phone"],
+      naturalnessScore: 4,
+      escalated: false,
+      scenario: scenario!,
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.failureReason).toContain("email");
+    expect(result.failureReason).toContain("job_reference");
+    expect(result.failureReason).toContain("sms_link_sent");
+  });
 });

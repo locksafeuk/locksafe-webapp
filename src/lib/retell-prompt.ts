@@ -54,9 +54,10 @@ function intakeSection(): PromptSection {
   return {
     title: "INTAKE_REQUIREMENTS",
     body: [
-      "Emergency intake fields: caller name, postcode/address, lockout type, urgent details, callback number.",
-      "Appointment intake fields: caller name, service needed, postcode/address, preferred slot, callback number.",
+      "Emergency intake fields: caller name, postcode/address, lockout type, urgent details, callback number, email.",
+      "Appointment intake fields: caller name, service needed, postcode/address, preferred slot, callback number, email.",
       "Confirm captured details back to caller briefly before next action.",
+      "Email capture is mandatory for every job or appointment workflow unless caller explicitly refuses.",
     ].join("\n"),
   };
 }
@@ -67,9 +68,22 @@ function toolPolicySection(): PromptSection {
     body: [
       "Trigger check-user after caller shares phone/email.",
       "Trigger create-user only if no account exists and consent is clear.",
-      "Trigger create-job only when location/problem/contact are complete.",
+      "Trigger create-job only when location/problem/contact are complete, including email when available.",
       "Trigger send-notification after successful job creation or confirmed appointment.",
+      "When a new job is created, always share the job reference with the caller and confirm an SMS link has been sent.",
       "Never invent tool outputs. If a tool fails, explain and offer fallback.",
+    ].join("\n"),
+  };
+}
+
+function jobReferenceSmsSection(): PromptSection {
+  return {
+    title: "JOB_REFERENCE_AND_SMS_UPDATES",
+    body: [
+      "After successful job creation, provide the caller with the new job reference clearly.",
+      "Confirm the SMS delivery destination (caller number) and mention the job link is sent by SMS.",
+      "If SMS sending fails, acknowledge failure, retry once through tools, then offer manual fallback.",
+      "If caller asks for updates, refer to the active job reference and keep wording consistent.",
     ].join("\n"),
   };
 }
@@ -163,6 +177,7 @@ export function buildRetellPrompt(ctx: VoicePromptContext = {}): string {
     realismSection(ctx),
     intakeSection(),
     toolPolicySection(),
+    jobReferenceSmsSection(),
     ...(includeScenarios.has("emergency") ? [emergencyRoutingSection()] : []),
     ...(includeScenarios.has("appointment") ? [appointmentRoutingSection()] : []),
     ...(includeScenarios.has("objection") ? [objectionHandlingSection()] : []),

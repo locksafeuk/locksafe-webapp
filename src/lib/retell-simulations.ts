@@ -15,7 +15,7 @@ export const RETELL_SIMULATION_SCENARIOS: SimulationScenario[] = [
     expected: {
       requiresEscalation: false,
       minNaturalness: 3.5,
-      mustCollect: ["name", "postcode", "phone"],
+      mustCollect: ["name", "postcode", "phone", "email", "job_reference", "sms_link_sent"],
     },
   },
   {
@@ -42,7 +42,7 @@ export const RETELL_SIMULATION_SCENARIOS: SimulationScenario[] = [
     expected: {
       requiresEscalation: false,
       minNaturalness: 3.2,
-      mustCollect: ["name", "postcode", "service", "preferred_slot"],
+      mustCollect: ["name", "postcode", "service", "preferred_slot", "email", "job_reference", "sms_link_sent"],
     },
   },
   {
@@ -51,7 +51,7 @@ export const RETELL_SIMULATION_SCENARIOS: SimulationScenario[] = [
     expected: {
       requiresEscalation: false,
       minNaturalness: 3.4,
-      mustCollect: ["name", "postcode", "problem"],
+      mustCollect: ["name", "postcode", "problem", "email", "job_reference", "sms_link_sent"],
     },
   },
   {

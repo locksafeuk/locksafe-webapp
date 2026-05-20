@@ -8,6 +8,10 @@ describe("retell prompt builder", () => {
     expect(prompt).toContain("## APPOINTMENT_ROUTING");
     expect(prompt).toContain("## OBJECTION_HANDLING");
     expect(prompt).toContain("## INTERRUPTION_RECOVERY");
+    expect(prompt).toContain("## JOB_REFERENCE_AND_SMS_UPDATES");
+    expect(prompt).toContain("Email capture is mandatory");
+    expect(prompt).toContain("new job reference");
+    expect(prompt).toContain("SMS link");
   });
 
   it("respects includeScenarios filter", () => {
