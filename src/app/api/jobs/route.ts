@@ -38,6 +38,20 @@ async function geocodePostcode(postcode: string): Promise<{ lat: number; lng: nu
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    // Reject obviously incomplete intake early so the error is meaningful
+    const missing: string[] = [];
+    if (!body.problemType) missing.push("problemType");
+    if (!body.propertyType) missing.push("propertyType");
+    if (!body.postcode) missing.push("postcode");
+    if (!body.address) missing.push("address");
+    if (!body.customerId && !body.phone) missing.push("phone (or customerId)");
+    if (!body.customerId && !body.name) missing.push("name (or customerId)");
+    if (missing.length) {
+      return NextResponse.json(
+        { success: false, error: `Missing required fields: ${missing.join(", ")}` },
+        { status: 400 },
+      );
+    }
     const { problemType, propertyType, postcode, address, description, name, phone, customerId, photos, requestGps, scheduledFor, organisationId, propertyId } = body;
 
     let customerIdToUse = customerId;
@@ -271,8 +285,17 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error creating job:", error);
+    const detail = error instanceof Error ? error.message : String(error);
+    // Always log; expose detail in non-production for faster debugging.
+    const expose =
+      process.env.VERCEL_ENV !== "production" ||
+      process.env.JOB_CREATE_VERBOSE_ERRORS === "true";
     return NextResponse.json(
-      { success: false, error: "Failed to create job" },
+      {
+        success: false,
+        error: "Failed to create job",
+        ...(expose ? { detail } : {}),
+      },
       { status: 500 }
     );
   }

@@ -99,7 +99,12 @@ export async function storeMemory(
   // Persist to database
   try {
     const { prisma } = await import('@/lib/prisma');
-    const dbAgent = await prisma.agent.findUnique({ where: { name: agentId } });
+    // Callers may pass either the Mongo `_id` (24-char hex ObjectId) or the
+    // canonical agent `name` (e.g. "cmo"). Accept both so memories actually persist.
+    const isObjectId = /^[a-f0-9]{24}$/i.test(agentId);
+    const dbAgent = isObjectId
+      ? await prisma.agent.findUnique({ where: { id: agentId } })
+      : await prisma.agent.findUnique({ where: { name: agentId } });
     if (dbAgent) {
       await prisma.agentMemory.create({
         data: {
@@ -117,9 +122,11 @@ export async function storeMemory(
           expiresAt: entry.expiresAt,
         },
       });
+    } else {
+      console.warn(`[storeMemory] agent not found for "${agentId}" — memory written to RAM only`);
     }
-  } catch {
-    // DB persistence is best-effort
+  } catch (err) {
+    console.warn(`[storeMemory] DB persist failed for "${agentId}":`, err instanceof Error ? err.message : err);
   }
 
   return entry;

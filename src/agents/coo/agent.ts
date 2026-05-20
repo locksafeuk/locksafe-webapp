@@ -11,6 +11,7 @@ import { parseSkillsFile } from "@/agents/core/skill-parser";
 import { storeDecision, storePattern } from "@/agents/core/memory";
 import { WorkflowEngine } from "@/lib/workflow-engine";
 import { sendAdminAlert } from "@/lib/telegram";
+import { notifyNearbyLocksmiths } from "@/lib/job-notifications";
 import type { AgentConfig } from "@/agents/core/types";
 
 // Agent configuration
@@ -104,6 +105,8 @@ export async function runCOOHeartbeat(): Promise<void> {
   }
 
   type COOCtx = {
+    sweptCount: number;
+    sweepNotified: number;
     stuckJobCount: number;
     unassignedEmergencyCount: number;
     expiringInsuranceCount: number;
@@ -111,6 +114,68 @@ export async function runCOOHeartbeat(): Promise<void> {
   };
 
   const workflow = new WorkflowEngine<COOCtx>("COO Operations Review")
+    .step("sweep-unassigned", async (ctx) => {
+      // Autonomous sweep: any PENDING job with no notified locksmiths yet
+      // must be pushed through notifyNearbyLocksmiths so the dispatch funnel
+      // doesn't stall when a job is created directly in DB or when the public
+      // intake's fire-and-forget notify call lost its event loop on a cold start.
+      const unnotified = await prisma.job.findMany({
+        where: {
+          status: JobStatus.PENDING,
+          locksmithId: null,
+          notifiedLocksmithIds: { isEmpty: true },
+          latitude: { not: null },
+          longitude: { not: null },
+        },
+        select: {
+          id: true,
+          jobNumber: true,
+          problemType: true,
+          propertyType: true,
+          postcode: true,
+          address: true,
+          latitude: true,
+          longitude: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: "asc" },
+        take: 10,
+      });
+
+      ctx.sweptCount = unnotified.length;
+      let notifiedTotal = 0;
+      for (const job of unnotified) {
+        try {
+          const result = await notifyNearbyLocksmiths({
+            id: job.id,
+            jobNumber: job.jobNumber,
+            problemType: job.problemType,
+            propertyType: job.propertyType ?? undefined,
+            postcode: job.postcode,
+            address: job.address,
+            latitude: job.latitude,
+            longitude: job.longitude,
+            createdAt: job.createdAt.toISOString(),
+          });
+          notifiedTotal += result.notifiedCount;
+          if (result.locksmithIds.length > 0) {
+            await prisma.job.update({
+              where: { id: job.id },
+              data: { notifiedLocksmithIds: result.locksmithIds },
+            });
+          }
+        } catch (err) {
+          console.error(`[COO sweep] notify failed for ${job.jobNumber}:`, err);
+        }
+      }
+      ctx.sweepNotified = notifiedTotal;
+      if (unnotified.length > 0) {
+        ctx.alerts.push(
+          `Swept ${unnotified.length} unassigned job(s); pushed to ${notifiedTotal} locksmith notification(s)`,
+        );
+      }
+      return ctx;
+    })
     .step("check-stuck-jobs", async (ctx) => {
       // Jobs PENDING >30 min with no assigned locksmith
       const stuckJobs = await prisma.job.findMany({
@@ -180,6 +245,8 @@ export async function runCOOHeartbeat(): Promise<void> {
     });
 
   const result = await workflow.run({
+    sweptCount: 0,
+    sweepNotified: 0,
     stuckJobCount: 0,
     unassignedEmergencyCount: 0,
     expiringInsuranceCount: 0,
@@ -193,6 +260,7 @@ export async function runCOOHeartbeat(): Promise<void> {
     const ctx = result.context;
     console.log(
       `[COO] Heartbeat done in ${result.totalDurationMs}ms — ` +
+      `swept:${ctx.sweptCount}→notified:${ctx.sweepNotified} ` +
       `stuck:${ctx.stuckJobCount} emergencies:${ctx.unassignedEmergencyCount} ` +
       `expiringInsurance:${ctx.expiringInsuranceCount} alerts:${ctx.alerts.length}`
     );

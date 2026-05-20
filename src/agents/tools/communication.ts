@@ -453,7 +453,10 @@ export const controlAgentHeartbeatTool: AgentTool = {
       name: "reason",
       type: "string",
       required: false,
-      description: "Optional reason for auditability",
+      description:
+        "Justification for the action. REQUIRED when action='pause' and must be at least 30 characters " +
+        "AND cite the specific failure (e.g. error message, failed run id, or symptom). " +
+        "Pausing a healthy agent will be rejected — use the agent's recent AgentExecution failures as evidence.",
     },
   ],
   async execute(params): Promise<ToolResult> {
@@ -471,7 +474,7 @@ export const controlAgentHeartbeatTool: AgentTool = {
     // Validate against the live agents table BEFORE attempting state mutation.
     // This stops the LLM looping on hallucinated names like "reliability-sentinel".
     const { prisma } = await import("@/lib/prisma");
-    const knownAgents = await prisma.agent.findMany({ select: { name: true } });
+    const knownAgents = await prisma.agent.findMany({ select: { name: true, id: true } });
     const knownNames = knownAgents.map((a) => a.name);
     if (!knownNames.includes(agentName)) {
       return {
@@ -480,6 +483,42 @@ export const controlAgentHeartbeatTool: AgentTool = {
           `Agent "${agentName}" does not exist. Valid agent names are: ${knownNames.join(", ")}. ` +
           `Do not retry with invented names — only use one of the listed agents or skip this action.`,
       };
+    }
+
+    // PAUSE guardrails — protect healthy agents from over-eager repair playbooks.
+    if (action === "pause") {
+      if (reason.length < 30) {
+        return {
+          success: false,
+          error:
+            `Pause rejected: 'reason' must be at least 30 characters and cite the specific failure ` +
+            `(error message, failed run id, or observed symptom). Got ${reason.length} chars. ` +
+            `If you cannot cite a recent failure, do NOT pause the agent.`,
+        };
+      }
+
+      // Require evidence: at least one failed execution OR no successful heartbeat in last 2h.
+      const target = knownAgents.find((a) => a.name === agentName)!;
+      const since = new Date(Date.now() - 60 * 60_000); // last hour
+      const [recentFailures, recentSuccess] = await Promise.all([
+        prisma.agentExecution.count({
+          where: { agentId: target.id, status: "failed", startedAt: { gte: since } },
+        }),
+        prisma.agentExecution.count({
+          where: { agentId: target.id, status: "completed", startedAt: { gte: since } },
+        }),
+      ]);
+      const healthy = recentFailures < 3 && recentSuccess > 0;
+      if (healthy) {
+        return {
+          success: false,
+          error:
+            `Pause rejected: agent "${agentName}" looks healthy ` +
+            `(${recentSuccess} successful runs, ${recentFailures} failures in the last hour). ` +
+            `Only pause agents with >=3 recent failures or zero successful runs. ` +
+            `If you believe this agent is genuinely broken, file a createRepairTask with evidence instead.`,
+        };
+      }
     }
 
     // Ensure runtime state exists for DB-backed agents before state mutation.
