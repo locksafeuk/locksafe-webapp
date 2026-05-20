@@ -398,7 +398,7 @@ describe("GoogleAdsClient", () => {
 
       const client = makeClient();
       await expect(client.query("SELECT campaign.id FROM campaign")).rejects.toThrow(
-        "Google Ads search failed (403)",
+        "Google Ads PERMISSION_DENIED (403)",
       );
     });
 
