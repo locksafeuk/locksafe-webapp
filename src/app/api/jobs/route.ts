@@ -286,6 +286,9 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Error creating job:", error);
     const detail = error instanceof Error ? error.message : String(error);
+    const errorName = error instanceof Error ? error.name : "UnknownError";
+    // @ts-expect-error - Prisma errors expose a `code` field at runtime
+    const prismaCode: string | undefined = error?.code;
     // Always log; expose detail in non-production for faster debugging.
     const expose =
       process.env.VERCEL_ENV !== "production" ||
@@ -294,6 +297,8 @@ export async function POST(request: NextRequest) {
       {
         success: false,
         error: "Failed to create job",
+        errorName,
+        ...(prismaCode ? { prismaCode } : {}),
         ...(expose ? { detail } : {}),
       },
       { status: 500 }
