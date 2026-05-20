@@ -18,6 +18,7 @@
 
 import prisma from "@/lib/db";
 import { JobStatus } from "@prisma/client";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { processNaturalLanguageQuery } from "@/lib/openclaw-nlp";
 import {
   startJobRequest,
@@ -305,7 +306,7 @@ function normalizePhoneNumber(phone: string): string {
 
   // Convert UK 07 to 447
   if (normalized.startsWith("07") && normalized.length === 11) {
-    normalized = "44" + normalized.slice(1);
+    normalized = `44${normalized.slice(1)}`;
   }
 
   return normalized;
@@ -746,7 +747,7 @@ async function handleVerification(phone: string, message: string): Promise<void>
     } else {
       await sendButtonMessage(
         phone,
-        "❌ " + result.message + "\n\nWould you like to try again?",
+        `❌ ${result.message}\n\nWould you like to try again?`,
         [
           { id: "resend_code", title: "📱 Resend Code" },
           { id: "speak_human", title: "💬 Speak to Agent" },
@@ -1226,6 +1227,42 @@ export function verifyWebhook(params: {
 
   console.warn("[WhatsApp] Webhook verification failed");
   return { valid: false };
+}
+
+/**
+ * Verify the X-Hub-Signature-256 header on an incoming webhook POST.
+ *
+ * Meta signs the raw request body with the Meta App's app_secret using
+ * HMAC-SHA256. Without this check, anyone can POST forged webhook
+ * payloads to our endpoint.
+ *
+ * Returns:
+ * - { configured: false } when META_APP_SECRET is not set (caller should
+ *   warn but continue, so onboarding works before the secret is wired in)
+ * - { configured: true, valid: boolean }
+ */
+export function verifyWebhookSignature(
+  rawBody: string,
+  signatureHeader: string | null,
+): { configured: boolean; valid: boolean } {
+  const appSecret = process.env.META_APP_SECRET;
+  if (!appSecret) {
+    return { configured: false, valid: false };
+  }
+  if (!signatureHeader || !signatureHeader.startsWith("sha256=")) {
+    return { configured: true, valid: false };
+  }
+  const expected = createHmac("sha256", appSecret).update(rawBody).digest("hex");
+  const received = signatureHeader.slice("sha256=".length);
+  if (expected.length !== received.length) {
+    return { configured: true, valid: false };
+  }
+  try {
+    const ok = timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(received, "hex"));
+    return { configured: true, valid: ok };
+  } catch {
+    return { configured: true, valid: false };
+  }
 }
 
 /**
