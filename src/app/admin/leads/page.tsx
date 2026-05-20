@@ -158,6 +158,7 @@ export default function AdminLeadsPage() {
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
   // Reset to page 1 when filters change
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional reset on filter change
   useEffect(() => { setPage(1); }, [statusFilter, cityFilter, search]);
 
   const updateStatus = async (id: string, status: string) => {

@@ -244,10 +244,12 @@ function AdminJobsContent() {
     }
   };
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fetchJobs is stable; intentional re-fetch on filter/page change
   useEffect(() => {
     fetchJobs();
   }, [statusFilter, currentPage]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: debounced search re-runs fetchJobs by design
   useEffect(() => {
     const debounce = setTimeout(() => {
       if (searchQuery !== "") {
@@ -259,6 +261,7 @@ function AdminJobsContent() {
   }, [searchQuery]);
 
   // Clear selection when changing filters
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional reset on filter/page/search change
   useEffect(() => {
     setSelectedJobs(new Set());
   }, [statusFilter, currentPage, searchQuery]);

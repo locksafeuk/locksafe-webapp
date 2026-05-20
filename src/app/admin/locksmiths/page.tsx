@@ -25,7 +25,7 @@ import {
   ExternalLink,
   Loader2,
   RefreshCw,
-  Map,
+  Map as MapIcon,
   List,
   Camera,
   Upload,
@@ -250,9 +250,12 @@ export default function AdminLocksmithsPage() {
 
   // Reverse-geocode lat/lng -> postcode via Google Geocoding API (server-side route)
   useEffect(() => {
-    const withCoords = locksmiths.filter(ls => ls.baseLat && ls.baseLng);
+    const withCoords = locksmiths.filter(
+      (ls): ls is typeof ls & { baseLat: number; baseLng: number } =>
+        ls.baseLat != null && ls.baseLng != null,
+    );
     if (withCoords.length === 0) return;
-    const items = withCoords.map(ls => ({ id: ls.id, lat: ls.baseLat!, lng: ls.baseLng! }));
+    const items = withCoords.map(ls => ({ id: ls.id, lat: ls.baseLat, lng: ls.baseLng }));
     fetch("/api/admin/reverse-geocode", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -723,7 +726,7 @@ export default function AdminLocksmithsPage() {
                       : "bg-white text-slate-600 hover:bg-slate-50"
                   }`}
                 >
-                  <Map className="w-4 h-4" />
+                  <MapIcon className="w-4 h-4" />
                   <span className="hidden sm:inline">Map</span>
                 </button>
               </div>
@@ -777,7 +780,7 @@ export default function AdminLocksmithsPage() {
           <div className="bg-white rounded-xl shadow-sm overflow-hidden mb-6">
             <div className="p-4 border-b">
               <h2 className="font-semibold text-slate-900 flex items-center gap-2">
-                <Map className="w-5 h-5 text-orange-500" />
+                <MapIcon className="w-5 h-5 text-orange-500" />
                 Locksmith Coverage Areas
               </h2>
               <p className="text-sm text-slate-500 mt-1">
@@ -787,12 +790,15 @@ export default function AdminLocksmithsPage() {
             <div className="p-4">
               <AdminCoverageMap
                 locksmiths={locksmiths
-                  .filter(ls => ls.baseLat && ls.baseLng)
+                  .filter(
+                    (ls): ls is typeof ls & { baseLat: number; baseLng: number } =>
+                      ls.baseLat != null && ls.baseLng != null,
+                  )
                   .map(ls => ({
                     id: ls.id,
                     name: ls.name,
-                    baseLat: ls.baseLat!,
-                    baseLng: ls.baseLng!,
+                    baseLat: ls.baseLat,
+                    baseLng: ls.baseLng,
                     coverageRadius: ls.coverageRadius,
                     isVerified: ls.isVerified,
                   }))}
@@ -831,7 +837,7 @@ export default function AdminLocksmithsPage() {
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
                     Coverage
                   </th>
-                  <th className="px-4 py-3"></th>
+                  <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y">
