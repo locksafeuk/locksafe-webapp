@@ -6,6 +6,23 @@ model StripeReminderLog {
   adminEmail   String
   sentAt       DateTime @default(now())
 }
+
+// Audit log for admin WhatsApp click-to-chat button clicks.
+// One row per click; non-blocking — admin still gets to WhatsApp if the
+// log call fails. Used for "who contacted whom about what" reporting.
+model WhatsAppClickLog {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  actorId     String   // admin user id from JWT payload (sub)
+  actorEmail  String
+  targetType  String   // "locksmith" | "lead" | "customer"
+  targetId    String
+  jobId       String?
+  phone       String   // recipient phone, raw as displayed
+  clickedAt   DateTime @default(now())
+
+  @@index([targetId, clickedAt])
+  @@index([actorId, clickedAt])
+}
 //
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema

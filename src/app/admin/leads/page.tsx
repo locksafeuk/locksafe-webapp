@@ -27,6 +27,7 @@ import {
   Plus,
 } from "lucide-react";
 import type { OutreachSubjectStyle, OutreachTrack } from "@/lib/lead-outreach";
+import { WhatsAppButton } from "@/components/WhatsAppButton";
 
 interface Lead {
   id: string;
@@ -685,13 +686,22 @@ export default function AdminLeadsPage() {
                         {/* Phone */}
                         <td className="px-4 py-3">
                           {lead.phone ? (
-                            <a
-                              href={`tel:${lead.phone}`}
-                              className="text-slate-700 hover:text-orange-500 flex items-center gap-1"
-                            >
-                              <Phone className="w-3.5 h-3.5 flex-shrink-0" />
-                              {lead.phone}
-                            </a>
+                            <div className="flex items-center gap-2">
+                              <a
+                                href={`tel:${lead.phone}`}
+                                className="text-slate-700 hover:text-orange-500 flex items-center gap-1"
+                              >
+                                <Phone className="w-3.5 h-3.5 flex-shrink-0" />
+                                {lead.phone}
+                              </a>
+                              <WhatsAppButton
+                                phone={lead.phone}
+                                message={`Hi ${lead.name}, this is LockSafe — `}
+                                iconOnly
+                                size="sm"
+                                context={{ targetType: "lead", targetId: lead.id }}
+                              />
+                            </div>
                           ) : (
                             <span className="text-slate-400 text-xs">—</span>
                           )}

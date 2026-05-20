@@ -44,6 +44,7 @@ import {
   Edit,
 } from "lucide-react";
 import Image from "next/image";
+import { WhatsAppButton } from "@/components/WhatsAppButton";
 
 // Dynamically import AdminCoverageMap to avoid SSR issues with Leaflet
 const AdminCoverageMap = dynamic(
@@ -958,9 +959,18 @@ export default function AdminLocksmithsPage() {
                       )}
                     </td>
                     <td className="px-4 py-4">
-                      <Button variant="ghost" size="sm">
-                        <MoreHorizontal className="w-4 h-4" />
-                      </Button>
+                      <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                        <WhatsAppButton
+                          phone={ls.phone}
+                          message={`Hi ${ls.name}, this is LockSafe admin — `}
+                          iconOnly
+                          size="sm"
+                          context={{ targetType: "locksmith", targetId: ls.id }}
+                        />
+                        <Button variant="ghost" size="sm">
+                          <MoreHorizontal className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1342,7 +1352,15 @@ export default function AdminLocksmithsPage() {
                           <Phone className="w-4 h-4 text-slate-400" />
                           <span className="text-sm text-slate-500">Phone</span>
                         </div>
-                        <div className="font-medium">{selectedLocksmith.phone}</div>
+                        <div className="font-medium flex items-center justify-between gap-2">
+                          <span>{selectedLocksmith.phone}</span>
+                          <WhatsAppButton
+                            phone={selectedLocksmith.phone}
+                            message={`Hi ${selectedLocksmith.name}, this is LockSafe admin — `}
+                            size="sm"
+                            context={{ targetType: "locksmith", targetId: selectedLocksmith.id }}
+                          />
+                        </div>
                       </div>
                     </div>
                   )}

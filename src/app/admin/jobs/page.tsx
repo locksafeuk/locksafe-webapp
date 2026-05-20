@@ -30,12 +30,18 @@ import {
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import { WhatsAppButton } from "@/components/WhatsAppButton";
 
 interface Job {
   id: string;
   jobNumber: string;
   customer: { name: string; phone: string; email?: string | null } | null;
-  locksmith: { name: string; id: string; companyName?: string | null } | null;
+  locksmith: {
+    name: string;
+    id: string;
+    companyName?: string | null;
+    phone?: string | null;
+  } | null;
   status: string;
   problemType: string;
   propertyType: string;
@@ -781,6 +787,17 @@ function AdminJobsContent() {
                       <div className="font-medium text-slate-900 truncate">
                         {job.locksmith?.name || "Unassigned"}
                       </div>
+                      {job.locksmith?.phone && (
+                        <div className="mt-1">
+                          <WhatsAppButton
+                            phone={job.locksmith.phone}
+                            message={`Hi ${job.locksmith.name}, regarding job #${job.jobNumber} at ${job.address}, ${job.postcode} — `}
+                            iconOnly
+                            size="sm"
+                            context={{ targetType: "locksmith", targetId: job.locksmith.id, jobId: job.id }}
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1006,6 +1023,15 @@ function AdminJobsContent() {
                         </td>
                         <td className="px-4 py-3 text-center">
                           <div className="flex items-center justify-center gap-1">
+                            {job.locksmith?.phone && (
+                              <WhatsAppButton
+                                phone={job.locksmith.phone}
+                                message={`Hi ${job.locksmith.name}, regarding job #${job.jobNumber} at ${job.address}, ${job.postcode} — `}
+                                iconOnly
+                                size="sm"
+                                context={{ targetType: "locksmith", targetId: job.locksmith.id, jobId: job.id }}
+                              />
+                            )}
                             <button
                               type="button"
                               onClick={() => handleOpenEditModal(job)}
