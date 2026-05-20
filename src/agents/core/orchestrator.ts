@@ -505,6 +505,13 @@ export async function executeHeartbeat(agentId: string): Promise<HeartbeatResult
     const isReadOnlyTool = (name: string): boolean =>
       READ_ONLY_TOOL_PREFIXES.some((p) => name.toLowerCase().startsWith(p));
 
+    // Trace id groups every AgentExecution row from this single heartbeat together
+    const traceId = `hb_${dbAgent.id}_${now.getTime()}`;
+    let lastLlmModel = '';
+    let lastLlmUsedFallback = false;
+    let totalPromptTokens = 0;
+    let totalCompletionTokens = 0;
+
     for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
       // Iteration-level budget guard — stop the loop if budget exhausted.
       if (totalCost >= budgetRemaining) {
@@ -515,6 +522,7 @@ export async function executeHeartbeat(agentId: string): Promise<HeartbeatResult
         break;
       }
 
+      const llmStart = Date.now();
       const response = await chat(Models.HERMES, messages, {
         tools: toolDefs,
         temperature: 0.2,
@@ -522,6 +530,37 @@ export async function executeHeartbeat(agentId: string): Promise<HeartbeatResult
         allowOpenAIFallback: true,
         fallbackSeverity: 'critical',
       });
+      lastLlmModel = response.model;
+      lastLlmUsedFallback = response.usedFallback;
+      totalPromptTokens     += response.promptTokens     ?? 0;
+      totalCompletionTokens += response.completionTokens ?? 0;
+
+      // Persist the reasoning step so we can audit Hermes activity from the DB.
+      try {
+        await prisma.agentExecution.create({
+          data: {
+            agentId:     dbAgent.id,
+            traceId,
+            actionType:  'decision',
+            actionName:  `llm_iteration_${iter}`,
+            input:       JSON.stringify({ iter, messageCount: messages.length }),
+            output:      JSON.stringify({
+              content:    (response.content ?? '').slice(0, 1500),
+              toolCalls:  response.toolCalls?.map((c) => c.name) ?? [],
+              usedFallback: response.usedFallback,
+            }),
+            status:      'success',
+            tokensUsed:  (response.promptTokens ?? 0) + (response.completionTokens ?? 0),
+            costUsd:     0,
+            model:       response.model,
+            startedAt:   new Date(llmStart),
+            completedAt: new Date(),
+            durationMs:  Date.now() - llmStart,
+          },
+        });
+      } catch (logErr) {
+        console.warn(`[Orchestrator:${agentId}] failed to log LLM iter:`, logErr);
+      }
 
       // Append assistant turn to conversation history
       messages.push({ role: 'assistant', content: response.content ?? '' });
@@ -537,9 +576,12 @@ export async function executeHeartbeat(agentId: string): Promise<HeartbeatResult
 
         const cacheKey = `${call.name}:${JSON.stringify(call.arguments ?? {})}`;
         let resultPayload: { success: boolean; data?: unknown; error?: string };
+        const toolStart = Date.now();
+        let fromCache = false;
 
         if (isReadOnlyTool(call.name) && toolCallCache.has(cacheKey)) {
           resultPayload = toolCallCache.get(cacheKey) as typeof resultPayload;
+          fromCache = true;
           console.log(`[Orchestrator:${agentId}] Cache hit → ${call.name}`);
         } else {
           // Retry with exponential backoff for transient failures (network/DB).
@@ -558,6 +600,33 @@ export async function executeHeartbeat(agentId: string): Promise<HeartbeatResult
         // Nominal cost tracking ($0 for local Ollama, but tracked for auditing)
         totalCost += 0.001;
 
+        // Persist the tool call so we have a verifiable audit trail.
+        try {
+          await prisma.agentExecution.create({
+            data: {
+              agentId:     dbAgent.id,
+              traceId,
+              actionType:  'tool_call',
+              actionName:  call.name,
+              input:       JSON.stringify(call.arguments ?? {}).slice(0, 2000),
+              output:      JSON.stringify(
+                resultPayload.success
+                  ? { ok: true, data: resultPayload.data, cached: fromCache }
+                  : { ok: false, error: resultPayload.error, cached: fromCache },
+              ).slice(0, 4000),
+              status:      resultPayload.success ? 'success' : 'failed',
+              tokensUsed:  0,
+              costUsd:     0.001,
+              model:       response.model,
+              startedAt:   new Date(toolStart),
+              completedAt: new Date(),
+              durationMs:  Date.now() - toolStart,
+            },
+          });
+        } catch (logErr) {
+          console.warn(`[Orchestrator:${agentId}] failed to log tool call:`, logErr);
+        }
+
         messages.push({
           role: 'user',
           content: `Tool "${call.name}" returned: ${JSON.stringify(
@@ -573,19 +642,27 @@ export async function executeHeartbeat(agentId: string): Promise<HeartbeatResult
       data: {
         lastHeartbeat: now,
         budgetUsedUsd: { increment: totalCost },
+        totalExecutions: { increment: actionsExecuted },
       },
     });
 
-    // Store the last assistant message as a memory decision
+    // Always store a heartbeat memory entry so we have an audit trail even when
+    // Hermes returns an empty assistant message (common when tool_calls are emitted).
     const lastAssistantMsg = [...messages].reverse().find(m => m.role === 'assistant');
-    if (lastAssistantMsg?.content) {
+    const summary =
+      (lastAssistantMsg?.content && lastAssistantMsg.content.trim()) ||
+      `Heartbeat completed via ${lastLlmModel || 'hermes3'}${lastLlmUsedFallback ? ' (OpenAI fallback)' : ''}. ` +
+      `${actionsExecuted} tool calls, ${totalPromptTokens}/${totalCompletionTokens} tokens, $${totalCost.toFixed(4)} cost.`;
+    try {
       const { storeDecision } = await import('@/agents/core/memory');
       await storeDecision(
         dbAgent.id,
         `Heartbeat ${now.toISOString()}`,
-        lastAssistantMsg.content.slice(0, 500),
+        summary.slice(0, 500),
         'completed'
       );
+    } catch (memErr) {
+      console.warn(`[Orchestrator:${agentId}] failed to store heartbeat memory:`, memErr);
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

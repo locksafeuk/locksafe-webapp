@@ -92,6 +92,10 @@ export interface LLMResponse {
   usedFallback: boolean;
   durationMs: number;
   toolCalls?: Array<{ name: string; arguments: Record<string, unknown> }>;
+  /** Prompt tokens — from Ollama prompt_eval_count or OpenAI usage.prompt_tokens. */
+  promptTokens?: number;
+  /** Completion tokens — from Ollama eval_count or OpenAI usage.completion_tokens. */
+  completionTokens?: number;
 }
 
 // Prefer explicit OLLAMA_BASE_URL (Tailscale remote), fall back to local.
@@ -275,6 +279,8 @@ async function callOllama(
 
     const data = await res.json() as {
       message: { content: string; tool_calls?: Array<{ function: { name: string; arguments: unknown } }> };
+      prompt_eval_count?: number;
+      eval_count?: number;
     };
 
     const toolCalls = data.message.tool_calls?.map((tc) => ({
@@ -290,6 +296,8 @@ async function callOllama(
       usedFallback: false,
       durationMs:  Date.now() - startMs,
       toolCalls,
+      promptTokens:     data.prompt_eval_count,
+      completionTokens: data.eval_count,
     };
   } finally {
     clearTimeout(timer);
@@ -345,6 +353,7 @@ async function callOpenAI(
         tool_calls?: Array<{ function: { name: string; arguments: string } }>;
       };
     }>;
+    usage?: { prompt_tokens?: number; completion_tokens?: number };
   };
 
   const choice = data.choices[0].message;
@@ -360,6 +369,8 @@ async function callOpenAI(
     usedFallback,
     durationMs:  Date.now() - startMs,
     toolCalls,
+    promptTokens:     data.usage?.prompt_tokens,
+    completionTokens: data.usage?.completion_tokens,
   };
 }
 
