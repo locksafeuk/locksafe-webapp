@@ -24,21 +24,69 @@ describe("retell simulation scenarios", () => {
     expect(result.failureReason).toContain("missing fields");
   });
 
-  it("requires email and job reference sms linkage in emergency scenario", () => {
+  it("requires phone and job reference sms linkage in emergency scenario", () => {
     const scenario = RETELL_SIMULATION_SCENARIOS.find((s) => s.key === "emergency_lockout");
     expect(scenario).toBeDefined();
 
     const result = scoreSimulationOutput({
       transcript: "",
-      collectedFields: ["name", "postcode", "phone"],
+      collectedFields: ["name", "postcode"],
       naturalnessScore: 4,
       escalated: false,
       scenario: scenario!,
     });
 
     expect(result.passed).toBe(false);
-    expect(result.failureReason).toContain("email");
+    expect(result.failureReason).toContain("phone");
     expect(result.failureReason).toContain("job_reference");
     expect(result.failureReason).toContain("sms_link_sent");
+  });
+
+  it("rejects transcript language that claims lockout help is out of scope", () => {
+    const scenario = RETELL_SIMULATION_SCENARIOS.find((s) => s.key === "emergency_lockout");
+    expect(scenario).toBeDefined();
+
+    const result = scoreSimulationOutput({
+      transcript: "We do not handle online account lockouts, so I cannot help further.",
+      collectedFields: ["name", "postcode", "phone", "email", "job_reference", "sms_link_sent"],
+      naturalnessScore: 4,
+      escalated: false,
+      scenario: scenario!,
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.failureReason).toContain("transcript policy violation");
+  });
+
+  it("rejects transcript language that ends early due to a suspected loop", () => {
+    const scenario = RETELL_SIMULATION_SCENARIOS.find((s) => s.key === "emergency_lockout");
+    expect(scenario).toBeDefined();
+
+    const result = scoreSimulationOutput({
+      transcript: "Ending the conversation early as there might be a loop.",
+      collectedFields: ["name", "postcode", "phone", "email", "job_reference", "sms_link_sent"],
+      naturalnessScore: 4,
+      escalated: false,
+      scenario: scenario!,
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.failureReason).toContain("transcript policy violation");
+  });
+
+  it("rejects transcript language that reframes lockout calls as online account recovery", () => {
+    const scenario = RETELL_SIMULATION_SCENARIOS.find((s) => s.key === "emergency_lockout");
+    expect(scenario).toBeDefined();
+
+    const result = scoreSimulationOutput({
+      transcript: "We do not handle online account recovery and do not collect emails for locksmith services.",
+      collectedFields: ["name", "postcode", "phone", "email", "job_reference", "sms_link_sent"],
+      naturalnessScore: 4,
+      escalated: false,
+      scenario: scenario!,
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.failureReason).toContain("transcript policy violation");
   });
 });

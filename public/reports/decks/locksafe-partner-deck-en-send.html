@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LockSafe Partner Deck - Send Version (English)</title>
+  <style>
+    :root {
+      --bg: #f7f9ff;
+      --ink: #12223f;
+      --muted: #506487;
+      --line: #d6def1;
+      --panel: #ffffff;
+      --gold: #b68f2f;
+      --blue: #1656b9;
+      --green: #0b8f56;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+    }
+    .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #ffffffee;
+      border-bottom: 1px solid var(--line);
+      padding: 10px 16px;
+    }
+    .toolbar button {
+      border: 0;
+      border-radius: 8px;
+      padding: 8px 12px;
+      background: #164eaa;
+      color: #fff;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .deck {
+      max-width: 1100px;
+      margin: 20px auto 50px;
+      display: grid;
+      gap: 16px;
+      padding: 0 12px;
+    }
+    .slide {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 20px;
+      page-break-after: always;
+      min-height: 640px;
+      position: relative;
+    }
+    .slide h1, .slide h2, .slide h3 { margin: 8px 0; }
+    .slide h1 { font-size: 38px; }
+    .slide h2 { font-size: 28px; }
+    .slide h3 { font-size: 18px; }
+    .kicker { color: var(--gold); text-transform: uppercase; font-size: 11px; letter-spacing: 1.1px; font-weight: 800; }
+    p { color: var(--muted); line-height: 1.45; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
+      background: #fbfdff;
+    }
+    .metric { font-size: 30px; font-weight: 800; color: #0e2246; margin: 4px 0; }
+    .label { color: #4f6793; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; font-weight: 700; }
+    ul { margin: 6px 0 0 18px; }
+    li { margin-bottom: 6px; color: #3f5375; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+    th, td { border-bottom: 1px solid var(--line); text-align: left; padding: 8px 6px; vertical-align: top; }
+    th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: #355587; }
+    .note {
+      margin-top: 8px;
+      padding: 8px 10px;
+      border-left: 3px solid var(--blue);
+      background: #eef4ff;
+      color: #304d7a;
+      font-size: 12px;
+    }
+    .evidence {
+      margin-top: 8px;
+      font-size: 11px;
+      color: #5a6f95;
+      border-top: 1px dashed #c9d5ef;
+      padding-top: 6px;
+    }
+    .footer {
+      position: absolute;
+      left: 20px;
+      right: 20px;
+      bottom: 12px;
+      border-top: 1px solid var(--line);
+      padding-top: 6px;
+      display: flex;
+      justify-content: space-between;
+      color: #7b8eb2;
+      font-size: 11px;
+    }
+    @media print {
+      .toolbar { display: none; }
+      .deck { margin: 0; gap: 0; max-width: none; padding: 0; }
+      .slide { border: none; border-radius: 0; min-height: auto; height: 185mm; padding: 12mm; }
+    }
+    @page { size: A4 landscape; margin: 0; }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <div><strong>LockSafe Partner Deck</strong> - Send Version (English)</div>
+    <button onclick="window.print()">Export PDF</button>
+  </div>
+
+  <main class="deck">
+
+    <section class="slide">
+      <div class="kicker">Slide 1</div>
+      <h1>LockSafe UK</h1>
+      <p>Emergency locksmith platform built for trusted execution, partner-aligned economics, and scalable operations.</p>
+      <div class="grid4" style="margin-top:10px;">
+        <div class="card"><div class="label">Signed supply</div><div class="metric">40+</div><div>Locksmiths onboarded</div></div>
+        <div class="card"><div class="label">Mobile apps</div><div class="metric">2/2</div><div>Android and iOS operational</div></div>
+        <div class="card"><div class="label">Platform depth</div><div class="metric">233</div><div>API routes supporting operations</div></div>
+        <div class="card"><div class="label">Automation</div><div class="metric">7</div><div>AI agents supporting execution</div></div>
+      </div>
+      <div class="note">This send version includes extra context for stand-alone reading, without presenter narration.</div>
+      <div class="footer"><span>LockSafe UK</span><span>1 / 15</span></div>
+    </section>
+
+    <section class="slide"><div class="kicker">Slide 2</div><h2>The market gap</h2><div class="grid2"><div class="card"><h3>Customer side</h3><ul><li>Emergency context and low trust in price fairness.</li><li>Limited proof when disputes happen.</li><li>Poor transparency in conventional call-out flows.</li></ul></div><div class="card"><h3>Provider side</h3><ul><li>Lead fees charged regardless of conversion.</li><li>No-show losses and unpredictable utilization.</li><li>Fragmented payout and performance visibility.</li></ul></div></div><div class="evidence">Evidence basis: product docs and architecture descriptions in docs folder.</div><div class="footer"><span>Problem framing</span><span>2 / 15</span></div></section>
+
+    <section class="slide"><div class="kicker">Slide 3</div><h2>Model comparison</h2><table><thead><tr><th>Approach</th><th>Typical weakness</th><th>LockSafe response</th></tr></thead><tbody><tr><td>Lead marketplaces</td><td>Misaligned incentive: paid leads, not outcomes</td><td>Commission tied to completed value</td></tr><tr><td>Directories</td><td>No execution control</td><td>Managed workflow from intake to payout</td></tr><tr><td>Call center operations</td><td>High staffing cost and quality variance</td><td>24/7 AI intake and automation</td></tr><tr><td>Generic home service apps</td><td>No locksmith-specific fraud controls</td><td>Evidence-first emergency flow</td></tr></tbody></table><div class="footer"><span>Competitive position</span><span>3 / 15</span></div></section>
+
+    <section class="slide"><div class="kicker">Slide 4</div><h2>Platform in one view</h2><div class="grid4"><div class="card"><h3>Demand intake</h3><p>Web, voice AI, and messaging channels.</p></div><div class="card"><h3>Dispatch engine</h3><p>Availability and ETA-aware routing.</p></div><div class="card"><h3>Evidence layer</h3><p>GPS, photos, signatures, timeline.</p></div><div class="card"><h3>Settlement layer</h3><p>Automated split and reporting.</p></div></div><div class="evidence">Evidence basis: docs/SYSTEM_ARCHITECTURE.md and docs/PLATFORM_OVERVIEW.md.</div><div class="footer"><span>Product architecture summary</span><span>4 / 15</span></div></section>
+
+    <section class="slide"><div class="kicker">Slide 5</div><h2>End-to-end workflow</h2><table><thead><tr><th>Phase</th><th>Customer experience</th><th>Operational control</th></tr></thead><tbody><tr><td>Request</td><td>Urgency + location capture</td><td>Structured intake fields</td></tr><tr><td>Dispatch</td><td>Fast match and communication</td><td>Status and routing logic</td></tr><tr><td>On-site</td><td>Transparent quote before work</td><td>Event logging + evidence</td></tr><tr><td>Completion</td><td>Signature and summary</td><td>PDF report + payout flow</td></tr></tbody></table><div class="footer"><span>Lifecycle clarity</span><span>5 / 15</span></div></section>
+
+    <section class="slide"><div class="kicker">Slide 6</div><h2>Trust moat: anti-fraud rails</h2><div class="grid2"><div class="card"><h3>Controls</h3><ul><li>Lifecycle GPS checkpoints</li><li>Before and after media capture</li><li>Digital completion signature</li><li>Timeline report artifact</li></ul></div><div class="card"><h3>Outcomes</h3><ul><li>Lower ambiguity in disputes</li><li>Higher perceived safety and professionalism</li><li>Stronger partner compliance narrative</li></ul></div></div><div class="footer"><span>Differentiation</span><span>6 / 15</span></div></section>
+
+    <section class="slide"><div class="kicker">Slide 7</div><h2>Complexity handled behind the scenes</h2><div class="grid3"><div class="card"><h3>Core stack</h3><p>Next.js, TypeScript, role-based admin and portal surfaces.</p></div><div class="card"><h3>Integrations</h3><p>Stripe, Twilio, Bland AI/Retell, Google and Meta ad systems.</p></div><div class="card"><h3>Ops automation</h3><p>Cron orchestration, monitoring, and agent-supported workflows.</p></div></div><div class="evidence">Evidence basis: integration and architecture docs, operational code modules.</div><div class="footer"><span>Technical depth for non-technical readers</span><span>7 / 15</span></div></section>
+
+    <section class="slide"><div class="kicker">Slide 8</div><h2>Automation layer</h2><div class="grid2"><div class="card"><h3>Agent roles</h3><ul><li>Operational monitoring</li><li>Marketing workflow support</li><li>Reliability and incident response</li><li>Content and campaign assistance</li></ul></div><div class="card"><h3>Framing</h3><p>Positioned as AI-assisted operations with oversight, not full unsupervised autonomy claims.</p></div></div><div class="footer"><span>Execution efficiency</span><span>8 / 15</span></div></section>
+
+    <section class="slide"><div class="kicker">Slide 9</div><h2>Why this matters to partners</h2><div class="grid3"><div class="card"><h3>Commercial fit</h3><p>Outcome-based model reduces channel waste.</p></div><div class="card"><h3>Operational fit</h3><p>Standardized workflow and proof-backed delivery.</p></div><div class="card"><h3>Scale fit</h3><p>Cluster rollout model supports structured expansion.</p></div></div><div class="footer"><span>Partner ROI framing</span><span>9 / 15</span></div></section>
+
+    <section class="slide"><div class="kicker">Slide 10</div><h2>Coverage strategy</h2><p>Current clusters include London, West Midlands, Greater Manchester, and Yorkshire zones, with expansion pipeline in adjacent regions.</p><div class="note">Coverage claims in external use should remain tied to active operational zones and validated supply availability.</div><div class="footer"><span>Geographic narrative</span><span>10 / 15</span></div></section>
+
+    <section class="slide"><div class="kicker">Slide 11</div><h2>Traction stage</h2><div class="grid4"><div class="card"><div class="label">Supply</div><div class="metric">40+</div><div>Signed locksmiths</div></div><div class="card"><div class="label">Status</div><div class="metric">Live</div><div>Production platform</div></div><div class="card"><div class="label">Ads ops</div><div class="metric">Ready</div><div>Google and Meta pipelines</div></div><div class="card"><div class="label">Mobile</div><div class="metric">Live</div><div>Two app channels active</div></div></div><div class="footer"><span>Stage definition</span><span>11 / 15</span></div></section>
+
+    <section class="slide"><div class="kicker">Slide 12</div><h2>Commercial mechanics</h2><table><thead><tr><th>Flow</th><th>Locksmith share</th><th>Platform share</th></tr></thead><tbody><tr><td>Assessment fee</td><td>85%</td><td>15%</td></tr><tr><td>Work quote</td><td>75%</td><td>25%</td></tr></tbody></table><div class="note">Narrative: incentives are aligned with completed value, improving long-term retention dynamics.</div><div class="footer"><span>Unit economics story</span><span>12 / 15</span></div></section>
+
+    <section class="slide"><div class="kicker">Slide 13</div><h2>Partner integration pathway</h2><div class="grid2"><div class="card"><h3>Pilot setup</h3><ul><li>Commercial scope definition</li><li>Operational onboarding</li><li>Shared KPI baseline</li></ul></div><div class="card"><h3>Scale gate</h3><ul><li>30-60-90 checkpoint model</li><li>Quality and throughput thresholds</li><li>Region expansion decision</li></ul></div></div><div class="footer"><span>Go-to-production model</span><span>13 / 15</span></div></section>
+
+    <section class="slide"><div class="kicker">Slide 14</div><h2>Risk and mitigation map</h2><table><thead><tr><th>Risk area</th><th>Current control</th><th>Next hardening step</th></tr></thead><tbody><tr><td>Service quality variance</td><td>Workflow controls and admin oversight</td><td>Regional scorecards</td></tr><tr><td>Realtime scale constraints</td><td>Current stream architecture</td><td>Managed realtime migration</td></tr><tr><td>AI host dependency</td><td>Operational fallback patterns</td><td>Cloud failover</td></tr><tr><td>Acquisition efficiency drift</td><td>Attribution and ad-ready stack</td><td>Cluster-level budget governance</td></tr></tbody></table><div class="footer"><span>Governance posture</span><span>14 / 15</span></div></section>
+
+    <section class="slide"><div class="kicker">Slide 15</div><h2>Partnership ask</h2><p>Launch a structured pilot in one priority cluster, align on KPI governance, and scale only when quality and economics are validated.</p><div class="grid3"><div class="card"><h3>Pilot scope</h3><p>Defined region and SLA envelope.</p></div><div class="card"><h3>Shared cadence</h3><p>Weekly KPI and issue review rhythm.</p></div><div class="card"><h3>Scale trigger</h3><p>Pre-agreed commercial and quality thresholds.</p></div></div><div class="note">Contact: LockSafe UK - www.locksafe.uk</div><div class="footer"><span>Closing</span><span>15 / 15</span></div></section>
+
+  </main>
+</body>
+</html>

@@ -54,10 +54,13 @@ function intakeSection(): PromptSection {
   return {
     title: "INTAKE_REQUIREMENTS",
     body: [
-      "Emergency intake fields: caller name, postcode/address, lockout type, urgent details, callback number, email.",
-      "Appointment intake fields: caller name, service needed, postcode/address, preferred slot, callback number, email.",
+      "Emergency intake fields: caller name, callback number, postcode/address, lockout type, urgent details, email if available.",
+      "Appointment intake fields: caller name, callback number, service needed, postcode/address, preferred slot, email if available.",
       "Confirm captured details back to caller briefly before next action.",
-      "Email capture is mandatory for every job or appointment workflow unless caller explicitly refuses.",
+      "Callback number is the priority contact field for every job or appointment workflow.",
+      "Email is a useful follow-up for receipts and updates when the caller can provide it.",
+      "If the caller offers email, accept it naturally, but do not let it delay collecting the callback number.",
+      "If the caller says the callback number is already on file or provided earlier, repeat it back explicitly before proceeding.",
     ].join("\n"),
   };
 }
@@ -66,10 +69,11 @@ function toolPolicySection(): PromptSection {
   return {
     title: "TOOL_TRIGGER_POLICY",
     body: [
-      "Trigger check-user after caller shares phone/email.",
+      "Trigger check-user after caller shares phone first, then email if available.",
       "Trigger create-user only if no account exists and consent is clear.",
-      "Trigger create-job only when location/problem/contact are complete, including email when available.",
+      "Trigger create-job only when location/problem/contact are complete, prioritizing callback number over email.",
       "Trigger send-notification after successful job creation or confirmed appointment.",
+      "Before creating a job or escalating a job-related issue, explicitly confirm the callback number the caller provided.",
       "When a new job is created, always share the job reference with the caller and confirm an SMS link has been sent.",
       "Never invent tool outputs. If a tool fails, explain and offer fallback.",
     ].join("\n"),
@@ -81,9 +85,13 @@ function jobReferenceSmsSection(): PromptSection {
     title: "JOB_REFERENCE_AND_SMS_UPDATES",
     body: [
       "After successful job creation, provide the caller with the new job reference clearly.",
-      "Confirm the SMS delivery destination (caller number) and mention the job link is sent by SMS.",
-      "If SMS sending fails, acknowledge failure, retry once through tools, then offer manual fallback.",
+      "Confirm the SMS delivery destination (caller number) and mention the job link is sent by SMS so the customer can confirm the job and a locksmith can be assigned.",
+      "If SMS sending fails, acknowledge failure, retry once through tools, then offer manual fallback and keep the caller on the line.",
       "If caller asks for updates, refer to the active job reference and keep wording consistent.",
+      "Do not claim SMS was sent unless tool output confirms success.",
+      "Do not imply the job link or SMS has gone out until the tool confirms it.",
+      "If email is available, it can be used later for receipts or updates, but it should never block the phone-first workflow.",
+      "For SMS fallback, never end the call early just because you suspect a loop; always complete the retry or handoff first.",
     ].join("\n"),
   };
 }
@@ -118,7 +126,10 @@ function emergencyRoutingSection(): PromptSection {
     title: "EMERGENCY_ROUTING",
     body: [
       "For emergency lockout calls, prioritize speed and reassurance.",
-      "Fast-path field order: caller name, postcode/location, lockout type, callback number.",
+      "Lockout help is core to the service; never tell the caller that lockouts are outside scope.",
+      "Do not describe the caller's lockout as online account recovery or similar unrelated scope.",
+      "Fast-path field order: callback number, caller name, postcode/location, lockout type.",
+      "If the caller says the callback number is on file, repeat it back before dispatch or escalation.",
       "If safety risk is implied, advise caller to move to a safe location while dispatch is arranged.",
       "Keep emergency flow concise and avoid non-essential questions until core details are secured.",
     ].join("\n"),
@@ -129,7 +140,7 @@ function appointmentRoutingSection(): PromptSection {
   return {
     title: "APPOINTMENT_ROUTING",
     body: [
-      "For non-emergency bookings, run structured intake: caller name, postcode, service needed, preferred date/time, callback number.",
+      "For non-emergency bookings, run structured intake: callback number, caller name, postcode, service needed, preferred date/time.",
       "Offer concise availability guidance and confirm next steps before ending the call.",
       "Use a consultative tone for upgrades, replacements, and planned visits.",
     ].join("\n"),
@@ -155,6 +166,10 @@ function interruptionRecoverySection(ctx: VoicePromptContext): PromptSection {
       "If background noise or interruption prevents understanding, ask a short clarification question.",
       `If still unclear after ${maxClarifications} attempts, offer escalation or fallback.` ,
       "Mirror caller pace and keep each question short to reduce cognitive load in noisy conditions.",
+      "Do not ask the same field more than twice in a row.",
+      "When re-asking, summarize what is already captured before asking only for the missing item.",
+      "If a required field stays missing after repeat attempts, switch to fallback capture (SMS follow-up or human handoff).",
+      "Never end the call just because you suspect a loop; complete fallback or escalation first.",
     ].join("\n"),
   };
 }

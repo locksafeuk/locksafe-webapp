@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LockSafe Partner Deck - English</title>
+  <style>
+    :root {
+      --bg: #081226;
+      --panel: #0f1d36;
+      --ink: #e8eefc;
+      --muted: #9fb2d9;
+      --gold: #c9a84c;
+      --green: #1dbb72;
+      --blue: #4da2ff;
+      --red: #ef6c6c;
+      --line: #22365f;
+      --white: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #030914;
+      color: var(--ink);
+      font-family: Arial, Helvetica, sans-serif;
+    }
+    .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(3, 9, 20, 0.9);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid #1a2f58;
+      padding: 10px 16px;
+    }
+    .toolbar .title {
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      color: var(--white);
+      font-size: 14px;
+    }
+    .toolbar button {
+      border: 0;
+      border-radius: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+      background: #16325f;
+      color: #e7efff;
+      font-weight: 600;
+    }
+    .deck {
+      max-width: 1200px;
+      margin: 20px auto 60px;
+      padding: 0 16px;
+      display: grid;
+      gap: 24px;
+    }
+    .slide {
+      width: 100%;
+      min-height: 675px;
+      background: linear-gradient(145deg, #081226 0%, #0c1b35 65%, #112547 100%);
+      border: 1px solid #1e3562;
+      border-radius: 16px;
+      padding: 28px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+      page-break-after: always;
+    }
+    .slide:before {
+      content: "";
+      position: absolute;
+      right: -140px;
+      top: -120px;
+      width: 360px;
+      height: 360px;
+      background: radial-gradient(circle, rgba(77,162,255,0.2) 0%, rgba(77,162,255,0) 70%);
+      pointer-events: none;
+    }
+    .kicker {
+      color: var(--gold);
+      text-transform: uppercase;
+      letter-spacing: 1.6px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    h1, h2, h3 {
+      margin: 8px 0 10px;
+      color: #f4f7ff;
+    }
+    h1 { font-size: 42px; line-height: 1.08; }
+    h2 { font-size: 30px; line-height: 1.15; }
+    h3 { font-size: 20px; }
+    p { color: var(--muted); line-height: 1.5; }
+    .lead { font-size: 20px; color: #d7e4ff; max-width: 90%; }
+
+    .row { display: grid; gap: 14px; }
+    .row.cols-2 { grid-template-columns: 1fr 1fr; }
+    .row.cols-3 { grid-template-columns: repeat(3, 1fr); }
+    .row.cols-4 { grid-template-columns: repeat(4, 1fr); }
+
+    .card {
+      background: rgba(13, 30, 57, 0.82);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px;
+    }
+    .metric {
+      font-size: 38px;
+      font-weight: 800;
+      color: #ffffff;
+      margin-top: 6px;
+      letter-spacing: 0.2px;
+    }
+    .metric-label {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      font-weight: 700;
+    }
+    .small { font-size: 13px; color: #b8c8ea; }
+
+    .pill {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+    }
+    .pill.green { background: rgba(29,187,114,0.18); color: #56dc9c; }
+    .pill.blue { background: rgba(77,162,255,0.16); color: #88c3ff; }
+    .pill.gold { background: rgba(201,168,76,0.2); color: #e3c67d; }
+    .pill.red { background: rgba(239,108,108,0.15); color: #ff9b9b; }
+
+    ul { margin: 8px 0 0 18px; padding: 0; }
+    li { margin-bottom: 7px; color: #c5d5f4; }
+
+    .timeline {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .timeline .step {
+      border: 1px solid #294779;
+      border-radius: 10px;
+      padding: 10px;
+      background: rgba(7, 20, 40, 0.75);
+      font-size: 12px;
+    }
+    .timeline .step strong { color: #fff; display: block; margin-bottom: 4px; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 13px;
+    }
+    th, td {
+      border-bottom: 1px solid #284678;
+      padding: 9px 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { color: #d6e4ff; font-size: 12px; text-transform: uppercase; letter-spacing: 0.8px; }
+    td { color: #c5d5f4; }
+
+    .bar-wrap { margin-top: 8px; }
+    .bar {
+      height: 10px;
+      border-radius: 999px;
+      background: #18335e;
+      overflow: hidden;
+      margin-bottom: 7px;
+    }
+    .bar > span {
+      display: block;
+      height: 100%;
+      background: linear-gradient(90deg, #4da2ff, #6dc3ff);
+    }
+    .bar.gold > span { background: linear-gradient(90deg, #b68f2f, #dfbc63); }
+    .bar.green > span { background: linear-gradient(90deg, #15995d, #33d78e); }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .flow .node {
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid #2b4b80;
+      background: rgba(9, 24, 46, 0.8);
+      text-align: center;
+      font-size: 12px;
+      color: #d7e4ff;
+      min-height: 74px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .footer {
+      position: absolute;
+      left: 28px;
+      right: 28px;
+      bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      color: #7e96c2;
+      font-size: 11px;
+      border-top: 1px solid #22385f;
+      padding-top: 8px;
+    }
+
+    .ref {
+      font-size: 11px;
+      color: #8fa8d3;
+      margin-top: 8px;
+    }
+
+    @media print {
+      .toolbar { display: none; }
+      body { background: #fff; }
+      .deck { margin: 0; max-width: none; padding: 0; gap: 0; }
+      .slide {
+        border-radius: 0;
+        border: none;
+        box-shadow: none;
+        min-height: auto;
+        height: 180mm;
+        padding: 14mm;
+      }
+    }
+
+    @page {
+      size: A4 landscape;
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <div class="title">LockSafe Partner Deck (English) - 15 Slides</div>
+    <button onclick="window.print()">Export PDF</button>
+  </div>
+
+  <main class="deck">
+
+    <section class="slide">
+      <div class="kicker">Slide 1</div>
+      <h1>LockSafe UK</h1>
+      <p class="lead">The emergency locksmith platform built for trust, speed, and scalable partner growth.</p>
+      <div class="row cols-4" style="margin-top:18px;">
+        <div class="card"><div class="metric-label">Supply Base</div><div class="metric">40+</div><div class="small">Signed locksmiths</div></div>
+        <div class="card"><div class="metric-label">Apps</div><div class="metric">2/2</div><div class="small">Android and iOS operational</div></div>
+        <div class="card"><div class="metric-label">API Surface</div><div class="metric">233</div><div class="small">Routes supporting operations</div></div>
+        <div class="card"><div class="metric-label">AI Ops</div><div class="metric">7</div><div class="small">Autonomous agents</div></div>
+      </div>
+      <div class="ref">Deck type: partner-focused, evidence-first. Version: 20 May 2026.</div>
+      <div class="footer"><span>LockSafe UK</span><span>1 / 15</span></div>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Slide 2</div>
+      <h2>The Market Problem</h2>
+      <div class="row cols-2">
+        <div class="card">
+          <h3>Customer Pain</h3>
+          <ul>
+            <li>Emergency situations create panic buying and low trust.</li>
+            <li>High risk of hidden pricing and no evidence trail.</li>
+            <li>No clear accountability after job disputes.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Provider Pain</h3>
+          <ul>
+            <li>Lead-fee platforms charge even on non-converting leads.</li>
+            <li>No-show customers waste travel time and fuel.</li>
+            <li>Weak payout transparency hurts retention.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card" style="margin-top:12px;">
+        <span class="pill gold">Opportunity</span>
+        <p style="margin-top:8px;">Create a trusted emergency marketplace with verifiable job evidence, pre-paid assessment flow, and partner economics aligned to completed work.</p>
+      </div>
+      <div class="footer"><span>Problem framing for Enterprise/SMB partners</span><span>2 / 15</span></div>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Slide 3</div>
+      <h2>Why Existing Solutions Underperform</h2>
+      <table>
+        <thead><tr><th>Model</th><th>How It Works</th><th>Main Weakness</th><th>LockSafe Difference</th></tr></thead>
+        <tbody>
+          <tr><td>Lead marketplaces</td><td>Charge trades per lead</td><td>Low lead quality, misaligned incentives</td><td>Commission on completed value</td></tr>
+          <tr><td>Directories</td><td>Listings and reviews</td><td>No operational control or payment rails</td><td>End-to-end managed workflow</td></tr>
+          <tr><td>Call centers</td><td>Manual phone operations</td><td>High staffing cost, variable quality</td><td>24/7 AI voice intake + automation</td></tr>
+          <tr><td>Generic home service apps</td><td>Broad categories</td><td>No locksmith-specific anti-fraud system</td><td>Locksmith-first trust infrastructure</td></tr>
+        </tbody>
+      </table>
+      <div class="footer"><span>Competitive positioning</span><span>3 / 15</span></div>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Slide 4</div>
+      <h2>What LockSafe Is</h2>
+      <p class="lead">A full-stack emergency locksmith platform connecting demand, supply, trust controls, and payout infrastructure.</p>
+      <div class="flow">
+        <div class="node">Customer Request<br>(Web, Phone AI, WhatsApp)</div>
+        <div class="node">Dispatch + Match Engine<br>(Availability, ETA, distance)</div>
+        <div class="node">Evidence-Protected Job Flow<br>(GPS, photos, signature)</div>
+        <div class="node">Automated Settlement<br>(Stripe split + reporting)</div>
+      </div>
+      <div class="row cols-3" style="margin-top:14px;">
+        <div class="card"><span class="pill blue">Demand</span><p>Paid, organic, referral, and AI voice channels.</p></div>
+        <div class="card"><span class="pill blue">Supply</span><p>Signed locksmith network with workflow tools.</p></div>
+        <div class="card"><span class="pill blue">Control</span><p>Real-time admin oversight plus automation loops.</p></div>
+      </div>
+      <div class="footer"><span>Product definition</span><span>4 / 15</span></div>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Slide 5</div>
+      <h2>End-to-End Job Lifecycle</h2>
+      <div class="timeline">
+        <div class="step"><strong>1. Intake</strong>Customer submits urgency and location.</div>
+        <div class="step"><strong>2. Dispatch</strong>Platform finds best locksmith candidates.</div>
+        <div class="step"><strong>3. Arrival</strong>GPS check + before photos captured.</div>
+        <div class="step"><strong>4. Quote + Work</strong>Customer approves transparent quote.</div>
+        <div class="step"><strong>5. Close</strong>Signature, PDF report, payout split.</div>
+      </div>
+      <div class="row cols-2" style="margin-top:14px;">
+        <div class="card"><h3>Trust by Design</h3><ul><li>Time-stamped events</li><li>Photo evidence trail</li><li>Digital signature capture</li></ul></div>
+        <div class="card"><h3>Operational Outcomes</h3><ul><li>Fewer disputes</li><li>Stronger customer confidence</li><li>Clear accountability per job</li></ul></div>
+      </div>
+      <div class="footer"><span>Operational workflow</span><span>5 / 15</span></div>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Slide 6</div>
+      <h2>Core Moat: Anti-Fraud Infrastructure</h2>
+      <div class="row cols-2">
+        <div class="card">
+          <h3>Evidence Stack</h3>
+          <ul>
+            <li>GPS events through the full lifecycle.</li>
+            <li>Before/after media tied to job events.</li>
+            <li>Digital completion signature.</li>
+            <li>PDF timeline report for traceability.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Business Impact</h3>
+          <ul>
+            <li>Reduces dispute resolution time.</li>
+            <li>Improves trust in emergency contexts.</li>
+            <li>Strengthens partner confidence and compliance posture.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card" style="margin-top:12px;"><span class="pill green">Unique positioning</span><p style="margin-top:8px;">LockSafe is not only a lead source; it is a proof-backed service execution platform.</p></div>
+      <div class="footer"><span>Defensibility</span><span>6 / 15</span></div>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Slide 7</div>
+      <h2>Technology and Integration Complexity</h2>
+      <div class="row cols-3">
+        <div class="card"><h3>Platform</h3><ul><li>Next.js + TypeScript</li><li>Serverless deployment</li><li>Admin and role-based portals</li></ul></div>
+        <div class="card"><h3>Core Integrations</h3><ul><li>Stripe Connect</li><li>Twilio + Bland AI / Retell</li><li>Meta + Google Ads APIs</li></ul></div>
+        <div class="card"><h3>Ops Layer</h3><ul><li>Cron-driven automation</li><li>Agent orchestration</li><li>Real-time monitoring</li></ul></div>
+      </div>
+      <div class="bar-wrap">
+        <div class="small">System complexity by layer (relative)</div>
+        <div class="bar"><span style="width:88%"></span></div>
+        <div class="bar gold"><span style="width:76%"></span></div>
+        <div class="bar green"><span style="width:69%"></span></div>
+      </div>
+      <div class="footer"><span>Architecture view</span><span>7 / 15</span></div>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Slide 8</div>
+      <h2>Automation Advantage</h2>
+      <div class="row cols-2">
+        <div class="card">
+          <h3>Agent Workforce</h3>
+          <ul>
+            <li>COO: operational oversight and dispatch monitoring.</li>
+            <li>CMO and Ads Specialist: campaign iteration loops.</li>
+            <li>CTO: reliability and incident workflows.</li>
+            <li>Content agents: organic channel execution.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Why Partners Care</h3>
+          <ul>
+            <li>Lower manual coordination overhead.</li>
+            <li>Faster response to operational issues.</li>
+            <li>Scalable execution without linear staffing growth.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="ref">Note: Claims remain framed as AI-assisted operations with human oversight.</div>
+      <div class="footer"><span>AI operations</span><span>8 / 15</span></div>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Slide 9</div>
+      <h2>Partner Value Proposition</h2>
+      <div class="row cols-3">
+        <div class="card"><span class="pill gold">Commercial</span><h3>Margin-Aligned Model</h3><p>Commission structure tied to completed value, not vanity lead volume.</p></div>
+        <div class="card"><span class="pill gold">Operational</span><h3>Verified Execution</h3><p>Structured workflow and evidence reduce reconciliation friction.</p></div>
+        <div class="card"><span class="pill gold">Strategic</span><h3>Scalable Platform</h3><p>Built for regional rollout without rebuilding infrastructure.</p></div>
+      </div>
+      <table>
+        <thead><tr><th>Partner Goal</th><th>LockSafe Mechanism</th><th>Expected Effect</th></tr></thead>
+        <tbody>
+          <tr><td>Improve service trust</td><td>Evidence-backed job flow</td><td>Higher conversion confidence</td></tr>
+          <tr><td>Reduce manual ops</td><td>Automation and dashboards</td><td>Lean partner operations</td></tr>
+          <tr><td>Scale regionally</td><td>Multi-city demand and supply model</td><td>Faster expansion velocity</td></tr>
+        </tbody>
+      </table>
+      <div class="footer"><span>Partner fit</span><span>9 / 15</span></div>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Slide 10</div>
+      <h2>Coverage and Expansion Footprint</h2>
+      <div class="row cols-2">
+        <div class="card">
+          <h3>Current Clusters</h3>
+          <ul>
+            <li>Greater London</li>
+            <li>West Midlands (Birmingham, Solihull)</li>
+            <li>Greater Manchester</li>
+            <li>West and South Yorkshire clusters</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Expansion Logic</h3>
+          <ul>
+            <li>Cluster-by-cluster demand ramp.</li>
+            <li>Signed supply utilization before widening radius.</li>
+            <li>Ads and dispatch tuned per region.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card" style="margin-top:12px;">
+        <span class="pill blue">Important</span>
+        <p style="margin-top:8px;">Coverage messaging should remain tied to active operational zones and validated partner capacity.</p>
+      </div>
+      <div class="footer"><span>Geographic strategy</span><span>10 / 15</span></div>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Slide 11</div>
+      <h2>Traction Snapshot</h2>
+      <div class="row cols-4">
+        <div class="card"><div class="metric-label">Signed Supply</div><div class="metric">40+</div><div class="small">Locksmiths</div></div>
+        <div class="card"><div class="metric-label">Platform Status</div><div class="metric">LIVE</div><div class="small">Production operations</div></div>
+        <div class="card"><div class="metric-label">Ad Stack</div><div class="metric">READY</div><div class="small">Google + Meta flow enabled</div></div>
+        <div class="card"><div class="metric-label">Mobile</div><div class="metric">LIVE</div><div class="small">Android and iOS</div></div>
+      </div>
+      <div class="card" style="margin-top:12px;">
+        <h3>What this stage means</h3>
+        <p>LockSafe is beyond concept and build stage. Priority has shifted to partner-enabled throughput, regional consistency, and reliable growth economics.</p>
+      </div>
+      <div class="footer"><span>Current stage</span><span>11 / 15</span></div>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Slide 12</div>
+      <h2>Commercial Model</h2>
+      <div class="row cols-2">
+        <div class="card">
+          <h3>Unit Economics Structure</h3>
+          <table>
+            <thead><tr><th>Component</th><th>Locksmith Share</th><th>Platform Share</th></tr></thead>
+            <tbody>
+              <tr><td>Assessment Fee</td><td>85%</td><td>15%</td></tr>
+              <tr><td>Work Quote</td><td>75%</td><td>25%</td></tr>
+              <tr><td>Blended</td><td>High retained value</td><td>Performance-linked margin</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card">
+          <h3>Partner Revenue Logic</h3>
+          <ul>
+            <li>Transparent split on completed value events.</li>
+            <li>No reliance on opaque lead monetization.</li>
+            <li>Supports long-term partner retention narrative.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer"><span>Monetization</span><span>12 / 15</span></div>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Slide 13</div>
+      <h2>How Partners Integrate</h2>
+      <div class="flow">
+        <div class="node">Step 1<br>Commercial alignment</div>
+        <div class="node">Step 2<br>Operational setup and routing</div>
+        <div class="node">Step 3<br>City pilot with scorecards</div>
+        <div class="node">Step 4<br>Scale via repeatable playbook</div>
+      </div>
+      <div class="row cols-2" style="margin-top:14px;">
+        <div class="card"><h3>Typical 30-60-90 Outline</h3><ul><li>30: pilot readiness and SLA definition</li><li>60: throughput and quality tuning</li><li>90: expansion decision gate</li></ul></div>
+        <div class="card"><h3>Shared KPIs</h3><ul><li>Response and acceptance rates</li><li>Completion quality and review signal</li><li>Channel-level acquisition efficiency</li></ul></div>
+      </div>
+      <div class="footer"><span>Integration pathway</span><span>13 / 15</span></div>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Slide 14</div>
+      <h2>Risk Management and Controls</h2>
+      <table>
+        <thead><tr><th>Risk</th><th>Current Control</th><th>Next Strengthening Move</th></tr></thead>
+        <tbody>
+          <tr><td>Service inconsistency at scale</td><td>Workflow enforcement + admin visibility</td><td>Regional performance scorecards</td></tr>
+          <tr><td>Real-time delivery across instances</td><td>Existing SSE streams</td><td>Migrate to managed realtime fabric</td></tr>
+          <tr><td>Single-host AI dependency</td><td>Operational fallback patterns</td><td>Cloud failover deployment</td></tr>
+          <tr><td>CAC variance across regions</td><td>Ads stack ready, attribution in place</td><td>Cluster-level budget governance</td></tr>
+        </tbody>
+      </table>
+      <div class="card" style="margin-top:12px;"><span class="pill red">Governance</span><p style="margin-top:8px;">We position LockSafe as ambitious but disciplined: strong differentiation with explicit mitigation plans on scaling risks.</p></div>
+      <div class="footer"><span>Risk posture</span><span>14 / 15</span></div>
+    </section>
+
+    <section class="slide">
+      <div class="kicker">Slide 15</div>
+      <h2>Partnership Ask</h2>
+      <p class="lead">Run a structured city-cluster pilot and convert proven performance into a scaled commercial rollout.</p>
+      <div class="row cols-3">
+        <div class="card"><h3>Pilot Scope</h3><p>One focused region, clear SLA and channel mix.</p></div>
+        <div class="card"><h3>Measurement</h3><p>Shared KPI dashboard, weekly governance cadence.</p></div>
+        <div class="card"><h3>Scale Trigger</h3><p>Pre-agreed thresholds for expansion to next clusters.</p></div>
+      </div>
+      <div class="card" style="margin-top:14px;">
+        <h3>Contact</h3>
+        <p>LockSafe UK<br>www.locksafe.uk<br>Partner presentation package - English</p>
+      </div>
+      <div class="footer"><span>Thank you</span><span>15 / 15</span></div>
+    </section>
+
+  </main>
+</body>
+</html>

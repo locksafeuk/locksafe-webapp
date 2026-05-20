@@ -15,7 +15,7 @@ export const RETELL_SIMULATION_SCENARIOS: SimulationScenario[] = [
     expected: {
       requiresEscalation: false,
       minNaturalness: 3.5,
-      mustCollect: ["name", "postcode", "phone", "email", "job_reference", "sms_link_sent"],
+      mustCollect: ["name", "postcode", "phone", "job_reference", "sms_link_sent"],
     },
   },
   {
@@ -42,7 +42,7 @@ export const RETELL_SIMULATION_SCENARIOS: SimulationScenario[] = [
     expected: {
       requiresEscalation: false,
       minNaturalness: 3.2,
-      mustCollect: ["name", "postcode", "service", "preferred_slot", "email", "job_reference", "sms_link_sent"],
+      mustCollect: ["name", "postcode", "service", "preferred_slot", "phone", "job_reference", "sms_link_sent"],
     },
   },
   {
@@ -51,7 +51,7 @@ export const RETELL_SIMULATION_SCENARIOS: SimulationScenario[] = [
     expected: {
       requiresEscalation: false,
       minNaturalness: 3.4,
-      mustCollect: ["name", "postcode", "problem", "email", "job_reference", "sms_link_sent"],
+      mustCollect: ["name", "postcode", "problem", "phone", "job_reference", "sms_link_sent"],
     },
   },
   {
@@ -74,15 +74,31 @@ export function scoreSimulationOutput(params: {
 }) {
   const required = params.scenario.expected.mustCollect;
   const missing = required.filter((field) => !params.collectedFields.includes(field));
+  const transcript = params.transcript.toLowerCase();
+
+  const forbiddenTranscriptFlags = [
+    /do not handle .*lockout/i,
+    /does not handle .*lockout/i,
+    /lockouts? are outside scope/i,
+    /account lockouts? are outside scope/i,
+    /ending the conversation early as there might be a loop/i,
+    /online account recovery/i,
+  ].filter((pattern) => pattern.test(transcript));
+
+  if ((params.collectedFields.includes("sms_link_sent") || params.collectedFields.includes("job_reference")) && /sms (was )?sent|text (was )?sent|link (was )?sent/i.test(transcript) === false) {
+    // Keep the score focused on explicit confirmation in transcripts for the email/SMS workflow.
+  }
 
   const escalationMismatch = params.escalated !== params.scenario.expected.requiresEscalation;
   const naturalnessFail = params.naturalnessScore < params.scenario.expected.minNaturalness;
+  const transcriptPolicyFail = forbiddenTranscriptFlags.length > 0;
 
-  const passed = !escalationMismatch && !naturalnessFail && missing.length === 0;
+  const passed = !escalationMismatch && !naturalnessFail && missing.length === 0 && !transcriptPolicyFail;
 
   const penalties = [
     escalationMismatch ? 30 : 0,
     naturalnessFail ? 30 : 0,
+    transcriptPolicyFail ? 25 : 0,
     missing.length * 20,
   ].reduce((a, b) => a + b, 0);
 
@@ -92,6 +108,7 @@ export function scoreSimulationOutput(params: {
     : [
         escalationMismatch ? "escalation mismatch" : null,
         naturalnessFail ? "naturalness below threshold" : null,
+        transcriptPolicyFail ? `transcript policy violation: ${forbiddenTranscriptFlags.length ? "lockout/or loop scope language" : "confirmation mismatch"}` : null,
         missing.length ? `missing fields: ${missing.join(", ")}` : null,
       ]
         .filter(Boolean)
