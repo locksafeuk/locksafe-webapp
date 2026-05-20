@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LockSafe UK — For Locksmiths</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;0,800;0,900;1,700;1,900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-0: #03081a;
+      --bg-1: #060f28;
+      --bg-2: #0a1937;
+      --bg-3: #102449;
+      --ink: #eef3ff;
+      --ink-soft: #c5d3ee;
+      --muted: #8aa0c8;
+      --line: #1f3563;
+      --line-soft: #16284f;
+      --gold: #d6b357;
+      --gold-2: #e6c97a;
+      --gold-soft: #f0d68a;
+      --orange: #ff8a2b;
+      --orange-2: #ffae5c;
+      --accent: #5fa7ff;
+      --accent-soft: #8cc0ff;
+      --green: #2ad28a;
+      --red: #ff7878;
+      --shadow-lg: 0 30px 80px rgba(0, 0, 0, 0.55);
+      --shadow-card: 0 10px 30px rgba(0, 0, 0, 0.35);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%; overflow: hidden;
+      background: var(--bg-0); color: var(--ink);
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+    }
+    body::before {
+      content: ""; position: fixed; inset: 0;
+      background:
+        radial-gradient(1100px 700px at 88% -10%, rgba(255, 138, 43, 0.18) 0%, transparent 60%),
+        radial-gradient(900px 600px at -5% 110%, rgba(214, 179, 87, 0.16) 0%, transparent 60%),
+        radial-gradient(700px 500px at 50% 50%, rgba(40, 80, 160, 0.10) 0%, transparent 70%);
+      pointer-events: none; z-index: 0;
+    }
+    body::after {
+      content: ""; position: fixed; inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+      background-size: 64px 64px;
+      mask-image: radial-gradient(ellipse at center, rgba(0,0,0,0.7) 0%, transparent 75%);
+      -webkit-mask-image: radial-gradient(ellipse at center, rgba(0,0,0,0.7) 0%, transparent 75%);
+      pointer-events: none; z-index: 0;
+    }
+
+    .progress {
+      position: fixed; top: 0; left: 0; right: 0;
+      height: 3px; background: rgba(255, 255, 255, 0.06); z-index: 100;
+    }
+    .progress > .fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--gold) 0%, var(--orange) 60%, var(--orange-2) 100%);
+      width: 0%; transition: width 0.5s cubic-bezier(.2,.7,.2,1);
+      box-shadow: 0 0 20px rgba(255, 138, 43, 0.55);
+    }
+
+    .topbar {
+      position: fixed; top: 16px; left: 28px; right: 28px;
+      display: flex; justify-content: space-between; align-items: center;
+      z-index: 90; pointer-events: none;
+    }
+    .brand {
+      pointer-events: auto; display: flex; align-items: center; gap: 12px;
+      font: 800 14px 'Inter', sans-serif; letter-spacing: 0.6px; color: var(--ink);
+    }
+    .brand .mark {
+      width: 32px; height: 32px; border-radius: 9px;
+      background: linear-gradient(135deg, var(--orange) 0%, var(--gold-2) 100%);
+      display: flex; align-items: center; justify-content: center;
+      color: #2a1404; font-weight: 900; font-size: 13px;
+      box-shadow: 0 6px 18px rgba(255, 138, 43, 0.45);
+    }
+    .brand b { color: var(--gold); font-weight: 800; }
+    .topbar .right { pointer-events: auto; display: flex; gap: 8px; align-items: center; }
+
+    .btn {
+      border: 1px solid var(--line); background: rgba(8, 18, 40, 0.7);
+      color: var(--ink-soft); padding: 9px 16px; border-radius: 999px;
+      font: 600 12px 'Inter', sans-serif; letter-spacing: 0.4px; cursor: pointer;
+      backdrop-filter: blur(10px); transition: all 0.2s ease;
+      text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
+    }
+    .btn:hover { border-color: var(--gold); color: var(--gold-soft); }
+    .btn.cta {
+      background: linear-gradient(135deg, var(--orange) 0%, var(--orange-2) 100%);
+      color: #2a1404; border-color: transparent; font-weight: 800;
+      box-shadow: 0 8px 22px rgba(255,138,43,0.45);
+    }
+    .btn.cta:hover { color: #2a1404; filter: brightness(1.05); }
+
+    .stage {
+      position: relative; height: 100vh; width: 100vw;
+      overflow-x: scroll; overflow-y: hidden;
+      scroll-snap-type: x mandatory; scroll-behavior: smooth;
+      z-index: 1; display: flex; flex-direction: row;
+    }
+    .stage::-webkit-scrollbar { display: none; }
+
+    .slide {
+      position: relative; flex: 0 0 100vw;
+      width: 100vw; height: 100vh;
+      padding: 84px 7vw 110px;
+      scroll-snap-align: start; scroll-snap-stop: always;
+      display: flex; flex-direction: column; justify-content: center;
+      overflow: hidden;
+    }
+    .slide.active .slide-inner { animation: enterIn 0.85s cubic-bezier(.2,.7,.2,1) both; }
+    .slide-inner { width: 100%; max-width: 1280px; margin: 0 auto; }
+    @keyframes enterIn {
+      from { opacity: 0; transform: translateY(28px) scale(0.985); filter: blur(6px); }
+      to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+    }
+
+    .slide-num {
+      position: absolute; top: 76px; left: 7vw;
+      font: 700 11px 'Inter', sans-serif; letter-spacing: 3px;
+      color: var(--orange-2); text-transform: uppercase;
+    }
+    .slide-num::before {
+      content: ""; display: inline-block; width: 32px; height: 1px;
+      background: var(--orange); vertical-align: middle;
+      margin-right: 12px; transform: translateY(-2px);
+    }
+
+    .footer-bar {
+      position: absolute; bottom: 36px; left: 7vw; right: 7vw;
+      display: flex; justify-content: space-between; align-items: center;
+      font: 500 11px 'Inter', sans-serif; color: var(--muted);
+      letter-spacing: 1.4px; text-transform: uppercase;
+    }
+
+    h1, h2, h3 {
+      font-family: 'Playfair Display', Georgia, serif;
+      color: #ffffff; letter-spacing: -0.5px;
+    }
+    h1 { font-size: clamp(48px, 6.4vw, 92px); line-height: 1; font-weight: 800; }
+    h2 { font-size: clamp(34px, 4vw, 56px); line-height: 1.05; font-weight: 700; margin-bottom: 22px; }
+    h3 { font-size: 19px; font-weight: 700; color: #fff; margin-bottom: 8px;
+         font-family: 'Inter', sans-serif; letter-spacing: 0; }
+    p { color: var(--ink-soft); line-height: 1.6; font-size: 15px; }
+    .lead { font-size: clamp(17px, 1.4vw, 21px); color: #d8e3fa; line-height: 1.55; max-width: 880px; }
+    .eyebrow {
+      display: inline-block;
+      font: 700 11px 'Inter', sans-serif; letter-spacing: 3px;
+      color: var(--orange-2); text-transform: uppercase; margin-bottom: 16px;
+    }
+
+    .grid { display: grid; gap: 16px; }
+    .grid.c2 { grid-template-columns: repeat(2, 1fr); }
+    .grid.c3 { grid-template-columns: repeat(3, 1fr); }
+    .grid.c4 { grid-template-columns: repeat(4, 1fr); }
+    .grid.c5 { grid-template-columns: repeat(5, 1fr); }
+
+    .card {
+      background: linear-gradient(160deg, rgba(20, 42, 82, 0.85) 0%, rgba(10, 25, 55, 0.95) 100%);
+      border: 1px solid var(--line); border-radius: 16px; padding: 22px;
+      position: relative; overflow: hidden;
+      box-shadow: var(--shadow-card);
+      transition: border-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .card::before {
+      content: ""; position: absolute; inset: 0;
+      border-radius: 16px; padding: 1px;
+      background: linear-gradient(160deg, rgba(255,138,43,0.0), rgba(255,138,43,0.30));
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor; mask-composite: exclude;
+      pointer-events: none; opacity: 0; transition: opacity 0.3s ease;
+    }
+    .card:hover { transform: translateY(-3px); border-color: rgba(255,138,43,0.55); }
+    .card:hover::before { opacity: 1; }
+    .card .corner {
+      position: absolute; top: 0; right: 0; width: 80px; height: 80px;
+      background: radial-gradient(circle at top right, rgba(255, 138, 43, 0.18) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .card .icon {
+      width: 44px; height: 44px; border-radius: 12px;
+      background: linear-gradient(135deg, var(--orange) 0%, var(--orange-2) 100%);
+      display: flex; align-items: center; justify-content: center;
+      color: #2a1404; font-weight: 900; font-size: 20px;
+      margin-bottom: 14px;
+      box-shadow: 0 6px 14px rgba(255,138,43,0.4);
+    }
+    .card ul { list-style: none; }
+    .card li {
+      color: var(--ink-soft); font-size: 14px; line-height: 1.55;
+      padding-left: 20px; position: relative; margin-bottom: 8px;
+    }
+    .card li::before {
+      content: ""; position: absolute; left: 0; top: 9px;
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--orange);
+      box-shadow: 0 0 8px rgba(255, 138, 43, 0.6);
+    }
+
+    .stat {
+      background: linear-gradient(160deg, rgba(20, 42, 82, 0.8), rgba(10, 25, 55, 0.95));
+      border: 1px solid var(--line); border-radius: 16px; padding: 24px;
+      position: relative; overflow: hidden; box-shadow: var(--shadow-card);
+    }
+    .stat::after {
+      content: ""; position: absolute; bottom: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, var(--orange), transparent);
+    }
+    .stat .label {
+      font: 700 11px 'Inter', sans-serif; letter-spacing: 2px;
+      color: var(--orange-2); text-transform: uppercase;
+    }
+    .stat .value {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(40px, 4.4vw, 56px); font-weight: 800;
+      color: #fff; line-height: 1.05; margin: 8px 0 4px;
+    }
+    .stat .desc { color: var(--muted); font-size: 13px; }
+
+    .pill {
+      display: inline-block; padding: 5px 11px; border-radius: 999px;
+      font: 700 10px 'Inter', sans-serif; letter-spacing: 1.4px;
+      text-transform: uppercase; border: 1px solid transparent;
+    }
+    .pill.gold { background: rgba(214, 179, 87, 0.15); color: var(--gold-soft); border-color: rgba(214, 179, 87, 0.4); }
+    .pill.orange { background: rgba(255, 138, 43, 0.18); color: var(--orange-2); border-color: rgba(255, 138, 43, 0.5); }
+    .pill.blue { background: rgba(95, 167, 255, 0.15); color: var(--accent-soft); border-color: rgba(95, 167, 255, 0.4); }
+    .pill.green { background: rgba(42, 210, 138, 0.15); color: #6fe5ad; border-color: rgba(42, 210, 138, 0.4); }
+    .pill.red { background: rgba(255, 120, 120, 0.15); color: #ff9b9b; border-color: rgba(255, 120, 120, 0.4); }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 14px; }
+    th, td { text-align: left; padding: 14px 12px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+    thead th {
+      font: 700 11px 'Inter', sans-serif; letter-spacing: 1.6px;
+      color: var(--orange-2); text-transform: uppercase; border-bottom: 1px solid var(--line);
+    }
+    td { color: var(--ink-soft); }
+    tbody tr { transition: background 0.2s ease; }
+    tbody tr:hover { background: rgba(255, 138, 43, 0.05); }
+
+    .flow {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 10px;
+    }
+    .flow .node {
+      background: linear-gradient(160deg, rgba(20, 42, 82, 0.8), rgba(10, 25, 55, 0.95));
+      border: 1px solid var(--line); border-radius: 14px; padding: 20px;
+      position: relative; min-height: 130px;
+      display: flex; flex-direction: column; justify-content: center; text-align: center;
+      box-shadow: var(--shadow-card);
+    }
+    .flow .node .step-num {
+      position: absolute; top: -12px; left: 18px;
+      background: linear-gradient(135deg, var(--orange) 0%, var(--orange-2) 100%);
+      color: #2a1404;
+      font: 800 11px 'Inter', sans-serif; letter-spacing: 1px;
+      padding: 4px 10px; border-radius: 999px;
+      box-shadow: 0 6px 14px rgba(255, 138, 43, 0.4);
+    }
+    .flow .node strong { color: #fff; display: block; font-size: 15px; margin-bottom: 6px; }
+    .flow .node span { color: var(--muted); font-size: 12px; line-height: 1.4; }
+    .flow .node:not(:last-child)::after {
+      content: "→"; position: absolute; right: -14px; top: 50%;
+      transform: translateY(-50%); color: var(--orange);
+      font-size: 18px; font-weight: 700; z-index: 2;
+      text-shadow: 0 0 10px rgba(255, 138, 43, 0.6);
+    }
+
+    /* Cover */
+    .cover { align-items: flex-start; }
+    .cover .display-title {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(64px, 9.5vw, 144px);
+      font-weight: 900; line-height: 0.92; letter-spacing: -3px;
+      background: linear-gradient(180deg, #ffffff 0%, #c8d6f2 70%, #8aa0c8 100%);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent; margin-bottom: 22px;
+    }
+    .cover .display-title em {
+      font-style: italic;
+      background: linear-gradient(180deg, var(--orange-2) 0%, var(--orange) 100%);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .cover .tagline {
+      font-size: clamp(18px, 1.5vw, 24px);
+      color: var(--ink-soft); max-width: 760px; line-height: 1.55;
+      margin-bottom: 36px; font-weight: 400;
+    }
+    .cover .meta {
+      display: flex; gap: 36px; flex-wrap: wrap;
+      padding-top: 26px; border-top: 1px solid var(--line); max-width: 860px;
+    }
+    .cover .meta div span {
+      display: block; font: 700 10px 'Inter', sans-serif;
+      letter-spacing: 2.4px; color: var(--orange-2);
+      text-transform: uppercase; margin-bottom: 6px;
+    }
+    .cover .meta div b { font: 600 14px 'Inter', sans-serif; color: var(--ink); }
+
+    /* Closing CTA */
+    .closing { text-align: center; align-items: center; }
+    .closing h1 { text-align: center; }
+    .cta-block {
+      display: flex; flex-direction: column; align-items: center; gap: 18px;
+      margin-top: 36px;
+    }
+    .cta-link {
+      display: inline-flex; align-items: center; gap: 14px;
+      padding: 22px 40px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--orange) 0%, var(--orange-2) 100%);
+      color: #2a1404 !important;
+      font: 800 18px 'Inter', sans-serif;
+      letter-spacing: 0.6px;
+      text-decoration: none;
+      box-shadow: 0 18px 40px rgba(255, 138, 43, 0.5),
+                  0 0 0 0 rgba(255, 138, 43, 0.4);
+      transition: transform 0.3s ease, box-shadow 0.3s ease, filter 0.3s ease;
+      animation: ctaPulse 2.4s ease-in-out infinite;
+    }
+    .cta-link:hover { transform: translateY(-2px) scale(1.02); filter: brightness(1.05); }
+    .cta-link .arrow {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: rgba(42, 20, 4, 0.15); display: flex;
+      align-items: center; justify-content: center;
+      transition: transform 0.3s ease;
+    }
+    .cta-link:hover .arrow { transform: translateX(4px); }
+    @keyframes ctaPulse {
+      0%, 100% { box-shadow: 0 18px 40px rgba(255,138,43,0.5), 0 0 0 0 rgba(255,138,43,0.45); }
+      50% { box-shadow: 0 18px 40px rgba(255,138,43,0.5), 0 0 0 18px rgba(255,138,43,0); }
+    }
+    .cta-secondary {
+      display: inline-flex; align-items: center; gap: 8px;
+      color: var(--ink-soft); text-decoration: none;
+      font: 600 14px 'Inter', sans-serif; letter-spacing: 0.4px;
+      padding: 10px 20px; border: 1px solid var(--line);
+      border-radius: 999px;
+      transition: all 0.2s ease;
+    }
+    .cta-secondary:hover { color: var(--orange-2); border-color: var(--orange); }
+    .cta-url { color: var(--muted); font: 500 12px 'Inter', sans-serif; letter-spacing: 0.6px; margin-top: 6px; }
+    .cta-url b { color: var(--orange-2); font-weight: 700; }
+
+    /* Floating nav arrows */
+    .nav-arrows {
+      position: fixed; bottom: 36px; right: 36px; z-index: 95;
+      display: flex; gap: 12px;
+    }
+    .nav-btn {
+      width: 56px; height: 56px; border-radius: 50%;
+      border: 1px solid var(--line); background: rgba(8, 18, 40, 0.85);
+      backdrop-filter: blur(12px); color: var(--ink); cursor: pointer;
+      font-size: 22px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.25s ease; box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
+    }
+    .nav-btn:hover {
+      background: linear-gradient(135deg, var(--orange) 0%, var(--orange-2) 100%);
+      color: #2a1404; border-color: transparent; transform: scale(1.08);
+    }
+    .nav-btn:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
+    .nav-btn:disabled:hover {
+      background: rgba(8, 18, 40, 0.85); color: var(--ink); border-color: var(--line); transform: none;
+    }
+    .nav-next {
+      width: 64px; height: 64px;
+      background: linear-gradient(135deg, var(--orange) 0%, var(--orange-2) 100%);
+      color: #2a1404; border-color: transparent;
+      animation: pulse 2.4s ease-in-out infinite;
+    }
+    .nav-next:hover { filter: brightness(1.05); transform: scale(1.1); }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 12px 28px rgba(0,0,0,0.5), 0 0 0 0 rgba(255,138,43,0.55); }
+      50% { box-shadow: 0 12px 28px rgba(0,0,0,0.5), 0 0 0 14px rgba(255,138,43,0); }
+    }
+
+    .control-cluster {
+      position: fixed; bottom: 36px; left: 36px; z-index: 95;
+      display: flex; align-items: center; gap: 12px;
+      background: rgba(8, 18, 40, 0.7); backdrop-filter: blur(12px);
+      border: 1px solid var(--line); border-radius: 999px;
+      padding: 8px 8px 8px 18px;
+    }
+    .control-cluster .counter {
+      font: 700 13px 'Inter', sans-serif; letter-spacing: 2px; color: var(--ink-soft);
+    }
+    .control-cluster .counter b { color: var(--orange-2); font-weight: 800; }
+    .ctrl-btn {
+      width: 36px; height: 36px; border-radius: 50%;
+      border: 1px solid var(--line); background: rgba(8, 18, 40, 0.6);
+      color: var(--ink); cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s ease;
+    }
+    .ctrl-btn:hover { border-color: var(--orange); color: var(--orange-2); }
+    .ctrl-btn svg { width: 14px; height: 14px; }
+
+    .slide-progress {
+      position: fixed; bottom: 38px; left: 50%; transform: translateX(-50%); z-index: 95;
+      display: flex; gap: 6px;
+      background: rgba(8, 18, 40, 0.7); backdrop-filter: blur(12px);
+      padding: 10px 14px; border-radius: 999px; border: 1px solid var(--line);
+    }
+    .slide-progress .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: rgba(255,255,255,0.18); transition: all 0.3s ease; cursor: pointer;
+    }
+    .slide-progress .dot.active {
+      width: 22px; border-radius: 4px;
+      background: linear-gradient(90deg, var(--orange) 0%, var(--orange-2) 100%);
+      box-shadow: 0 0 12px rgba(255, 138, 43, 0.6);
+    }
+    .slide-progress .dot.passed { background: rgba(255, 138, 43, 0.5); }
+
+    .timer-bar {
+      position: fixed; bottom: 0; left: 0;
+      height: 2px; width: 0%;
+      background: linear-gradient(90deg, var(--orange), var(--orange-2));
+      z-index: 99;
+      box-shadow: 0 0 10px rgba(255, 138, 43, 0.7);
+      transition: width 0.1s linear;
+    }
+    .timer-bar.paused { opacity: 0.4; }
+
+    .scroll-hint {
+      position: absolute; bottom: 110px; left: 50%; transform: translateX(-50%);
+      color: var(--muted); font: 600 11px 'Inter', sans-serif;
+      letter-spacing: 2.4px; text-transform: uppercase;
+      opacity: 0.7; animation: bounceX 2s ease-in-out infinite; white-space: nowrap;
+    }
+    @keyframes bounceX {
+      0%, 100% { transform: translate(-50%, 0); }
+      50% { transform: translate(calc(-50% + 8px), 0); }
+    }
+
+    @media print {
+      html, body { overflow: visible; height: auto; }
+      body::before, body::after,
+      .topbar, .progress, .nav-arrows,
+      .control-cluster, .slide-progress, .timer-bar, .scroll-hint { display: none; }
+      .stage { display: block; height: auto; width: auto; overflow: visible; }
+      .slide {
+        flex: none; width: 297mm; height: 200mm; min-height: 200mm;
+        padding: 18mm 16mm; page-break-after: always; scroll-snap-align: none;
+      }
+      .slide-inner { animation: none !important; }
+      .card:hover, .nav-btn:hover, .cta-link:hover { transform: none; }
+      .cta-link { animation: none; }
+    }
+    @page { size: A4 landscape; margin: 0; }
+  </style>
+</head>
+<body>
+
+<div class="progress"><div class="fill" id="progressFill"></div></div>
+
+<div class="topbar">
+  <div class="brand">
+    <span class="mark">L</span>
+    Lock<b>Safe</b>&nbsp;UK · For Locksmiths
+  </div>
+  <div class="right">
+    <a class="btn" href="https://www.locksafe.uk/for-locksmiths" target="_blank" rel="noopener">Visit page</a>
+    <a class="btn cta" href="https://www.locksafe.uk/for-locksmiths" target="_blank" rel="noopener">Apply now →</a>
+  </div>
+</div>
+
+<div class="stage" id="stage">
+
+  <!-- 1 — Cover -->
+  <section class="slide cover" id="s1">
+    <div class="slide-inner">
+      <div class="slide-num">01 — Welcome</div>
+      <div style="max-width:1100px;">
+        <div class="eyebrow">For locksmith professionals · 2026</div>
+        <h1 class="display-title">More jobs.<br>Less <em>hassle</em>.</h1>
+        <p class="tagline">LockSafe is the UK's anti-fraud locksmith platform. Verified leads in your area, your prices, your reputation — with the paperwork, payments and proof handled for you. No monthly fees, ever.</p>
+        <div class="meta">
+          <div><span>Pricing</span><b>£0 monthly · pay only on completed jobs</b></div>
+          <div><span>Coverage</span><b>You set your service radius</b></div>
+          <div><span>Status</span><b>Live · accepting locksmiths</b></div>
+          <div><span>Apply</span><b>locksafe.uk/for-locksmiths</b></div>
+        </div>
+      </div>
+    </div>
+    <div class="scroll-hint">Auto-advance · arrow keys · space to pause</div>
+    <div class="footer-bar"><span>LockSafe UK · for locksmiths</span><span>01 / 14</span></div>
+  </section>
+
+  <!-- 2 — The problem (locksmith side) -->
+  <section class="slide" id="s2">
+    <div class="slide-inner">
+      <div class="slide-num">02 — Sound familiar?</div>
+      <div class="eyebrow">The everyday frustrations</div>
+      <h2>You do the work. The platform takes the win.</h2>
+      <p class="lead" style="margin-bottom:28px;">Most lead platforms charge you whether the job lands or not. Customers ghost. Pricing wars race to the bottom. And when something goes sideways, it's your word against theirs.</p>
+      <div class="grid c3">
+        <div class="card">
+          <div class="corner"></div>
+          <span class="pill red">Wasted spend</span>
+          <h3 style="margin-top:14px;">Pay-per-lead drain</h3>
+          <p>You pay even when the lead is fake, duplicate, or doesn't pick up the phone.</p>
+        </div>
+        <div class="card">
+          <div class="corner"></div>
+          <span class="pill red">Race to the bottom</span>
+          <h3 style="margin-top:14px;">Squeezed margins</h3>
+          <p>Aggregator pricing forces you to undercut — and competes with cowboys who don't show up.</p>
+        </div>
+        <div class="card">
+          <div class="corner"></div>
+          <span class="pill red">No proof</span>
+          <h3 style="margin-top:14px;">Disputes you can't win</h3>
+          <p>Without GPS, photos and signatures, every chargeback is a coin flip — and you usually lose.</p>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bar"><span>The status quo</span><span>02 / 14</span></div>
+  </section>
+
+  <!-- 3 — How LockSafe is different -->
+  <section class="slide" id="s3">
+    <div class="slide-inner">
+      <div class="slide-num">03 — Built for you</div>
+      <div class="eyebrow">A different kind of platform</div>
+      <h2>Locksmith-first, by design.</h2>
+      <table>
+        <thead><tr><th>What you usually get</th><th>What LockSafe does</th></tr></thead>
+        <tbody>
+          <tr><td>Pay per lead — even bad ones</td><td><b style="color:#fff">Pay only on completed jobs</b> — outcome-based</td></tr>
+          <tr><td>Forced platform pricing</td><td><b style="color:#fff">You set your assessment fee &amp; quotes</b></td></tr>
+          <tr><td>"He said / she said" disputes</td><td><b style="color:#fff">GPS, photos &amp; signatures on every job</b></td></tr>
+          <tr><td>Generic "tradesperson" listing</td><td><b style="color:#fff">Locksmith-specific workflow &amp; trust signals</b></td></tr>
+          <tr><td>Slow, opaque payouts</td><td><b style="color:#fff">Transparent Stripe split &amp; reporting</b></td></tr>
+          <tr><td>Anonymous customers</td><td><b style="color:#fff">Verified, geolocated requests in your area</b></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="footer-bar"><span>The difference</span><span>03 / 14</span></div>
+  </section>
+
+  <!-- 4 — Benefits grid -->
+  <section class="slide" id="s4">
+    <div class="slide-inner">
+      <div class="slide-num">04 — Why locksmiths join</div>
+      <div class="eyebrow">Six reasons it works</div>
+      <h2>Built to help honest, skilled locksmiths thrive.</h2>
+      <div class="grid c3" style="margin-top:14px;">
+        <div class="card">
+          <div class="corner"></div>
+          <div class="icon">£</div>
+          <h3>Set your own prices</h3>
+          <p>You decide your assessment fee and your work rates. No platform-imposed pricing. Keep what you earn.</p>
+        </div>
+        <div class="card">
+          <div class="corner"></div>
+          <div class="icon">✓</div>
+          <h3>Verified customer leads</h3>
+          <p>Every request is genuine. No tyre-kickers, no fake enquiries — real people with real lock problems.</p>
+        </div>
+        <div class="card">
+          <div class="corner"></div>
+          <div class="icon">⛨</div>
+          <h3>Fraud protection both ways</h3>
+          <p>Digital paper trail covers you too: GPS logs, customer signatures, and timestamped evidence.</p>
+        </div>
+        <div class="card">
+          <div class="corner"></div>
+          <div class="icon">★</div>
+          <h3>Build your reputation</h3>
+          <p>Earn verified reviews and a trusted profile. Top-rated locksmiths get more jobs at premium rates.</p>
+        </div>
+        <div class="card">
+          <div class="corner"></div>
+          <div class="icon">⌖</div>
+          <h3>Jobs in your area</h3>
+          <p>Only get requests inside your chosen radius. No wasted travel, no jobs outside your patch.</p>
+        </div>
+        <div class="card">
+          <div class="corner"></div>
+          <div class="icon">⎙</div>
+          <h3>Professional reports</h3>
+          <p>Every job auto-generates a PDF report. Looks great, protects you legally, impresses customers.</p>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bar"><span>Locksmith benefits</span><span>04 / 14</span></div>
+  </section>
+
+  <!-- 5 — How it works (4 steps) -->
+  <section class="slide" id="s5">
+    <div class="slide-inner">
+      <div class="slide-num">05 — How it works</div>
+      <div class="eyebrow">Onboarding to first job</div>
+      <h2>From application to your first paid job.</h2>
+      <div class="flow" style="margin-top:18px;">
+        <div class="node"><span class="step-num">01</span><strong>Apply &amp; verify</strong><span>Qualifications, insurance, DBS — checked before you go live.</span></div>
+        <div class="node"><span class="step-num">02</span><strong>Set your profile</strong><span>Service area, fees, specialties, availability.</span></div>
+        <div class="node"><span class="step-num">03</span><strong>Receive &amp; accept</strong><span>Get notified, review job details, accept what fits.</span></div>
+        <div class="node"><span class="step-num">04</span><strong>Complete &amp; get paid</strong><span>We handle docs, signatures &amp; payment.</span></div>
+      </div>
+      <div class="grid c2" style="margin-top:24px;">
+        <div class="card">
+          <h3>What you bring</h3>
+          <ul>
+            <li>Your qualifications &amp; insurance.</li>
+            <li>Your van, your tools, your craft.</li>
+            <li>Your service radius and availability.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>What we bring</h3>
+          <ul>
+            <li>Verified, geolocated customer demand.</li>
+            <li>Workflow, evidence &amp; PDF reports.</li>
+            <li>Stripe payments &amp; transparent splits.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bar"><span>Joining the platform</span><span>05 / 14</span></div>
+  </section>
+
+  <!-- 6 — Job lifecycle -->
+  <section class="slide" id="s6">
+    <div class="slide-inner">
+      <div class="slide-num">06 — On the job</div>
+      <div class="eyebrow">From notification to close</div>
+      <h2>The five-step job, made simple.</h2>
+      <div class="grid c5" style="margin-top:18px;">
+        <div class="card"><span class="pill orange">01</span><h3 style="margin-top:10px;">Ping</h3><p style="font-size:13px;">Verified job appears in your area.</p></div>
+        <div class="card"><span class="pill orange">02</span><h3 style="margin-top:10px;">Accept</h3><p style="font-size:13px;">One tap. ETA shared with the customer.</p></div>
+        <div class="card"><span class="pill orange">03</span><h3 style="margin-top:10px;">Arrive</h3><p style="font-size:13px;">GPS check-in &amp; before-photos logged.</p></div>
+        <div class="card"><span class="pill orange">04</span><h3 style="margin-top:10px;">Quote &amp; work</h3><p style="font-size:13px;">Transparent quote · approve · execute.</p></div>
+        <div class="card"><span class="pill orange">05</span><h3 style="margin-top:10px;">Close &amp; paid</h3><p style="font-size:13px;">Signature, PDF report, payout split.</p></div>
+      </div>
+      <div class="card" style="margin-top:22px;">
+        <span class="pill green">In your pocket</span>
+        <p style="margin-top:10px;">Everything happens in the locksmith app — accept, navigate, capture evidence, send the report. No paperwork, no chasing payments.</p>
+      </div>
+    </div>
+    <div class="footer-bar"><span>Job lifecycle</span><span>06 / 14</span></div>
+  </section>
+
+  <!-- 7 — Anti-fraud / protection -->
+  <section class="slide" id="s7">
+    <div class="slide-inner">
+      <div class="slide-num">07 — Your protection</div>
+      <div class="eyebrow">Fraud protection both ways</div>
+      <h2>The paper trail that protects you, not just them.</h2>
+      <p class="lead" style="margin-bottom:26px;">When a customer disputes a job, the difference between winning and losing is evidence. LockSafe builds that evidence automatically — every single job.</p>
+      <div class="grid c2">
+        <div class="card">
+          <div class="corner"></div>
+          <span class="pill green">Automatic evidence</span>
+          <h3 style="margin-top:14px;">What's captured for you</h3>
+          <ul>
+            <li>GPS pings on dispatch, arrival, and close.</li>
+            <li>Before / after photos tied to the job ID.</li>
+            <li>Customer's digital signature with location.</li>
+            <li>A clean PDF timeline you can send anywhere.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="corner"></div>
+          <span class="pill green">When something goes wrong</span>
+          <h3 style="margin-top:14px;">You're not alone</h3>
+          <ul>
+            <li>Stripe chargeback evidence pre-packaged.</li>
+            <li>Insurance &amp; legal-grade documentation.</li>
+            <li>Support team backing your record, not flipping a coin.</li>
+            <li>Fewer disputes — most never escalate.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bar"><span>Trust as armour</span><span>07 / 14</span></div>
+  </section>
+
+  <!-- 8 — Tools & app -->
+  <section class="slide" id="s8">
+    <div class="slide-inner">
+      <div class="slide-num">08 — Tools you'll use</div>
+      <div class="eyebrow">Everything in one app</div>
+      <h2>Built for the van, not the desk.</h2>
+      <div class="grid c3" style="margin-top:14px;">
+        <div class="card">
+          <span class="pill orange">Mobile app</span>
+          <h3 style="margin-top:12px;">Android &amp; iOS</h3>
+          <ul>
+            <li>Live job notifications.</li>
+            <li>One-tap accept &amp; navigate.</li>
+            <li>Photo capture &amp; signatures.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="pill orange">Web portal</span>
+          <h3 style="margin-top:12px;">Manage from anywhere</h3>
+          <ul>
+            <li>Earnings &amp; payout history.</li>
+            <li>Job archive &amp; PDF reports.</li>
+            <li>Profile, radius &amp; pricing.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="pill orange">Support</span>
+          <h3 style="margin-top:12px;">Real humans, fast</h3>
+          <ul>
+            <li>Onboarding help in days, not weeks.</li>
+            <li>Live ops support during jobs.</li>
+            <li>Dispute backing with the evidence.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card" style="margin-top:22px;">
+        <h3>Why it matters</h3>
+        <p>Less time on admin, more time on the tools. Quotes, photos, signatures and payments all happen inside the same job — so you're never chasing paperwork after dark.</p>
+      </div>
+    </div>
+    <div class="footer-bar"><span>Your toolkit</span><span>08 / 14</span></div>
+  </section>
+
+  <!-- 9 — Earnings model -->
+  <section class="slide" id="s9">
+    <div class="slide-inner">
+      <div class="slide-num">09 — Earnings</div>
+      <div class="eyebrow">Aligned economics</div>
+      <h2>You keep more. We earn only when you do.</h2>
+      <div class="grid c2" style="margin-top:18px;">
+        <div class="card">
+          <h3>Transparent split</h3>
+          <table style="margin-top:6px;">
+            <thead><tr><th>Component</th><th>You</th><th>Platform</th></tr></thead>
+            <tbody>
+              <tr><td>Assessment fee</td><td><b style="color:#fff">85%</b></td><td>15%</td></tr>
+              <tr><td>Work quote</td><td><b style="color:#fff">75%</b></td><td>25%</td></tr>
+              <tr><td>Monthly fee</td><td colspan="2"><b style="color:#fff">£0 — no subscription</b></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card">
+          <h3>What this means in practice</h3>
+          <ul>
+            <li>No "pay-to-play" before you've earned a penny.</li>
+            <li>Bigger jobs reward you proportionally — no caps.</li>
+            <li>Payouts are itemised and auditable.</li>
+            <li>The platform only wins when you do.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bar"><span>Locksmith economics</span><span>09 / 14</span></div>
+  </section>
+
+  <!-- 10 — Quality & reputation -->
+  <section class="slide" id="s10">
+    <div class="slide-inner">
+      <div class="slide-num">10 — Reputation</div>
+      <div class="eyebrow">Earn it. Keep it. Use it.</div>
+      <h2>Your reputation, finally portable.</h2>
+      <div class="grid c3" style="margin-top:18px;">
+        <div class="card"><div class="corner"></div><span class="pill gold">Verified reviews</span><h3 style="margin-top:14px;">Real, traceable</h3><p>Reviews tied to real, completed jobs — no fakes, no extortion.</p></div>
+        <div class="card"><div class="corner"></div><span class="pill gold">Top-rated tier</span><h3 style="margin-top:14px;">Premium placement</h3><p>Higher-rated locksmiths get priority routing and can charge premium rates.</p></div>
+        <div class="card"><div class="corner"></div><span class="pill gold">Profile</span><h3 style="margin-top:14px;">Your brand</h3><p>Build a profile customers trust, with badges, specialties &amp; insurance shown.</p></div>
+      </div>
+      <div class="card" style="margin-top:22px;">
+        <h3>The honest locksmith advantage</h3>
+        <p>The platform actively rewards quality, response time, and completion rates — and protects you from the cowboys that drag the trade's reputation down.</p>
+      </div>
+    </div>
+    <div class="footer-bar"><span>Quality wins</span><span>10 / 14</span></div>
+  </section>
+
+  <!-- 11 — Coverage / where -->
+  <section class="slide" id="s11">
+    <div class="slide-inner">
+      <div class="slide-num">11 — Where we operate</div>
+      <div class="eyebrow">Active clusters</div>
+      <h2>Live across the UK — and growing fast.</h2>
+      <div class="grid c2" style="margin-top:18px;">
+        <div class="card">
+          <h3>Active demand zones</h3>
+          <ul>
+            <li>Greater London</li>
+            <li>West Midlands — Birmingham &amp; Solihull</li>
+            <li>Greater Manchester</li>
+            <li>West &amp; South Yorkshire</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Thinking of joining?</h3>
+          <ul>
+            <li>Already in an active cluster — start fast.</li>
+            <li>Outside? Apply anyway — you'll help open the cluster.</li>
+            <li>You set your radius; we route only inside it.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card" style="margin-top:22px;">
+        <span class="pill blue">Honest expansion</span>
+        <p style="margin-top:10px;">We open cities when supply &amp; demand are ready — no fake "national coverage" promises. If you're early in your area, you'll often see better routing density.</p>
+      </div>
+    </div>
+    <div class="footer-bar"><span>Coverage</span><span>11 / 14</span></div>
+  </section>
+
+  <!-- 12 — Stats / Traction -->
+  <section class="slide" id="s12">
+    <div class="slide-inner">
+      <div class="slide-num">12 — Where we are</div>
+      <div class="eyebrow">Real traction</div>
+      <h2>Beyond beta. Live and accepting locksmiths.</h2>
+      <div class="grid c4" style="margin-top:18px;">
+        <div class="stat"><div class="label">Locksmiths</div><div class="value">40+</div><div class="desc">Onboarded across the UK</div></div>
+        <div class="stat"><div class="label">Monthly fee</div><div class="value">£0</div><div class="desc">No subscription, ever</div></div>
+        <div class="stat"><div class="label">Mobile</div><div class="value">2 / 2</div><div class="desc">Android &amp; iOS apps live</div></div>
+        <div class="stat"><div class="label">Status</div><div class="value">LIVE</div><div class="desc">Production operations</div></div>
+      </div>
+      <div class="card" style="margin-top:22px;">
+        <h3>Why apply now</h3>
+        <p>Early locksmiths benefit most: better routing density, stronger reputation history, and a head-start as new clusters open. Spaces in active zones are limited per radius.</p>
+      </div>
+    </div>
+    <div class="footer-bar"><span>Current stage</span><span>12 / 14</span></div>
+  </section>
+
+  <!-- 13 — Apply requirements -->
+  <section class="slide" id="s13">
+    <div class="slide-inner">
+      <div class="slide-num">13 — Who we accept</div>
+      <div class="eyebrow">What we look for</div>
+      <h2>Honest, qualified, insured. That's it.</h2>
+      <div class="grid c2" style="margin-top:18px;">
+        <div class="card">
+          <h3>You'll need</h3>
+          <ul>
+            <li>Locksmith qualifications or proven experience.</li>
+            <li>Public liability insurance (we'll guide you).</li>
+            <li>DBS certificate (or willingness to obtain).</li>
+            <li>A van, your tools, and a smartphone.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>What we don't ask</h3>
+          <ul>
+            <li>No upfront fees, no setup charges.</li>
+            <li>No exclusivity — keep your own customers.</li>
+            <li>No long-term contracts — leave anytime.</li>
+            <li>No "minimum spend" or marketing tax.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card" style="margin-top:22px;">
+        <span class="pill orange">Application time</span>
+        <p style="margin-top:10px;">Most applications take under 10 minutes. Verification typically completes in a few business days. You'll know either way — fast.</p>
+      </div>
+    </div>
+    <div class="footer-bar"><span>Eligibility</span><span>13 / 14</span></div>
+  </section>
+
+  <!-- 14 — Closing CTA -->
+  <section class="slide closing" id="s14">
+    <div class="slide-inner">
+      <div class="slide-num">14 — Apply now</div>
+      <div style="max-width:920px; margin:0 auto;">
+        <div class="eyebrow" style="margin-bottom:18px;">Ready when you are</div>
+        <h1 style="font-size:clamp(56px,8vw,108px); margin-bottom:24px;">Stop chasing<br>leads. <em style="font-style:italic;">Start winning</em> jobs.</h1>
+        <p class="lead" style="margin: 0 auto 16px; max-width:760px;">Join the UK's anti-fraud locksmith platform. Verified leads, your prices, your reputation — with the proof, paperwork and payments handled for you.</p>
+        <div class="cta-block">
+          <a class="cta-link" href="https://www.locksafe.uk/for-locksmiths" target="_blank" rel="noopener">
+            Apply on locksafe.uk
+            <span class="arrow">→</span>
+          </a>
+          <a class="cta-secondary" href="tel:07818333989">📞 Or talk to us — 07818 333 989</a>
+          <div class="cta-url">Direct link: <b>www.locksafe.uk/for-locksmiths</b></div>
+        </div>
+        <div style="margin-top:36px; padding-top:22px; border-top:1px solid var(--line); text-align:center;">
+          <div style="font:700 11px 'Inter',sans-serif; letter-spacing:3px; color:var(--orange-2); text-transform:uppercase; margin-bottom:8px;">No monthly fees · No exclusivity · No catch</div>
+          <div style="color:var(--muted); font-size:13px;">LockSafe UK · Locksmith presentation — May 2026</div>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bar"><span>Apply now</span><span>14 / 14</span></div>
+  </section>
+
+</div>
+
+<div class="slide-progress" id="dots"></div>
+
+<div class="control-cluster">
+  <span class="counter"><b id="navCurrent">01</b> / <span id="navTotal">14</span></span>
+  <button class="ctrl-btn" id="playPauseBtn" aria-label="Toggle auto-advance">
+    <svg id="playIcon" viewBox="0 0 16 16" fill="currentColor" style="display:none;"><polygon points="3,2 13,8 3,14"/></svg>
+    <svg id="pauseIcon" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="2" width="3.5" height="12"/><rect x="9.5" y="2" width="3.5" height="12"/></svg>
+  </button>
+</div>
+
+<div class="nav-arrows">
+  <button class="nav-btn" id="prevBtn" aria-label="Previous slide">‹</button>
+  <button class="nav-btn nav-next" id="nextBtn" aria-label="Next slide">›</button>
+</div>
+
+<div class="timer-bar" id="timerBar"></div>
+
+<script>
+(function() {
+  const stage = document.getElementById('stage');
+  const slides = Array.from(stage.querySelectorAll('.slide'));
+  const total = slides.length;
+  const current = document.getElementById('navCurrent');
+  const totalEl = document.getElementById('navTotal');
+  const fill = document.getElementById('progressFill');
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const playPauseBtn = document.getElementById('playPauseBtn');
+  const playIcon = document.getElementById('playIcon');
+  const pauseIcon = document.getElementById('pauseIcon');
+  const timerBar = document.getElementById('timerBar');
+  const dotsWrap = document.getElementById('dots');
+
+  totalEl.textContent = String(total).padStart(2, '0');
+
+  for (let i = 0; i < total; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot';
+    d.dataset.idx = i;
+    d.addEventListener('click', () => { scrollToIdx(i); resetAuto(); });
+    dotsWrap.appendChild(d);
+  }
+  const dots = Array.from(dotsWrap.children);
+
+  // Slightly longer on the closing CTA so it's noticed
+  const SLIDE_MS = 9000;
+  const CLOSING_MS = 14000;
+  let activeIndex = 0;
+  let isPlaying = true;
+  let timerStart = 0;
+  let rafId = null;
+
+  function update(idx) {
+    activeIndex = Math.max(0, Math.min(total - 1, idx));
+    current.textContent = String(activeIndex + 1).padStart(2, '0');
+    fill.style.width = ((activeIndex + 1) / total * 100) + '%';
+    prevBtn.disabled = activeIndex === 0;
+    slides.forEach((s, i) => s.classList.toggle('active', i === activeIndex));
+    dots.forEach((d, i) => {
+      d.classList.toggle('active', i === activeIndex);
+      d.classList.toggle('passed', i < activeIndex);
+    });
+  }
+
+  function scrollToIdx(idx) {
+    const wrap = (idx + total) % total;
+    const target = slides[wrap];
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
+  }
+
+  function goNext() { scrollToIdx(activeIndex + 1); resetAuto(); }
+  function goPrev() { scrollToIdx(activeIndex - 1); resetAuto(); }
+
+  prevBtn.addEventListener('click', goPrev);
+  nextBtn.addEventListener('click', goNext);
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting && entry.intersectionRatio > 0.55) {
+        const idx = slides.indexOf(entry.target);
+        if (idx !== -1 && idx !== activeIndex) {
+          update(idx);
+          resetAutoTimerOnly();
+        } else if (idx !== -1) {
+          update(idx);
+        }
+      }
+    });
+  }, { root: stage, threshold: [0.55, 0.75] });
+  slides.forEach(s => observer.observe(s));
+
+  function currentSlideMs() {
+    return activeIndex === total - 1 ? CLOSING_MS : SLIDE_MS;
+  }
+
+  function tick(ts) {
+    if (!isPlaying) return;
+    if (!timerStart) timerStart = ts;
+    const elapsed = ts - timerStart;
+    const dur = currentSlideMs();
+    const pct = Math.min(100, (elapsed / dur) * 100);
+    timerBar.style.width = pct + '%';
+    if (elapsed >= dur) {
+      timerStart = 0;
+      const next = (activeIndex + 1) % total;
+      scrollToIdx(next);
+    }
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function resetAutoTimerOnly() { timerStart = 0; timerBar.style.width = '0%'; }
+  function resetAuto() { resetAutoTimerOnly(); }
+
+  function play() {
+    isPlaying = true;
+    timerBar.classList.remove('paused');
+    playIcon.style.display = 'none';
+    pauseIcon.style.display = '';
+    if (!rafId) rafId = requestAnimationFrame(tick);
+  }
+  function pause() {
+    isPlaying = false;
+    timerBar.classList.add('paused');
+    playIcon.style.display = '';
+    pauseIcon.style.display = 'none';
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+  }
+  function togglePlay() { isPlaying ? pause() : play(); }
+  playPauseBtn.addEventListener('click', togglePlay);
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); goNext(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); goPrev(); }
+    else if (e.key === ' ') { e.preventDefault(); togglePlay(); }
+    else if (e.key === 'Home') { e.preventDefault(); scrollToIdx(0); resetAuto(); }
+    else if (e.key === 'End') { e.preventDefault(); scrollToIdx(total - 1); resetAuto(); }
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) pause(); else play();
+  });
+
+  let touchX = null;
+  stage.addEventListener('touchstart', (e) => { touchX = e.touches[0].clientX; }, { passive: true });
+  stage.addEventListener('touchend', (e) => {
+    if (touchX == null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 60) { dx < 0 ? goNext() : goPrev(); }
+    touchX = null;
+  });
+
+  update(0);
+  play();
+})();
+</script>
+
+</body>
+</html>
