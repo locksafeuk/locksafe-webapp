@@ -325,6 +325,21 @@ export class GoogleAdsClient {
 
       if (!res.ok) {
         const text = await res.text();
+        // Map common auth failures to actionable, agent-friendly messages so
+        // the LLM stops retrying credential issues every heartbeat cycle.
+        if (res.status === 401) {
+          throw new Error(
+            `Google Ads NOT_AUTHENTICATED (401) for customer ${this.customerId}: refresh token is invalid or expired. ` +
+            `This is an infrastructure credential issue — DO NOT retry this tool until an admin re-authorises Google Ads via the OAuth consent flow. ` +
+            `Raw response: ${text.slice(0, 200)}`,
+          );
+        }
+        if (res.status === 403) {
+          throw new Error(
+            `Google Ads PERMISSION_DENIED (403) for customer ${this.customerId}: developer token / login-customer-id mismatch. ` +
+            `DO NOT retry — admin intervention required. Raw: ${text.slice(0, 200)}`,
+          );
+        }
         throw new Error(
           `Google Ads search failed (${res.status}) for customer ${this.customerId}: ${text}`,
         );

@@ -106,13 +106,26 @@ export async function executeTool(
   }
 
   // Validate required parameters
+  const missing: string[] = [];
   for (const param of tool.parameters) {
     if (param.required && !(param.name in params)) {
-      return {
-        success: false,
-        error: `Missing required parameter: ${param.name}`,
-      };
+      missing.push(param.name);
     }
+  }
+  if (missing.length > 0) {
+    const allRequired = tool.parameters.filter((p) => p.required).map((p) => p.name);
+    const exampleObj: Record<string, unknown> = {};
+    for (const p of tool.parameters.filter((x) => x.required)) {
+      exampleObj[p.name] = p.type === "string" ? `<${p.name}>` : p.type === "number" ? 0 : p.type === "boolean" ? false : null;
+    }
+    return {
+      success: false,
+      error:
+        `Missing required parameter(s): ${missing.join(", ")}. ` +
+        `Tool "${toolName}" requires ALL of: ${allRequired.join(", ")}. ` +
+        `Example call: ${JSON.stringify(exampleObj)}. ` +
+        `Do NOT retry with the same empty/partial arguments — supply every required field.`,
+    };
   }
 
   try {
