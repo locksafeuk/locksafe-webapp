@@ -13,8 +13,11 @@
  *   - Burnley + East Lancashire
  *   - Scottish cities: Dundee, Inverness, Perth, Stirling
  *
+ * Primary API  : Google Places (textsearch + nearbysearch)
+ * Fallback API : SerpAPI Google Maps (kicks in on REQUEST_DENIED / quota exceeded)
+ *
  * Usage:
- *   GOOGLE_PLACES_API_KEY=... DATABASE_URL=... \
+ *   GOOGLE_PLACES_API_KEY=... SERPAPI_KEY=... DATABASE_URL=... \
  *   npx ts-node --project scripts/tsconfig.scripts.json \
  *     scripts/gap-cities-scrape.ts [--resume] [--enrich]
  */
@@ -25,14 +28,24 @@ import * as http from "http";
 import { PrismaClient } from "@prisma/client";
 import * as dotenv from "dotenv";
 
+dotenv.config({ path: ".env.local" });
 dotenv.config();
 
 process.on("uncaughtException",  (err)    => console.error("💥 uncaughtException:", err));
 process.on("unhandledRejection", (reason) => console.error("💥 unhandledRejection:", reason));
 
 const prisma = new PrismaClient();
-const API_KEY = process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
-if (!API_KEY) { console.error("❌  GOOGLE_PLACES_API_KEY not set"); process.exit(1); }
+const API_KEY   = process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY || "";
+const SERP_KEY  = process.env.SERPAPI_KEY || "";
+
+// Track whether Google Places is working — flip to false on REQUEST_DENIED
+let googleAvailable = !!API_KEY;
+
+if (!API_KEY && !SERP_KEY) {
+  console.error("❌  Neither GOOGLE_PLACES_API_KEY nor SERPAPI_KEY is set"); process.exit(1);
+}
+console.log(`🔑  Google Places API : ${API_KEY  ? "✅ available" : "❌ not set"}`);
+console.log(`🔑  SerpAPI           : ${SERP_KEY ? "✅ available" : "❌ not set"}\n`);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Named areas by region
@@ -388,15 +401,25 @@ function isChain(name: string): boolean {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Google Places helpers
+// Shared types
 // ─────────────────────────────────────────────────────────────────────────────
-const BASE = "https://maps.googleapis.com/maps/api/place";
-
 interface PlaceResult { place_id: string; name: string; formatted_address: string; }
 interface PlaceDetails {
   name: string; formatted_address: string;
   formatted_phone_number?: string; international_phone_number?: string;
   website?: string; rating?: number; user_ratings_total?: number; business_status?: string;
+}
+// Normalised result that may already contain full details (from SerpAPI)
+interface NormalisedPlace {
+  placeId: string;
+  name: string;
+  address: string;
+  phone?: string;
+  website?: string;
+  rating?: number;
+  reviewCount?: number;
+  // When false we still need a getDetails call (Google Places path)
+  detailsComplete: boolean;
 }
 
 function sleep(ms: number) { return new Promise<void>((r) => setTimeout(r, ms)); }
@@ -418,40 +441,188 @@ async function fetchWithRetry(url: string, retries = 4): Promise<Response> {
   throw new Error("exhausted retries");
 }
 
-async function textSearch(query: string, pageToken?: string) {
-  const url = new URL(`${BASE}/textsearch/json`);
+// ─────────────────────────────────────────────────────────────────────────────
+// Google Places API (primary)
+// ─────────────────────────────────────────────────────────────────────────────
+const GPLACES_BASE = "https://maps.googleapis.com/maps/api/place";
+
+async function gPlacesTextSearch(query: string, pageToken?: string): Promise<{ results: NormalisedPlace[]; nextPageToken?: string; denied: boolean }> {
+  if (!API_KEY) return { results: [], denied: true };
+  const url = new URL(`${GPLACES_BASE}/textsearch/json`);
   url.searchParams.set("query", query);
-  url.searchParams.set("key", API_KEY!);
+  url.searchParams.set("key", API_KEY);
   url.searchParams.set("type", "locksmith");
   url.searchParams.set("region", "gb");
   if (pageToken) url.searchParams.set("pagetoken", pageToken);
   const res = await fetchWithRetry(url.toString());
   const data = await res.json() as any;
-  if (data.status !== "OK" && data.status !== "ZERO_RESULTS") console.warn(`  ⚠  ${data.status}`);
-  return { results: (data.results || []) as PlaceResult[], nextPageToken: data.next_page_token as string | undefined };
+  if (data.status === "REQUEST_DENIED" || data.status === "OVER_QUERY_LIMIT") {
+    console.warn(`  ⚠  Google Places: ${data.status} — switching to SerpAPI fallback`);
+    googleAvailable = false;
+    return { results: [], denied: true };
+  }
+  if (data.status !== "OK" && data.status !== "ZERO_RESULTS") console.warn(`  ⚠  Google: ${data.status}`);
+  const results: NormalisedPlace[] = (data.results || []).map((r: any) => ({
+    placeId: r.place_id, name: r.name, address: r.formatted_address,
+    rating: r.rating, reviewCount: r.user_ratings_total, detailsComplete: false,
+  }));
+  return { results, nextPageToken: data.next_page_token, denied: false };
 }
 
-async function nearbySearch(lat: number, lng: number, pageToken?: string) {
-  const url = new URL(`${BASE}/nearbysearch/json`);
+async function gPlacesNearbySearch(lat: number, lng: number, pageToken?: string): Promise<{ results: NormalisedPlace[]; nextPageToken?: string; denied: boolean }> {
+  if (!API_KEY) return { results: [], denied: true };
+  const url = new URL(`${GPLACES_BASE}/nearbysearch/json`);
   url.searchParams.set("location", `${lat},${lng}`);
   url.searchParams.set("radius", "5000");
   url.searchParams.set("type", "locksmith");
-  url.searchParams.set("key", API_KEY!);
+  url.searchParams.set("key", API_KEY);
   if (pageToken) url.searchParams.set("pagetoken", pageToken);
   const res = await fetchWithRetry(url.toString());
   const data = await res.json() as any;
-  if (data.status !== "OK" && data.status !== "ZERO_RESULTS") console.warn(`  ⚠  ${data.status}`);
-  return { results: (data.results || []) as PlaceResult[], nextPageToken: data.next_page_token as string | undefined };
+  if (data.status === "REQUEST_DENIED" || data.status === "OVER_QUERY_LIMIT") {
+    console.warn(`  ⚠  Google Places: ${data.status} — switching to SerpAPI fallback`);
+    googleAvailable = false;
+    return { results: [], denied: true };
+  }
+  if (data.status !== "OK" && data.status !== "ZERO_RESULTS") console.warn(`  ⚠  Google: ${data.status}`);
+  const results: NormalisedPlace[] = (data.results || []).map((r: any) => ({
+    placeId: r.place_id, name: r.name, address: r.formatted_address,
+    rating: r.rating, reviewCount: r.user_ratings_total, detailsComplete: false,
+  }));
+  return { results, nextPageToken: data.next_page_token, denied: false };
 }
 
 async function getDetails(placeId: string): Promise<PlaceDetails | null> {
-  const url = new URL(`${BASE}/details/json`);
+  if (!API_KEY) return null;
+  const url = new URL(`${GPLACES_BASE}/details/json`);
   url.searchParams.set("place_id", placeId);
   url.searchParams.set("fields", "name,formatted_address,formatted_phone_number,international_phone_number,website,rating,user_ratings_total,business_status");
-  url.searchParams.set("key", API_KEY!);
+  url.searchParams.set("key", API_KEY);
   const res = await fetchWithRetry(url.toString());
   const data = await res.json() as any;
   return data.status === "OK" ? data.result : null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SerpAPI Google Maps (fallback)
+// ─────────────────────────────────────────────────────────────────────────────
+const SERP_BASE = "https://serpapi.com/search.json";
+
+function normaliseSerpResult(r: any): NormalisedPlace | null {
+  const placeId = r.place_id || r.data_id || null;
+  if (!placeId || !r.title) return null;
+  return {
+    placeId,
+    name: r.title,
+    address: r.address || "",
+    phone: r.phone || undefined,
+    website: r.website || undefined,
+    rating: typeof r.rating === "number" ? r.rating : undefined,
+    reviewCount: typeof r.reviews === "number" ? r.reviews : undefined,
+    detailsComplete: true, // SerpAPI includes phone + website in search results
+  };
+}
+
+async function serpTextSearch(query: string, start = 0): Promise<{ results: NormalisedPlace[]; hasMore: boolean }> {
+  if (!SERP_KEY) return { results: [], hasMore: false };
+  const url = new URL(SERP_BASE);
+  url.searchParams.set("engine", "google_maps");
+  url.searchParams.set("q", query);
+  url.searchParams.set("type", "search");
+  url.searchParams.set("hl", "en");
+  url.searchParams.set("gl", "uk");
+  if (start > 0) url.searchParams.set("start", String(start));
+  url.searchParams.set("api_key", SERP_KEY);
+  try {
+    const res = await fetchWithRetry(url.toString());
+    const data = await res.json() as any;
+    if (data.error) { console.warn(`  ⚠  SerpAPI: ${data.error}`); return { results: [], hasMore: false }; }
+    const results = (data.local_results || []).map(normaliseSerpResult).filter(Boolean) as NormalisedPlace[];
+    const hasMore = results.length === 20 && start < 40; // max 3 pages
+    return { results, hasMore };
+  } catch (err) {
+    console.warn(`  ⚠  SerpAPI error: ${err}`);
+    return { results: [], hasMore: false };
+  }
+}
+
+async function serpNearbySearch(lat: number, lng: number, query = "locksmith"): Promise<{ results: NormalisedPlace[] }> {
+  if (!SERP_KEY) return { results: [] };
+  const url = new URL(SERP_BASE);
+  url.searchParams.set("engine", "google_maps");
+  url.searchParams.set("q", query);
+  url.searchParams.set("ll", `@${lat},${lng},14z`);
+  url.searchParams.set("type", "search");
+  url.searchParams.set("hl", "en");
+  url.searchParams.set("gl", "uk");
+  url.searchParams.set("api_key", SERP_KEY);
+  try {
+    const res = await fetchWithRetry(url.toString());
+    const data = await res.json() as any;
+    if (data.error) { console.warn(`  ⚠  SerpAPI: ${data.error}`); return { results: [] }; }
+    const results = (data.local_results || []).map(normaliseSerpResult).filter(Boolean) as NormalisedPlace[];
+    return { results };
+  } catch (err) {
+    console.warn(`  ⚠  SerpAPI error: ${err}`);
+    return { results: [] };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Unified search wrappers — try Google first, fall back to SerpAPI
+// ─────────────────────────────────────────────────────────────────────────────
+async function textSearch(query: string): Promise<NormalisedPlace[]> {
+  const all: NormalisedPlace[] = [];
+
+  if (googleAvailable) {
+    let pageToken: string | undefined;
+    let page = 0;
+    do {
+      const { results, nextPageToken, denied } = await gPlacesTextSearch(query, pageToken);
+      if (denied) break; // fall through to SerpAPI
+      all.push(...results);
+      pageToken = nextPageToken;
+      page++;
+      if (pageToken) await sleep(2200);
+    } while (pageToken && page < 3);
+    if (googleAvailable) return all; // Google worked fine
+  }
+
+  // SerpAPI fallback
+  if (!SERP_KEY) return all;
+  let start = 0;
+  let hasMore = true;
+  while (hasMore) {
+    const { results, hasMore: more } = await serpTextSearch(query, start);
+    all.push(...results);
+    hasMore = more;
+    start += 20;
+    if (hasMore) await sleep(1000);
+  }
+  return all;
+}
+
+async function nearbySearch(lat: number, lng: number): Promise<NormalisedPlace[]> {
+  const all: NormalisedPlace[] = [];
+
+  if (googleAvailable) {
+    let pageToken: string | undefined;
+    let page = 0;
+    do {
+      const { results, nextPageToken, denied } = await gPlacesNearbySearch(lat, lng, pageToken);
+      if (denied) break;
+      all.push(...results);
+      pageToken = nextPageToken;
+      page++;
+      if (pageToken) await sleep(2200);
+    } while (pageToken && page < 3);
+    if (googleAvailable) return all;
+  }
+
+  if (!SERP_KEY) return all;
+  const { results } = await serpNearbySearch(lat, lng, "locksmith");
+  all.push(...results);
+  return all;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -525,40 +696,42 @@ function markDone(area: string, completed: string[]) {
 
 let totalSaved = 0;
 
-async function processBatch(results: PlaceResult[], areaLabel: string, seen: Set<string>) {
+async function processBatch(results: NormalisedPlace[], areaLabel: string, seen: Set<string>) {
   for (const place of results) {
-    if (seen.has(place.place_id)) continue;
+    if (seen.has(place.placeId)) continue;
     if (isChain(place.name)) { console.log(`   ⛔ Chain: ${place.name}`); continue; }
-    seen.add(place.place_id);
+    seen.add(place.placeId);
     await sleep(150);
-    const details = await getDetails(place.place_id);
-    if (!details || details.business_status === "CLOSED_PERMANENTLY") continue;
-    const phone = details.formatted_phone_number || details.international_phone_number || "";
-    const email = await extractEmailFromWebsite(details.website || "");
-    console.log(`   ✅ ${details.name} | ${phone || "no phone"} | ${email ? `📧 ${email}` : "—"}`);
+
+    let name    = place.name;
+    let address = place.address;
+    let phone   = place.phone || "";
+    let website = place.website || "";
+    let rating  = place.rating || 0;
+    let reviews = place.reviewCount || 0;
+
+    // Google Places path — need a details call for phone/website
+    if (!place.detailsComplete && googleAvailable) {
+      const details = await getDetails(place.placeId);
+      if (!details || details.business_status === "CLOSED_PERMANENTLY") continue;
+      name    = details.name;
+      address = details.formatted_address || address;
+      phone   = details.formatted_phone_number || details.international_phone_number || "";
+      website = details.website || "";
+      rating  = details.rating || 0;
+      reviews = details.user_ratings_total || 0;
+    }
+
+    const email = await extractEmailFromWebsite(website);
+    console.log(`   ✅ ${name} | ${phone || "no phone"} | ${email ? `📧 ${email}` : "—"}`);
     try {
       await (prisma as any).locksmithLead.upsert({
-        where: { googlePlaceId: place.place_id },
-        update: {
-          name: details.name, city: areaLabel,
-          address: details.formatted_address || place.formatted_address,
-          phone: phone || null, email: email || null,
-          website: details.website || null,
-          rating: details.rating || 0,
-          reviewCount: details.user_ratings_total || 0,
-        },
-        create: {
-          googlePlaceId: place.place_id, name: details.name, city: areaLabel,
-          address: details.formatted_address || place.formatted_address,
-          phone: phone || null, email: email || null,
-          website: details.website || null,
-          rating: details.rating || 0,
-          reviewCount: details.user_ratings_total || 0,
-          status: "new",
-        },
+        where: { googlePlaceId: place.placeId },
+        update: { name, city: areaLabel, address, phone: phone || null, email: email || null, website: website || null, rating, reviewCount: reviews },
+        create: { googlePlaceId: place.placeId, name, city: areaLabel, address, phone: phone || null, email: email || null, website: website || null, rating, reviewCount: reviews, status: "new" },
       });
       totalSaved++;
-    } catch (e) { console.warn(`   ⚠  DB save failed for ${details.name}: ${e}`); }
+    } catch (e) { console.warn(`   ⚠  DB save failed for ${name}: ${e}`); }
   }
 }
 
@@ -608,13 +781,8 @@ async function main() {
     console.log(`\n📍 ${area}`);
     try {
       for (const buildQuery of SEARCH_QUERIES) {
-        let pageToken: string | undefined;
-        do {
-          const { results, nextPageToken } = await textSearch(buildQuery(area), pageToken);
-          await processBatch(results, area, seen);
-          pageToken = nextPageToken;
-          if (pageToken) await sleep(2200);
-        } while (pageToken);
+        const results = await textSearch(buildQuery(area));
+        await processBatch(results, area, seen);
         await sleep(300);
       }
       markDone(area, completed);
@@ -631,15 +799,8 @@ async function main() {
     if (isResume && completed.includes(key)) { console.log(`   ⏭  ${point.label}`); continue; }
     console.log(`\n📡 ${point.label} (${point.lat}, ${point.lng})`);
     try {
-      let pageToken: string | undefined;
-      let page = 0;
-      do {
-        const { results, nextPageToken } = await nearbySearch(point.lat, point.lng, pageToken);
-        await processBatch(results, point.label, seen);
-        pageToken = nextPageToken;
-        page++;
-        if (pageToken) await sleep(2200);
-      } while (pageToken && page < 3);
+      const results = await nearbySearch(point.lat, point.lng);
+      await processBatch(results, point.label, seen);
       markDone(key, completed);
     } catch (err) { console.error(`   ❌ ${point.label}: ${err}`); }
   }
