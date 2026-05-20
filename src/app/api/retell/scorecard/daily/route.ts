@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { sendAdminAlert } from "@/lib/telegram";
+import { evaluateVoiceObservabilityAlerts, summarizeVoiceAlerts } from "@/lib/retell-observability";
 
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -40,11 +41,15 @@ export async function POST(request: NextRequest) {
         ? +(reviews.reduce((sum, r) => sum + (r.naturalnessScore ?? 0), 0) / reviews.length).toFixed(2)
         : 0;
 
-    const alerts: string[] = [];
-    if (completionRate < 70) alerts.push(`Completion rate low: ${completionRate}%`);
-    if (callToJobRate < 15) alerts.push(`Call-to-job rate low: ${callToJobRate}%`);
-    if (escalationRate > 25) alerts.push(`Escalation spike: ${escalationRate}%`);
-    if (reviews.length > 0 && avgNaturalness < 3.5) alerts.push(`Naturalness regression: ${avgNaturalness}/5`);
+    const alerts = evaluateVoiceObservabilityAlerts({
+      totalCalls: calls,
+      completionRate,
+      callToJobRate,
+      escalationRate,
+      avgNaturalness,
+      reviewCount: reviews.length,
+    });
+    const alertSummary = summarizeVoiceAlerts(alerts);
 
     const card = await prisma.voiceDailyScorecard.upsert({
       where: { date: from },
@@ -69,15 +74,15 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    if (alerts.length > 0) {
+    if (alertSummary.critical > 0 || alertSummary.warning > 0) {
       await sendAdminAlert({
-        title: "Voice AI scorecard alert",
-        severity: "warning",
-        message: alerts.join("\n"),
+        title: alertSummary.critical > 0 ? "Voice AI critical alert" : "Voice AI warning",
+        severity: alertSummary.critical > 0 ? "critical" : "warning",
+        message: alerts.map((alert) => `[${alert.severity}] ${alert.message}`).join("\n"),
       });
     }
 
-    return NextResponse.json({ success: true, scorecard: card, alerts });
+    return NextResponse.json({ success: true, scorecard: card, alerts, alertSummary });
   } catch (error: any) {
     console.error("[API] Error building voice daily scorecard:", error);
     return NextResponse.json({ error: "Failed to build scorecard" }, { status: 500 });
