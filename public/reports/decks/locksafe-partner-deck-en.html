@@ -226,6 +226,31 @@
       margin-top: 8px;
     }
 
+    .shot-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .shot {
+      border: 1px solid #2d4b7f;
+      border-radius: 10px;
+      overflow: hidden;
+      background: rgba(7, 20, 40, 0.75);
+    }
+    .shot img {
+      width: 100%;
+      height: 210px;
+      object-fit: cover;
+      display: block;
+    }
+    .shot .cap {
+      padding: 8px 10px;
+      font-size: 11px;
+      color: #adc3ea;
+      border-top: 1px solid #2d4b7f;
+    }
+
     @media print {
       .toolbar { display: none; }
       body { background: #fff; }
@@ -386,6 +411,16 @@
         <div class="bar gold"><span style="width:76%"></span></div>
         <div class="bar green"><span style="width:69%"></span></div>
       </div>
+      <div class="shot-grid">
+        <div class="shot">
+          <img src="/reports/decks/images/admin-voice-receptionist.png" alt="LockSafe admin voice receptionist dashboard" />
+          <div class="cap">Live LockSafe admin operations interface (voice receptionist)</div>
+        </div>
+        <div class="shot">
+          <img src="/reports/decks/images/vercel-deployment.png" alt="Vercel production deployment" />
+          <div class="cap">Production deployment and release management proof (Vercel)</div>
+        </div>
+      </div>
       <div class="footer"><span>Architecture view</span><span>7 / 15</span></div>
     </section>
 
@@ -412,6 +447,16 @@
         </div>
       </div>
       <div class="ref">Note: Claims remain framed as AI-assisted operations with human oversight.</div>
+      <div class="shot-grid">
+        <div class="shot">
+          <img src="/reports/decks/images/retell-agent-dashboard.png" alt="Retell AI agent dashboard" />
+          <div class="cap">Retell AI agent interface used in voice workflow orchestration</div>
+        </div>
+        <div class="shot">
+          <img src="/reports/decks/images/google-ads-apicenter.png" alt="Google Ads API center" />
+          <div class="cap">Google Ads API center and account-level campaign infrastructure</div>
+        </div>
+      </div>
       <div class="footer"><span>AI operations</span><span>8 / 15</span></div>
     </section>
 
