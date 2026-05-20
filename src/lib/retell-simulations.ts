@@ -65,6 +65,81 @@ export const RETELL_SIMULATION_SCENARIOS: SimulationScenario[] = [
   },
 ];
 
+export type RetellSimulationRegressionCase = {
+  name: string;
+  scenarioKey: string;
+  transcript: string;
+  collectedFields: string[];
+  naturalnessScore: number;
+  escalated: boolean;
+  expectedPass: boolean;
+};
+
+export const RETELL_SIMULATION_REGRESSION_CASES: RetellSimulationRegressionCase[] = [
+  {
+    name: "Emergency callback priority",
+    scenarioKey: "emergency_lockout",
+    transcript:
+      "I need the callback number first so we can keep you updated, then I’ll take the postcode and lockout details.",
+    collectedFields: ["name", "postcode", "phone", "job_reference", "sms_link_sent"],
+    naturalnessScore: 4.2,
+    escalated: false,
+    expectedPass: true,
+  },
+  {
+    name: "SMS fallback with manual handoff",
+    scenarioKey: "appointment_booking",
+    transcript:
+      "The SMS did not arrive. I’ll retry it once now, and if that still fails I’ll keep you on the line and hand you over to a human agent with the job ID.",
+    collectedFields: ["name", "postcode", "service", "preferred_slot", "phone", "job_reference", "sms_link_sent"],
+    naturalnessScore: 4.1,
+    escalated: false,
+    expectedPass: true,
+  },
+  {
+    name: "Loop termination regression",
+    scenarioKey: "emergency_lockout",
+    transcript: "Ending the conversation early as there might be a loop.",
+    collectedFields: ["name", "postcode", "phone"],
+    naturalnessScore: 4.0,
+    escalated: false,
+    expectedPass: false,
+  },
+];
+
+export function runSimulationRegressionSuite() {
+  return RETELL_SIMULATION_REGRESSION_CASES.map((regressionCase) => {
+    const scenario = RETELL_SIMULATION_SCENARIOS.find((item) => item.key === regressionCase.scenarioKey);
+    if (!scenario) {
+      return {
+        name: regressionCase.name,
+        scenarioKey: regressionCase.scenarioKey,
+        passed: false,
+        score: 0,
+        failureReason: `missing scenario: ${regressionCase.scenarioKey}`,
+        expectedPass: regressionCase.expectedPass,
+      };
+    }
+
+    const scored = scoreSimulationOutput({
+      transcript: regressionCase.transcript,
+      collectedFields: regressionCase.collectedFields,
+      naturalnessScore: regressionCase.naturalnessScore,
+      escalated: regressionCase.escalated,
+      scenario,
+    });
+
+    return {
+      name: regressionCase.name,
+      scenarioKey: regressionCase.scenarioKey,
+      passed: scored.passed,
+      score: scored.score,
+      failureReason: scored.failureReason,
+      expectedPass: regressionCase.expectedPass,
+    };
+  });
+}
+
 export function scoreSimulationOutput(params: {
   transcript: string;
   collectedFields: string[];
