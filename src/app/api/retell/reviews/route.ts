@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { computeCompositeQaScore, normalizeQaReviewInput } from "@/lib/retell-qa";
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,8 +26,21 @@ export async function GET(request: NextRequest) {
       totals > 0
         ? +(reviews.reduce((sum, item) => sum + (item.naturalnessScore ?? 0), 0) / totals).toFixed(2)
         : 0;
+    const compositeScores = reviews
+      .map((review) => computeCompositeQaScore(review))
+      .filter((score): score is number => score !== null);
+    const avgComposite =
+      compositeScores.length > 0
+        ? +(compositeScores.reduce((sum, score) => sum + score, 0) / compositeScores.length).toFixed(
+            2
+          )
+        : 0;
 
-    return NextResponse.json({ success: true, reviews, metrics: { totals, avgNaturalness } });
+    return NextResponse.json({
+      success: true,
+      reviews,
+      metrics: { totals, avgNaturalness, avgComposite },
+    });
   } catch (error: any) {
     console.error("[API] Error listing voice reviews:", error);
     return NextResponse.json({ error: "Failed to list voice reviews" }, { status: 500 });
@@ -41,35 +55,43 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const callId = typeof body?.callId === "string" ? body.callId : "";
-    if (!callId) {
-      return NextResponse.json({ error: "Missing callId" }, { status: 400 });
+    const normalized = normalizeQaReviewInput(body ?? {});
+    if (!normalized.ok) {
+      return NextResponse.json(
+        { error: "Invalid review payload", issues: normalized.errors },
+        { status: 400 }
+      );
     }
 
+    const payload = normalized.review;
     const review = await prisma.voiceCallReview.create({
       data: {
-        callId,
+        callId: payload.callId,
         reviewerId: admin.email || "admin",
-        labels: Array.isArray(body?.labels) ? body.labels.filter((x: any) => typeof x === "string") : [],
-        notes: typeof body?.notes === "string" ? body.notes : null,
-        naturalnessScore: typeof body?.naturalnessScore === "number" ? body.naturalnessScore : null,
-        accuracyScore: typeof body?.accuracyScore === "number" ? body.accuracyScore : null,
-        empathyScore: typeof body?.empathyScore === "number" ? body.empathyScore : null,
-        complianceScore: typeof body?.complianceScore === "number" ? body.complianceScore : null,
-        shouldEscalate: Boolean(body?.shouldEscalate),
-        isGoldenExample: Boolean(body?.isGoldenExample),
+        labels: payload.labels,
+        notes: payload.notes,
+        naturalnessScore: payload.naturalnessScore,
+        accuracyScore: payload.accuracyScore,
+        empathyScore: payload.empathyScore,
+        complianceScore: payload.complianceScore,
+        shouldEscalate: payload.shouldEscalate,
+        isGoldenExample: payload.isGoldenExample,
       },
     });
 
     await prisma.voiceCall.update({
-      where: { id: callId },
+      where: { id: payload.callId },
       data: {
-        flaggedForReview: Boolean(body?.shouldEscalate),
-        reviewNotes: typeof body?.notes === "string" ? body.notes.slice(0, 500) : undefined,
+        flaggedForReview: payload.shouldEscalate,
+        reviewNotes: payload.notes ? payload.notes.slice(0, 500) : undefined,
       },
     }).catch(() => undefined);
 
-    return NextResponse.json({ success: true, review });
+    return NextResponse.json({
+      success: true,
+      review,
+      compositeScore: computeCompositeQaScore(payload),
+    });
   } catch (error: any) {
     console.error("[API] Error creating voice review:", error);
     return NextResponse.json({ error: "Failed to create voice review" }, { status: 500 });
