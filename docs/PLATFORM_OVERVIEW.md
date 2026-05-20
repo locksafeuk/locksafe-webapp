@@ -37,7 +37,7 @@ LockSafe UK is a **full-stack emergency locksmith marketplace** connecting:
 | Function | Technology |
 |----------|------------|
 | Customer Acquisition | Meta Ads, Google Ads, SEO, Organic Social |
-| Phone Intake | Bland.ai Voice AI |
+| Phone Intake | Retell AI Voice Agent (Bland.ai legacy, deprecated) |
 | Job Matching | Intelligent Dispatch Algorithm |
 | Payments | Stripe Connect (instant payouts) |
 | Documentation | GPS, Photos, Digital Signatures, PDF Reports |
@@ -100,10 +100,11 @@ LockSafe UK is a **full-stack emergency locksmith marketplace** connecting:
 | Integration | Purpose | Status |
 |-------------|---------|--------|
 | **Stripe Connect** | Payment processing & instant locksmith payouts | ✅ Live |
-| **Twilio** | SMS notifications & Voice for Bland.ai | ✅ Live |
+| **Twilio** | SMS notifications & Voice (number routing for Retell) | ✅ Live |
 | **Resend** | Transactional & campaign emails | ✅ Live |
 | **Mapbox** | Maps, geocoding, location services | ✅ Live |
-| **Bland.ai** | AI voice agent for phone calls | ✅ Live |
+| **Retell AI** | AI voice agent for phone calls (canonical) | ✅ Live |
+| **Bland.ai** | _Deprecated_ — historical voice agent | ⚠️ Retired |
 | **Telegram** | Admin & locksmith bot operations | ✅ Live |
 | **WhatsApp** | Customer support & notifications | ⏳ Pending |
 | **Meta Marketing API** | Facebook/Instagram ad management | ⏳ Pending |

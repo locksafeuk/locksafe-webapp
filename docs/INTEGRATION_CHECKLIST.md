@@ -13,7 +13,8 @@
 | ✅ Resend | **Live** | Emails sending |
 | ✅ Twilio | **Live** | SMS & Voice numbers active |
 | ✅ Mapbox | **Live** | Maps & geocoding functional |
-| ✅ Bland.ai | **Live** | Voice AI answering calls |
+| ✅ Retell AI | **Live** | Voice AI answering calls (canonical) |
+| ⚠️ Bland.ai | **Deprecated** | Legacy voice agent — retained for history only |
 | ✅ Telegram (Admin) | **Live** | Admin notifications active |
 | ✅ Telegram (Locksmith) | **Live** | Locksmith bot operational |
 | ✅ OpenAI | **Live** | GPT-4 for AI features |

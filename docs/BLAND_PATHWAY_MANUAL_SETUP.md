@@ -1,5 +1,7 @@
 # LockSafe Bland.ai Pathway - Manual Setup Guide
 
+> **DEPRECATED.** Voice now runs on Retell AI — see [RETELL_RETRAINING_RUNBOOK.md](./RETELL_RETRAINING_RUNBOOK.md). Bland.ai pathway configuration is no longer maintained.
+
 Since the Bland.ai API isn't persisting nodes properly, follow these steps to manually create the pathway in the Bland.ai dashboard.
 
 ## Quick Setup

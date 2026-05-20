@@ -128,11 +128,12 @@ LockSafe UK is a **full-stack emergency locksmith marketplace** that connects:
 | [TELEGRAM_SETUP.md](./TELEGRAM_SETUP.md) | Telegram bot configuration |
 | [WHATSAPP_SETUP.md](./WHATSAPP_SETUP.md) | WhatsApp Business API setup |
 | [WHATSAPP_WEBHOOK_SETUP.md](./WHATSAPP_WEBHOOK_SETUP.md) | Detailed webhook configuration |
-| [RETELL_RETRAINING_RUNBOOK.md](./RETELL_RETRAINING_RUNBOOK.md) | Retell training/eval/deploy runbook |
+| [RETELL_RETRAINING_RUNBOOK.md](./RETELL_RETRAINING_RUNBOOK.md) | Retell training/eval/deploy runbook (canonical voice runbook) |
+| [VOICE_AI_QUICK_REFERENCE.md](./VOICE_AI_QUICK_REFERENCE.md) | Retell-first voice AI quick reference |
 | [ZADARMA_PHONE_SETUP.md](./ZADARMA_PHONE_SETUP.md) | Retell number/SIP routing setup |
-| [BLAND_AI_SETUP.md](./BLAND_AI_SETUP.md) | Voice AI phone agent setup |
-| [BLAND_PATHWAY_MANUAL_SETUP.md](./BLAND_PATHWAY_MANUAL_SETUP.md) | Bland.ai pathway configuration |
-| [BLAND_WEBHOOK_AUTH.md](./BLAND_WEBHOOK_AUTH.md) | Bland.ai webhook authentication |
+| [BLAND_AI_SETUP.md](./BLAND_AI_SETUP.md) | _Deprecated_ — superseded by Retell runbook |
+| [BLAND_PATHWAY_MANUAL_SETUP.md](./BLAND_PATHWAY_MANUAL_SETUP.md) | _Deprecated_ — Bland.ai pathway (historical) |
+| [BLAND_WEBHOOK_AUTH.md](./BLAND_WEBHOOK_AUTH.md) | _Deprecated_ — Bland.ai webhook auth (historical) |
 
 ### Payment & Finance
 

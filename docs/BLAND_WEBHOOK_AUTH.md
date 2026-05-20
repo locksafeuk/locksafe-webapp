@@ -1,5 +1,7 @@
 # Bland.ai Webhook Authentication
 
+> **DEPRECATED.** Voice now runs on Retell AI — see [RETELL_RETRAINING_RUNBOOK.md](./RETELL_RETRAINING_RUNBOOK.md). The Retell webhook auth flow is documented in [VOICE_AI_QUICK_REFERENCE.md](./VOICE_AI_QUICK_REFERENCE.md). Bland.ai webhook configuration is retained for historical reference only.
+
 This document explains how to configure authentication for Bland.ai webhook endpoints.
 
 ## Overview

@@ -1,5 +1,7 @@
 # Bland.ai Voice Integration Setup
 
+> **DEPRECATED.** LockSafe's voice receptionist now runs on Retell AI. This document is retained for historical reference only. For the current architecture, training, deployment, rollout, and observability flow, see [RETELL_RETRAINING_RUNBOOK.md](./RETELL_RETRAINING_RUNBOOK.md) and [VOICE_AI_QUICK_REFERENCE.md](./VOICE_AI_QUICK_REFERENCE.md). Do not configure new Bland.ai pathways.
+
 This guide explains how to set up the Bland.ai voice integration for LockSafe UK emergency phone calls.
 
 ## Overview

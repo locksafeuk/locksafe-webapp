@@ -39,6 +39,7 @@ Covers:
 1. Create an incremental job via POST /api/retell/dataset/jobs
 2. Confirm job status completed
 3. Use qualityRows output for training/evaluation
+4. The cron at /api/cron/voice-dataset-incremental runs every 6h and uses the resolveIncrementalDatasetWindow helper to advance the cursor from the last completed job
 
 ### 3) Prompt + Realism Update
 
@@ -59,24 +60,29 @@ Covers:
 
 ### 6) QA + Simulation Gate
 
-1. Add reviewer labels/scores via POST /api/retell/reviews
-2. Run simulation scenarios via POST /api/retell/simulations/run
-3. Minimum gate:
+1. Pull the prioritized review queue from GET /api/retell/qa/queue
+2. Add reviewer labels/scores via POST /api/retell/reviews — payload normalized via normalizeQaReviewInput; composite score returned in response
+3. Run simulation scenarios via POST /api/retell/simulations/run
+4. The simulation regression suite (Emergency callback priority, SMS fallback with manual handoff, Loop termination regression) is locked by retell-simulation-regression.test.ts
+5. Minimum gate:
    - passRate >= 80%
    - avg naturalness >= 3.5
+   - composite QA >= 3.8
 
 ### 7) Experiment Decision
 
-1. Create running experiment via POST /api/retell/experiments
+1. Create running experiment via POST /api/retell/experiments — POST validates trafficSplit (5–95), stopLossThreshold (1–50), and rejects same-version or concurrent experiments via evaluateRolloutGuardrails / ensureNoConflictingExperiment
 2. Recompute summary via POST /api/retell/experiments with action=evaluate
-3. If stop-loss triggers, keep control version
-4. Promote winner version when challenger outperforms and no stop-loss
+3. Summary includes insufficientData=true when either arm has fewer than EXPERIMENT_GUARDRAILS.minCallsPerArm (20) reviews — winner is null until both arms clear the floor
+4. If stop-loss triggers, keep control version
+5. Promote winner version when challenger outperforms and no stop-loss
 
 ### 8) Observability + Alerts
 
 1. Build scorecard via POST /api/retell/scorecard/daily
-2. Review alert list and Telegram notices
-3. Track trend via GET /api/retell/scorecard/daily?days=14
+2. Alerts are produced by evaluateVoiceObservabilityAlerts with severity warning/critical, codes: completion_rate_low, call_to_job_rate_low, escalation_spike, naturalness_regression, no_traffic
+3. Telegram notice severity escalates to critical when any critical-severity alert fires
+4. Track trend via GET /api/retell/scorecard/daily?days=14
 
 ## Rollback Procedure
 

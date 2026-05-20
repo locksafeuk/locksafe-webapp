@@ -29,7 +29,7 @@ LockSafe UK is a **full-stack emergency locksmith marketplace platform** built w
 | **Payments** | Stripe Connect | Customer payments & locksmith payouts |
 | **Email** | Resend | Transactional & marketing emails |
 | **SMS** | Twilio | Critical notifications |
-| **Voice AI** | Bland.ai | 24/7 AI phone agent |
+| **Voice AI** | Retell AI | 24/7 AI phone agent |
 | **WhatsApp** | Meta Cloud API | Customer support channel |
 | **Telegram** | Bot API | Admin & locksmith operations |
 | **Maps** | Mapbox | Geocoding & live tracking |
@@ -138,7 +138,7 @@ locksafe-uk/
 | Channel | Technology | Status | Use Case |
 |---------|------------|--------|----------|
 | **Web** | Next.js | ✅ Live | Primary booking interface |
-| **Phone** | Bland.ai + Twilio | ✅ Live | 24/7 emergency calls |
+| **Phone** | Retell AI + Twilio | ✅ Live | 24/7 emergency calls |
 | **WhatsApp** | Meta Cloud API | ⏳ Pending | Support & updates |
 | **SMS** | Twilio | ✅ Live | Critical notifications |
 | **Email** | Resend | ✅ Live | Confirmations & reports |
