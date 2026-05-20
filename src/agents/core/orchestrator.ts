@@ -207,7 +207,12 @@ async function escalateHeartbeatIncident(params: {
 // ─── DB Sync ─────────────────────────────────────────────────────────────────
 
 /**
- * Sync in-memory agent state with database
+ * Sync in-memory agent state with database.
+ *
+ * IMPORTANT: `status` is treated as DB-authoritative (admin/manual changes win),
+ * while runtime timestamps (lastHeartbeat / nextHeartbeat) push memory → DB.
+ * This prevents a stale cached `paused` state on one serverless instance from
+ * silently re-pausing an agent that was just resumed in the database.
  */
 export async function syncAgentStateWithDB(agentId: string): Promise<void> {
   try {
@@ -217,11 +222,12 @@ export async function syncAgentStateWithDB(agentId: string): Promise<void> {
 
     const state = agentStates.get(agentId);
     if (state) {
-      // Push in-memory state to DB
+      // Pull DB status into memory (DB wins for status — admin-controlled)
+      state.status = dbAgent.status as AgentStatus;
+      // Push runtime heartbeat timestamps from memory → DB
       await prisma.agent.update({
         where: { name: agentId },
         data: {
-          status: state.status,
           lastHeartbeat: state.lastHeartbeat,
           nextHeartbeat: state.nextHeartbeat,
         },
@@ -883,7 +889,12 @@ export async function pauseAgent(agentId: string): Promise<boolean> {
   const state = agentStates.get(agentId);
   if (!state) return false;
   state.status = 'paused';
-  await syncAgentStateWithDB(agentId);
+  try {
+    const { prisma } = await import('@/lib/prisma');
+    await prisma.agent.update({ where: { name: agentId }, data: { status: 'paused' } });
+  } catch (e) {
+    console.warn(`[pauseAgent] DB write failed for ${agentId}:`, e);
+  }
   await broadcastMessage(agentId, 'STATUS_UPDATE', `Agent ${agentId} paused`, 'Agent has been paused by orchestrator.');
   return true;
 }
@@ -896,7 +907,15 @@ export async function resumeAgent(agentId: string): Promise<boolean> {
   if (!state) return false;
   state.status = 'active';
   state.nextHeartbeat = new Date(Date.now() + 60000); // Schedule immediate heartbeat
-  await syncAgentStateWithDB(agentId);
+  try {
+    const { prisma } = await import('@/lib/prisma');
+    await prisma.agent.update({
+      where: { name: agentId },
+      data: { status: 'active', nextHeartbeat: state.nextHeartbeat },
+    });
+  } catch (e) {
+    console.warn(`[resumeAgent] DB write failed for ${agentId}:`, e);
+  }
   return true;
 }
 
