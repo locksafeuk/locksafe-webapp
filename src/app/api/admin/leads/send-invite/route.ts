@@ -307,10 +307,11 @@ export async function POST(req: NextRequest) {
   const style: OutreachSubjectStyle = body.subjectStyle === "direct" ? "direct" : "benefit";
   const touch = Number(body.touch || 1);
   const variant = Number(body.variant || 1);
+  const force = body.force === true;
   const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_BASE_URL || "https://www.locksafe.uk").replace(/\/$/, "");
   const now = new Date();
 
-  if (!isWithinUkSendWindow(now)) {
+  if (!force && !isWithinUkSendWindow(now)) {
     const ukHour = getUkHour(now);
     return NextResponse.json(
       {
