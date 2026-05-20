@@ -1,0 +1,38 @@
+name: Lead outreach cron
+
+# Vercel Hobby plan only runs vercel.json crons once per day.
+# This workflow invokes the outreach endpoint every 30 minutes.
+# The endpoint itself enforces the 07:00–11:00 UK send window.
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: lead-outreach-cron
+  cancel-in-progress: false
+
+jobs:
+  invoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Hit lead-outreach-sequence
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET secret is not configured" >&2
+            exit 1
+          fi
+          response=$(curl -sS -o /tmp/body -w "%{http_code}" \
+            -X GET 'https://www.locksafe.uk/api/cron/lead-outreach-sequence' \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "x-vercel-cron: 1")
+          echo "HTTP $response"
+          cat /tmp/body
+          echo
+          if [ "$response" != "200" ]; then
+            exit 1
+          fi
