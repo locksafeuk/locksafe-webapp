@@ -32,6 +32,7 @@
     { "path": "/api/cron/cleanup-blacklisted-tokens", "schedule": "0 3 * * *"       },
     { "path": "/api/cron/advance-auctions",           "schedule": "*/5 * * * *"     },
     { "path": "/api/cron/generate-invoices",          "schedule": "0 1 1 * *"       },
-    { "path": "/api/cron/generate-images",            "schedule": "0 7 * * *"       }
+    { "path": "/api/cron/generate-images",          "schedule": "0 7 * * *"       },
+    { "path": "/api/cron/voice-dataset-incremental", "schedule": "15 */6 * * *"    }
   ]
 }
