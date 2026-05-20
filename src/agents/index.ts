@@ -357,6 +357,32 @@ export async function runAgentHeartbeats(): Promise<{
   // Cleanup expired messages
   await cleanupExpiredMessages();
 
+  // ─── Self-healing: auto-resume agents that have been paused too long ────
+  // Indefinite pauses are never desired — the system must run 24/7. Any agent
+  // that's been `paused` for more than AGENT_AUTO_RESUME_MINUTES (default 60)
+  // is automatically promoted back to `active`. Short, deliberate pauses
+  // (e.g. an admin pausing for 10 min to debug) still work.
+  try {
+    const { default: prismaForHeal } = await import("@/lib/db");
+    const autoResumeMinutes = Math.max(
+      5,
+      Number(process.env.AGENT_AUTO_RESUME_MINUTES ?? "60"),
+    );
+    const cutoff = new Date(Date.now() - autoResumeMinutes * 60_000);
+    const resumed = await prismaForHeal.agent.updateMany({
+      where: { status: "paused", updatedAt: { lt: cutoff } },
+      data: { status: "active", nextHeartbeat: null },
+    });
+    if (resumed.count > 0) {
+      console.log(
+        `[Heartbeats] Self-heal: auto-resumed ${resumed.count} agent(s) ` +
+          `paused for > ${autoResumeMinutes}m`,
+      );
+    }
+  } catch (e) {
+    console.warn("[Heartbeats] Self-heal step failed:", e);
+  }
+
   // Operational policy — guardian mode and concurrency knobs.
   const { getOperationalPolicy } = await import("@/agents/core/operational-policy");
   const policy = await getOperationalPolicy();
