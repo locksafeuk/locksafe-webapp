@@ -1,12 +1,13 @@
 {
   "applinks": {
-    "apps": [],
     "details": [
       {
-        "appID": "4ZNRAB4A2S.uk.locksafe.app",
-        "paths": [
-          "/locksmith/job/*",
-          "/locksmith/jobs/*"
+        "appIDs": ["4ZNRAB4A2S.uk.locksafe.app"],
+        "components": [
+          {
+            "/": "/locksmith*",
+            "comment": "All /locksmith/* links open in the LockSafe native app"
+          }
         ]
       }
     ]
