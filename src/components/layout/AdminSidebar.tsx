@@ -190,6 +190,18 @@ export function AdminSidebar({ children }: AdminSidebarProps) {
     const checkAuth = async () => {
       try {
         const response = await fetch("/api/admin/auth");
+        // Only treat an explicit auth failure (401/403) as a redirect trigger.
+        // Network errors / 5xx must NOT call router.replace() — doing so wipes
+        // history entries and makes the browser Back button feel like it
+        // "jumps to another menu item" because the previous URL is gone.
+        if (response.status === 401 || response.status === 403) {
+          router.replace("/admin/login");
+          return;
+        }
+        if (!response.ok) {
+          console.warn(`Auth check returned ${response.status}; keeping current page.`);
+          return;
+        }
         const data = await response.json();
         if (data.success && data.authenticated) {
           setAdmin(data.admin);
@@ -197,8 +209,8 @@ export function AdminSidebar({ children }: AdminSidebarProps) {
           router.replace("/admin/login");
         }
       } catch (error) {
-        console.error("Auth check failed:", error);
-        router.replace("/admin/login");
+        // Network failure — do NOT redirect; just log and stay put.
+        console.error("Auth check network failure:", error);
       } finally {
         setLoading(false);
       }
