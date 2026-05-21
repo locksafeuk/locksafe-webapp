@@ -76,6 +76,53 @@ function parseKeywords(raw: unknown): GoogleKeyword[] {
     .filter((k) => k.text.length > 0);
 }
 
+/**
+ * Parses a Google Ads API error and returns the exemptible policy violation keys
+ * (policyName + violatingText) if ALL errors in the response are exemptible policy
+ * violations. Returns null if there are non-exemptible errors or the error cannot
+ * be parsed.
+ */
+function extractExemptiblePolicyViolationKeys(
+  err: unknown,
+): Array<{ policyName: string; violatingText: string }> | null {
+  const msg = err instanceof Error ? err.message : String(err);
+  const jsonMatch = msg.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) return null;
+  try {
+    const body = JSON.parse(jsonMatch[0]) as {
+      error?: {
+        details?: Array<{
+          errors?: Array<{
+            errorCode?: { policyViolationError?: string };
+            details?: {
+              policyViolationDetails?: {
+                key?: { policyName?: string; violatingText?: string };
+                isExemptible?: boolean;
+              };
+            };
+          }>;
+        }>;
+      };
+    };
+    const errors = body?.error?.details?.[0]?.errors ?? [];
+    if (errors.length === 0) return null;
+    const allExemptible = errors.every(
+      (e) =>
+        e.errorCode?.policyViolationError === "POLICY_ERROR" &&
+        e.details?.policyViolationDetails?.isExemptible === true,
+    );
+    if (!allExemptible) return null;
+    return errors
+      .map((e) => ({
+        policyName: e.details?.policyViolationDetails?.key?.policyName ?? "",
+        violatingText: e.details?.policyViolationDetails?.key?.violatingText ?? "",
+      }))
+      .filter((k) => k.policyName && k.violatingText);
+  } catch {
+    return null;
+  }
+}
+
 export async function publishGoogleAdsDraft(draftId: string): Promise<PublishResult> {
   const draft = (await prisma.googleAdsCampaignDraft.findUnique({
     where: { id: draftId },
@@ -210,7 +257,32 @@ export async function publishGoogleAdsDraft(draftId: string): Promise<PublishRes
           keyword: { text: k.text, matchType: k.matchType },
         },
       }));
-      await client.mutate("adGroupCriteria", keywordOps);
+      try {
+        await client.mutate("adGroupCriteria", keywordOps);
+      } catch (kwErr) {
+        // If all violations are exemptible policy errors, retry with exemption keys.
+        const exemptions = extractExemptiblePolicyViolationKeys(kwErr);
+        if (exemptions && exemptions.length > 0) {
+          const exemptionMap = new Map(exemptions.map((e) => [e.violatingText, e.policyName]));
+          const keywordOpsWithExemptions = keywords.map((k) => {
+            const policyName = exemptionMap.get(k.text);
+            const op: Record<string, unknown> = {
+              create: {
+                adGroup: adGroupResource,
+                status: "ENABLED",
+                keyword: { text: k.text, matchType: k.matchType },
+              },
+            };
+            if (policyName) {
+              op.exemptPolicyViolationKeys = [{ policyName, violatingText: k.text }];
+            }
+            return op;
+          });
+          await client.mutate("adGroupCriteria", keywordOpsWithExemptions);
+        } else {
+          throw kwErr;
+        }
+      }
     }
 
     // ----- 6. Responsive Search Ad (PAUSED) -----
