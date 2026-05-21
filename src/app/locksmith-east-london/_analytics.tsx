@@ -15,6 +15,9 @@ import { pushDataLayerEvent } from "@/components/analytics/GoogleTagManager";
  *  - `quote_click`        when any element with `data-track="quote-click"` is clicked
  *  - `scroll_depth`       at 25%, 50%, 75%, 100% of viewport-adjusted page height
  *                         (each threshold fires at most once per page load)
+ *  - `time_on_page`       at 15s, 30s, 60s, 180s of foreground-tab time
+ *                         (each threshold fires at most once per page load;
+ *                         hidden-tab time is not counted)
  *
  * Each event carries:
  *   landing_variant : "east-london"
@@ -103,10 +106,57 @@ export function EastLondonAnalytics() {
     // Run once in case the page is already scrolled (e.g. anchor link / refresh).
     measure();
 
+    // Time-on-page tracking: fire once each as foreground-tab time crosses
+    // 15s, 30s, 60s and 180s. We accumulate only while the tab is visible so
+    // background tabs (or backgrounded mobile browsers) don't inflate numbers.
+    const timeThresholds = [15, 30, 60, 180] as const;
+    const timeFired = new Set<number>();
+    let foregroundMs = 0;
+    let lastTick = document.visibilityState === "visible" ? Date.now() : 0;
+
+    const flushTime = () => {
+      if (lastTick) {
+        foregroundMs += Date.now() - lastTick;
+        lastTick = document.visibilityState === "visible" ? Date.now() : 0;
+      }
+      const seconds = Math.floor(foregroundMs / 1000);
+      for (const t of timeThresholds) {
+        if (seconds >= t && !timeFired.has(t)) {
+          timeFired.add(t);
+          pushDataLayerEvent("time_on_page", {
+            landing_variant: LANDING_VARIANT,
+            page_path: PAGE_PATH,
+            city: CITY,
+            source,
+            seconds: t,
+          });
+        }
+      }
+    };
+
+    const timeInterval = window.setInterval(() => {
+      flushTime();
+      if (timeFired.size === timeThresholds.length) {
+        window.clearInterval(timeInterval);
+      }
+    }, 1000);
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        lastTick = Date.now();
+      } else {
+        flushTime();
+        lastTick = 0;
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
     return () => {
       document.removeEventListener("click", onClick, { capture: true });
       window.removeEventListener("scroll", onScroll);
       if (raf) window.cancelAnimationFrame(raf);
+      window.clearInterval(timeInterval);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
 
