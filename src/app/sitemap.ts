@@ -12,11 +12,15 @@ import {
 import { PILLAR_KEYWORDS } from "@/lib/intents-catalog";
 import { slugify } from "@/lib/seo/url-helpers";
 
+// NOTE: must be real ServiceSlug values from src/lib/services-catalog.ts.
+// `burglary-repair` and `auto-locksmith` are pillar *keywords*, not service
+// slugs — using them here previously emitted ~274 broken URLs in the sitemap
+// (the matching /locksmith-area/[slug]/[service] route calls notFound()).
 const POSTCODE_PILLAR_SERVICES = [
   "emergency-locksmith",
   "lock-change",
-  "burglary-repair",
-  "auto-locksmith",
+  "burglary-lock-repair",
+  "car-key-replacement",
   "commercial-locksmith",
 ] as const;
 

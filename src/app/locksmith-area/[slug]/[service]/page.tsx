@@ -25,11 +25,14 @@ interface Props {
  * other services remain reachable through the postcode hub at
  * /emergency-locksmith-{slug}.
  */
+// Must be real ServiceSlug values from src/lib/services-catalog.ts. Keep in
+// sync with POSTCODE_PILLAR_SERVICES in src/app/sitemap.ts and
+// src/app/admin/seo/coverage/page.tsx.
 const PILLAR_POSTCODE_SERVICES = [
   "emergency-locksmith",
   "lock-change",
-  "burglary-repair",
-  "auto-locksmith",
+  "burglary-lock-repair",
+  "car-key-replacement",
   "commercial-locksmith",
 ] as const;
 

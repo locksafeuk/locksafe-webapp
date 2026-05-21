@@ -11,11 +11,13 @@ export const metadata: Metadata = {
   title: "Coverage matrix",
 };
 
+// Real ServiceSlug values (see src/lib/services-catalog.ts). Keep in sync
+// with src/app/sitemap.ts and src/app/locksmith-area/[slug]/[service]/page.tsx.
 const POSTCODE_PILLAR_SERVICES = [
   "emergency-locksmith",
   "lock-change",
-  "burglary-repair",
-  "auto-locksmith",
+  "burglary-lock-repair",
+  "car-key-replacement",
   "commercial-locksmith",
 ] as const;
 
