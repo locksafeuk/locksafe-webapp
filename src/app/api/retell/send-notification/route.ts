@@ -298,6 +298,26 @@ export async function POST(request: NextRequest) {
         "Please save your reference number and visit our website to complete your request.";
     }
 
+    if (notifications.length === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          retryable: false,
+          fallback_action: "handoff_human",
+          notifications_sent: notifications,
+          sms_sent: false,
+          email_sent: false,
+          provider: "retell",
+          notification_type: type,
+          job_number: jobDetails.jobNumber,
+          continue_url: jobDetails.continueUrl,
+          message:
+            "I could not deliver SMS or email right now. Keep the call active, keep captured details, and transfer to human support without repeating the same questions.",
+        },
+        { status: 200, headers: CORS_HEADERS }
+      );
+    }
+
     console.log(
       `[Retell send-notification] Notifications sent: ${notifications.join(", ") || "none"} (type: ${type}, ${Date.now() - startTime}ms)`
     );
@@ -326,9 +346,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
+        retryable: false,
+        fallback_action: "handoff_human",
         error: "Failed to send notification",
         message:
-          "I had a small issue sending the notification, but your request is registered. Please note your reference number.",
+          "I had a small issue sending the notification. Keep the call active, keep captured details, and transfer to human support now.",
       },
       { status: 200, headers: CORS_HEADERS }
     );

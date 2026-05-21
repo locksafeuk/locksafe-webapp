@@ -80,7 +80,9 @@ describe("POST /api/retell/send-notification", () => {
     expect(res.status).toBe(200);
 
     const body = await res.json();
-    expect(body.success).toBe(true);
+    expect(body.success).toBe(false);
+    expect(body.retryable).toBe(false);
+    expect(body.fallback_action).toBe("handoff_human");
     expect(body.sms_sent).toBe(false);
     expect(body.notifications_sent).not.toContain("sms");
   });
