@@ -22,6 +22,18 @@ import { pushDataLayerEvent } from "@/components/analytics/GoogleTagManager";
  *                         visitor crosses a quality tier (low<30, medium<70,
  *                         high>=70) and a final summary on page hide. Drives
  *                         Google Ads enhanced bidding / GA4 quality audiences.
+ *  - `rage_click`         3+ clicks within 1s inside a ~40px radius
+ *  - `repeated_click`     2+ rapid clicks (<400ms) on the exact same element
+ *  - `ultra_fast_bounce`  visitor leaves with <2s of foreground time
+ *  - `no_mouse_movement`  visitor had >1.5s on page but never moved a pointer
+ *                         (touch starts also count as movement)
+ *  - `impossible_scroll`  reached 100% scroll in <1500ms after mount (bot-ish)
+ *  - `session_fingerprint`stable device id + visit count (sent once on mount;
+ *                         pair with a server route to correlate IP patterns)
+ *  - `call_attempt_duration` seconds the tab spent backgrounded after a
+ *                         phone-click (proxy for call length). Real call
+ *                         duration must come from the telephony provider
+ *                         (Bland / Zadarma webhook), not the browser.
  *
  * Score breakdown (max 100):
  *   time_on_page  : up to 40  (15s=10, 30s=20, 60s=30, 180s=40)
@@ -53,6 +65,51 @@ function inferSource(): string {
 export function EastLondonAnalytics() {
   useEffect(() => {
     const source = inferSource();
+
+    // -------------------------------------------------------------------- //
+    // Device fingerprint + repeat-visit count (best-effort; falls back     //
+    // gracefully when storage is blocked by private mode / ITP).           //
+    // -------------------------------------------------------------------- //
+    let fingerprint = "";
+    let visitCount = 1;
+    try {
+      fingerprint = window.localStorage.getItem("ls_fp_id") || "";
+      if (!fingerprint) {
+        fingerprint =
+          typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        window.localStorage.setItem("ls_fp_id", fingerprint);
+      }
+      const prior = parseInt(window.localStorage.getItem("ls_fp_visits") || "0", 10);
+      visitCount = (Number.isFinite(prior) ? prior : 0) + 1;
+      window.localStorage.setItem("ls_fp_visits", String(visitCount));
+    } catch {
+      // Storage blocked - keep defaults.
+    }
+
+    // -------------------------------------------------------------------- //
+    // Bot / fraud signal state                                             //
+    // -------------------------------------------------------------------- //
+    const mountedAt = Date.now();
+    let mouseMoveCount = 0;
+    let firstScrollAt = 0;
+    let impossibleScrollFired = false;
+    let noMouseFired = false;
+    let ultraFastBounceFired = false;
+    let pendingCallStartedAt = 0;
+    let pendingCallHiddenAt = 0;
+    let callDurationFired = false;
+    const clickWindow: Array<{ t: number; x: number; y: number; el: Element | null }> = [];
+    const repeatedClickEls = new Map<Element, number>();
+    const rageFiredFor = new Set<number>();
+
+    const onPointerMove = () => {
+      mouseMoveCount++;
+    };
+    window.addEventListener("mousemove", onPointerMove, { passive: true });
+    window.addEventListener("touchstart", onPointerMove, { passive: true });
+    window.addEventListener("pointermove", onPointerMove, { passive: true });
 
     // -------------------------------------------------------------------- //
     // Session-quality scoring state                                        //
@@ -92,10 +149,76 @@ export function EastLondonAnalytics() {
       page_path: PAGE_PATH,
       city: CITY,
       source,
+      fingerprint,
+      visit_count: visitCount,
     });
 
+    pushDataLayerEvent("session_fingerprint", {
+      landing_variant: LANDING_VARIANT,
+      page_path: PAGE_PATH,
+      city: CITY,
+      source,
+      fingerprint,
+      visit_count: visitCount,
+      user_agent: navigator.userAgent,
+      language: navigator.language,
+      tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      screen: `${window.screen?.width || 0}x${window.screen?.height || 0}`,
+      // Repeat-visit signal: visiting >5 times in the same browser before
+      // ever calling/quoting is a common fraud pattern; surface as a flag.
+      repeat_visitor: visitCount > 1,
+    });
+
+    // -------------------------------------------------------------------- //
+    // Click handler: tracked CTAs + rage / repeated-click detection.       //
+    // -------------------------------------------------------------------- //
     const onClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement | null;
+
+      // -- Rage-click detection (any click anywhere on the page) -- //
+      const now = Date.now();
+      clickWindow.push({ t: now, x: e.clientX, y: e.clientY, el: target });
+      // Drop entries older than 1s.
+      while (clickWindow.length && now - clickWindow[0].t > 1000) clickWindow.shift();
+      // 3+ clicks within 40px in <=1s => rage click (fire at most once per cluster second).
+      if (clickWindow.length >= 3) {
+        const recent = clickWindow.slice(-3);
+        const dx = Math.max(...recent.map((c) => c.x)) - Math.min(...recent.map((c) => c.x));
+        const dy = Math.max(...recent.map((c) => c.y)) - Math.min(...recent.map((c) => c.y));
+        const bucket = Math.floor(now / 1000);
+        if (dx <= 40 && dy <= 40 && !rageFiredFor.has(bucket)) {
+          rageFiredFor.add(bucket);
+          pushDataLayerEvent("rage_click", {
+            landing_variant: LANDING_VARIANT,
+            page_path: PAGE_PATH,
+            city: CITY,
+            source,
+            fingerprint,
+            click_count: clickWindow.length,
+            target: (target?.tagName || "").toLowerCase(),
+            target_data_track: target?.closest?.("[data-track]")?.getAttribute("data-track") || null,
+          });
+        }
+      }
+      // -- Repeated-click on identical element in <400ms -- //
+      if (target) {
+        const lastAt = repeatedClickEls.get(target) || 0;
+        if (lastAt && now - lastAt < 400) {
+          pushDataLayerEvent("repeated_click", {
+            landing_variant: LANDING_VARIANT,
+            page_path: PAGE_PATH,
+            city: CITY,
+            source,
+            fingerprint,
+            target: target.tagName.toLowerCase(),
+            target_data_track: target.closest?.("[data-track]")?.getAttribute("data-track") || null,
+            delta_ms: now - lastAt,
+          });
+        }
+        repeatedClickEls.set(target, now);
+      }
+
+      // -- Tracked CTA handling -- //
       if (!target) return;
       const el = target.closest<HTMLElement>("[data-track]");
       if (!el) return;
@@ -107,9 +230,16 @@ export function EastLondonAnalytics() {
         page_path: PAGE_PATH,
         city: CITY,
         source,
+        fingerprint,
       });
 
-      if (kind === "phone-click" && score.phone === 0) score.phone = 20;
+      if (kind === "phone-click") {
+        if (score.phone === 0) score.phone = 20;
+        // Start the call-attempt-duration proxy: record click time so we can
+        // measure how long the tab is backgrounded after the tel: handoff.
+        pendingCallStartedAt = now;
+        callDurationFired = false;
+      }
       if (kind === "quote-click" && score.quote === 0) score.quote = 25;
       emitQuality(`${kind.replace("-", "_")}`);
     };
@@ -128,6 +258,7 @@ export function EastLondonAnalytics() {
       const scrollable = Math.max(1, doc.scrollHeight - window.innerHeight);
       const scrolled = window.scrollY || doc.scrollTop || 0;
       const pct = Math.min(100, Math.round((scrolled / scrollable) * 100));
+      if (pct > 0 && firstScrollAt === 0) firstScrollAt = Date.now();
       for (const t of thresholds) {
         if (pct >= t && !fired.has(t)) {
           fired.add(t);
@@ -140,6 +271,23 @@ export function EastLondonAnalytics() {
           });
           score.scroll = Math.max(score.scroll, scrollPoints[t] ?? 0);
           emitQuality(`scroll_${t}`);
+          // Impossible-scroll: hit 100% in <1500ms from mount AND scrollable
+          // height is non-trivial (>1.5 viewports) => almost certainly a bot.
+          if (t === 100 && !impossibleScrollFired) {
+            const elapsed = Date.now() - mountedAt;
+            if (elapsed < 1500 && scrollable > window.innerHeight * 1.5) {
+              impossibleScrollFired = true;
+              pushDataLayerEvent("impossible_scroll", {
+                landing_variant: LANDING_VARIANT,
+                page_path: PAGE_PATH,
+                city: CITY,
+                source,
+                fingerprint,
+                elapsed_ms: elapsed,
+                scrollable_px: scrollable,
+              });
+            }
+          }
         }
       }
       if (fired.size === thresholds.length) {
@@ -194,12 +342,67 @@ export function EastLondonAnalytics() {
       }
     }, 1000);
 
+    // Emits fraud/bot signals that only make sense when the visitor leaves.
+    const emitExitSignals = () => {
+      // ultra-fast bounce: <2s of foreground time before exit.
+      if (!ultraFastBounceFired && foregroundMs < 2000) {
+        ultraFastBounceFired = true;
+        pushDataLayerEvent("ultra_fast_bounce", {
+          landing_variant: LANDING_VARIANT,
+          page_path: PAGE_PATH,
+          city: CITY,
+          source,
+          fingerprint,
+          foreground_ms: foregroundMs,
+        });
+      }
+      // no-mouse-movement: meaningful only after a reasonable dwell time.
+      if (!noMouseFired && mouseMoveCount === 0 && foregroundMs > 1500) {
+        noMouseFired = true;
+        pushDataLayerEvent("no_mouse_movement", {
+          landing_variant: LANDING_VARIANT,
+          page_path: PAGE_PATH,
+          city: CITY,
+          source,
+          fingerprint,
+          foreground_ms: foregroundMs,
+        });
+      }
+    };
+
     const onVisibility = () => {
       if (document.visibilityState === "visible") {
         lastTick = Date.now();
+        // If we backgrounded after a phone-click, the time spent hidden is
+        // our best in-browser proxy for call duration.
+        if (pendingCallHiddenAt && !callDurationFired) {
+          const backgroundMs = Date.now() - pendingCallHiddenAt;
+          // Only emit if backgrounded for >=3s (filters out app-switch noise).
+          if (backgroundMs >= 3000) {
+            callDurationFired = true;
+            pushDataLayerEvent("call_attempt_duration", {
+              landing_variant: LANDING_VARIANT,
+              page_path: PAGE_PATH,
+              city: CITY,
+              source,
+              fingerprint,
+              seconds: Math.round(backgroundMs / 1000),
+              // Note: this is tab-backgrounded time after a tel: click, not
+              // the real call duration. Wire the telephony provider webhook
+              // for ground truth.
+              proxy: true,
+            });
+          }
+          pendingCallHiddenAt = 0;
+          pendingCallStartedAt = 0;
+        }
       } else {
         flushTime();
         lastTick = 0;
+        if (pendingCallStartedAt && !pendingCallHiddenAt) {
+          pendingCallHiddenAt = Date.now();
+        }
+        emitExitSignals();
         if (!qualityFinalised) {
           qualityFinalised = true;
           emitQuality("final");
@@ -210,6 +413,7 @@ export function EastLondonAnalytics() {
 
     const onPageHide = () => {
       flushTime();
+      emitExitSignals();
       if (!qualityFinalised) {
         qualityFinalised = true;
         emitQuality("final");
@@ -224,6 +428,9 @@ export function EastLondonAnalytics() {
       window.clearInterval(timeInterval);
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("mousemove", onPointerMove);
+      window.removeEventListener("touchstart", onPointerMove);
+      window.removeEventListener("pointermove", onPointerMove);
     };
   }, []);
 
