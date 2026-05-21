@@ -57,12 +57,12 @@ function fetchHtml(url: string, redirects = 0): Promise<string> {
 
 function extractEmailsFromHtml(html: string): string[] {
   const re = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
-  const raw = html.match(re) || [];
+  const raw: string[] = html.match(re) ?? [];
   const exclude = /\.(png|jpg|jpeg|gif|svg|webp|css|js|woff|ttf|eot)$/i;
   const stopwords = ["noreply", "no-reply", "donotreply", "example", "sentry", "sampleemail",
     "email@", "@email", "user@", "@domain", "test@", "@test", "info@info", "your@", "@your",
     "name@", "@name", "@company", "@domain.com"];
-  return [...new Set(raw.filter(e =>
+  return [...new Set(raw.filter((e) =>
     !exclude.test(e) && !stopwords.some(w => e.toLowerCase().includes(w))
   ))];
 }

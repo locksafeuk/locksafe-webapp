@@ -662,7 +662,8 @@ const EMAIL_BLOCKLIST = [
 ];
 function extractEmails(html: string): string[] {
   const re = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
-  return [...new Set((html.match(re) || []).filter(e =>
+  const raw: string[] = html.match(re) ?? [];
+  return [...new Set(raw.filter((e) =>
     !EMAIL_BLOCKLIST.some(b => e.toLowerCase().includes(b)) &&
     !/\.(png|jpg|gif|svg|css|js|woff|ttf)$/i.test(e)
   ))];

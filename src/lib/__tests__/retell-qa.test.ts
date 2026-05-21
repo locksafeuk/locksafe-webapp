@@ -21,7 +21,7 @@ describe("normalizeQaReviewInput", () => {
   it("rejects payloads without a callId", () => {
     const result = normalizeQaReviewInput({ callId: "", naturalnessScore: 4 } as any);
     expect(result.ok).toBe(false);
-    if (!result.ok) {
+    if ("errors" in result) {
       expect(result.errors).toContain("callId_required");
     }
   });
@@ -29,7 +29,7 @@ describe("normalizeQaReviewInput", () => {
   it("rejects payloads with no scores", () => {
     const result = normalizeQaReviewInput({ callId: "call_1" });
     expect(result.ok).toBe(false);
-    if (!result.ok) {
+    if ("errors" in result) {
       expect(result.errors).toContain("at_least_one_score_required");
     }
   });

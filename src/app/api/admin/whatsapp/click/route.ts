@@ -59,6 +59,7 @@ export async function POST(request: NextRequest) {
   if (jobId != null && typeof jobId !== "string") {
     return NextResponse.json({ error: "Invalid jobId" }, { status: 400 });
   }
+  const normalizedJobId = typeof jobId === "string" && jobId ? jobId : null;
 
   try {
     await prisma.whatsAppClickLog.create({
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest) {
         actorEmail: payload.email,
         targetType,
         targetId,
-        jobId: jobId || null,
+        jobId: normalizedJobId,
         phone,
       },
     });

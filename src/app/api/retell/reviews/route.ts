@@ -57,8 +57,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const normalized = normalizeQaReviewInput(body ?? {});
     if (!normalized.ok) {
+      const issues = "errors" in normalized ? normalized.errors : ["invalid_payload"];
       return NextResponse.json(
-        { error: "Invalid review payload", issues: normalized.errors },
+        { error: "Invalid review payload", issues },
         { status: 400 }
       );
     }
