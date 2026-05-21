@@ -181,6 +181,19 @@ function interruptionRecoverySection(ctx: VoicePromptContext): PromptSection {
   };
 }
 
+function failureRecoveryMemorySection(): PromptSection {
+  return {
+    title: "FAILURE_RECOVERY_MEMORY",
+    body: [
+      "When create-job/tool returns technical failure, do not ask for the same callback number more than one additional time.",
+      "Never request callback digits one-by-one after a tool error unless the caller says the previous number was wrong.",
+      "If callback is already confirmed, keep it and proceed to fallback or handoff.",
+      "For appointment scenarios, always ask and confirm a preferred date/time slot (or fallback window) before escalation.",
+      "When escalating after tool failure, include captured callback, postcode, service type, and preferred slot/window in the summary.",
+    ].join("\n"),
+  };
+}
+
 function endingSection(): PromptSection {
   return {
     title: "CALL_ENDING",
@@ -204,6 +217,7 @@ export function buildRetellPrompt(ctx: VoicePromptContext = {}): string {
     ...(includeScenarios.has("appointment") ? [appointmentRoutingSection()] : []),
     ...(includeScenarios.has("objection") ? [objectionHandlingSection()] : []),
     ...(includeScenarios.has("interruption") ? [interruptionRecoverySection(ctx)] : []),
+    failureRecoveryMemorySection(),
     escalationSection(ctx),
     pricingSection(),
     endingSection(),

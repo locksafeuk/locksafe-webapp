@@ -63,7 +63,7 @@ Covers:
 1. Pull the prioritized review queue from GET /api/retell/qa/queue
 2. Add reviewer labels/scores via POST /api/retell/reviews — payload normalized via normalizeQaReviewInput; composite score returned in response
 3. Run simulation scenarios via POST /api/retell/simulations/run
-4. The simulation regression suite (Emergency callback priority, SMS fallback with manual handoff, Loop termination regression) is locked by retell-simulation-regression.test.ts
+4. The simulation regression suite (Edge Batch - Missing Callback Emergency, Edge Batch - Conflicting Location, Edge Batch - Interruption Recovery, Edge Batch - Appointment Missing Slot, Edge Batch - Escalation Required, Edge Batch - Compliance Legal Advice, Edge - Price Pushback Visible, Emergency callback priority, SMS fallback with manual handoff, Loop termination regression) is locked by retell-simulation-regression.test.ts
 5. Minimum gate:
    - passRate >= 80%
    - avg naturalness >= 3.5

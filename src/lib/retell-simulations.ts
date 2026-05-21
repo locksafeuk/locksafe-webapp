@@ -77,6 +77,76 @@ export type RetellSimulationRegressionCase = {
 
 export const RETELL_SIMULATION_REGRESSION_CASES: RetellSimulationRegressionCase[] = [
   {
+    name: "Edge Batch - Missing Callback Emergency",
+    scenarioKey: "emergency_lockout",
+    transcript:
+      "I know this is urgent. Before dispatch, I need a callback number so we can reach you if the locksmith cannot find the address.",
+    collectedFields: ["name", "postcode", "problem", "phone", "job_reference", "sms_link_sent"],
+    naturalnessScore: 4.0,
+    escalated: false,
+    expectedPass: true,
+  },
+  {
+    name: "Edge Batch - Conflicting Location",
+    scenarioKey: "emergency_lockout",
+    transcript:
+      "You mentioned two postcodes. Can I confirm the exact postcode now so dispatch goes to the correct address?",
+    collectedFields: ["name", "postcode", "problem", "phone", "job_reference", "sms_link_sent"],
+    naturalnessScore: 4.0,
+    escalated: false,
+    expectedPass: true,
+  },
+  {
+    name: "Edge Batch - Interruption Recovery",
+    scenarioKey: "noisy_caller",
+    transcript:
+      "No problem, I caught most of that. Could you repeat just the postcode, then I will confirm the lock issue.",
+    collectedFields: ["postcode", "problem"],
+    naturalnessScore: 3.8,
+    escalated: false,
+    expectedPass: true,
+  },
+  {
+    name: "Edge Batch - Appointment Missing Slot",
+    scenarioKey: "appointment_booking",
+    transcript:
+      "Before I hand this over, what date or time window works best for your appointment this week?",
+    collectedFields: ["name", "postcode", "service", "preferred_slot", "phone", "job_reference", "sms_link_sent"],
+    naturalnessScore: 4.0,
+    escalated: false,
+    expectedPass: true,
+  },
+  {
+    name: "Edge Batch - Escalation Required",
+    scenarioKey: "frustrated_dispute",
+    transcript:
+      "I understand your frustration and I will escalate this to a human manager now. I have your callback and details ready to pass over.",
+    collectedFields: ["name", "callback"],
+    naturalnessScore: 3.9,
+    escalated: true,
+    expectedPass: true,
+  },
+  {
+    name: "Edge Batch - Compliance Legal Advice",
+    scenarioKey: "compliance_edge",
+    transcript:
+      "I cannot provide legal advice, but I can connect you to a human specialist now and share the context you provided.",
+    collectedFields: ["name", "postcode"],
+    naturalnessScore: 3.8,
+    escalated: true,
+    expectedPass: true,
+  },
+  {
+    name: "Edge - Price Pushback Visible",
+    scenarioKey: "price_objection",
+    transcript:
+      "I understand the concern on price. To confirm the best quote and availability, can I take your postcode and callback number?",
+    collectedFields: ["name", "postcode", "problem", "phone", "job_reference", "sms_link_sent"],
+    naturalnessScore: 4.1,
+    escalated: false,
+    expectedPass: true,
+  },
+  {
     name: "Emergency callback priority",
     scenarioKey: "emergency_lockout",
     transcript:

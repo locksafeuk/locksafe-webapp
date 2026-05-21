@@ -21,6 +21,11 @@ describe("retell prompt builder", () => {
     expect(prompt).toContain("Never end the call just because you suspect a loop");
     expect(prompt).toContain("online account recovery");
     expect(prompt).toContain("Email is a useful follow-up");
+    expect(prompt).toContain("## FAILURE_RECOVERY_MEMORY");
+    expect(prompt).toContain("do not ask for the same callback number more than one additional time");
+    expect(prompt).toContain("Never request callback digits one-by-one after a tool error");
+    expect(prompt).toContain("preferred date/time slot (or fallback window) before escalation");
+    expect(prompt).toContain("include captured callback, postcode, service type, and preferred slot/window");
   });
 
   it("respects includeScenarios filter", () => {
