@@ -218,8 +218,10 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: result.error || "Failed to create job",
+          retryable: false,
+          fallback_action: "handoff_human",
           message:
-            "I had a technical issue registering your request. Let me try again.",
+            "I had a technical issue registering this automatically. Please keep the details already captured, avoid re-asking the same callback number, and hand this to a human agent now.",
         },
         { status: 200, headers: CORS_HEADERS }
       );
@@ -305,8 +307,10 @@ export async function POST(request: NextRequest) {
       {
         success: false,
         error: "Failed to create job",
+        retryable: false,
+        fallback_action: "handoff_human",
         message:
-          "I had a technical issue registering your request. Let me try again.",
+          "I had a technical issue registering this automatically. Please keep the details already captured, avoid re-asking the same callback number, and hand this to a human agent now.",
       },
       { status: 200, headers: CORS_HEADERS }
     );

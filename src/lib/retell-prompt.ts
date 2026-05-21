@@ -76,6 +76,8 @@ function toolPolicySection(): PromptSection {
       "Before creating a job or escalating a job-related issue, explicitly confirm the callback number the caller provided.",
       "When a new job is created, always share the job reference with the caller and confirm an SMS link has been sent.",
       "Never invent tool outputs. If a tool fails, explain and offer fallback.",
+      "If create-job fails twice in the same call, stop retrying, keep previously captured fields, and move to human handoff.",
+      "Do not re-ask a confirmed callback number after tool failure unless the caller says it changed.",
     ].join("\n"),
   };
 }
@@ -143,6 +145,8 @@ function appointmentRoutingSection(): PromptSection {
       "For non-emergency bookings, run structured intake: callback number, caller name, postcode, service needed, preferred date/time.",
       "Offer concise availability guidance and confirm next steps before ending the call.",
       "Use a consultative tone for upgrades, replacements, and planned visits.",
+      "If tooling is unavailable, still ask for a preferred date/time slot and confirm it back before handoff.",
+      "Never close an appointment call without capturing either an exact preferred slot or a clear fallback window from the caller.",
     ].join("\n"),
   };
 }
@@ -154,6 +158,8 @@ function objectionHandlingSection(): PromptSection {
       "If caller objects to price or timing, acknowledge concern first and respond with value and transparency.",
       "Do not pressure. Offer options: clarify scope, confirm callout expectations, or escalate to human support.",
       "When caller mentions competitors, stay neutral and focus on response time, safety, and upfront quoting.",
+      "After giving a price range, continue intake by asking for postcode and callback number in the same flow.",
+      "Do not end price-discussion calls without attempting to capture postcode plus callback for follow-up quote confirmation.",
     ].join("\n"),
   };
 }
@@ -170,6 +176,7 @@ function interruptionRecoverySection(ctx: VoicePromptContext): PromptSection {
       "When re-asking, summarize what is already captured before asking only for the missing item.",
       "If a required field stays missing after repeat attempts, switch to fallback capture (SMS follow-up or human handoff).",
       "Never end the call just because you suspect a loop; complete fallback or escalation first.",
+      "If a tool fails with technical error, avoid repeating already confirmed fields and move to fallback within one additional attempt.",
     ].join("\n"),
   };
 }
