@@ -258,16 +258,16 @@ export async function chargeSavedCard(
   paymentMethodId: string,
   locksmithStripeAccountId: string | null,
   paymentType: "assessment_fee" | "work_quote",
-  // overrideRate: pass the locksmith's stored commissionRate / commissionAssessmentRate
-  // to correctly handle PREMIUM tier (20%/30%) and auction winners (35%/40%)
-  overrideRate?: number,
   metadata: {
     jobId: string;
     customerId: string;
     locksmithId: string;
     applicationId?: string;
     quoteId?: string;
-  }
+  },
+  // overrideRate: pass the locksmith's stored commissionRate / commissionAssessmentRate
+  // to correctly handle PREMIUM tier (20%/30%) and auction winners (35%/40%)
+  overrideRate?: number
 ): Promise<Stripe.PaymentIntent> {
   const amountInPence = formatAmountForStripe(amount);
   // Use locksmith's stored rate if provided (handles PREMIUM tier + auction winners),
