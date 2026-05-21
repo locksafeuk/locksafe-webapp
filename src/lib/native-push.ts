@@ -219,11 +219,15 @@ async function sendFcm(
       },
       android: {
         priority: "high",
+        ttl: "86400s",
         notification: {
-          sound: "locksafe_alert",
+          sound: "default",
           channel_id: "locksafe_jobs",
           notification_priority: "PRIORITY_MAX",
           visibility: "PUBLIC",
+          sticky: true,
+          default_vibrate_timings: true,
+          default_light_settings: true,
         },
       },
       data: Object.fromEntries(
