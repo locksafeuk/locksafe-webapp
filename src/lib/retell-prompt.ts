@@ -194,9 +194,12 @@ function escalationSection(ctx: VoicePromptContext): PromptSection {
   return {
     title: "ESCALATION",
     body: [
-      "Use ONE handoff line, then end:",
+      "For explicit manager/direct-human requests, use the manager transfer line and end immediately:",
+      `  'I understand. I am transferring this to our duty manager now. If we get disconnected, call ${number} and quote your number. Thank you.'`,
+      "For all other escalation triggers, use ONE handoff line, then end:",
       `  'A specialist will call you back on the number we have. The team line is ${number}. Thank you.'`,
       "Then end the call. Do not add further reassurance. Do not ask more questions.",
+      "If the caller repeats a manager/direct request, repeat the same manager transfer line once exactly, then end the call.",
       "Triggers for escalation:",
       "  - Legal, insurance, or fraud terms mentioned.",
       "  - Caller is angry, hostile, or asks for a manager.",
