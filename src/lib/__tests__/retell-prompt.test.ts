@@ -1,43 +1,91 @@
 import { buildRetellPrompt } from "@/lib/retell-prompt";
+import { SUPPORT_PHONE } from "@/lib/config";
 
 describe("retell prompt builder", () => {
-  it("includes new scenario modules by default", () => {
+  it("includes the seven canonical sections in order", () => {
     const prompt = buildRetellPrompt();
 
-    expect(prompt).toContain("## EMERGENCY_ROUTING");
-    expect(prompt).toContain("## APPOINTMENT_ROUTING");
-    expect(prompt).toContain("## OBJECTION_HANDLING");
-    expect(prompt).toContain("## INTERRUPTION_RECOVERY");
-    expect(prompt).toContain("## JOB_REFERENCE_AND_SMS_UPDATES");
-    expect(prompt).toContain("Callback number is the priority contact field");
-    expect(prompt).toContain("repeat it back explicitly before proceeding");
-    expect(prompt).toContain("new job reference");
-    expect(prompt).toContain("SMS link");
-    expect(prompt).toContain("a locksmith can be assigned");
-    expect(prompt).toContain("keep the caller on the line");
-    expect(prompt).toContain("Do not claim SMS was sent unless tool output confirms success");
-    expect(prompt).toContain("Do not ask the same field more than twice in a row");
-    expect(prompt).toContain("Lockout help is core to the service");
-    expect(prompt).toContain("Never end the call just because you suspect a loop");
-    expect(prompt).toContain("online account recovery");
-    expect(prompt).toContain("Email is a useful follow-up");
-    expect(prompt).toContain("## FAILURE_RECOVERY_MEMORY");
-    expect(prompt).toContain("do not ask for the same callback number more than one additional time");
-    expect(prompt).toContain("Never request callback digits one-by-one after a tool error");
-    expect(prompt).toContain("preferred date/time slot (or fallback window) before escalation");
-    expect(prompt).toContain("include captured callback, postcode, service type, and preferred slot/window");
+    const expected = [
+      "## IDENTITY",
+      "## CALL_FLOW",
+      "## TOOLS",
+      "## TOOL_FAILURES",
+      "## BRANCHES",
+      "## ESCALATION",
+      "## HARD_RULES",
+    ];
+
+    let cursor = 0;
+    for (const heading of expected) {
+      const idx = prompt.indexOf(heading, cursor);
+      expect(idx).toBeGreaterThanOrEqual(0);
+      cursor = idx + heading.length;
+    }
   });
 
-  it("respects includeScenarios filter", () => {
+  it("uses British English and the escalation number", () => {
+    const prompt = buildRetellPrompt();
+    expect(prompt).toContain("Speak natural British English");
+    expect(prompt).toContain(SUPPORT_PHONE);
+  });
+
+  it("defines the 7-stage call flow", () => {
+    const prompt = buildRetellPrompt();
+    for (const stage of [
+      "STAGE 1 — GREETING",
+      "STAGE 2 — TRIAGE",
+      "STAGE 3 — INTAKE",
+      "STAGE 4 — CUSTOMER LOOKUP",
+      "STAGE 5 — JOB CREATION",
+      "STAGE 6 — CONFIRMATION",
+      "STAGE 7 — CLOSURE OR HANDOFF",
+    ]) {
+      expect(prompt).toContain(stage);
+    }
+  });
+
+  it("documents tool contracts inline", () => {
+    const prompt = buildRetellPrompt();
+    expect(prompt).toContain("check-user(");
+    expect(prompt).toContain("create-job(");
+    expect(prompt).toContain("missing_fields");
+    expect(prompt).toContain("sms_sent");
+  });
+
+  it("covers the required decision branches", () => {
+    const prompt = buildRetellPrompt();
+    for (const branch of [
+      "EMERGENCY LOCKOUT",
+      "APPOINTMENT / PLANNED SERVICE",
+      "PRICE INQUIRY",
+      "COMPLAINT / ANGER",
+      "LEGAL / INSURANCE / FRAUD MENTION",
+      "SMS FAILURE FALLBACK",
+    ]) {
+      expect(prompt).toContain(branch);
+    }
+  });
+
+  it("does not duplicate the V25-V31 regression rules", () => {
+    const prompt = buildRetellPrompt();
+    const callbackMentions = prompt.match(/callback number/gi) ?? [];
+    expect(callbackMentions.length).toBeLessThan(8);
+    const loopMentions = prompt.match(/loop/gi) ?? [];
+    expect(loopMentions.length).toBeLessThan(3);
+  });
+
+  it("respects custom persona context", () => {
     const prompt = buildRetellPrompt({
-      includeScenarios: ["emergency", "interruption"],
+      personaName: "Alex",
+      businessName: "TestCo",
+      humanEscalationNumber: "01234 567890",
+      realismMode: "efficient",
       maxClarificationLoops: 1,
     });
 
-    expect(prompt).toContain("## EMERGENCY_ROUTING");
-    expect(prompt).toContain("## INTERRUPTION_RECOVERY");
-    expect(prompt).not.toContain("## APPOINTMENT_ROUTING");
-    expect(prompt).not.toContain("## OBJECTION_HANDLING");
-    expect(prompt).toContain("Do not exceed 1 clarification attempts");
+    expect(prompt).toContain("You are Alex, the AI receptionist for TestCo");
+    expect(prompt).toContain("01234 567890");
+    expect(prompt).toContain("Keep it brisk");
+    expect(prompt).toContain("after 1 clarification attempts");
   });
 });

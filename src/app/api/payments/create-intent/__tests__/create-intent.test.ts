@@ -83,6 +83,7 @@ describe("POST /api/payments/create-intent", () => {
       null,
       "assessment_fee",
       expect.objectContaining({ jobId: "job-1" }),
+      undefined,
       undefined
     );
   });

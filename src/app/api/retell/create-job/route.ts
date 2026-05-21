@@ -103,6 +103,8 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: "Postcode is required",
+          missing_fields: ["postcode"],
+          fallback_action: "ask_caller",
           message:
             "I need your postcode to find locksmiths near you. Could you please tell me your postcode?",
         },
@@ -165,6 +167,8 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: "Customer phone is required",
+          missing_fields: ["customer_phone"],
+          fallback_action: "ask_caller",
           message:
             "I need your phone number to register the job. Could you confirm your phone number?",
         },
@@ -221,7 +225,7 @@ export async function POST(request: NextRequest) {
           retryable: false,
           fallback_action: "handoff_human",
           message:
-            "I had a technical issue registering this automatically. Please keep the details already captured, avoid re-asking the same callback number, and hand this to a human agent now.",
+            "A specialist will call you straight back on the number we have. Thank you.",
         },
         { status: 200, headers: CORS_HEADERS }
       );
@@ -280,6 +284,10 @@ export async function POST(request: NextRequest) {
       `[Retell create-job] ✅ Created emergency job: ${result.job.jobNumber} | Customer: ${result.customer?.name} (${result.customer?.isNew ? "NEW" : "existing"}) | Notified: ${notifiedCount} locksmiths (${elapsed}ms)`
     );
 
+    // SMS is queued (fire-and-forget) inside createEmergencyJob whenever a
+    // customer phone is present. We treat that as "queued" for the prompt.
+    const smsSent = Boolean(result.customer?.id && customerPhone);
+
     return NextResponse.json(
       {
         success: true,
@@ -292,7 +300,8 @@ export async function POST(request: NextRequest) {
         customer_is_new: result.customer?.isNew || false,
         locksmiths_notified: notifiedCount,
         notification_status: notificationStatus,
-        message: `Job created successfully. Your reference number is ${result.job.jobNumber}. ${notificationStatus} You'll receive a text message when a locksmith applies for your job.`,
+        sms_sent: smsSent,
+        message: `Job created successfully. Your reference number is ${result.job.jobNumber}. ${notificationStatus}${smsSent ? " You'll receive a text message when a locksmith applies for your job." : ""}`,
       },
       { status: 200, headers: CORS_HEADERS }
     );

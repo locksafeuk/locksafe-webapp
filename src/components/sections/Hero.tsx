@@ -12,6 +12,7 @@ import {
   Star,
 } from "lucide-react";
 import Link from "next/link";
+import { SUPPORT_PHONE, SUPPORT_PHONE_TEL } from "@/lib/config";
 
 export function Hero() {
   return (
@@ -29,7 +30,7 @@ export function Hero() {
             {/* Mobile-Only Floating Phone Number */}
             <div className="md:hidden flex justify-center -mt-4 mb-2">
               <a
-                href="tel:07818333989"
+                href={`tel:${SUPPORT_PHONE_TEL}`}
                 className="flex items-center justify-center gap-3 text-slate-900"
               >
                 <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center shadow-lg shadow-orange-500/30">
@@ -40,7 +41,7 @@ export function Hero() {
                     Call Now - Free Support
                   </span>
                   <span className="text-3xl font-bold text-slate-900 tracking-tight">
-                    07818 333 989
+                    {SUPPORT_PHONE}
                   </span>
                 </div>
               </a>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Facebook, Instagram, Linkedin, Twitter, Mail, Phone, MapPin } from "lucide-react";
+import { SUPPORT_PHONE, SUPPORT_PHONE_TEL } from "@/lib/config";
 
 const footerLinks = {
   company: [
@@ -67,11 +68,11 @@ export function Footer() {
             {/* Contact info */}
             <div className="space-y-3">
               <a
-                href="tel:07818333989"
+                href={`tel:${SUPPORT_PHONE_TEL}`}
                 className="flex items-center gap-3 text-slate-300 hover:text-white transition-colors"
               >
                 <Phone className="w-5 h-5 text-orange-500" />
-                07818 333 989
+                {SUPPORT_PHONE}
               </a>
               <a
                 href="mailto:contact@locksafe.uk"

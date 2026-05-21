@@ -498,10 +498,10 @@ export default function BlogPage() {
                     <ArrowRight className="w-5 h-5 ml-2" />
                   </Button>
                 </Link>
-                <a href="tel:07818333989">
+                <a href="tel:+442045771989">
                   <Button className="bg-white/20 text-white hover:bg-white/30 font-semibold px-8 py-3 rounded-full border border-white/30">
                     <Phone className="w-5 h-5 mr-2" />
-                    07818 333 989
+                    +44 20 4577 1989
                   </Button>
                 </a>
               </div>

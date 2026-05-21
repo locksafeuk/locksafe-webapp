@@ -5782,7 +5782,7 @@ export const generateLocalBusinessSchema = (
   name: `LockSafe Emergency Locksmith ${data.area}`,
   description: `24/7 Emergency Locksmith Service in ${data.postcode} ${data.area}, ${data.county}. Verified, insured locksmiths with transparent pricing and GPS tracking.`,
   url: `${siteUrl}/emergency-locksmith-${data.slug}`,
-  telephone: "+44-7818-333-989",
+  telephone: "+44-20-4577-1989",
   image: `${siteUrl}/og-locksmith-${data.postcode.toLowerCase()}.jpg`,
   priceRange: "££",
   address: {

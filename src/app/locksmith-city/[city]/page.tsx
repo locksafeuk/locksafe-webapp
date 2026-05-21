@@ -54,7 +54,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     };
   }
 
-  const title = `Emergency Locksmith ${cityData.name} | 24/7 Service | Call 07818 333 989`;
+  const title = `Emergency Locksmith ${cityData.name} | 24/7 Service | Call +44 20 4577 1989`;
   const description = `Need an emergency locksmith in ${cityData.name}? LockSafe UK provides 24/7 verified locksmiths in ${cityData.areas.slice(0, 5).join(", ")} & all ${cityData.region}. Average ${cityData.avgResponseTime} response. DBS checked, insured, anti-fraud protected.`;
 
   return {
@@ -211,7 +211,7 @@ export default async function CityPage({ params }: Props) {
 
       <main itemScope itemType="https://schema.org/LocalBusiness">
         <meta itemProp="name" content={`LockSafe ${cityData.name}`} />
-        <meta itemProp="telephone" content="+44 7818 333 989" />
+        <meta itemProp="telephone" content="+44 20 4577 1989" />
 
         {/* Hero Section */}
         <section className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white py-16 md:py-24 overflow-hidden">
@@ -267,10 +267,10 @@ export default async function CityPage({ params }: Props) {
                     <ArrowRight className="w-5 h-5 ml-2" />
                   </Button>
                 </Link>
-                <a href="tel:07818333989">
+                <a href="tel:+442045771989">
                   <Button variant="outline" className="w-full sm:w-auto bg-transparent border-white/30 text-white hover:bg-white/10 hover:text-white px-8 py-6 text-lg rounded-full backdrop-blur-sm">
                     <Phone className="w-5 h-5 mr-2" />
-                    07818 333 989
+                    +44 20 4577 1989
                   </Button>
                 </a>
               </div>
@@ -319,8 +319,8 @@ export default async function CityPage({ params }: Props) {
               <AlertTriangle className="w-5 h-5 flex-shrink-0" />
               <p className="text-center">
                 <strong>Locked out right now?</strong> Our {cityData.name} locksmiths are standing by 24/7.
-                <a href="tel:07818333989" className="underline font-semibold ml-1 hover:text-amber-900">
-                  Call 07818 333 989
+                <a href="tel:+442045771989" className="underline font-semibold ml-1 hover:text-amber-900">
+                  Call +44 20 4577 1989
                 </a>
               </p>
             </div>
@@ -583,7 +583,7 @@ export default async function CityPage({ params }: Props) {
                   <ArrowRight className="w-5 h-5 ml-2" />
                 </Button>
               </Link>
-              <a href="tel:07818333989">
+              <a href="tel:+442045771989">
                 <Button variant="outline" className="bg-transparent border-2 border-white text-white hover:bg-white/10 hover:text-white px-10 py-6 text-lg rounded-full">
                   <Phone className="w-5 h-5 mr-2" />
                   Call Now
@@ -646,7 +646,7 @@ export default async function CityPage({ params }: Props) {
                     Request Locksmith
                   </Button>
                 </Link>
-                <a href="tel:07818333989">
+                <a href="tel:+442045771989">
                   <Button variant="outline" className="border-white/30 text-white hover:bg-white/10 px-8 py-4 rounded-full">
                     <Phone className="w-4 h-4 mr-2" />
                     Call Us

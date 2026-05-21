@@ -382,7 +382,7 @@ export async function generateJobReportPDF(data: JobReportData) {
 
   doc.setFont("helvetica", "bold");
   doc.setTextColor(249, 115, 22);
-  doc.text("LockSafe UK - www.locksafe.uk - 07818 333 989", pageWidth / 2, y, { align: "center" });
+  doc.text("LockSafe UK - www.locksafe.uk - +44 20 4577 1989", pageWidth / 2, y, { align: "center" });
 
   return doc;
 }

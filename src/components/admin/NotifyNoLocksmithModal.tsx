@@ -35,7 +35,7 @@ interface NotifyNoLocksmithModalProps {
 }
 
 const SITE_URL = "https://locksafe.uk";
-const SUPPORT_PHONE = "07818 333 989";
+const SUPPORT_PHONE = "+44 20 4577 1989";
 
 function buildDefaultSms(args: {
   customerName: string;

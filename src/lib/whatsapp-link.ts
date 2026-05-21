@@ -5,7 +5,7 @@
  * `https://wa.me/<intlphone>?text=<message>` URLs that deep-link into
  * WhatsApp Web (desktop) or the WhatsApp app (mobile).
  *
- * Outbound identity is the LockSafe business number (07818333989), enforced
+ * Outbound identity is the LockSafe business number (+447818333989), enforced
  * operationally by the admin device being logged into WhatsApp Business
  * with that number. The link itself only encodes the recipient.
  */

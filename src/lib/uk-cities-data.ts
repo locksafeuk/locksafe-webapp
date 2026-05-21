@@ -3274,7 +3274,7 @@ export const generateCitySchema = (city: CityData, siteUrl: string) => ({
   name: `LockSafe Emergency Locksmith ${city.name}`,
   description: `24/7 Emergency Locksmith Service in ${city.name}, ${city.region}. Verified, insured locksmiths with transparent pricing, GPS tracking, and anti-fraud protection.`,
   url: `${siteUrl}/locksmith-${city.slug}`,
-  telephone: "+44-7818-333-989",
+  telephone: "+44-20-4577-1989",
   priceRange: "££",
   image: `${siteUrl}/og-locksmith-${city.slug}.jpg`,
   address: {

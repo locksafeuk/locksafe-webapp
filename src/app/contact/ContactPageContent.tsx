@@ -13,14 +13,15 @@ import {
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
+import { SUPPORT_PHONE, SUPPORT_PHONE_TEL } from "@/lib/config";
 
 const contactMethods = [
   {
     icon: Phone,
     title: "Emergency Line",
     description: "24/7 emergency locksmith service",
-    value: "07818 333 989",
-    href: "tel:07818333989",
+    value: SUPPORT_PHONE,
+    href: `tel:${SUPPORT_PHONE_TEL}`,
     color: "bg-red-500",
   },
   {
@@ -252,10 +253,10 @@ export function ContactPageContent() {
                       Request Emergency Help
                     </Button>
                   </Link>
-                  <a href="tel:07818333989">
+                  <a href={`tel:${SUPPORT_PHONE_TEL}`}>
                     <Button size="sm" variant="outline" className="border-red-300 text-red-700">
                       <Phone className="w-4 h-4" />
-                      07818 333 989
+                      {SUPPORT_PHONE}
                     </Button>
                   </a>
                 </div>

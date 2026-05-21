@@ -232,11 +232,11 @@ export default function CustomerDashboard() {
 
             <div className="flex items-center gap-2 sm:gap-4">
               <a
-                href="tel:07818333989"
+                href="tel:+442045771989"
                 className="hidden sm:flex items-center gap-2 text-slate-600 hover:text-slate-900 font-medium"
               >
                 <Phone className="w-4 h-4" />
-                07818 333 989
+                +44 20 4577 1989
               </a>
               <NotificationBell variant="light" />
               <Link
@@ -505,8 +505,8 @@ export default function CustomerDashboard() {
               <h3 className="font-semibold text-slate-900">Need Help?</h3>
               <p className="text-sm text-slate-600 mt-1">
                 Our support team is available 24/7. Call us at{" "}
-                <a href="tel:07818333989" className="text-orange-600 font-medium hover:underline">
-                  07818 333 989
+                <a href="tel:+442045771989" className="text-orange-600 font-medium hover:underline">
+                  +44 20 4577 1989
                 </a>{" "}
                 or email{" "}
                 <a href={`mailto:${siteConfig.helpEmail}`} className="text-orange-600 font-medium hover:underline">

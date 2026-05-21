@@ -101,7 +101,7 @@ const organizationSchema = {
   },
   contactPoint: {
     "@type": "ContactPoint",
-    telephone: "+44-7818-333-989",
+    telephone: "+44-20-4577-1989",
     contactType: "customer service",
     availableLanguage: "English",
     areaServed: "GB",
@@ -808,13 +808,13 @@ export default function AboutPage() {
                     <ArrowRight className="w-5 h-5" />
                   </Button>
                 </Link>
-                <a href="tel:07818333989">
+                <a href="tel:+442045771989">
                   <Button
                     variant="outline"
                     className="border-white/30 bg-transparent text-white hover:bg-white/10 text-lg px-8 py-4 h-auto w-full sm:w-auto"
                   >
                     <Phone className="w-5 h-5" />
-                    07818 333 989
+                    +44 20 4577 1989
                   </Button>
                 </a>
               </div>

@@ -247,7 +247,7 @@ export default function LocksmithRickmansworthPage() {
 
       {/* Sticky Mobile CTA - Always Visible */}
       <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-gradient-to-t from-slate-950 via-slate-950 to-slate-950/95 p-4 border-t border-slate-800">
-        <a href="tel:07818333989" className="block">
+        <a href="tel:+442045771989" className="block">
           <Button className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white py-6 text-lg font-bold rounded-2xl shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-3">
             <Phone className="w-6 h-6 animate-pulse" />
             Call Now - Get Help Fast
@@ -321,10 +321,10 @@ export default function LocksmithRickmansworthPage() {
 
               {/* Dual CTA - Phone + Request */}
               <div className="flex flex-col sm:flex-row gap-4 justify-center mb-10">
-                <a href="tel:07818333989" className="group">
+                <a href="tel:+442045771989" className="group">
                   <Button className="w-full sm:w-auto bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white px-8 py-7 text-xl font-bold rounded-2xl shadow-xl shadow-emerald-500/25 transition-all duration-300 group-hover:shadow-emerald-500/40 group-hover:scale-[1.02]">
                     <Phone className="w-6 h-6 mr-3" />
-                    07818 333 989
+                    +44 20 4577 1989
                   </Button>
                 </a>
                 <Link href="/request" className="group">
@@ -524,7 +524,7 @@ export default function LocksmithRickmansworthPage() {
 
             {/* CTA */}
             <div className="mt-12 text-center">
-              <a href="tel:07818333989" className="inline-flex">
+              <a href="tel:+442045771989" className="inline-flex">
                 <Button className="bg-slate-900 hover:bg-slate-800 text-white px-8 py-6 text-lg font-bold rounded-2xl">
                   <Phone className="w-5 h-5 mr-2" />
                   Start Step 1 Now
@@ -578,7 +578,7 @@ export default function LocksmithRickmansworthPage() {
                 </div>
               </div>
 
-              <a href="tel:07818333989">
+              <a href="tel:+442045771989">
                 <Button className="bg-white hover:bg-slate-100 text-emerald-700 px-10 py-7 text-xl font-bold rounded-2xl shadow-xl">
                   <Phone className="w-6 h-6 mr-3" />
                   Get Protected Help Now
@@ -982,10 +982,10 @@ export default function LocksmithRickmansworthPage() {
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
-                <a href="tel:07818333989" className="group">
+                <a href="tel:+442045771989" className="group">
                   <Button className="w-full sm:w-auto bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white px-10 py-7 text-xl font-bold rounded-2xl shadow-xl shadow-emerald-500/25 transition-all duration-300 group-hover:shadow-emerald-500/40">
                     <Phone className="w-6 h-6 mr-3 animate-pulse" />
-                    07818 333 989
+                    +44 20 4577 1989
                   </Button>
                 </a>
                 <Link href="/request">

@@ -49,7 +49,7 @@ const ICON_ONLY_SIZE_CLASSES: Record<
  * desktop (WhatsApp Web) and mobile (deep-links into the WhatsApp app).
  * Outbound identity is whichever WhatsApp account is logged into the
  * admin's device — operational policy is the LockSafe business number
- * 07818333989 logged into WhatsApp Business on the admin device.
+ * +447818333989 logged into WhatsApp Business on the admin device.
  *
  * If `phone` cannot be normalised, the button renders disabled with a
  * tooltip explaining why (so Ops can spot missing data).

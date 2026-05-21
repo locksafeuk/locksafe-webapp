@@ -223,11 +223,11 @@ export default function OnboardingPage({
               </span>
             </Link>
             <a
-              href="tel:07818333989"
+              href="tel:+442045771989"
               className="flex items-center gap-2 text-orange-600 font-semibold text-sm sm:text-base"
             >
               <Phone className="w-4 h-4 sm:w-5 sm:h-5" />
-              <span className="hidden sm:inline">07818 333 989</span>
+              <span className="hidden sm:inline">+44 20 4577 1989</span>
               <span className="sm:hidden">Call</span>
             </a>
           </div>
@@ -480,7 +480,7 @@ export default function OnboardingPage({
         <p className="text-center text-sm text-slate-500 mt-6">
           Need help?{" "}
           <a
-            href="tel:07818333989"
+            href="tel:+442045771989"
             className="text-orange-600 hover:text-orange-700 font-medium"
           >
             Call us

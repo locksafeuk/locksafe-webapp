@@ -154,7 +154,7 @@ export default function ContinueRequestPage({ params }: { params: Promise<{ toke
             <ArrowRight className="h-5 w-5" />
           </Link>
           <p className="mt-4 text-sm text-slate-500">
-            Or call us: <a href="tel:08001234567" className="text-orange-500 font-semibold">0800 123 4567</a>
+            Or call us: <a href="tel:+442045771989" className="text-orange-500 font-semibold">+44 20 4577 1989</a>
           </p>
         </div>
       </div>
@@ -459,7 +459,7 @@ export default function ContinueRequestPage({ params }: { params: Promise<{ toke
 
         {/* Help Text */}
         <p className="text-center text-slate-400 text-sm mt-6">
-          Need help? Call us at <a href="tel:08001234567" className="text-orange-400 font-semibold">0800 123 4567</a>
+          Need help? Call us at <a href="tel:+442045771989" className="text-orange-400 font-semibold">+44 20 4577 1989</a>
         </p>
       </main>
     </div>

@@ -8,6 +8,7 @@ import { RequestCTAButton } from "@/components/onboarding/RequestCTAButton";
 import { Sheet, SheetContent, SheetTitle, SheetDescription, SheetTrigger } from "@/components/ui/sheet";
 import { Menu, Phone, ArrowRight, LogIn, User, LogOut, ChevronDown, AlertCircle } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthContext";
+import { SUPPORT_PHONE, SUPPORT_PHONE_TEL } from "@/lib/config";
 
 const navItems = [
   { label: "How It Works", href: "/how-it-works" },
@@ -67,11 +68,11 @@ export function Header() {
           <span className="sm:hidden text-xs">24/7 Emergency Service UK</span>
           <span className="hidden sm:inline text-white/60">•</span>
           <a
-            href="tel:07818333989"
+            href={`tel:${SUPPORT_PHONE_TEL}`}
             className="hidden sm:flex items-center gap-1 text-orange-300 hover:text-orange-200 transition-colors font-semibold"
           >
             <Phone className="w-3.5 h-3.5" />
-            <span className="text-sm">07818 333 989</span>
+            <span className="text-sm">{SUPPORT_PHONE}</span>
           </a>
           <span className="hidden sm:inline text-white/60">•</span>
           <Link href="/request" className="hidden sm:inline underline hover:text-orange-400 transition-colors">
@@ -122,11 +123,11 @@ export function Header() {
             {/* Desktop CTA */}
             <div className="hidden lg:flex items-center gap-4">
               <a
-                href="tel:07818333989"
+                href={`tel:${SUPPORT_PHONE_TEL}`}
                 className="flex items-center gap-2 text-slate-600 hover:text-slate-900 font-medium"
               >
                 <Phone className="w-4 h-4" />
-                07818 333 989
+                {SUPPORT_PHONE}
               </a>
 
               {/* Login/User Menu */}
@@ -263,11 +264,11 @@ export function Header() {
 
                     <div className="p-4 border-t space-y-3">
                       <a
-                        href="tel:07818333989"
+                        href={`tel:${SUPPORT_PHONE_TEL}`}
                         className="flex items-center justify-center gap-2 py-3 text-slate-700 font-medium"
                       >
                         <Phone className="w-5 h-5" />
-                        07818 333 989
+                        {SUPPORT_PHONE}
                       </a>
 
                       {/* Mobile Login/User Actions */}

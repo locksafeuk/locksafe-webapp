@@ -79,11 +79,18 @@ export async function sendStripeOnboardingReminderEmail(
   });
 }
 import { Resend } from "resend";
-import { SITE_NAME, SITE_URL, SUPPORT_EMAIL } from "./config";
+import {
+  LOCKSMITH_ADMIN_PHONE,
+  LOCKSMITH_ADMIN_WHATSAPP,
+  SITE_NAME,
+  SITE_URL,
+  SUPPORT_EMAIL,
+} from "./config";
 
 const getResend = () => new Resend(process.env.RESEND_API_KEY);
 
 const FROM_EMAIL = "LockSafe UK <noreply@locksafe.uk>";
+const LOCKSMITH_ADMIN_WHATSAPP_URL = `https://wa.me/${LOCKSMITH_ADMIN_WHATSAPP}?text=${encodeURIComponent("Hi LockSafe admin team, I need support with my locksmith account.")}`;
 
 interface EmailData {
   to: string;
@@ -555,7 +562,7 @@ export async function sendCustomerPaymentLinkEmail(
         <div class="footer">
           <p>LockSafe UK - Emergency Locksmith Service</p>
           <p>Anti-fraud protected with GPS tracking and digital documentation</p>
-          <p>Need help? Contact us: 0800 123 4567</p>
+          <p>Need help? Contact us: +44 20 4577 1989</p>
         </div>
       </div>
     </body>
@@ -844,7 +851,7 @@ export async function sendPayoutNotificationEmail(
         </div>
         <div class="footer">
           <p>LockSafe UK - Locksmith Portal</p>
-          <p>Questions? Contact ${SUPPORT_EMAIL}</p>
+          <p>Need admin help? Call ${LOCKSMITH_ADMIN_PHONE} or <a href="${LOCKSMITH_ADMIN_WHATSAPP_URL}" style="color:#f97316;">WhatsApp Admin</a></p>
         </div>
       </div>
     </body>
@@ -916,7 +923,7 @@ export async function sendPayoutFailedEmail(
         </div>
         <div class="footer">
           <p>LockSafe UK - Locksmith Portal</p>
-          <p>Need help? Contact ${SUPPORT_EMAIL}</p>
+          <p>Need admin help? Call ${LOCKSMITH_ADMIN_PHONE} or <a href="${LOCKSMITH_ADMIN_WHATSAPP_URL}" style="color:#f97316;">WhatsApp Admin</a></p>
         </div>
       </div>
     </body>
@@ -1009,7 +1016,7 @@ export async function sendLocksmithAssignmentEmail(
         </div>
         <div class="footer">
           <p>LockSafe UK - Locksmith Portal</p>
-          <p>Need help? Contact ${SUPPORT_EMAIL}</p>
+          <p>Need admin help? Call ${LOCKSMITH_ADMIN_PHONE} or <a href="${LOCKSMITH_ADMIN_WHATSAPP_URL}" style="color:#f97316;">WhatsApp Admin</a></p>
         </div>
       </div>
     </body>
@@ -1077,7 +1084,7 @@ export async function sendAccountVerifiedEmail(
         </div>
         <div class="footer">
           <p>LockSafe UK - Locksmith Portal</p>
-          <p>Questions? Contact ${SUPPORT_EMAIL}</p>
+          <p>Need admin help? Call ${LOCKSMITH_ADMIN_PHONE} or <a href="${LOCKSMITH_ADMIN_WHATSAPP_URL}" style="color:#f97316;">WhatsApp Admin</a></p>
         </div>
       </div>
     </body>
@@ -1177,7 +1184,7 @@ export async function sendLocksmithBookedEmail(
         </div>
         <div class="footer">
           <p>LockSafe UK - Locksmith Portal</p>
-          <p>Need help? Contact ${SUPPORT_EMAIL}</p>
+          <p>Need admin help? Call ${LOCKSMITH_ADMIN_PHONE} or <a href="${LOCKSMITH_ADMIN_WHATSAPP_URL}" style="color:#f97316;">WhatsApp Admin</a></p>
         </div>
       </div>
     </body>
@@ -1388,7 +1395,7 @@ export async function sendTransferNotificationEmail(
         </div>
         <div class="footer">
           <p>LockSafe UK - Locksmith Portal</p>
-          <p>Need help? Contact ${SUPPORT_EMAIL}</p>
+          <p>Need admin help? Call ${LOCKSMITH_ADMIN_PHONE} or <a href="${LOCKSMITH_ADMIN_WHATSAPP_URL}" style="color:#f97316;">WhatsApp Admin</a></p>
         </div>
       </div>
     </body>
@@ -1610,7 +1617,7 @@ export async function sendQuoteAcceptedEmail(
         </div>
         <div class="footer">
           <p>LockSafe UK - Locksmith Portal</p>
-          <p>Need help? Contact ${SUPPORT_EMAIL}</p>
+          <p>Need admin help? Call ${LOCKSMITH_ADMIN_PHONE} or <a href="${LOCKSMITH_ADMIN_WHATSAPP_URL}" style="color:#f97316;">WhatsApp Admin</a></p>
         </div>
       </div>
     </body>
@@ -1685,7 +1692,7 @@ export async function sendQuoteDeclinedEmail(
         </div>
         <div class="footer">
           <p>LockSafe UK - Locksmith Portal</p>
-          <p>Need help? Contact ${SUPPORT_EMAIL}</p>
+          <p>Need admin help? Call ${LOCKSMITH_ADMIN_PHONE} or <a href="${LOCKSMITH_ADMIN_WHATSAPP_URL}" style="color:#f97316;">WhatsApp Admin</a></p>
         </div>
       </div>
     </body>
@@ -1768,7 +1775,7 @@ export async function sendNewReviewEmail(
         </div>
         <div class="footer">
           <p>LockSafe UK - Locksmith Portal</p>
-          <p>Need help? Contact ${SUPPORT_EMAIL}</p>
+          <p>Need admin help? Call ${LOCKSMITH_ADMIN_PHONE} or <a href="${LOCKSMITH_ADMIN_WHATSAPP_URL}" style="color:#f97316;">WhatsApp Admin</a></p>
         </div>
       </div>
     </body>
@@ -2415,7 +2422,7 @@ export async function sendEarningsReversalEmail(
         </div>
         <div class="footer">
           <p>${SITE_NAME} - Locksmith Portal</p>
-          <p>Need help? Contact ${SUPPORT_EMAIL}</p>
+          <p>Need admin help? Call ${LOCKSMITH_ADMIN_PHONE} or <a href="${LOCKSMITH_ADMIN_WHATSAPP_URL}" style="color:#f97316;">WhatsApp Admin</a></p>
         </div>
       </div>
     </body>
@@ -2602,7 +2609,7 @@ export async function sendLocksmithJobCompletionEmail(
         </div>
         <div class="footer">
           <p>${SITE_NAME} - Locksmith Portal</p>
-          <p>Need help? Contact ${SUPPORT_EMAIL}</p>
+          <p>Need admin help? Call ${LOCKSMITH_ADMIN_PHONE} or <a href="${LOCKSMITH_ADMIN_WHATSAPP_URL}" style="color:#f97316;">WhatsApp Admin</a></p>
         </div>
       </div>
     </body>
@@ -2808,7 +2815,7 @@ export async function sendLocksmithVerifiedEmail(
         </div>
         <div class="footer">
           <p>LockSafe UK - Locksmith Partner Portal</p>
-          <p>Need help? Contact ${SUPPORT_EMAIL}</p>
+          <p>Need admin help? Call ${LOCKSMITH_ADMIN_PHONE} or <a href="${LOCKSMITH_ADMIN_WHATSAPP_URL}" style="color:#f97316;">WhatsApp Admin</a></p>
         </div>
       </div>
     </body>
@@ -2946,7 +2953,7 @@ export async function sendInsuranceExpiryReminderEmail(
         </div>
         <div class="footer">
           <p>${SITE_NAME} - Locksmith Partner Portal</p>
-          <p>Need help? Contact ${SUPPORT_EMAIL}</p>
+          <p>Need admin help? Call ${LOCKSMITH_ADMIN_PHONE} or <a href="${LOCKSMITH_ADMIN_WHATSAPP_URL}" style="color:#f97316;">WhatsApp Admin</a></p>
         </div>
       </div>
     </body>
@@ -3429,7 +3436,7 @@ export async function sendLocksmithInviteEmail(
             Best regards,<br />
             <strong>Alex Pido</strong><br />
             Co-founder, LockSafe UK<br />
-            <a href="tel:07818333989" style="color:#f97316;">07818 333 989</a> | <a href="https://locksafe.uk" style="color:#f97316;">locksafe.uk</a>
+            <a href="tel:+442045771989" style="color:#f97316;">+44 20 4577 1989</a> | <a href="https://locksafe.uk" style="color:#f97316;">locksafe.uk</a>
           </p>
 
         </div>

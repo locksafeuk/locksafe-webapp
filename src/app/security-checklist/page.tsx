@@ -467,10 +467,10 @@ export default function SecurityChecklistPage() {
                 Get a Free Quote <ArrowRight className="w-4 h-4" />
               </Link>
               <a
-                href="tel:07818333989"
+                href="tel:+442045771989"
                 className="inline-flex items-center justify-center gap-2 px-6 py-3 border-2 border-white text-white rounded-lg font-semibold hover:bg-white/10 transition-colors"
               >
-                <Phone className="w-4 h-4" /> 07818 333 989
+                <Phone className="w-4 h-4" /> +44 20 4577 1989
               </a>
             </div>
           </div>

@@ -190,10 +190,10 @@ export default async function EmergencyLocksmithPage({ params }: Props) {
                       <ArrowRight className="w-5 h-5 ml-2" />
                     </Button>
                   </Link>
-                  <a href="tel:07818333989">
+                  <a href="tel:+442045771989">
                     <Button className="bg-white text-slate-900 hover:bg-slate-100 px-8 py-6 text-lg rounded-full w-full sm:w-auto border-0">
                       <Phone className="w-5 h-5 mr-2" />
-                      07818 333 989
+                      +44 20 4577 1989
                     </Button>
                   </a>
                 </div>
@@ -478,10 +478,10 @@ export default async function EmergencyLocksmithPage({ params }: Props) {
                   <ArrowRight className="w-5 h-5 ml-2" />
                 </Button>
               </Link>
-              <a href="tel:07818333989">
+              <a href="tel:+442045771989">
                 <Button className="bg-slate-900 text-white hover:bg-slate-800 px-8 py-6 text-lg rounded-full border-0">
                   <Phone className="w-5 h-5 mr-2" />
-                  07818 333 989
+                  +44 20 4577 1989
                 </Button>
               </a>
             </div>

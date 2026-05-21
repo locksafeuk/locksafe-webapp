@@ -58,13 +58,13 @@ export function CTA() {
               Get Emergency Help
               <ArrowRight className="w-5 h-5 ml-2" />
             </RequestCTAButton>
-            <a href="tel:07818333989">
+            <a href="tel:+442045771989">
               <Button
                 variant="outline"
                 className="border-2 border-white/80 text-white hover:bg-white/20 font-semibold px-8 py-6 text-lg rounded-full bg-white/10"
               >
                 <Phone className="w-5 h-5 mr-2" />
-                07818 333 989
+                +44 20 4577 1989
               </Button>
             </a>
           </div>

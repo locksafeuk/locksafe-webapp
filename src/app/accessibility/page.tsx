@@ -168,11 +168,11 @@ export default function AccessibilityPage() {
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4">
                   <a
-                    href="tel:07818333989"
+                    href="tel:+442045771989"
                     className="flex items-center gap-2 px-4 py-3 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 transition-colors"
                   >
                     <Phone className="w-5 h-5" />
-                    07818 333 989
+                    +44 20 4577 1989
                   </a>
                   <a
                     href="mailto:accessibility@locksafe.uk"

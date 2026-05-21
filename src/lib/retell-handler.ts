@@ -7,6 +7,7 @@
 
 import { prisma } from "@/lib/db";
 import { buildRetellPrompt } from "@/lib/retell-prompt";
+import { SUPPORT_PHONE } from "@/lib/config";
 
 export interface RetellCallEvent {
   event: string;
@@ -363,7 +364,7 @@ export function generateVoiceAgentPrompt(): string {
   return buildRetellPrompt({
     personaName: "Sarah",
     businessName: "LockSafe UK",
-    humanEscalationNumber: "07818 333 989",
+    humanEscalationNumber: SUPPORT_PHONE,
     realismMode: "balanced",
   });
 }

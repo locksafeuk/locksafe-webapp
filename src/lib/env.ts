@@ -13,6 +13,11 @@ const envSchema = z.object({
     .string()
     .url()
     .default("https://locksafe.uk"),
+  NEXT_PUBLIC_SUPPORT_PHONE: z.string().optional(),
+  NEXT_PUBLIC_SUPPORT_PHONE_TEL: z.string().optional(),
+  NEXT_PUBLIC_LOCKSMITH_ADMIN_PHONE: z.string().optional(),
+  NEXT_PUBLIC_LOCKSMITH_ADMIN_PHONE_TEL: z.string().optional(),
+  NEXT_PUBLIC_LOCKSMITH_ADMIN_WHATSAPP: z.string().optional(),
 
   // Auth
   JWT_SECRET: z.string().min(16, "JWT_SECRET must be at least 16 characters").optional(),

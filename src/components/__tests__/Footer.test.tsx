@@ -4,6 +4,7 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import { Footer } from "../layout/Footer";
+import { SUPPORT_PHONE } from "@/lib/config";
 
 jest.mock("next/link", () => {
   function MockNextLink({
@@ -36,7 +37,7 @@ describe("Footer Component", () => {
 
   it("renders contact information", () => {
     render(<Footer />);
-    expect(screen.getByText("07818 333 989")).toBeInTheDocument();
+    expect(screen.getByText(SUPPORT_PHONE)).toBeInTheDocument();
   });
 
   it("renders legal links", () => {

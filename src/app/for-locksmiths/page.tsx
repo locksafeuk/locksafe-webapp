@@ -2,7 +2,13 @@ import { Footer } from "@/components/layout/Footer";
 import { Header } from "@/components/layout/Header";
 import { LocksmithSignupCTAButton } from "@/components/onboarding/LocksmithSignupCTAButton";
 import { Button } from "@/components/ui/button";
-import { SITE_NAME, getFullUrl } from "@/lib/config";
+import {
+  LOCKSMITH_ADMIN_PHONE,
+  LOCKSMITH_ADMIN_PHONE_TEL,
+  LOCKSMITH_ADMIN_WHATSAPP,
+  SITE_NAME,
+  getFullUrl,
+} from "@/lib/config";
 import {
   ArrowRight,
   Award,
@@ -21,6 +27,8 @@ import {
 } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+
+const locksmithAdminWhatsappUrl = `https://wa.me/${LOCKSMITH_ADMIN_WHATSAPP}?text=${encodeURIComponent("Hi LockSafe admin team, I'm a locksmith and I need support.")}`;
 
 export const metadata: Metadata = {
   title: `For Locksmiths | ${SITE_NAME} - Join Our Platform`,
@@ -141,13 +149,21 @@ export default function ForLocksmithsPage() {
                   Apply Now
                   <ArrowRight className="w-5 h-5" />
                 </LocksmithSignupCTAButton>
-                <a href="tel:07818333989">
+                <a href={`tel:${LOCKSMITH_ADMIN_PHONE_TEL}`}>
                   <Button
                     variant="outline"
                     className="border-white/30 text-white hover:bg-white/10 bg-transparent px-8"
                   >
                     <Phone className="w-4 h-4" />
-                    Talk to Us
+                    Call Admin ({LOCKSMITH_ADMIN_PHONE})
+                  </Button>
+                </a>
+                <a href={locksmithAdminWhatsappUrl} target="_blank" rel="noopener noreferrer">
+                  <Button
+                    variant="outline"
+                    className="border-white/30 text-white hover:bg-white/10 bg-transparent px-8"
+                  >
+                    WhatsApp Admin
                   </Button>
                 </a>
               </div>

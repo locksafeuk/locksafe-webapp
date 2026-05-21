@@ -264,10 +264,10 @@ export default function HowItWorksPage() {
                   <ArrowRight className="w-4 h-4" />
                 </Button>
               </Link>
-              <a href="tel:07818333989">
+              <a href="tel:+442045771989">
                 <Button variant="outline" className="border-slate-300 px-8">
                   <Phone className="w-4 h-4" />
-                  Call 07818 333 989
+                  Call +44 20 4577 1989
                 </Button>
               </a>
             </div>

@@ -64,10 +64,10 @@ export default function NotFound() {
                     If you're locked out or need urgent assistance, we're here 24/7.
                   </p>
                   <a
-                    href="tel:07818333989"
+                    href="tel:+442045771989"
                     className="inline-flex items-center text-orange-400 hover:text-orange-300 font-semibold transition-colors"
                   >
-                    Call 07818 333 989
+                    Call +44 20 4577 1989
                     <ArrowLeft className="w-4 h-4 ml-2 rotate-180" />
                   </a>
                 </div>

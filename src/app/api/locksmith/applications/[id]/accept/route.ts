@@ -91,7 +91,7 @@ Estimated Arrival: ${application.eta} minutes
 Please pay the assessment fee to confirm:
 ${paymentUrl}
 
-Questions? Call us: 0800 123 4567`;
+Questions? Call us: +44 20 4577 1989`;
 
       sendSMS(application.job.customer.phone, smsMessage).catch((err) => {
         console.error("[Locksmith Accept] Failed to send customer SMS:", err);

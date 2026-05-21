@@ -296,14 +296,14 @@ export default function HelpPage() {
           <div className="section-container">
             <div className="grid sm:grid-cols-3 gap-4">
               <a
-                href={`tel:${SUPPORT_PHONE || "08001234567"}`}
+                href={`tel:${SUPPORT_PHONE || "+442045771989"}`}
                 className="bg-white rounded-xl p-5 shadow-lg border border-slate-100 hover:shadow-xl transition-shadow hover:border-cyan-200 group"
               >
                 <div className="w-12 h-12 bg-cyan-100 rounded-xl flex items-center justify-center mb-3 group-hover:bg-cyan-200 transition-colors">
                   <Phone className="w-6 h-6 text-cyan-600" />
                 </div>
                 <h3 className="font-semibold text-slate-900 mb-1">Call Us</h3>
-                <p className="text-sm text-slate-500">{SUPPORT_PHONE || "0800 123 4567"}</p>
+                <p className="text-sm text-slate-500">{SUPPORT_PHONE || "+44 20 4577 1989"}</p>
               </a>
               <a
                 href={`mailto:${SUPPORT_EMAIL || "help@locksafe.uk"}`}
@@ -541,7 +541,7 @@ export default function HelpPage() {
                       Email Support
                     </a>
                     <a
-                      href={`tel:${SUPPORT_PHONE || "08001234567"}`}
+                      href={`tel:${SUPPORT_PHONE || "+442045771989"}`}
                       className="inline-flex items-center justify-center gap-2 px-6 py-3 border-2 border-white text-white font-semibold rounded-lg hover:bg-white/10 transition-colors"
                     >
                       <Phone className="w-4 h-4" />
