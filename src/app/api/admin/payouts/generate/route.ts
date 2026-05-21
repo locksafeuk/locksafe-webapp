@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { verifyToken } from "@/lib/auth";
 
-// Platform fee percentage (15%)
-const PLATFORM_FEE_PERCENTAGE = 0.15;
+// Platform fee rates: 15% on assessment/callout fees, 25% on work quotes
+const ASSESSMENT_FEE_RATE = 0.15;
+const WORK_QUOTE_RATE = 0.25;
 
 // Helper to verify admin auth
 async function verifyAdminAuth(request: NextRequest): Promise<boolean> {
@@ -87,12 +88,17 @@ export async function GET(request: NextRequest) {
 
       const locksmithId = job.locksmith.id;
 
-      // Calculate total from succeeded payments
-      const jobTotal = job.payments.reduce((sum, p) => sum + p.amount, 0);
+      // Calculate totals from succeeded payments, applying correct rate per type
+      let jobTotal = 0;
+      let platformFee = 0;
+      for (const p of job.payments) {
+        const rate = (p.type === "assessment" || p.type === "callout") ? ASSESSMENT_FEE_RATE : WORK_QUOTE_RATE;
+        jobTotal += p.amount;
+        platformFee += p.amount * rate;
+      }
 
       if (jobTotal <= 0) continue;
 
-      const platformFee = jobTotal * PLATFORM_FEE_PERCENTAGE;
       const netAmount = jobTotal - platformFee;
 
       if (!locksmithEarningsMap.has(locksmithId)) {
@@ -253,8 +259,9 @@ export async function POST(request: NextRequest) {
     >();
 
     for (const [locksmithId, jobs] of locksmithJobsMap) {
-      // Calculate total earnings from jobs
+      // Calculate total earnings from jobs, applying correct rate per payment type
       let grossAmount = 0;
+      let platformFeeByType = 0; // 15% for assessment/callout, 25% for quote
       const jobIds: string[] = [];
 
       for (const job of jobs) {
@@ -262,6 +269,10 @@ export async function POST(request: NextRequest) {
         if (jobTotal > 0) {
           grossAmount += jobTotal;
           jobIds.push(job.id);
+          for (const p of job.payments) {
+            const rate = (p.type === "assessment" || p.type === "callout") ? ASSESSMENT_FEE_RATE : WORK_QUOTE_RATE;
+            platformFeeByType += p.amount * rate;
+          }
         }
       }
 
@@ -277,12 +288,11 @@ export async function POST(request: NextRequest) {
       const actualPeriodEnd = jobDates[jobDates.length - 1] || now;
 
       // Check team membership — apply split if this locksmith is a sub-member
+      // If a platformCommissionOverride is set, use that flat rate; otherwise use per-type rates
       const membership = membershipByLocksmith.get(locksmithId);
-      const effectivePlatformRate = membership?.platformCommissionOverride != null
-        ? membership.platformCommissionOverride / 100
-        : PLATFORM_FEE_PERCENTAGE;
-
-      const platformFee = grossAmount * effectivePlatformRate;
+      const platformFee = membership?.platformCommissionOverride != null
+        ? grossAmount * (membership.platformCommissionOverride / 100)
+        : platformFeeByType;
       const netAfterPlatform = grossAmount - platformFee;
 
       let locksmithNetAmount: number;

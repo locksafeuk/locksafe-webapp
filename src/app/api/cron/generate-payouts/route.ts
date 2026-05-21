@@ -3,7 +3,9 @@ import prisma from "@/lib/db";
 import { requireAdminOrCron, unauthorizedAgentApiResponse } from "@/lib/agent-api-auth";
 
 // Platform fee percentage (15%)
-const PLATFORM_FEE_PERCENTAGE = 0.15;
+// Platform fee rates: 15% on assessment/callout fees, 25% on work quotes
+const ASSESSMENT_FEE_RATE = 0.15;
+const WORK_QUOTE_RATE = 0.25;
 
 // Secret key for cron authorization (set in environment)
 const CRON_SECRET = process.env.CRON_SECRET || "your-cron-secret-key";
@@ -112,17 +114,21 @@ export async function POST(request: NextRequest) {
       let grossAmount = 0;
       const jobIds: string[] = [];
 
+      let platformFee = 0;
       for (const job of jobs) {
         const jobTotal = job.payments.reduce((sum, p) => sum + p.amount, 0);
         if (jobTotal > 0) {
           grossAmount += jobTotal;
           jobIds.push(job.id);
+          for (const p of job.payments) {
+            const rate = (p.type === "assessment" || p.type === "callout") ? ASSESSMENT_FEE_RATE : WORK_QUOTE_RATE;
+            platformFee += p.amount * rate;
+          }
         }
       }
 
       if (grossAmount <= 0 || jobIds.length === 0) continue;
 
-      const platformFee = grossAmount * PLATFORM_FEE_PERCENTAGE;
       const netAmount = grossAmount - platformFee;
 
       // Determine actual period from job dates

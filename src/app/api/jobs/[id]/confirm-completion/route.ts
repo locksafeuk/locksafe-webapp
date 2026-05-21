@@ -4,7 +4,8 @@ import {
   stripe,
   formatAmountForStripe,
   formatAmountFromStripe,
-  PLATFORM_FEE_PERCENT,
+  ASSESSMENT_FEE_COMMISSION,
+  WORK_QUOTE_COMMISSION,
 } from "@/lib/stripe";
 import {
   sendJobCompletionEmail,
@@ -13,9 +14,6 @@ import {
 } from "@/lib/email";
 import { SITE_URL } from "@/lib/config";
 import { notifyJobSigned, notifyPaymentReceived } from "@/lib/telegram";
-
-// Platform commission rate (15%)
-const PLATFORM_COMMISSION_RATE = PLATFORM_FEE_PERCENT;
 
 // POST - Customer confirms job completion, signs, and payment is processed
 export async function POST(
@@ -107,18 +105,17 @@ export async function POST(
     // Final amount to charge (quote total minus assessment fee already paid)
     const finalAmount = Math.max(0, quoteTotal - assessmentFeePaid);
 
-    // Platform commission is 15% of the amount being charged NOW (finalAmount)
-    // The assessment fee already had its own 15% platform fee deducted when it was charged
-    const platformCommissionOnFinal = Math.round(finalAmount * PLATFORM_COMMISSION_RATE * 100) / 100;
+    // Platform commission: 25% of work quote, 15% of assessment (call-out) fee
+    const platformCommissionOnFinal = Math.round(finalAmount * WORK_QUOTE_COMMISSION * 100) / 100;
 
-    // Locksmith receives 85% of the final amount being charged now
+    // Locksmith receives 75% of the final work amount
     const locksmithAmountFromFinal = Math.round((finalAmount - platformCommissionOnFinal) * 100) / 100;
 
-    // Total platform earnings from this job = 15% of assessment fee + 15% of final payment
-    const platformCommissionOnAssessment = Math.round(assessmentFee * PLATFORM_COMMISSION_RATE * 100) / 100;
+    // Assessment fee commission: 15%
+    const platformCommissionOnAssessment = Math.round(assessmentFee * ASSESSMENT_FEE_COMMISSION * 100) / 100;
     const totalPlatformCommission = platformCommissionOnAssessment + platformCommissionOnFinal;
 
-    // Total locksmith earnings from this job = 85% of assessment fee + 85% of final payment
+    // Total locksmith earnings = 85% of assessment fee + 75% of work quote
     const locksmithAmountFromAssessment = Math.round((assessmentFee - platformCommissionOnAssessment) * 100) / 100;
     const totalLocksmithEarnings = locksmithAmountFromAssessment + locksmithAmountFromFinal;
 

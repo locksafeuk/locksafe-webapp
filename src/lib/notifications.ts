@@ -2,7 +2,7 @@ import prisma from "@/lib/db";
 import type { Prisma } from "@prisma/client";
 import { sendSignatureReminderEmail, sendAutoCompletionEmail, sendTransferNotificationEmail, sendPaymentReceiptEmail } from "@/lib/email";
 import { SITE_URL } from "@/lib/config";
-import { stripe, formatAmountForStripe, PLATFORM_FEE_PERCENT } from "@/lib/stripe";
+import { stripe, formatAmountForStripe, WORK_QUOTE_COMMISSION } from "@/lib/stripe";
 import { notifyJobAutoCompleted } from "@/lib/telegram";
 
 // Notification types
@@ -173,8 +173,8 @@ export async function autoCompleteJob(jobId: string) {
     // Final amount to charge
     const finalAmount = Math.max(0, quoteTotal - assessmentFeePaid);
 
-    // Platform commission
-    const platformCommissionOnFinal = Math.round(finalAmount * PLATFORM_FEE_PERCENT * 100) / 100;
+    // Platform commission: 25% of work quote final amount
+    const platformCommissionOnFinal = Math.round(finalAmount * WORK_QUOTE_COMMISSION * 100) / 100;
     const locksmithAmountFromFinal = Math.round((finalAmount - platformCommissionOnFinal) * 100) / 100;
 
     console.log("[Auto-Complete] Payment calculation:", {
