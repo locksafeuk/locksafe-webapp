@@ -18,6 +18,16 @@ import { pushDataLayerEvent } from "@/components/analytics/GoogleTagManager";
  *  - `time_on_page`       at 15s, 30s, 60s, 180s of foreground-tab time
  *                         (each threshold fires at most once per page load;
  *                         hidden-tab time is not counted)
+ *  - `session_quality`    composite engagement score (0-100) emitted when the
+ *                         visitor crosses a quality tier (low<30, medium<70,
+ *                         high>=70) and a final summary on page hide. Drives
+ *                         Google Ads enhanced bidding / GA4 quality audiences.
+ *
+ * Score breakdown (max 100):
+ *   time_on_page  : up to 40  (15s=10, 30s=20, 60s=30, 180s=40)
+ *   scroll_depth  : up to 30  (25%=8, 50%=15, 75%=22, 100%=30)
+ *   phone_click   : 20
+ *   quote_click   : 25
  *
  * Each event carries:
  *   landing_variant : "east-london"
@@ -44,6 +54,39 @@ export function EastLondonAnalytics() {
   useEffect(() => {
     const source = inferSource();
 
+    // -------------------------------------------------------------------- //
+    // Session-quality scoring state                                        //
+    // -------------------------------------------------------------------- //
+    const score = { time: 0, scroll: 0, phone: 0, quote: 0 };
+    let currentTier: "none" | "low" | "medium" | "high" = "none";
+    let qualityFinalised = false;
+
+    const tierFor = (total: number): "low" | "medium" | "high" => {
+      if (total >= 70) return "high";
+      if (total >= 30) return "medium";
+      return "low";
+    };
+
+    const emitQuality = (reason: string) => {
+      const total = Math.min(100, score.time + score.scroll + score.phone + score.quote);
+      const nextTier = tierFor(total);
+      // Emit only when crossing into a new tier (avoids dataLayer spam).
+      // The final `pagehide` always emits regardless so GTM has a summary.
+      if (reason === "final" || nextTier !== currentTier) {
+        currentTier = nextTier;
+        pushDataLayerEvent("session_quality", {
+          landing_variant: LANDING_VARIANT,
+          page_path: PAGE_PATH,
+          city: CITY,
+          source,
+          score: total,
+          tier: nextTier,
+          reason,
+          breakdown: { ...score },
+        });
+      }
+    };
+
     pushDataLayerEvent("landing_page_view", {
       landing_variant: LANDING_VARIANT,
       page_path: PAGE_PATH,
@@ -65,12 +108,17 @@ export function EastLondonAnalytics() {
         city: CITY,
         source,
       });
+
+      if (kind === "phone-click" && score.phone === 0) score.phone = 20;
+      if (kind === "quote-click" && score.quote === 0) score.quote = 25;
+      emitQuality(`${kind.replace("-", "_")}`);
     };
 
     document.addEventListener("click", onClick, { capture: true });
 
     // Scroll-depth tracking: fire once per threshold (25/50/75/100).
     const thresholds = [25, 50, 75, 100] as const;
+    const scrollPoints: Record<number, number> = { 25: 8, 50: 15, 75: 22, 100: 30 };
     const fired = new Set<number>();
     let raf = 0;
 
@@ -90,6 +138,8 @@ export function EastLondonAnalytics() {
             source,
             percent: t,
           });
+          score.scroll = Math.max(score.scroll, scrollPoints[t] ?? 0);
+          emitQuality(`scroll_${t}`);
         }
       }
       if (fired.size === thresholds.length) {
@@ -110,6 +160,7 @@ export function EastLondonAnalytics() {
     // 15s, 30s, 60s and 180s. We accumulate only while the tab is visible so
     // background tabs (or backgrounded mobile browsers) don't inflate numbers.
     const timeThresholds = [15, 30, 60, 180] as const;
+    const timePoints: Record<number, number> = { 15: 10, 30: 20, 60: 30, 180: 40 };
     const timeFired = new Set<number>();
     let foregroundMs = 0;
     let lastTick = document.visibilityState === "visible" ? Date.now() : 0;
@@ -130,6 +181,8 @@ export function EastLondonAnalytics() {
             source,
             seconds: t,
           });
+          score.time = Math.max(score.time, timePoints[t] ?? 0);
+          emitQuality(`time_${t}s`);
         }
       }
     };
@@ -147,9 +200,22 @@ export function EastLondonAnalytics() {
       } else {
         flushTime();
         lastTick = 0;
+        if (!qualityFinalised) {
+          qualityFinalised = true;
+          emitQuality("final");
+        }
       }
     };
     document.addEventListener("visibilitychange", onVisibility);
+
+    const onPageHide = () => {
+      flushTime();
+      if (!qualityFinalised) {
+        qualityFinalised = true;
+        emitQuality("final");
+      }
+    };
+    window.addEventListener("pagehide", onPageHide);
 
     return () => {
       document.removeEventListener("click", onClick, { capture: true });
@@ -157,6 +223,7 @@ export function EastLondonAnalytics() {
       if (raf) window.cancelAnimationFrame(raf);
       window.clearInterval(timeInterval);
       document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", onPageHide);
     };
   }, []);
 
