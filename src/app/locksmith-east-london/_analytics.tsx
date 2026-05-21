@@ -13,6 +13,8 @@ import { pushDataLayerEvent } from "@/components/analytics/GoogleTagManager";
  *  - `landing_page_view`  on mount (once per page load)
  *  - `phone_click`        when any element with `data-track="phone-click"` is clicked
  *  - `quote_click`        when any element with `data-track="quote-click"` is clicked
+ *  - `scroll_depth`       at 25%, 50%, 75%, 100% of viewport-adjusted page height
+ *                         (each threshold fires at most once per page load)
  *
  * Each event carries:
  *   landing_variant : "east-london"
@@ -63,7 +65,49 @@ export function EastLondonAnalytics() {
     };
 
     document.addEventListener("click", onClick, { capture: true });
-    return () => document.removeEventListener("click", onClick, { capture: true });
+
+    // Scroll-depth tracking: fire once per threshold (25/50/75/100).
+    const thresholds = [25, 50, 75, 100] as const;
+    const fired = new Set<number>();
+    let raf = 0;
+
+    const measure = () => {
+      raf = 0;
+      const doc = document.documentElement;
+      const scrollable = Math.max(1, doc.scrollHeight - window.innerHeight);
+      const scrolled = window.scrollY || doc.scrollTop || 0;
+      const pct = Math.min(100, Math.round((scrolled / scrollable) * 100));
+      for (const t of thresholds) {
+        if (pct >= t && !fired.has(t)) {
+          fired.add(t);
+          pushDataLayerEvent("scroll_depth", {
+            landing_variant: LANDING_VARIANT,
+            page_path: PAGE_PATH,
+            city: CITY,
+            source,
+            percent: t,
+          });
+        }
+      }
+      if (fired.size === thresholds.length) {
+        window.removeEventListener("scroll", onScroll);
+      }
+    };
+
+    const onScroll = () => {
+      if (raf) return;
+      raf = window.requestAnimationFrame(measure);
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    // Run once in case the page is already scrolled (e.g. anchor link / refresh).
+    measure();
+
+    return () => {
+      document.removeEventListener("click", onClick, { capture: true });
+      window.removeEventListener("scroll", onScroll);
+      if (raf) window.cancelAnimationFrame(raf);
+    };
   }, []);
 
   return null;
