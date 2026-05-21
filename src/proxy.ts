@@ -41,6 +41,7 @@ if (typeof globalThis !== 'undefined') {
 const LITERAL_LOCKSMITH_ROUTES = new Set([
   '/locksmith-signup',
   '/locksmith-rickmansworth',
+  '/locksmith-east-london',
 ]);
 
 export function proxy(request: NextRequest) {
