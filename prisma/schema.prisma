@@ -1099,12 +1099,61 @@ model GoogleAdsCampaignDraft {
   publishedAt  DateTime?
   pausedAt     DateTime?
 
+  // Manual-vs-AI provenance + post-publish snapshot.
+  // createdBy: "ai" (default existing rows) | "admin" (manual via UI)
+  // publishedSnapshot: full live state pulled back via GAQL after a successful
+  //   publish. Used as the source of truth for cloning / future automations.
+  createdBy         String? @default("ai") // "ai" | "admin"
+  createdByAdminId  String? @db.ObjectId
+  publishedSnapshot Json?
+  snapshotAt        DateTime?
+  templateId        String?  @db.ObjectId
+
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   lastSyncAt DateTime?
 
   @@index([accountId])
   @@index([status])
+}
+
+// Reusable Google Ads campaign template captured from a published draft.
+// One row per "playbook" the admin wants to clone in future automations
+// (manual-publish-now → save-as-template → AI agent reuses the geometry).
+model GoogleAdsCampaignTemplate {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  name        String  @unique
+  description String?
+
+  // Source provenance
+  sourceDraftId          String? @db.ObjectId
+  sourceGoogleCampaignId String?
+  sourceAccountId        String? @db.ObjectId
+
+  // Captured campaign plan (same shape as GoogleAdsCampaignDraft)
+  channel         String   @default("SEARCH")
+  biddingStrategy String   @default("MAXIMIZE_CONVERSIONS")
+  targetCpa       Float?
+  dailyBudget     Float
+  geoTargets      String[] @default([])
+  languageTargets String[] @default([])
+  headlines       String[] @default([])
+  descriptions    String[] @default([])
+  finalUrl        String
+  keywords        Json
+  negativeKeywords String[] @default([])
+
+  // Full live snapshot of the published campaign at template-save time
+  snapshot Json?
+
+  tags     String[] @default([])
+  isActive Boolean  @default(true)
+
+  createdBy String? // admin id or "system"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
 }
 
 // Phase 3 — Marketing policy / spend guard.

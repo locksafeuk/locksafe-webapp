@@ -43,6 +43,10 @@ interface Draft {
   publishedAt: string | null;
   pausedAt: string | null;
   createdAt: string;
+  createdBy: string | null;
+  publishedSnapshot: unknown;
+  snapshotAt: string | null;
+  templateId: string | null;
 }
 
 export default function GoogleAdsDraftDetailPage() {
@@ -118,6 +122,48 @@ export default function GoogleAdsDraftDetailPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.details || data.error || "Pause failed");
       setMessage({ kind: "ok", text: "Paused" });
+      await refresh();
+    } catch (err) {
+      setMessage({ kind: "err", text: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function refreshSnapshot() {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/admin/google-ads/drafts/${id}/snapshot`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.details || data.error || "Snapshot failed");
+      setMessage({ kind: "ok", text: "Live snapshot refreshed." });
+      await refresh();
+    } catch (err) {
+      setMessage({ kind: "err", text: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveAsTemplate() {
+    const name = prompt(
+      "Template name (used as the unique key — will overwrite if it already exists):",
+      draft?.name ?? "",
+    );
+    if (!name) return;
+    const description = prompt("Optional description for future automations:", "") || undefined;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/admin/google-ads/drafts/${id}/save-template`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, description }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.details || data.error || "Save failed");
+      setMessage({ kind: "ok", text: `Saved as template "${data.name}" (id ${data.templateId}).` });
       await refresh();
     } catch (err) {
       setMessage({ kind: "err", text: err instanceof Error ? err.message : String(err) });
@@ -268,6 +314,62 @@ export default function GoogleAdsDraftDetailPage() {
             <dt className="text-muted-foreground">Spend / Conversions / Revenue</dt>
             <dd>£{draft.totalSpend.toFixed(2)} · {draft.totalConversions} · £{draft.totalRevenue.toFixed(2)}</dd>
           </dl>
+        </section>
+      )}
+
+      {draft.googleCampaignId && (
+        <section className="rounded border p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold">
+              Captured snapshot{" "}
+              {draft.snapshotAt && (
+                <span className="text-xs text-muted-foreground">
+                  (last refreshed {new Date(draft.snapshotAt).toLocaleString()})
+                </span>
+              )}
+            </h2>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={refreshSnapshot}
+                disabled={busy}
+                className="text-xs rounded border px-2 py-1 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Refresh snapshot
+              </button>
+              <button
+                type="button"
+                onClick={saveAsTemplate}
+                disabled={busy}
+                className="text-xs rounded bg-purple-600 px-2 py-1 text-white hover:bg-purple-700 disabled:opacity-50"
+              >
+                Save as automation template
+              </button>
+            </div>
+          </div>
+          {draft.templateId && (
+            <p className="text-xs text-muted-foreground">
+              Already linked to template id <code>{draft.templateId}</code>.
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Full live state pulled back from Google Ads via GAQL. This is the
+            source of truth re-used by future automated campaign creation.
+          </p>
+          {draft.publishedSnapshot ? (
+            <details>
+              <summary className="cursor-pointer text-sm text-blue-700 hover:underline">
+                View raw snapshot JSON
+              </summary>
+              <pre className="mt-2 max-h-96 overflow-auto rounded bg-gray-50 p-3 text-xs">
+                {JSON.stringify(draft.publishedSnapshot, null, 2)}
+              </pre>
+            </details>
+          ) : (
+            <p className="text-xs text-muted-foreground italic">
+              No snapshot captured yet — click "Refresh snapshot" to pull one now.
+            </p>
+          )}
         </section>
       )}
 

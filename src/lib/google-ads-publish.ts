@@ -19,6 +19,7 @@
 import prisma from "@/lib/db";
 import { GoogleAdsClient, getGoogleAdsClientForAccount, buildResourceName } from "./google-ads";
 import type { GoogleKeyword, GoogleKeywordMatchType } from "./openai-google-ads";
+import { captureAndStoreSnapshot } from "./google-ads-snapshot";
 
 interface PublishResult {
   draftId: string;
@@ -319,6 +320,15 @@ export async function publishGoogleAdsDraft(draftId: string): Promise<PublishRes
         publishedAt: new Date(),
         publishError: null,
       },
+    });
+
+    // ----- Best-effort: pull a full live snapshot for future automations.
+    // Never throw — snapshot failure must not roll back a successful publish.
+    await captureAndStoreSnapshot(draftId).catch((err) => {
+      console.warn(
+        `[google-ads-publish/${draftId}] snapshot capture failed:`,
+        err instanceof Error ? err.message : String(err),
+      );
     });
 
     return {
