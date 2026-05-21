@@ -25,6 +25,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
+import { EastLondonAnalytics } from "./_analytics";
 
 /* ------------------------------------------------------------------ */
 /*  East London locality data                                          */
@@ -206,9 +207,12 @@ export default function LocksmithEastLondonPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(schemas.faq) }}
       />
 
+      {/* GTM / Google Ads page-level event instrumentation */}
+      <EastLondonAnalytics />
+
       {/* Sticky mobile CTA */}
       <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-slate-950/95 backdrop-blur p-4 border-t border-slate-800">
-        <a href="tel:+442045771989" className="block">
+        <a href="tel:+442045771989" data-track="phone-click" className="block">
           <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-6 text-base font-semibold rounded-2xl flex items-center justify-center gap-3">
             <Phone className="w-5 h-5" />
             Call a Verified Locksmith
@@ -261,13 +265,13 @@ export default function LocksmithEastLondonPage() {
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4 justify-center mb-10">
-                <a href="tel:+442045771989" className="group">
+                <a href="tel:+442045771989" data-track="phone-click" className="group">
                   <Button className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-7 text-lg font-semibold rounded-2xl shadow-lg shadow-emerald-500/20 transition-all">
                     <Phone className="w-5 h-5 mr-3" />
                     +44 20 4577 1989
                   </Button>
                 </a>
-                <Link href="/quote" className="group">
+                <Link href="/quote" data-track="quote-click" className="group">
                   <Button className="w-full sm:w-auto bg-white/10 hover:bg-white/15 text-white px-8 py-7 text-lg font-semibold rounded-2xl border border-white/20 transition-all">
                     Request a Verified Locksmith
                     <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
@@ -695,13 +699,13 @@ export default function LocksmithEastLondonPage() {
               twenty-four hours a day.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <a href="tel:+442045771989">
+              <a href="tel:+442045771989" data-track="phone-click">
                 <Button className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-7 text-lg font-semibold rounded-2xl shadow-lg shadow-emerald-500/20">
                   <Phone className="w-5 h-5 mr-3" />
                   +44 20 4577 1989
                 </Button>
               </a>
-              <Link href="/quote">
+              <Link href="/quote" data-track="quote-click">
                 <Button className="w-full sm:w-auto bg-white/10 hover:bg-white/15 text-white px-8 py-7 text-lg font-semibold rounded-2xl border border-white/20">
                   Request a Locksmith
                   <ArrowRight className="w-5 h-5 ml-2" />
