@@ -314,7 +314,7 @@ export class GoogleAdsClient {
     const MAX_PAGES = 5;
 
     for (let page = 0; page < MAX_PAGES; page++) {
-      const body: Record<string, unknown> = { query: gaql, pageSize: 1000 };
+      const body: Record<string, unknown> = { query: gaql };
       if (pageToken) body.pageToken = pageToken;
 
       const res = await fetch(url, {
