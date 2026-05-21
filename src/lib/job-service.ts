@@ -159,6 +159,9 @@ export async function createEmergencyJob(
 ): Promise<EmergencyJobResult> {
   try {
     console.log(`[Job Service] Creating emergency job for ${input.customerName} at ${input.postcode}`);
+    const isRetellSimulation =
+      typeof input.retellCallId === "string" &&
+      input.retellCallId.startsWith("test_job_");
 
     // 1. Find or create customer
     const { customer, isNew } = await findOrCreateCustomer({
@@ -193,23 +196,25 @@ export async function createEmergencyJob(
       }),
     ]);
 
-    const riskError = evaluateEmergencyJobRisk({
-      recentCustomerJobs24h,
-      recentDuplicateRequests,
-    });
-
-    if (riskError) {
-      console.warn("[Job Service] Blocked emergency job creation:", {
-        customerId: customer.id,
-        postcode: normalizedPostcode,
+    if (!isRetellSimulation) {
+      const riskError = evaluateEmergencyJobRisk({
         recentCustomerJobs24h,
         recentDuplicateRequests,
-        riskError,
       });
-      return {
-        success: false,
-        error: riskError,
-      };
+
+      if (riskError) {
+        console.warn("[Job Service] Blocked emergency job creation:", {
+          customerId: customer.id,
+          postcode: normalizedPostcode,
+          recentCustomerJobs24h,
+          recentDuplicateRequests,
+          riskError,
+        });
+        return {
+          success: false,
+          error: riskError,
+        };
+      }
     }
 
     // 2. Geocode postcode
