@@ -174,7 +174,7 @@ export async function GET(request: NextRequest) {
       await sendAdminAlert({
         title: "Outreach digest",
         message: body,
-        severity: summary.failed > 0 ? "warning" : "info",
+        severity: "warning",
       });
     } catch (telegramErr) {
       console.error("[Lead Outreach Cron] Telegram digest failed:", telegramErr);

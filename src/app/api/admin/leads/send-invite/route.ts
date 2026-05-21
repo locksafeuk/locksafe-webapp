@@ -505,7 +505,7 @@ export async function POST(req: NextRequest) {
         "Email copy:",
         buildFollowUpEmailCopy(track, "[Lead Name]", "[City]"),
       ].join("\n"),
-      severity: "info",
+      severity: "warning",
     });
   }
 
@@ -537,7 +537,7 @@ export async function POST(req: NextRequest) {
         "Email copy:",
         buildSequenceEmailCopy(track, touch, "[Lead Name]", "[City]"),
       ].join("\n"),
-      severity: "info",
+      severity: "warning",
     });
   }
 
