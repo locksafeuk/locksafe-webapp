@@ -105,17 +105,22 @@ export async function POST(
     // Final amount to charge (quote total minus assessment fee already paid)
     const finalAmount = Math.max(0, quoteTotal - assessmentFeePaid);
 
-    // Platform commission: 25% of work quote, 15% of assessment (call-out) fee
-    const platformCommissionOnFinal = Math.round(finalAmount * WORK_QUOTE_COMMISSION * 100) / 100;
+    // Platform commission: use the locksmith's stored per-locksmith rates
+    // (set by commission tier: STANDARD 20%/30%, PREMIUM 20%/30%, or auction winner 35%/40%)
+    // Fall back to defaults if locksmith record is incomplete
+    const workQuoteRate = job.locksmith?.commissionRate ?? WORK_QUOTE_COMMISSION;
+    const assessmentFeeRate = job.locksmith?.commissionAssessmentRate ?? ASSESSMENT_FEE_COMMISSION;
 
-    // Locksmith receives 75% of the final work amount
+    const platformCommissionOnFinal = Math.round(finalAmount * workQuoteRate * 100) / 100;
+
+    // Locksmith receives (1 - workQuoteRate) of the final work amount
     const locksmithAmountFromFinal = Math.round((finalAmount - platformCommissionOnFinal) * 100) / 100;
 
-    // Assessment fee commission: 15%
-    const platformCommissionOnAssessment = Math.round(assessmentFee * ASSESSMENT_FEE_COMMISSION * 100) / 100;
+    // Assessment fee commission: use locksmith's stored assessment rate
+    const platformCommissionOnAssessment = Math.round(assessmentFee * assessmentFeeRate * 100) / 100;
     const totalPlatformCommission = platformCommissionOnAssessment + platformCommissionOnFinal;
 
-    // Total locksmith earnings = 85% of assessment fee + 75% of work quote
+    // Total locksmith earnings = (1 - assessmentFeeRate) of assessment fee + (1 - workQuoteRate) of work quote
     const locksmithAmountFromAssessment = Math.round((assessmentFee - platformCommissionOnAssessment) * 100) / 100;
     const totalLocksmithEarnings = locksmithAmountFromAssessment + locksmithAmountFromFinal;
 
@@ -445,6 +450,9 @@ export async function POST(
           jobNumber: job.jobNumber,
           customerName: job.customer?.name || "Customer",
           platformFee: platformCommissionOnFinal,
+          paymentType: "work_quote",
+          totalCharged: finalAmount,
+          commissionRate: workQuoteRate,
         });
       } catch (emailError) {
         console.error("[Job Completion] Failed to send locksmith email:", emailError);

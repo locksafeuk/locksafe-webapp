@@ -258,6 +258,9 @@ export async function chargeSavedCard(
   paymentMethodId: string,
   locksmithStripeAccountId: string | null,
   paymentType: "assessment_fee" | "work_quote",
+  // overrideRate: pass the locksmith's stored commissionRate / commissionAssessmentRate
+  // to correctly handle PREMIUM tier (20%/30%) and auction winners (35%/40%)
+  overrideRate?: number,
   metadata: {
     jobId: string;
     customerId: string;
@@ -267,8 +270,9 @@ export async function chargeSavedCard(
   }
 ): Promise<Stripe.PaymentIntent> {
   const amountInPence = formatAmountForStripe(amount);
-  // Use appropriate commission rate based on payment type
-  const commissionRate = getCommissionRate(paymentType);
+  // Use locksmith's stored rate if provided (handles PREMIUM tier + auction winners),
+  // otherwise fall back to the default for the payment type
+  const commissionRate = overrideRate ?? getCommissionRate(paymentType);
   const platformFee = locksmithStripeAccountId
     ? Math.round(amountInPence * commissionRate)
     : 0;
@@ -284,6 +288,7 @@ export async function chargeSavedCard(
       type: paymentType,
       platformFee: platformFee.toString(),
       locksmithShare: (amountInPence - platformFee).toString(),
+      commissionRate: commissionRate.toString(),
       ...metadata,
     },
     description: `LockSafe ${paymentType === "assessment_fee" ? "Assessment Fee" : "Work Payment"} - Job ${metadata.jobId}`,
@@ -313,11 +318,14 @@ export async function createPaymentIntentWithTransfer(
     applicationId?: string;
     quoteId?: string;
   },
-  stripeCustomerId?: string
+  stripeCustomerId?: string,
+  // overrideRate: pass the locksmith's stored commissionRate / commissionAssessmentRate
+  overrideRate?: number
 ): Promise<Stripe.PaymentIntent> {
   const amountInPence = formatAmountForStripe(amount);
-  // Use appropriate commission rate based on payment type
-  const commissionRate = getCommissionRate(paymentType);
+  // Use locksmith's stored rate if provided (handles PREMIUM tier + auction winners),
+  // otherwise fall back to default
+  const commissionRate = overrideRate ?? getCommissionRate(paymentType);
   const platformFee = locksmithStripeAccountId
     ? Math.round(amountInPence * commissionRate)
     : 0;
@@ -332,6 +340,7 @@ export async function createPaymentIntentWithTransfer(
       type: paymentType,
       platformFee: platformFee.toString(),
       locksmithShare: (amountInPence - platformFee).toString(),
+      commissionRate: commissionRate.toString(),
       ...metadata,
     },
     setup_future_usage: "off_session", // Save the card for future use

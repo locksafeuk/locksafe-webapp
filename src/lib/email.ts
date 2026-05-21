@@ -1297,10 +1297,18 @@ export async function sendTransferNotificationEmail(
     platformFee: number;
     paymentType?: "assessment_fee" | "work_quote";
     totalCharged?: number;
+    commissionRate?: number; // actual per-locksmith rate (e.g. 0.25, 0.30, 0.40)
   },
 ) {
-  // Calculate commission rate based on payment type
-  const commissionRate = data.paymentType === "work_quote" ? 25 : 15;
+  // Use actual commission rate if provided, otherwise derive from payment type
+  // Multiply by 100 to get percentage for display
+  const commissionRateDecimal =
+    data.commissionRate !== undefined
+      ? data.commissionRate
+      : data.paymentType === "work_quote"
+        ? 0.25
+        : 0.15;
+  const commissionRate = Math.round(commissionRateDecimal * 100);
   const totalCharged = data.totalCharged || data.amount + data.platformFee;
   const paymentLabel =
     data.paymentType === "work_quote" ? "Work Payment" : "Assessment Fee";

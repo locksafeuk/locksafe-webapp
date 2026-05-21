@@ -4,6 +4,8 @@ import {
   getOrCreateStripeCustomer,
   formatAmountFromStripe,
   getCommissionRate,
+  ASSESSMENT_FEE_COMMISSION,
+  WORK_QUOTE_COMMISSION,
 } from "@/lib/stripe";
 import prisma from "@/lib/db";
 import { validatePaymentAmount } from "@/lib/risk-controls";
@@ -49,15 +51,17 @@ export async function POST(request: NextRequest) {
     let locksmithStripeId = locksmithStripeAccountId;
     let locksmith = null;
 
-    if (locksmithId && !locksmithStripeId) {
+    if (locksmithId) {
+      // Always fetch locksmith to get per-locksmith commission rates
+      // (set by commission tier: PREMIUM = 20%/30%, or auction winner = up to 40%)
       locksmith = await prisma.locksmith.findUnique({
         where: { id: locksmithId },
       });
 
-      if (locksmith?.stripeConnectId && locksmith?.stripeConnectVerified) {
+      if (!locksmithStripeId && locksmith?.stripeConnectId && locksmith?.stripeConnectVerified) {
         locksmithStripeId = locksmith.stripeConnectId;
         console.log("[Payment Intent] Found locksmith Stripe account:", locksmithStripeId);
-      } else {
+      } else if (!locksmithStripeId) {
         console.log("[Payment Intent] Locksmith does not have verified Stripe Connect");
       }
     }
@@ -116,17 +120,16 @@ export async function POST(request: NextRequest) {
           locksmithId: locksmithId || "",
           applicationId: applicationId || "",
         },
-        stripeCustomerId
+        stripeCustomerId,
+        locksmith?.commissionAssessmentRate ?? ASSESSMENT_FEE_COMMISSION
       );
     } else if (type === "work_quote") {
       // NOTE: Assessment fee and work quote are SEPARATE payments
       // Assessment fee is NOT deducted from the work quote
-      // Each has its own commission rate:
-      // - Assessment fee: 15% platform commission
-      // - Work quote: 25% platform commission
+      // Each has its own commission rate — uses per-locksmith stored rate:
+      // STANDARD: 15%/25%, PREMIUM: 20%/30%, auction winner: up to 40%
 
       console.log("[Payment Intent] Creating work quote payment intent for £" + finalAmount);
-      console.log("[Payment Intent] Note: Assessment fee is a separate payment, not deducted from work quote");
 
       paymentIntent = await createPaymentIntentWithTransfer(
         finalAmount,
@@ -138,7 +141,8 @@ export async function POST(request: NextRequest) {
           locksmithId: locksmithId || "",
           quoteId: quoteId || "",
         },
-        stripeCustomerId
+        stripeCustomerId,
+        locksmith?.commissionRate ?? WORK_QUOTE_COMMISSION
       );
     } else {
       console.error("[Payment Intent] Invalid payment type:", type);
@@ -148,9 +152,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Calculate fee breakdown for response based on payment type
-    // Assessment fee: 15% commission, Work quote: 25% commission
-    const commissionRate = getCommissionRate(type as "assessment_fee" | "work_quote");
+    // Commission rate for response breakdown — use locksmith's stored per-locksmith rate
+    const commissionRate =
+      type === "assessment_fee"
+        ? (locksmith?.commissionAssessmentRate ?? ASSESSMENT_FEE_COMMISSION)
+        : (locksmith?.commissionRate ?? WORK_QUOTE_COMMISSION);
     const platformFee = finalAmount * commissionRate;
     const locksmithShare = finalAmount - platformFee;
 

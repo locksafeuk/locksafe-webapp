@@ -247,6 +247,12 @@ export async function POST(request: NextRequest) {
                 jobNumber: job.jobNumber,
                 customerName: job.customer?.name || "Customer",
                 platformFee,
+                paymentType: (paymentType as "assessment_fee" | "work_quote") || undefined,
+                totalCharged: amount,
+                // commissionRate from metadata (stored by charge functions)
+                commissionRate: paymentIntent.metadata?.commissionRate
+                  ? parseFloat(paymentIntent.metadata.commissionRate)
+                  : undefined,
               });
               console.log(`[Webhook] Sent ${paymentType} transfer notification to ${locksmith.email}`);
             } catch (emailError) {

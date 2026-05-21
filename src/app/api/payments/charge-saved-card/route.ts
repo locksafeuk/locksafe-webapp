@@ -3,6 +3,8 @@ import {
   chargeSavedCard,
   formatAmountFromStripe,
   getCommissionRate,
+  ASSESSMENT_FEE_COMMISSION,
+  WORK_QUOTE_COMMISSION,
 } from "@/lib/stripe";
 import prisma from "@/lib/db";
 import { sendTransferNotificationEmail } from "@/lib/email";
@@ -99,9 +101,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Calculate platform fee based on payment type
-    // Assessment fee: 15% commission, Work quote: 25% commission
-    const commissionRate = getCommissionRate(type as "assessment_fee" | "work_quote");
+    // Use the locksmith's stored per-locksmith commission rate (set by commission tier / auction)
+    // PREMIUM tier: 20%/30%, auction winners: up to 40%. Falls back to platform defaults.
+    const commissionRate =
+      type === "assessment_fee"
+        ? (locksmith.commissionAssessmentRate ?? ASSESSMENT_FEE_COMMISSION)
+        : (locksmith.commissionRate ?? WORK_QUOTE_COMMISSION);
 
     // Apply referral credits (only on assessment fee for first-job discount)
     let creditApplied = 0;
@@ -140,7 +145,8 @@ export async function POST(request: NextRequest) {
           locksmithId,
           applicationId,
           quoteId,
-        }
+        },
+        commissionRate
       );
 
       if (!paymentIntent || paymentIntent.status === "requires_payment_method") {
@@ -185,6 +191,9 @@ export async function POST(request: NextRequest) {
           jobNumber: job.jobNumber,
           customerName: customer.name,
           platformFee,
+          paymentType: type as "assessment_fee" | "work_quote",
+          totalCharged: chargeAmount,
+          commissionRate,
         });
       } catch (emailError) {
         console.error("[Charge Saved Card] Failed to send email:", emailError);

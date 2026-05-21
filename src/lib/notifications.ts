@@ -173,8 +173,10 @@ export async function autoCompleteJob(jobId: string) {
     // Final amount to charge
     const finalAmount = Math.max(0, quoteTotal - assessmentFeePaid);
 
-    // Platform commission: 25% of work quote final amount
-    const platformCommissionOnFinal = Math.round(finalAmount * WORK_QUOTE_COMMISSION * 100) / 100;
+    // Platform commission: use locksmith's stored commissionRate (set by tier/auction)
+    // Falls back to WORK_QUOTE_COMMISSION default if not set
+    const workQuoteRate = job.locksmith?.commissionRate ?? WORK_QUOTE_COMMISSION;
+    const platformCommissionOnFinal = Math.round(finalAmount * workQuoteRate * 100) / 100;
     const locksmithAmountFromFinal = Math.round((finalAmount - platformCommissionOnFinal) * 100) / 100;
 
     console.log("[Auto-Complete] Payment calculation:", {
@@ -213,6 +215,7 @@ export async function autoCompleteJob(jobId: string) {
               jobNumber: job.jobNumber,
               customerId: job.customerId,
               locksmithId: job.locksmithId || "",
+              commissionRate: workQuoteRate.toString(),
             },
             description: `LockSafe Auto-Complete Payment - Job ${job.jobNumber}`,
           });
@@ -372,6 +375,9 @@ export async function autoCompleteJob(jobId: string) {
             jobNumber: job.jobNumber,
             customerName: job.customer?.name || "Customer",
             platformFee: platformCommissionOnFinal,
+            paymentType: "work_quote",
+            totalCharged: finalAmount,
+            commissionRate: workQuoteRate,
           });
         } catch (emailError) {
           console.error("[Auto-Complete] Failed to send locksmith email:", emailError);
