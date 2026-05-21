@@ -265,8 +265,12 @@ export function AdminSidebar({ children }: AdminSidebarProps) {
     onLinkClick?: () => void;
     forceExpand?: boolean;
   }) => {
-    const isCollapsed = (collapsed[group.label] ?? false) && !forceExpand;
     const hasActive = group.items.some((item) => isActive(item.href));
+    // Default state: every group is COLLAPSED, except the one containing the
+    // currently-active page (so the user has context on first load). Once the
+    // user explicitly toggles a group, that explicit choice wins.
+    const explicit = collapsed[group.label];
+    const isCollapsed = (explicit ?? !hasActive) && !forceExpand;
 
     return (
       <div className="mb-2">
