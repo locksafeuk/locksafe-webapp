@@ -99,6 +99,26 @@ interface VoiceBaseline {
   };
 }
 
+interface RetellCutoverReadiness {
+  generatedAt: string;
+  readyForSwitch: boolean;
+  overall: "pass" | "warn" | "fail";
+  checks: Array<{
+    id: string;
+    label: string;
+    status: "pass" | "warn" | "fail";
+    details: string;
+  }>;
+  stats: {
+    totalCalls: number;
+    jobsCreated: number;
+    escalatedCalls: number;
+    callToJobRate: number;
+    escalationRate: number;
+    alertCount: number;
+  };
+}
+
 type TabId = "overview" | "calls" | "analytics" | "settings";
 
 // ============================================
@@ -810,6 +830,8 @@ function SettingsTab({ config, onUpdate }: { config: AgentConfig | null; onUpdat
   const [opsMessage, setOpsMessage] = useState<string>("");
   const [reviewsAvgNaturalness, setReviewsAvgNaturalness] = useState<number>(0);
   const [scorecard, setScorecard] = useState<any>(null);
+  const [cutoverReadiness, setCutoverReadiness] = useState<RetellCutoverReadiness | null>(null);
+  const [cutoverLoading, setCutoverLoading] = useState(false);
   const [realismProfile, setRealismProfile] = useState({
     interruptionSensitivity: "medium",
     backchannelFrequency: "medium",
@@ -822,6 +844,7 @@ function SettingsTab({ config, onUpdate }: { config: AgentConfig | null; onUpdat
     fetchBaseline();
     fetchRealism();
     fetchReviewMetrics();
+    fetchCutoverReadiness();
     // eslint-disable-next-line
   }, []);
 
@@ -880,6 +903,25 @@ function SettingsTab({ config, onUpdate }: { config: AgentConfig | null; onUpdat
       }
     } catch {
       setReviewsAvgNaturalness(0);
+    }
+  }
+
+  async function fetchCutoverReadiness() {
+    setCutoverLoading(true);
+    try {
+      const res = await fetch("/api/retell/cutover/readiness");
+      const data = await res.json();
+      if (data?.success) {
+        setCutoverReadiness(data);
+      } else {
+        setCutoverReadiness(null);
+        setOpsMessage(data?.error ?? "Failed to fetch cutover readiness.");
+      }
+    } catch {
+      setCutoverReadiness(null);
+      setOpsMessage("Failed to fetch cutover readiness.");
+    } finally {
+      setCutoverLoading(false);
     }
   }
 
@@ -1311,6 +1353,10 @@ function SettingsTab({ config, onUpdate }: { config: AgentConfig | null; onUpdat
             {opsRunning === "scorecard" ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
             Build Daily Scorecard
           </Button>
+          <Button size="sm" variant="outline" onClick={fetchCutoverReadiness} disabled={cutoverLoading || !!opsRunning}>
+            {cutoverLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+            Refresh Cutover Readiness
+          </Button>
         </div>
         <div className="text-xs text-slate-600">
           Reviewer naturalness average: <span className="font-semibold text-slate-900">{reviewsAvgNaturalness.toFixed(2)}</span>
@@ -1324,6 +1370,65 @@ function SettingsTab({ config, onUpdate }: { config: AgentConfig | null; onUpdat
           </div>
         ) : null}
         {opsMessage ? <div className="text-xs text-orange-700 bg-orange-50 border border-orange-100 rounded-md px-3 py-2">{opsMessage}</div> : null}
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-slate-900">Retell Cutover Readiness</h3>
+          {cutoverReadiness ? (
+            <span
+              className={`text-xs px-2 py-1 rounded-full ${
+                cutoverReadiness.overall === "pass"
+                  ? "bg-green-100 text-green-700"
+                  : cutoverReadiness.overall === "warn"
+                    ? "bg-amber-100 text-amber-700"
+                    : "bg-red-100 text-red-700"
+              }`}
+            >
+              {cutoverReadiness.overall.toUpperCase()} {cutoverReadiness.readyForSwitch ? "- READY" : "- HOLD"}
+            </span>
+          ) : (
+            <span className="text-xs text-slate-400">No data</span>
+          )}
+        </div>
+
+        {cutoverReadiness ? (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+              <div className="rounded-md bg-slate-50 p-2">Calls 24h: <span className="font-semibold">{cutoverReadiness.stats.totalCalls}</span></div>
+              <div className="rounded-md bg-slate-50 p-2">Call-to-Job: <span className="font-semibold">{cutoverReadiness.stats.callToJobRate}%</span></div>
+              <div className="rounded-md bg-slate-50 p-2">Escalation: <span className="font-semibold">{cutoverReadiness.stats.escalationRate}%</span></div>
+            </div>
+
+            <div className="space-y-2">
+              {cutoverReadiness.checks.map((check) => (
+                <div key={check.id} className="border border-slate-100 rounded-md px-3 py-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-slate-800">{check.label}</span>
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full ${
+                        check.status === "pass"
+                          ? "bg-green-100 text-green-700"
+                          : check.status === "warn"
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-red-100 text-red-700"
+                      }`}
+                    >
+                      {check.status.toUpperCase()}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">{check.details}</p>
+                </div>
+              ))}
+            </div>
+
+            <p className="text-[11px] text-slate-400">
+              Generated: {new Date(cutoverReadiness.generatedAt).toLocaleString()}
+            </p>
+          </>
+        ) : (
+          <p className="text-sm text-slate-500">Run a readiness refresh to see go/no-go checks.</p>
+        )}
       </div>
 
       {/* Version History & Deployment Controls */}
