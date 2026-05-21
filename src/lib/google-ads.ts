@@ -486,7 +486,9 @@ export class GoogleAdsClient {
     operations: Record<string, unknown>[],
     options: { partialFailure?: boolean; validateOnly?: boolean } = {},
   ): Promise<T> {
-    const developerToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
+    // Prefer DB-stored developer token over env var so admin UI changes take effect immediately.
+    const cfg = await getGoogleAdsApiConfig().catch(() => null);
+    const developerToken = cfg?.developerToken || process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
     if (!developerToken) {
       throw new Error("GOOGLE_ADS_DEVELOPER_TOKEN not configured");
     }
