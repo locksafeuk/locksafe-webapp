@@ -62,6 +62,7 @@ async function runTouch(baseUrl: string, authHeader: string, payload: {
     headers: {
       "Content-Type": "application/json",
       authorization: authHeader,
+      "x-vercel-cron": "1",
     },
     body: JSON.stringify({
       mode: "sequence",
