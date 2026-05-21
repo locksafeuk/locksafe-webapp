@@ -360,7 +360,6 @@ model Job {
 
   // Source tracking (phone/web/app)
   createdVia         String  @default("web") // web, phone, app, retell_ai
-  blandCallId        String? // Bland.ai call ID for phone-initiated jobs
   retellCallId       String? // Retell AI call ID for voice-initiated jobs
   phoneCollectedData Json? // Data collected during phone call
   continueToken      String? // Token for continuing phone-initiated request (uniqueness enforced at application level)

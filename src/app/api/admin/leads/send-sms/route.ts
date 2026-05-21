@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import twilio from "twilio";
+import { buildTwilioSdkPayload, hasTwilioSenderConfigured } from "@/lib/twilio-sender";
 
 async function verifyAdmin() {
   const cookieStore = await cookies();
@@ -48,11 +49,10 @@ export async function POST(req: NextRequest) {
 
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
-  const fromNumber = process.env.TWILIO_PHONE_NUMBER;
 
-  if (!accountSid || !authToken || !fromNumber) {
+  if (!accountSid || !authToken || !hasTwilioSenderConfigured()) {
     return NextResponse.json(
-      { error: "Twilio not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER env vars." },
+      { error: "Twilio not configured. Set account credentials plus one sender config (TWILIO_MESSAGING_SERVICE_SID or TWILIO_ALPHANUMERIC_SENDER_ID or TWILIO_SMS_PHONE_NUMBER/TWILIO_PHONE_NUMBER)." },
       { status: 503 }
     );
   }
@@ -68,9 +68,7 @@ export async function POST(req: NextRequest) {
     }
     try {
       await client.messages.create({
-        body: buildSms(lead.name, lead.city),
-        from: fromNumber,
-        to: toE164(lead.phone),
+        ...buildTwilioSdkPayload(toE164(lead.phone), buildSms(lead.name, lead.city)),
       });
       await prisma.locksmithLead.update({
         where: { id: lead.id },
@@ -104,9 +102,7 @@ export async function POST(req: NextRequest) {
       }
       try {
         await client.messages.create({
-          body: buildSms(lead.name, lead.city),
-          from: fromNumber,
-          to: toE164(lead.phone),
+          ...buildTwilioSdkPayload(toE164(lead.phone), buildSms(lead.name, lead.city)),
         });
         await prisma.locksmithLead.update({
           where: { id: lead.id },

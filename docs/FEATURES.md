@@ -291,7 +291,7 @@ The primary customer interface:
 
 ### Phone (AI Voice Agent)
 
-24/7 emergency phone line powered by Bland.ai:
+24/7 emergency phone line powered by Retell AI:
 
 | Feature | Description |
 |---------|-------------|
@@ -479,7 +479,7 @@ Automated content creation and publishing:
 
 ## Automation & AI
 
-### AI Voice Agent (Bland.ai)
+### AI Voice Agent (Retell AI)
 
 24/7 phone handling:
 - Natural conversation

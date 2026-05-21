@@ -14,7 +14,7 @@
 | ✅ Twilio | **Live** | SMS & Voice numbers active |
 | ✅ Mapbox | **Live** | Maps & geocoding functional |
 | ✅ Retell AI | **Live** | Voice AI answering calls (canonical) |
-| ⚠️ Bland.ai | **Deprecated** | Legacy voice agent — retained for history only |
+| ⚠️ Retell AI | **Deprecated** | Legacy voice agent — retained for history only |
 | ✅ Telegram (Admin) | **Live** | Admin notifications active |
 | ✅ Telegram (Locksmith) | **Live** | Locksmith bot operational |
 | ✅ OpenAI | **Live** | GPT-4 for AI features |
@@ -95,23 +95,23 @@ cd locksafe-uk && npx prisma db push --dry-run
 | `TWILIO_SMS_PHONE_NUMBER` | ⚠️ Needs SMS-capable number |
 
 **Features Working**:
-- Voice number for Bland.ai
+- Voice number for Retell AI
 - SMS notifications (when SMS number configured)
 
 **To Complete**:
 1. Purchase SMS-capable UK number from Twilio
 2. Add to `TWILIO_SMS_PHONE_NUMBER`
 
-### Voice AI - Bland.ai ✅
+### Voice AI - Retell AI ✅
 
 **Status**: Operational
 
 | Key | Status |
 |-----|--------|
-| `BLAND_API_KEY` | ✅ Configured |
-| `BLAND_PATHWAY_ID` | ✅ 394c20f8-5330-4b90-99e3-cee95117fa4d |
-| `BLAND_WEBHOOK_SECRET` | ✅ Configured |
-| `BLAND_ENCRYPTED_KEY` | ✅ Twilio BYOT connected |
+| `RETELL_API_KEY` | ✅ Configured |
+| `RETELL_AGENT_ID` | ✅ 394c20f8-5330-4b90-99e3-cee95117fa4d |
+| `RETELL_WEBHOOK_SECRET` | ✅ Configured |
+| `RETELL_PHONE_NUMBER` | ✅ Configured |
 
 **Features Working**:
 - AI phone answering
@@ -121,11 +121,11 @@ cd locksafe-uk && npx prisma db push --dry-run
 - SMS/email follow-up
 
 **Endpoints**:
-- `/api/bland/webhook` - Main webhook handler
-- `/api/bland/check-user` - User lookup
-- `/api/bland/create-user` - Account creation
-- `/api/bland/create-job` - Job registration
-- `/api/bland/send-notification` - Send SMS/email
+- `/api/retell/webhook` - Main webhook handler
+- `/api/retell/check-user` - User lookup
+- `/api/retell/create-user` - Account creation
+- `/api/retell/create-job` - Job registration
+- `/api/retell/send-notification` - Send SMS/email
 
 ### Telegram Admin Bot ✅
 
@@ -343,7 +343,7 @@ Authorization: Bearer {CRON_SECRET}
 | `/api/webhooks/whatsapp` | Meta | WhatsApp messages | ✅ Verified |
 | `/api/webhooks/meta` | Meta | Ad events | ⏳ |
 | `/api/webhooks/resend` | Resend | Email events | ✅ |
-| `/api/bland/webhook` | Bland.ai | Voice call events | ✅ |
+| `/api/retell/webhook` | Retell AI | Voice call events | ✅ |
 | `/api/agent/telegram` | Telegram | Admin bot commands | ✅ |
 | `/api/locksmith/bot` | Telegram | Locksmith bot | ✅ |
 
@@ -397,8 +397,8 @@ TELEGRAM_CHAT_ID=                # ✅ Admin chat
 TWILIO_ACCOUNT_SID=              # ✅ Twilio
 TWILIO_AUTH_TOKEN=               # ✅ Twilio
 TWILIO_PHONE_NUMBER=             # ✅ Voice number
-BLAND_API_KEY=                   # ✅ Voice AI
-BLAND_PATHWAY_ID=                # ✅ Pathway
+RETELL_API_KEY=                   # ✅ Voice AI
+RETELL_AGENT_ID=                # ✅ Pathway
 ```
 
 ### WhatsApp (Pending)
@@ -426,7 +426,7 @@ NEXT_PUBLIC_GA_MEASUREMENT_ID=   # ⬚ Not set
 | [STRIPE_SETUP.md](./STRIPE_SETUP.md) | Payment configuration |
 | [TELEGRAM_SETUP.md](./TELEGRAM_SETUP.md) | Telegram bots |
 | [WHATSAPP_SETUP.md](./WHATSAPP_SETUP.md) | WhatsApp Business |
-| [BLAND_AI_SETUP.md](./BLAND_AI_SETUP.md) | Voice AI |
+| [RETELL_RETRAINING_RUNBOOK.md](./RETELL_RETRAINING_RUNBOOK.md) | Voice AI |
 | [CRON_JOBS_COMPLETE.md](./CRON_JOBS_COMPLETE.md) | Scheduled tasks |
 | [META_ADS_SETUP.md](./META_ADS_SETUP.md) | Meta Ads |
 | [PRODUCTION_SETUP_GUIDE.md](./PRODUCTION_SETUP_GUIDE.md) | Deployment |

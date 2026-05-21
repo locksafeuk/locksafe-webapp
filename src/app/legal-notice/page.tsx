@@ -181,7 +181,7 @@ export default function LegalNoticePage() {
                         { provider: "MongoDB Atlas (MongoDB Inc.)", purpose: "Database storage", location: "EU/USA (SCCs apply)" },
                         { provider: "Resend Inc.", purpose: "Transactional email", location: "USA (SCCs apply)" },
                         { provider: "Mapbox Inc.", purpose: "Mapping & geolocation", location: "USA (SCCs apply)" },
-                        { provider: "Bland AI", purpose: "AI voice phone system", location: "USA (SCCs apply)" },
+                        { provider: "Retell AI", purpose: "AI voice phone system", location: "USA (SCCs apply)" },
                         { provider: "Sentry Inc.", purpose: "Error monitoring", location: "USA (SCCs apply)" },
                       ].map((row, i) => (
                         <tr key={i} className="bg-white">

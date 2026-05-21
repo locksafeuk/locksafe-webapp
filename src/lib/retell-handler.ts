@@ -159,10 +159,10 @@ async function handleCallEnded(call: RetellCallData): Promise<{ success: boolean
     },
   });
 
-  // Update any linked job with call data (ported from Bland.ai webhook)
+  // Update any linked job with call data.
   try {
     const linkedJob = await prisma.job.findFirst({
-      where: { blandCallId: call.call_id },
+      where: { retellCallId: call.call_id },
     });
     if (linkedJob) {
       await prisma.job.update({
@@ -187,7 +187,7 @@ async function handleCallEnded(call: RetellCallData): Promise<{ success: boolean
     console.warn(`[Retell] Could not update linked job: ${jobUpdateError?.message}`);
   }
 
-  // Log analytics event (ported from Bland.ai webhook)
+  // Log analytics event.
   try {
     await prisma.analyticsEvent.create({
       data: {

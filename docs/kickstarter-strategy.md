@@ -258,7 +258,7 @@ PAYMENT PROCESSED → Locksmith paid
 │  - Payments (Stripe intents, webhooks, refunds)                     │
 │  - Notifications (real-time SSE, push, email, SMS)                  │
 │  - Admin (analytics, payouts, marketing)                            │
-│  - Bland AI (voice agent integration)                               │
+│  - Retell AI (voice agent integration)                               │
 └─────────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
@@ -279,7 +279,7 @@ PAYMENT PROCESSED → Locksmith paid
 │  - Stripe (payments + Connect for locksmith payouts)                │
 │  - Twilio (SMS notifications)                                       │
 │  - Resend (transactional email)                                     │
-│  - Bland.ai (AI voice agent - partially built)                      │
+│  - Retell AI (AI voice agent - partially built)                      │
 │  - Meta Marketing API (ad creation/sync)                            │
 │  - Telegram (admin notifications)                                   │
 │  - Nominatim/postcodes.io (geocoding)                              │
@@ -295,7 +295,7 @@ PAYMENT PROCESSED → Locksmith paid
 4. **GPS Anti-Fraud** — Captured at 7 touchpoints per job
 5. **PDF Generation** — Legal reports with timeline, photos, signature
 6. **Marketing Automation** — Full funnel tracking, behavior analytics
-7. **AI Foundation** — Bland.ai pathway defined, API endpoints built
+7. **AI Foundation** — Retell AI pathway defined, API endpoints built
 8. **Mobile-Ready** — PWA, responsive design, push notifications
 
 ### Missing Systems
@@ -413,7 +413,7 @@ PAYMENT PROCESSED → Locksmith paid
 
 **Primary Focus (60% of funds): AI Voice Emergency Agent**
 
-The Bland.ai integration is partially built. Completing it would:
+The Retell AI integration is partially built. Completing it would:
 - Enable 24/7 phone-based intake without human operators
 - Reduce customer friction (no web form required)
 - Create accessibility for elderly/non-tech users
@@ -553,7 +553,7 @@ The Bland.ai integration is partially built. Completing it would:
 
 ### Reasoning
 
-- **£25K Minimum**: Covers Bland.ai usage, Twilio costs, development time for 3 months
+- **£25K Minimum**: Covers Retell AI usage, Twilio costs, development time for 3 months
 - **£50K Ideal**: Adds £25K for paid marketing (Meta, Google) in London
 - **Higher Stretch**: Funds geographic expansion and mobile app
 
@@ -800,7 +800,7 @@ The Bland.ai integration is partially built. Completing it would:
 
 ### What the Voice Agent Does
 
-Based on existing Bland.ai pathway (`docs/bland-ai-pathway.json`):
+Based on existing Retell AI pathway:
 
 1. **Greeting & Safety Check**
    - Friendly, calm introduction
@@ -864,7 +864,7 @@ PHONE CALL → AI Voice Agent → Creates Job (PHONE_INITIATED status)
 ```
 1. INCOMING CALL
    └── Twilio UK number receives call
-       └── Forwards to Bland.ai pathway
+       └── Forwards to Retell AI pathway
 
 2. AI GREETING
    └── "Hello, you've reached LockSafe UK emergency locksmith service.
@@ -883,20 +883,20 @@ PHONE CALL → AI Voice Agent → Creates Job (PHONE_INITIATED status)
         your request. You can also use our website at locksafe.uk.
         Would you like the website address?"
 
-5. ACCOUNT CHECK (API: /api/bland/check-user)
+5. ACCOUNT CHECK (API: /api/retell/check-user)
    ├── Existing customer → "Welcome back, [Name]!"
    └── New customer → "I'll create an account for you."
 
-6. CREATE USER (API: /api/bland/create-user)
+6. CREATE USER (API: /api/retell/create-user)
    └── Returns customer_id
 
 7. COLLECT EMERGENCY DETAILS
    └── Problem type, property type, postcode, address
 
-8. CREATE JOB (API: /api/bland/create-job)
+8. CREATE JOB (API: /api/retell/create-job)
    └── Returns job_id, job_number, continue_url
 
-9. SEND NOTIFICATIONS (API: /api/bland/send-notification)
+9. SEND NOTIFICATIONS (API: /api/retell/send-notification)
    └── SMS + Email with continue link
 
 10. WRAP-UP
@@ -921,12 +921,12 @@ PHONE CALL → AI Voice Agent → Creates Job (PHONE_INITIATED status)
 ```
 ┌───────────────────────────────────────────────────────────────────┐
 │                      PHONE CALL ENTRY                             │
-│  Twilio UK Number (+44...) → Configured with Bland.ai BYOT       │
+│  Twilio UK Number (+44...) → Configured with Retell AI BYOT       │
 └───────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
 ┌───────────────────────────────────────────────────────────────────┐
-│                      BLAND.AI PLATFORM                            │
+│                      RETELL AI PLATFORM                            │
 │  Pathway: LockSafe Emergency Intake                               │
 │  - Voice: British English female                                  │
 │  - Model: claude-3.5-sonnet                                       │
@@ -940,25 +940,25 @@ PHONE CALL → AI Voice Agent → Creates Job (PHONE_INITIATED status)
 ┌───────────────────────────────────────────────────────────────────┐
 │                     LOCKSAFE API LAYER                            │
 │                                                                   │
-│  POST /api/bland/check-user                                       │
+│  POST /api/retell/check-user                                       │
 │  └── Check if email/phone exists in database                      │
 │  └── Return customer_id if exists, else exists=false              │
 │                                                                   │
-│  POST /api/bland/create-user                                      │
+│  POST /api/retell/create-user                                      │
 │  └── Create new customer account                                  │
 │  └── Return customer_id, customer_name                            │
 │                                                                   │
-│  POST /api/bland/create-job                                       │
+│  POST /api/retell/create-job                                       │
 │  └── Create job with status PHONE_INITIATED                       │
 │  └── Generate continue_token                                      │
 │  └── Return job_id, job_number, continue_url                      │
 │                                                                   │
-│  POST /api/bland/send-notification                                │
+│  POST /api/retell/send-notification                                │
 │  └── Send SMS via Twilio                                          │
 │  └── Send Email via Resend                                        │
 │  └── Includes continue_url link                                   │
 │                                                                   │
-│  POST /api/bland/webhook                                          │
+│  POST /api/retell/webhook                                          │
 │  └── Receive post-call data                                       │
 │  └── Log call transcripts and metadata                            │
 └───────────────────────────────────────────────────────────────────┘
@@ -973,7 +973,7 @@ PHONE CALL → AI Voice Agent → Creates Job (PHONE_INITIATED status)
 │  Job                                                              │
 │  └── status: PHONE_INITIATED                                      │
 │  └── createdVia: "phone"                                          │
-│  └── blandCallId: "call_xxx"                                      │
+│  └── retellCallId: "call_xxx"                                      │
 │  └── continueToken: "abc123..."                                   │
 │  └── phoneCollectedData: { ... }                                  │
 └───────────────────────────────────────────────────────────────────┘
@@ -996,14 +996,14 @@ PHONE CALL → AI Voice Agent → Creates Job (PHONE_INITIATED status)
 
 **Existing (Already Built):**
 - Twilio account and UK number
-- Bland.ai account with API key
+- Retell AI account with API key
 - All 4 API endpoints implemented
 - Continue request page
 - SMS and email sending
 
 **Needed to Complete:**
-- Bland.ai pathway upload and configuration
-- Twilio-to-Bland.ai BYOT connection
+- Retell AI pathway upload and configuration
+- Twilio-to-Retell AI BYOT connection
 - Pathway testing and refinement
 - Webhook logging and monitoring
 - Error handling improvements
@@ -1085,7 +1085,7 @@ PHONE CALL → AI Voice Agent → Creates Job (PHONE_INITIATED status)
 |------|-----------|
 | 1 | Pathway refinement and testing |
 | 2 | API endpoint hardening |
-| 3 | Twilio-Bland.ai BYOT setup |
+| 3 | Twilio-Retell AI BYOT setup |
 | 4 | End-to-end integration testing |
 | 5 | Edge case handling |
 | 6 | Soft launch (limited hours) |
@@ -1132,7 +1132,7 @@ PHONE CALL → AI Voice Agent → Creates Job (PHONE_INITIATED status)
 - Show real transcript examples
 - Explain handoff to humans when needed
 - Emphasize it's "intake only" not "autonomous dispatch"
-- Reference Bland.ai's enterprise credentials
+- Reference Retell AI's enterprise credentials
 
 ---
 
@@ -1397,7 +1397,7 @@ PHONE CALL → AI Voice Agent → Creates Job (PHONE_INITIATED status)
    - At minimum: 3-5 written quotes
 
 2. **Complete AI Pathway**
-   - Upload and test Bland.ai pathway
+   - Upload and test Retell AI pathway
    - Configure Twilio BYOT
    - End-to-end testing
 

@@ -45,7 +45,7 @@ LockSafe UK is a **full-stack emergency locksmith marketplace platform** built w
 │                           CUSTOMER CHANNELS                              │
 ├─────────────┬─────────────┬─────────────┬─────────────┬─────────────────┤
 │    Web      │   Phone     │  WhatsApp   │    SMS      │     Email       │
-│ locksafe.uk │  Bland.ai   │  Meta API   │   Twilio    │    Resend       │
+│ locksafe.uk │  Retell AI   │  Meta API   │   Twilio    │    Resend       │
 └──────┬──────┴──────┬──────┴──────┬──────┴──────┬──────┴────────┬────────┘
        │             │             │             │               │
        └─────────────┴─────────────┴─────────────┴───────────────┘
@@ -76,7 +76,7 @@ LockSafe UK is a **full-stack emergency locksmith marketplace platform** built w
 │  Web Dashboard  │     │  Web Dashboard      │     │  Stripe Connect     │
 │  Telegram Bot   │     │  Telegram Bot       │     │  Twilio Voice/SMS   │
 │  SMS Alerts     │     │  Email Campaigns    │     │  Resend Email       │
-│  Email Notifs   │     │  AI Ad Management   │     │  Bland.ai           │
+│  Email Notifs   │     │  AI Ad Management   │     │  Retell AI           │
 └─────────────────┘     │  Organic Social     │     │  Meta Ads API       │
                         └─────────────────────┘     │  Mapbox             │
                                                     │  OpenAI             │
@@ -97,7 +97,7 @@ locksafe-uk/
 │   │   │   ├── admin/             # Admin dashboard APIs
 │   │   │   ├── agent/             # AI Agent APIs (Telegram bot, NLP)
 │   │   │   ├── auth/              # Authentication
-│   │   │   ├── bland/             # Bland.ai voice integration
+│   │   │   ├── bland/             # Retell AI voice integration
 │   │   │   ├── cron/              # Scheduled jobs
 │   │   │   ├── customer/          # Customer APIs
 │   │   │   ├── jobs/              # Job management
@@ -321,7 +321,7 @@ Real-time operations via @Locksafeukbot:
 | `/api/webhooks/resend` | POST | Resend | Email delivery events |
 | `/api/agent/telegram` | GET/POST | Telegram | Admin bot commands |
 | `/api/locksmith/bot` | GET/POST | Telegram | Locksmith bot |
-| `/api/bland/webhook` | POST | Bland.ai | Voice call events |
+| `/api/retell/webhook` | POST | Retell AI | Voice call events |
 
 ### Cron Jobs
 
@@ -372,8 +372,8 @@ TELEGRAM_CHAT_ID      # Admin chat
 TWILIO_ACCOUNT_SID    # Twilio
 TWILIO_AUTH_TOKEN     # Twilio
 TWILIO_PHONE_NUMBER   # Voice number
-BLAND_API_KEY         # Voice AI
-BLAND_PATHWAY_ID      # Pathway
+RETELL_API_KEY         # Voice AI
+RETELL_AGENT_ID      # Pathway
 WHATSAPP_*            # WhatsApp Business
 ```
 
@@ -470,7 +470,7 @@ bun run dev
 - [STRIPE_SETUP.md](./STRIPE_SETUP.md) - Payment configuration
 - [TELEGRAM_SETUP.md](./TELEGRAM_SETUP.md) - Telegram bot setup
 - [WHATSAPP_SETUP.md](./WHATSAPP_SETUP.md) - WhatsApp Business setup
-- [BLAND_AI_SETUP.md](./BLAND_AI_SETUP.md) - Voice AI setup
+- [RETELL_RETRAINING_RUNBOOK.md](./RETELL_RETRAINING_RUNBOOK.md) - Voice AI setup
 - [API_REFERENCE.md](./API_REFERENCE.md) - Complete API docs
 
 ---

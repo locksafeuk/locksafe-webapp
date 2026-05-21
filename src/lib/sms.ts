@@ -14,6 +14,9 @@
 // TYPES
 // ============================================
 
+import { normalizePhoneNumber } from "@/lib/phone";
+import { buildTwilioApiPayload, hasTwilioSenderConfigured } from "@/lib/twilio-sender";
+
 export interface SMSResult {
   success: boolean;
   messageId?: string;
@@ -130,7 +133,7 @@ export const SMS_TEMPLATES = {
     `LockSafe: You received a new review from ${ctx.customerName}! Check it: ${getBaseUrl()}/locksmith/dashboard`,
 
   // ==========================================
-  // PHONE BOOKING (BLAND.AI)
+  // PHONE BOOKING (RETELL AI)
   // ==========================================
 
   // Continue request link (from phone call)
@@ -174,13 +177,8 @@ function getTwilioCredentials() {
   return {
     accountSid: process.env.TWILIO_ACCOUNT_SID,
     authToken: process.env.TWILIO_AUTH_TOKEN,
-    // Use SMS-specific number if available, otherwise fall back to main number
-    phoneNumber:
-      process.env.TWILIO_SMS_PHONE_NUMBER || process.env.TWILIO_PHONE_NUMBER,
   };
 }
-
-import { normalizePhoneNumber } from "@/lib/phone";
 
 // ============================================
 // CORE SMS FUNCTION
@@ -194,10 +192,10 @@ export async function sendSMS(
   message: string,
   options?: { logContext?: string },
 ): Promise<SMSResult> {
-  const { accountSid, authToken, phoneNumber } = getTwilioCredentials();
+  const { accountSid, authToken } = getTwilioCredentials();
 
   // Check if Twilio is configured
-  if (!accountSid || !authToken || !phoneNumber) {
+  if (!accountSid || !authToken || !hasTwilioSenderConfigured()) {
     console.warn("[SMS] Twilio not configured - SMS not sent");
     console.warn("[SMS] Would have sent:", {
       to,
@@ -228,11 +226,7 @@ export async function sendSMS(
           "Content-Type": "application/x-www-form-urlencoded",
           Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString("base64")}`,
         },
-        body: new URLSearchParams({
-          To: normalizedTo,
-          From: phoneNumber,
-          Body: message,
-        }),
+        body: new URLSearchParams(buildTwilioApiPayload(normalizedTo, message)),
       },
     );
 

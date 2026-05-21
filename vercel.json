@@ -8,31 +8,5 @@
     "app/api/**/*.ts": {
       "maxDuration": 300
     }
-  },
-  "crons": [
-    { "path": "/api/agents/heartbeat",                "schedule": "*/5 * * * *"     },
-    { "path": "/api/cron/generate-organic",           "schedule": "0 5 * * *"       },
-    { "path": "/api/cron/publish-organic",            "schedule": "0 15 * * *"      },
-    { "path": "/api/cron/cmo-autonomous",             "schedule": "0 */6 * * *"     },
-    { "path": "/api/cron/sync-meta-performance",      "schedule": "30 */6 * * *"    },
-    { "path": "/api/cron/agents-weekly-report",       "schedule": "0 9 * * 1"       },
-    { "path": "/api/cron/daily-reliability",         "schedule": "0 7 * * *"       },
-    { "path": "/api/cron/reset-agent-budgets",        "schedule": "5 0 1 * *"       },
-    { "path": "/api/cron/morning-briefing",           "schedule": "0 8 * * *"       },
-    { "path": "/api/cron/dispatch-scheduled-jobs",    "schedule": "*/5 * * * *"     },
-    { "path": "/api/cron/auto-redispatch",            "schedule": "*/10 * * * *"    },
-    { "path": "/api/cron/sla-monitor",                "schedule": "*/15 * * * *"    },
-    { "path": "/api/cron/performance-scores",         "schedule": "0 2 * * *"       },
-    { "path": "/api/cron/review-requests",            "schedule": "0 10 * * *"      },
-    { "path": "/api/cron/insurance-reminders",        "schedule": "0 9 * * 1"       },
-    { "path": "/api/cron/signature-reminders",        "schedule": "0 11 * * *"      },
-    { "path": "/api/cron/win-back",                   "schedule": "0 14 * * 1"      },
-    { "path": "/api/cron/lead-outreach-sequence",     "schedule": "*/30 * * * *"    },
-    { "path": "/api/cron/onboarding-nudge",           "schedule": "0 10 * * *"      },
-    { "path": "/api/cron/cleanup-blacklisted-tokens", "schedule": "0 3 * * *"       },
-    { "path": "/api/cron/advance-auctions",           "schedule": "*/5 * * * *"     },
-    { "path": "/api/cron/generate-invoices",          "schedule": "0 1 1 * *"       },
-    { "path": "/api/cron/generate-images",          "schedule": "0 7 * * *"       },
-    { "path": "/api/cron/voice-dataset-incremental", "schedule": "15 */6 * * *"    }
-  ]
+  }
 }

@@ -2,7 +2,7 @@
  * Customer Service - Shared business logic for customer operations
  *
  * Used by:
- * - Bland AI voice calls
+ * - Retell AI voice calls
  * - WhatsApp conversations
  * - Website registration
  * - API endpoints
@@ -20,7 +20,7 @@ export interface CheckOrCreateCustomerInput {
   email: string;
   phone: string;
   name: string;
-  source?: "website" | "bland_ai" | "retell_ai" | "whatsapp" | "api";
+  source?: "website" | "retell_ai" | "whatsapp" | "api";
 }
 
 export interface CheckOrCreateCustomerResult {
@@ -43,8 +43,8 @@ export interface CreateJobInput {
   propertyType: string;
   description?: string;
   isUrgent?: boolean;
-  source?: "website" | "bland_ai" | "retell_ai" | "whatsapp" | "api";
-  sourceCallId?: string; // Bland/Retell call ID or WhatsApp message ID
+  source?: "website" | "retell_ai" | "whatsapp" | "api";
+  sourceCallId?: string; // Retell call ID or WhatsApp message ID
 }
 
 export interface CreateJobResult {
@@ -114,7 +114,7 @@ export async function checkOrCreateCustomer(
         resetToken: passwordResetToken,
         resetTokenExpiry: tokenExpiry,
         // Track source
-        createdVia: source === "whatsapp" ? "app" : (source === "bland_ai" || source === "retell_ai") ? "phone" : "web",
+        createdVia: source === "whatsapp" ? "app" : source === "retell_ai" ? "phone" : "web",
       },
     });
 
@@ -251,7 +251,7 @@ export async function createJob(input: CreateJobInput): Promise<CreateJobResult>
   const continueUrl = `${siteUrl}/continue-request/${continueToken}`;
 
   // Determine source for tracking
-  const createdVia = source === "whatsapp" ? "app" : (source === "bland_ai" || source === "retell_ai") ? "phone" : "web";
+  const createdVia = source === "whatsapp" ? "app" : source === "retell_ai" ? "phone" : "web";
 
   // Create the job with continue token
   const job = await prisma.job.create({
@@ -268,7 +268,7 @@ export async function createJob(input: CreateJobInput): Promise<CreateJobResult>
       createdVia,
       continueToken,
       // Track source call ID if provided
-      ...(sourceCallId && { blandCallId: sourceCallId }),
+      ...(sourceCallId && { retellCallId: sourceCallId }),
     },
   });
 

@@ -37,7 +37,7 @@ LockSafe UK is a **full-stack emergency locksmith marketplace** connecting:
 | Function | Technology |
 |----------|------------|
 | Customer Acquisition | Meta Ads, Google Ads, SEO, Organic Social |
-| Phone Intake | Retell AI Voice Agent (Bland.ai legacy, deprecated) |
+| Phone Intake | Retell AI Voice Agent (Retell AI legacy, deprecated) |
 | Job Matching | Intelligent Dispatch Algorithm |
 | Payments | Stripe Connect (instant payouts) |
 | Documentation | GPS, Photos, Digital Signatures, PDF Reports |
@@ -104,7 +104,7 @@ LockSafe UK is a **full-stack emergency locksmith marketplace** connecting:
 | **Resend** | Transactional & campaign emails | ✅ Live |
 | **Mapbox** | Maps, geocoding, location services | ✅ Live |
 | **Retell AI** | AI voice agent for phone calls (canonical) | ✅ Live |
-| **Bland.ai** | _Deprecated_ — historical voice agent | ⚠️ Retired |
+| **Retell AI** | _Deprecated_ — historical voice agent | ⚠️ Retired |
 | **Telegram** | Admin & locksmith bot operations | ✅ Live |
 | **WhatsApp** | Customer support & notifications | ⏳ Pending |
 | **Meta Marketing API** | Facebook/Instagram ad management | ⏳ Pending |
@@ -152,7 +152,7 @@ Customers can request a locksmith through **three channels**:
 │                    PHONE JOURNEY                            │
 ├─────────────────────────────────────────────────────────────┤
 │  1. Customer calls emergency number                         │
-│  2. Bland.ai voice agent answers                            │
+│  2. Retell AI voice agent answers                            │
 │  3. AI checks if customer is safe                           │
 │  4. Collects: name, phone, email, postcode, problem         │
 │  5. Creates account (if new customer)                       │
@@ -302,7 +302,7 @@ LockSafe uses a **tiered commission model** that reflects the value provided at 
 - Platform infrastructure & maintenance
 - SMS notifications (Twilio)
 - Email notifications (Resend)
-- AI phone agent (Bland.ai)
+- AI phone agent (Retell AI)
 - Anti-fraud systems (GPS, photos, signatures)
 - PDF report generation & storage
 - Customer support
@@ -425,7 +425,7 @@ Auto-generated legal document containing:
 
 ## AI & Automation
 
-### Bland.ai Voice Agent
+### Retell AI Voice Agent
 
 24/7 AI phone agent for emergency calls:
 
@@ -535,7 +535,7 @@ LockSafe UK operates across multiple channels for maximum accessibility:
 | Channel | Technology | Status | Use Case |
 |---------|------------|--------|----------|
 | **Web** | Next.js | ✅ Live | Primary booking interface |
-| **Phone** | Bland.ai + Twilio | ✅ Live | 24/7 emergency calls |
+| **Phone** | Retell AI + Twilio | ✅ Live | 24/7 emergency calls |
 | **WhatsApp** | Meta Cloud API | ⏳ Pending | Support & updates |
 | **SMS** | Twilio | ✅ Live | Critical notifications |
 | **Email** | Resend | ✅ Live | Confirmations & reports |
@@ -748,7 +748,7 @@ Customer support and job updates via WhatsApp:
 | Resource | Location |
 |----------|----------|
 | Cron Setup | [CRON_SETUP.md](./CRON_SETUP.md) |
-| Bland.ai Setup | [BLAND_AI_SETUP.md](./BLAND_AI_SETUP.md) |
+| Retell AI Setup | [RETELL_RETRAINING_RUNBOOK.md](./RETELL_RETRAINING_RUNBOOK.md) |
 | OpenClaw Setup | [OPENCLAW_SETUP.md](./OPENCLAW_SETUP.md) |
 | Meta Ads | [META_ADS_SETUP.md](./META_ADS_SETUP.md) |
 | Google Ads | [GOOGLE_ADS_SETUP.md](./GOOGLE_ADS_SETUP.md) |
@@ -769,7 +769,7 @@ Customer support and job updates via WhatsApp:
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        CUSTOMERS                                │
-│  Web (locksafe.uk) │ Phone (Bland.ai) │ Dashboard               │
+│  Web (locksafe.uk) │ Phone (Retell AI) │ Dashboard               │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -796,7 +796,7 @@ Customer support and job updates via WhatsApp:
 │  Dashboard      │ │  Web Dashboard  │ │  Stripe Connect │
 │  Mobile Web     │ │  Telegram Bot   │ │  Twilio SMS     │
 │  Notifications  │ │  Agent APIs     │ │  Resend Email   │
-└─────────────────┘ └─────────────────┘ │  Bland.ai       │
+└─────────────────┘ └─────────────────┘ │  Retell AI       │
                                         │  Meta Ads       │
                                         │  Google Ads     │
                                         │  Mapbox         │
@@ -848,7 +848,7 @@ Customer support and job updates via WhatsApp:
 | `/api/webhooks/stripe` | Stripe | Payment events |
 | `/api/webhooks/resend` | Resend | Email events |
 | `/api/webhooks/meta` | Meta | Ad events |
-| `/api/bland/webhook` | Bland.ai | Call events |
+| `/api/retell/webhook` | Retell AI | Call events |
 
 ---
 
@@ -868,4 +868,4 @@ Customer support and job updates via WhatsApp:
 - [INTEGRATION_CHECKLIST.md](./INTEGRATION_CHECKLIST.md) - Integration status
 - [WHATSAPP_SETUP.md](./WHATSAPP_SETUP.md) - WhatsApp Business API
 - [TELEGRAM_SETUP.md](./TELEGRAM_SETUP.md) - Telegram bot setup
-- [BLAND_AI_SETUP.md](./BLAND_AI_SETUP.md) - Voice AI setup
+- [RETELL_RETRAINING_RUNBOOK.md](./RETELL_RETRAINING_RUNBOOK.md) - Voice AI setup

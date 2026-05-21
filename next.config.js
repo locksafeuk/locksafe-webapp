@@ -35,7 +35,7 @@ const nextConfig = {
   },
   // Long-term cache static chunks and immutable assets, plus a security
   // header baseline including a Content-Security-Policy that allow-lists
-  // GTM, GA, Google Ads, Bing UET, Meta Pixel, OneSignal, Sentry, Mapbox
+  // GTM, GA, Google Ads, Bing UET, Meta Pixel, Sentry, Mapbox
   // and Stripe — everything we currently load from third parties.
   async headers() {
     // NOTE: 'unsafe-inline' is required by GTM (injects inline scripts) and

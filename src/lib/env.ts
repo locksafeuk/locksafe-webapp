@@ -92,18 +92,9 @@ const envSchema = z.object({
   META_PIXEL_TEST_CODE: z.string().optional(),
   META_WEBHOOK_VERIFY_TOKEN: z.string().optional(),
 
-  // OneSignal push notifications (currently unused at runtime — placeholder)
-  ONESIGNAL_APP_ID: z.string().optional(),
-  ONESIGNAL_REST_API_KEY: z.string().optional(),
-  NEXT_PUBLIC_ONESIGNAL_APP_ID: z.string().optional(),
-
   // Mapbox
   NEXT_PUBLIC_MAPBOX_TOKEN: z.string().startsWith("pk.").optional(),
   MAPBOX_SECRET_TOKEN: z.string().startsWith("sk.").optional(),
-
-  // Bland AI voice
-  BLAND_API_KEY: z.string().optional(),
-  BLAND_WEBHOOK_SECRET: z.string().optional(),
 
   // Local LLM (Ollama) — optional override for self-hosted Hermes endpoint
   OLLAMA_BASE_URL: z.string().url().optional(),

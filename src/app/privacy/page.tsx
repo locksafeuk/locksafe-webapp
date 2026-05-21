@@ -478,7 +478,7 @@ export default function PrivacyPage() {
                       { name: "Resend", desc: "For sending transactional emails" },
                       { name: "Vercel", desc: "For hosting our web services (servers in the USA — protected by Standard Contractual Clauses)" },
                       { name: "MongoDB Atlas", desc: "For database storage (AWS infrastructure; EU region preferred where available)" },
-                      { name: "Bland.ai", desc: "For automated AI-assisted phone intake — voice call audio and transcript data may be processed. US-based provider; protected by Standard Contractual Clauses." },
+                      { name: "Retell AI", desc: "For automated AI-assisted phone intake — voice call audio and transcript data may be processed. US-based provider; protected by Standard Contractual Clauses." },
                       { name: "Sentry", desc: "For application error monitoring. May receive anonymised error context including URL and browser type. Privacy policy: sentry.io/privacy" },
                       { name: "Legal Authorities", desc: "If required by law, court order, or to protect the rights and safety of LockSafe UK or its users" },
                     ].map((item, i) => (
@@ -709,7 +709,7 @@ export default function PrivacyPage() {
                     LockSafe uses an automated algorithm to match and dispatch locksmiths to jobs. This algorithm considers factors including distance, availability, rating, and response history. It does not produce a legal or similarly significant effect on any individual — locksmiths can still accept or decline jobs, and customers can choose from multiple presented options.
                   </p>
 
-                  <h3>AI Voice Processing (Bland.ai)</h3>
+                  <h3>AI Voice Processing (Retell AI)</h3>
                   <p>
                     If you call our phone line, your call may be handled by an AI voice system. The system may transcribe and analyse speech to extract job details (address, problem type, urgency). No automated legal decisions are made based solely on voice call content. You may request to speak to a human at any point.
                   </p>

@@ -60,7 +60,7 @@ Previously, when an admin assigned a locksmith to a job, the job was immediately
 - Pre-populates assessment fee from locksmith profile
 - Sends SMS to locksmith
 - Sends email to locksmith via `sendLocksmithAssignmentEmail()`
-- Sends push notification via OneSignal
+- Sends push notification
 - Creates in-app notification
 
 #### 4. Locksmith Applications Endpoint
@@ -192,7 +192,7 @@ Pre-populated from `locksmith.defaultAssessmentFee` when admin assigns the job.
 #### Locksmith Receives:
 1. **SMS** - Job details + link to respond
 2. **Email** - Full job details with action required banner
-3. **Push** - OneSignal notification (if enabled)
+3. **Push** - Push notification (if enabled)
 4. **In-App** - Dashboard notification with accept/decline UI
 
 ### When Locksmith Accepts
@@ -200,7 +200,7 @@ Pre-populated from `locksmith.defaultAssessmentFee` when admin assigns the job.
 #### Customer Receives:
 1. **SMS** - Locksmith assigned + payment link
 2. **Email** - Booking details with "Pay Assessment Fee" button
-3. **Push** - OneSignal notification
+3. **Push** - Push notification
 4. **In-App** - Notification with payment link
 
 ### When Locksmith Declines

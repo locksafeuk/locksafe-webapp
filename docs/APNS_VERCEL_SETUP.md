@@ -66,7 +66,7 @@ If you want native Android push as well, you'll need to set up Firebase and add:
 - `FCM_PROJECT_ID` — from Firebase Console → Project Settings
 - `FCM_SERVICE_ACCOUNT_JSON` — Service account JSON (from Firebase Console → Project Settings → Service Accounts → Generate New Private Key)
 
-Android push is not required now — the OneSignal fallback still handles Android notifications.
+Android push is not required now — the native push stack fallback still handles Android notifications.
 
 ---
 

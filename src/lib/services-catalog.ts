@@ -429,7 +429,7 @@ export function mapJobProblemTypeToCatalogId(
   if (isServiceSlug(key)) return key;
 
   // Known legacy aliases — keep this list close to the values seen in the
-  // job intake form, Bland AI pathway, and Prisma `Job.problemType`.
+  // job intake form, Retell AI pathway, and Prisma `Job.problemType`.
   const aliases: Record<string, ServiceSlug> = {
     // legacy / intake values
     lockout: "locked-out",

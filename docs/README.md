@@ -131,9 +131,6 @@ LockSafe UK is a **full-stack emergency locksmith marketplace** that connects:
 | [RETELL_RETRAINING_RUNBOOK.md](./RETELL_RETRAINING_RUNBOOK.md) | Retell training/eval/deploy runbook (canonical voice runbook) |
 | [VOICE_AI_QUICK_REFERENCE.md](./VOICE_AI_QUICK_REFERENCE.md) | Retell-first voice AI quick reference |
 | [ZADARMA_PHONE_SETUP.md](./ZADARMA_PHONE_SETUP.md) | Retell number/SIP routing setup |
-| [BLAND_AI_SETUP.md](./BLAND_AI_SETUP.md) | _Deprecated_ — superseded by Retell runbook |
-| [BLAND_PATHWAY_MANUAL_SETUP.md](./BLAND_PATHWAY_MANUAL_SETUP.md) | _Deprecated_ — Bland.ai pathway (historical) |
-| [BLAND_WEBHOOK_AUTH.md](./BLAND_WEBHOOK_AUTH.md) | _Deprecated_ — Bland.ai webhook auth (historical) |
 
 ### Payment & Finance
 

@@ -109,7 +109,7 @@ LockSafe UK is a **two-sided marketplace** connecting customers with verified lo
 
 | Integration | Purpose | Status |
 |-------------|---------|--------|
-| **Bland.ai** | AI phone agent for emergency calls | Active |
+| **Retell AI** | AI phone agent for emergency calls | Active |
 | **Stripe** | Payment processing & Connect payouts | Active |
 | **Stripe Connect** | Direct locksmith payouts | Active |
 | **Twilio** | SMS notifications | Active |
@@ -692,9 +692,9 @@ OpenClaw presents a **significant opportunity** to enhance LockSafe UK's operati
 
 ---
 
-## Appendix: OpenClaw vs Bland.ai Comparison
+## Appendix: OpenClaw vs Retell AI Comparison
 
-| Aspect | OpenClaw | Bland.ai (Current) |
+| Aspect | OpenClaw | Retell AI (Current) |
 |--------|----------|-------------------|
 | **Primary Use** | Text-based task automation | Voice conversations |
 | **Input Method** | Telegram/WhatsApp text | Phone call |
@@ -703,7 +703,7 @@ OpenClaw presents a **significant opportunity** to enhance LockSafe UK's operati
 | **Pricing** | Self-hosted (LLM API costs) | Per-minute voice charges |
 | **Overlap** | Can handle text inquiries | Handles phone inquiries |
 
-**Recommendation:** Use BOTH - OpenClaw for text-based automation, Bland.ai for voice calls.
+**Recommendation:** Use BOTH - OpenClaw for text-based automation, Retell AI for voice calls.
 
 ---
 

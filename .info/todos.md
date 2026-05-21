@@ -130,30 +130,14 @@ Complete customer onboarding (set password, confirm address).
 - `sendCustomerOnboardingEmail` - Sent to new customers with onboarding link
 - `sendOnboardingCompleteEmail` - Sent after customer completes onboarding
 
-## OneSignal Integration Tasks (Previous)
+## Push Notification Tasks (Previous)
 
 ### Completed
 - [x] Analyzed existing push notification setup
-- [x] Update Prisma schema with OneSignal player IDs
-- [x] Create OneSignal server-side library (`src/lib/onesignal.ts`)
-- [x] Create OneSignal service worker (`public/OneSignalSDKWorker.js`)
-- [x] Create useOneSignal hook (`src/hooks/useOneSignal.ts`)
-- [x] Create OneSignal provider component
-- [x] Update PushNotificationBanner to use OneSignal
-- [x] Add API routes for OneSignal subscription
-- [x] Integrate with job notification system
-- [x] Add push notifications to job status changes
-- [x] Add push notifications to quote events
-- [x] Add push notifications to application acceptance
-- [x] Set up notification segments configuration
-- [x] Create comprehensive setup guide
-
-## Environment Variables Required
-```env
-NEXT_PUBLIC_ONESIGNAL_APP_ID=your-onesignal-app-id
-ONESIGNAL_REST_API_KEY=your-rest-api-key
-NEXT_PUBLIC_ONESIGNAL_SAFARI_WEB_ID=web.onesignal.auto.xxxxx
-```
+- [x] Integrated push notifications with job lifecycle updates
+- [x] Added push notifications to quote and assignment events
+- [x] Added notification segment/config handling
+- [x] Created setup guide for push notification delivery
 
 ## Push Notification Events Now Active
 1. **EN_ROUTE** - Customer notified when locksmith starts traveling

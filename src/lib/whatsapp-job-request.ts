@@ -1,7 +1,7 @@
 /**
  * WhatsApp Job Request Flow for LockSafe UK
  *
- * Mirrors the Bland AI voice pathway for job creation:
+ * Mirrors the Retell AI voice pathway for job creation:
  * 1. Collect customer info (name, phone, email)
  * 2. Check/create account
  * 3. Collect address and service details

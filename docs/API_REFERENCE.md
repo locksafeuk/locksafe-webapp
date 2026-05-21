@@ -29,7 +29,7 @@ Webhooks use signature verification:
 - **Stripe**: `stripe-signature` header
 - **Telegram**: Authorized chat ID verification
 - **WhatsApp**: `hub.verify_token` verification
-- **Bland.ai**: `X-Bland-Webhook-Secret` header
+- **Retell AI**: `X-Retell-Signature` header
 
 ---
 
@@ -388,10 +388,10 @@ GET /api/locksmith/bot?setup=true
 POST /api/locksmith/bot
 ```
 
-### Bland.ai Voice Webhook
+### Retell AI Voice Webhook
 ```http
-POST /api/bland/webhook
-X-Bland-Webhook-Secret: <secret>
+POST /api/retell/webhook
+X-Retell-Signature: <secret>
 ```
 
 ---

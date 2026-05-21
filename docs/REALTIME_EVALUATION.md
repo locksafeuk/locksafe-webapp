@@ -119,4 +119,4 @@ At current volume (≈ 30 active locksmiths peak, ≈ 60k msgs/day inc. GPS):
   state problems as SSE, no managed durability.
 - Self-hosted NATS / Redis pub/sub on Fly.io: rejected for now — adds infra
   surface area for a problem two managed vendors already solve cheaply.
-- Pusher Beams (mobile push): orthogonal — we use OneSignal for that.
+- Pusher Beams (mobile push): orthogonal — we use native push stack for that.
