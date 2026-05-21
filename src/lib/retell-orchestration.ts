@@ -7,6 +7,12 @@ type PublishResult = {
   message?: string;
 };
 
+function normalizeSpeakingRate(value: number) {
+  if (!Number.isFinite(value)) return 0.96;
+  const clamped = Math.min(1.1, Math.max(0.85, value));
+  return +clamped.toFixed(2);
+}
+
 async function syncVersionToRetell(params: {
   agentId: string;
   llmId?: string | null;
@@ -45,7 +51,7 @@ async function syncVersionToRetell(params: {
     const updatedAgent = await client.agent.update(params.agentId, {
       language: params.language as any,
       voice_id: params.voiceId ?? undefined,
-      voice_speed: params.speakingRate,
+      voice_speed: normalizeSpeakingRate(params.speakingRate),
     } as any);
 
     const providerVersionId =

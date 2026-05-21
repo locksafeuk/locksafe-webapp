@@ -5,6 +5,12 @@ import { prisma } from "@/lib/db";
 import { isAdminAuthenticated } from "@/lib/auth";
 import { generateVoiceAgentPrompt } from "@/lib/retell-handler";
 
+function normalizeSpeakingRate(value: unknown, fallback = 0.96) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+  const clamped = Math.min(1.1, Math.max(0.85, value));
+  return +clamped.toFixed(2);
+}
+
 export async function GET() {
   try {
     const admin = await isAdminAuthenticated();
@@ -23,6 +29,7 @@ export async function GET() {
           greetingMessage: "Hello, thank you for calling LockSafe UK. I'm Sarah, your AI receptionist. How can I help you today?",
           fallbackMessage: "I'm sorry, I didn't quite catch that. Could you please repeat?",
           language: "en-GB",
+          speakingRate: 0.96,
           businessHoursStart: "00:00",
           businessHoursEnd: "23:59",
         },
@@ -65,6 +72,13 @@ export async function PUT(request: NextRequest) {
       if (body?.[field] !== undefined) {
         updateData[field] = body[field];
       }
+    }
+
+    if (body?.speakingRate !== undefined) {
+      updateData.speakingRate = normalizeSpeakingRate(
+        body.speakingRate,
+        normalizeSpeakingRate(config?.speakingRate, 0.96)
+      );
     }
 
     if (config) {

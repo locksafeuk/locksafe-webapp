@@ -283,6 +283,7 @@ export async function POST(request: NextRequest) {
         success: true,
         job_id: result.job.id,
         job_number: result.job.jobNumber,
+        continue_url: result.job.continueUrl,
         job_status: result.job.status,
         customer_id: result.customer?.id,
         customer_name: result.customer?.name,

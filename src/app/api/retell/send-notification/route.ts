@@ -1,6 +1,9 @@
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+export const preferredRegion = ["lhr1"];
 
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import prisma from "@/lib/db";
 import { sendPhoneRequestContinuationEmail } from "@/lib/email";
 import { verifyRetellSignature } from "@/lib/retell-auth";
@@ -13,8 +16,51 @@ const CORS_HEADERS = {
     "Content-Type, Authorization, x-retell-signature",
 };
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`Timeout after ${timeoutMs}ms`)), timeoutMs);
+    promise
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+  });
+}
+
 export async function OPTIONS() {
   return new NextResponse(null, { status: 200, headers: CORS_HEADERS });
+}
+
+async function ensureContinueUrl(params: {
+  jobId?: string;
+  providedContinueUrl?: string;
+  baseUrl: string;
+}) {
+  if (params.providedContinueUrl) return params.providedContinueUrl;
+  if (!params.jobId) return undefined;
+
+  const job = await prisma.job.findUnique({
+    where: { id: params.jobId },
+    select: { id: true, continueToken: true },
+  });
+
+  if (!job) return undefined;
+
+  if (job.continueToken) {
+    return `${params.baseUrl}/continue-request/${job.continueToken}`;
+  }
+
+  const continueToken = crypto.randomBytes(24).toString("hex");
+  await prisma.job.update({
+    where: { id: job.id },
+    data: { continueToken },
+  });
+
+  return `${params.baseUrl}/continue-request/${continueToken}`;
 }
 
 /**
@@ -97,16 +143,16 @@ export async function POST(request: NextRequest) {
       process.env.NEXT_PUBLIC_SITE_URL ||
       "https://locksafe.uk";
     let jobDetails = { jobNumber: job_number, continueUrl: continue_url };
-    if (job_id && (!job_number || !continue_url)) {
+    if (job_id && !job_number) {
       try {
         const job = await prisma.job.findUnique({
           where: { id: job_id },
-          select: { jobNumber: true, continueToken: true },
+          select: { jobNumber: true },
         });
         if (job) {
           jobDetails = {
             jobNumber: job.jobNumber,
-            continueUrl: `${baseUrl}/continue-request/${job.continueToken}`,
+            continueUrl: jobDetails.continueUrl,
           };
         }
       } catch (dbErr: any) {
@@ -115,6 +161,12 @@ export async function POST(request: NextRequest) {
         );
       }
     }
+
+    jobDetails.continueUrl = await ensureContinueUrl({
+      jobId: job_id,
+      providedContinueUrl: jobDetails.continueUrl,
+      baseUrl,
+    });
 
     // Get customer details if not provided
     let customerDetails = {
@@ -143,6 +195,7 @@ export async function POST(request: NextRequest) {
     }
 
     const notifications: string[] = [];
+    const notificationStartedAt = Date.now();
     const type = notification_type || "continue";
 
     // Normalize phone for SMS
@@ -181,13 +234,23 @@ export async function POST(request: NextRequest) {
           smsMessage = `LockSafe UK: Your emergency request ${jobDetails.jobNumber || "has been"} registered. ${jobDetails.continueUrl ? `Complete your request: ${jobDetails.continueUrl}` : `Visit ${baseUrl} to manage your request.`}`;
         }
 
-        await sendSMS(phoneForSms!, smsMessage, {
-          logContext: `Retell notification (${type}): ${jobDetails.jobNumber || "N/A"}`,
-        });
-        notifications.push("sms");
-        console.log(
-          `[Retell send-notification] SMS sent to ${phoneForSms} (type: ${type})`
+        const smsResult = await withTimeout(
+          sendSMS(phoneForSms!, smsMessage, {
+            logContext: `Retell notification (${type}): ${jobDetails.jobNumber || "N/A"}`,
+          }),
+          7000
         );
+
+        if (smsResult.success) {
+          notifications.push("sms");
+          console.log(
+            `[Retell send-notification] SMS sent to ${phoneForSms} (type: ${type}, ${Date.now() - notificationStartedAt}ms)`
+          );
+        } else {
+          console.warn(
+            `[Retell send-notification] SMS not delivered: ${smsResult.error || "unknown error"}`
+          );
+        }
       } catch (smsError) {
         console.error("[Retell send-notification] SMS error:", smsError);
       }
@@ -200,15 +263,15 @@ export async function POST(request: NextRequest) {
     // Send email (only for continue-type notifications)
     if (type === "continue" && customerDetails.email) {
       try {
-        await sendPhoneRequestContinuationEmail(customerDetails.email, {
+        await withTimeout(sendPhoneRequestContinuationEmail(customerDetails.email, {
           customerName: customerDetails.name,
           jobNumber: jobDetails.jobNumber || "N/A",
           continueUrl: jobDetails.continueUrl || baseUrl,
-        });
-        notifications.push("email");
+        }), 7000);
         console.log(
           `[Retell send-notification] Email sent to ${customerDetails.email}`
         );
+        notifications.push("email");
       } catch (emailError) {
         console.error("[Retell send-notification] Email error:", emailError);
       }
@@ -245,6 +308,7 @@ export async function POST(request: NextRequest) {
         notifications_sent: notifications,
         sms_sent: notifications.includes("sms"),
         email_sent: notifications.includes("email"),
+        provider: "retell",
         notification_type: type,
         job_number: jobDetails.jobNumber,
         continue_url: jobDetails.continueUrl,

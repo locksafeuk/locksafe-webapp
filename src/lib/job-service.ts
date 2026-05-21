@@ -10,6 +10,7 @@
  */
 
 import prisma from "@/lib/db";
+import crypto from "crypto";
 import { generateJobNumber } from "@/lib/job-number";
 import { sendSMS } from "@/lib/sms";
 import {
@@ -48,7 +49,6 @@ export interface EmergencyJobInput {
   // Source tracking
   createdVia?: string; // retell_ai, phone, web
   retellCallId?: string;
-  blandCallId?: string;
 }
 
 export interface EmergencyJobResult {
@@ -57,6 +57,7 @@ export interface EmergencyJobResult {
     id: string;
     jobNumber: string;
     status: string;
+    continueUrl?: string;
   };
   customer?: {
     id: string;
@@ -219,6 +220,13 @@ export async function createEmergencyJob(
 
     // 3. Create job
     const jobNumber = await generateJobNumber(input.postcode);
+    const continueToken = crypto.randomBytes(24).toString("hex");
+    const baseUrl =
+      process.env.NEXT_PUBLIC_BASE_URL ||
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      "https://locksafe.uk";
+    const continueUrl = `${baseUrl}/continue-request/${continueToken}`;
+
     const job = await prisma.job.create({
       data: {
         jobNumber,
@@ -233,7 +241,7 @@ export async function createEmergencyJob(
         longitude: coords?.longitude || null,
         createdVia: input.createdVia || "retell_ai",
         retellCallId: input.retellCallId || null,
-        blandCallId: input.blandCallId || null,
+        continueToken,
         isEmergency: true,
         emergencyDetails: input.emergencyDetails || null,
         exactLocation: input.exactLocation || null,
@@ -283,18 +291,18 @@ export async function createEmergencyJob(
 
     // 6. SMS customer confirmation
     const customerSms = notificationResult.notifiedCount > 0
-      ? EMERGENCY_SMS_TEMPLATES.CUSTOMER_EMERGENCY_CREATED({
+      ? `${EMERGENCY_SMS_TEMPLATES.CUSTOMER_EMERGENCY_CREATED({
           jobId: job.id,
           jobNumber: job.jobNumber,
           customerName: customer.name,
           postcode: normalizedPostcode,
-        })
-      : EMERGENCY_SMS_TEMPLATES.CUSTOMER_NO_LOCKSMITHS({
+        })}\n\nManage your request: ${continueUrl}`
+      : `${EMERGENCY_SMS_TEMPLATES.CUSTOMER_NO_LOCKSMITHS({
           jobId: job.id,
           jobNumber: job.jobNumber,
           customerName: customer.name,
           postcode: normalizedPostcode,
-        });
+        })}\n\nManage your request: ${continueUrl}`;
 
     sendSMS(customer.phone, customerSms, {
       logContext: `Emergency job created: ${job.jobNumber}`,
@@ -308,6 +316,7 @@ export async function createEmergencyJob(
         id: job.id,
         jobNumber: job.jobNumber,
         status: job.status,
+        continueUrl,
       },
       customer: {
         id: customer.id,
