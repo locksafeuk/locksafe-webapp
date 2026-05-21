@@ -130,7 +130,7 @@ export async function publishGoogleAdsDraft(draftId: string): Promise<PublishRes
           status: "PAUSED",
           advertisingChannelType: draft.channel || "SEARCH",
           campaignBudget: budgetResource,
-          containsEuPoliticalAdvertising: "NOT_CONTAINS_EU_POLITICAL_ADVERTISING",
+          containsEuPoliticalAdvertising: "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
           networkSettings: {
             targetGoogleSearch: true,
             targetSearchNetwork: true,
