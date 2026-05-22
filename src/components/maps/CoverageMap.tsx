@@ -178,7 +178,12 @@ export function AdminCoverageMap({
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const overlayGroupRef = useRef<L.LayerGroup | null>(null);
+  const onLocksmithClickRef = useRef<typeof onLocksmithClick>(onLocksmithClick);
   const [isLoaded, setIsLoaded] = useState(false);
+
+  useEffect(() => {
+    onLocksmithClickRef.current = onLocksmithClick;
+  }, [onLocksmithClick]);
 
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
@@ -272,8 +277,8 @@ export function AdminCoverageMap({
         </div>
       `);
 
-      if (onLocksmithClick) {
-        marker.on("click", () => onLocksmithClick(locksmith.id));
+      if (onLocksmithClickRef.current) {
+        marker.on("click", () => onLocksmithClickRef.current?.(locksmith.id));
       }
 
       bounds.extend([locksmith.baseLat, locksmith.baseLng]);
@@ -324,7 +329,7 @@ export function AdminCoverageMap({
     if (bounds.isValid()) {
       map.fitBounds(bounds, { padding: [50, 50] });
     }
-  }, [locksmiths, targetLocation, onLocksmithClick]);
+  }, [locksmiths, targetLocation]);
 
   return (
     <div className={`relative rounded-xl overflow-hidden ${className}`} style={{ height }}>
