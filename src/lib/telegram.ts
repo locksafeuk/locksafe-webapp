@@ -13,6 +13,7 @@
  */
 
 import { LOCKSMITH_ADMIN_PHONE } from "@/lib/config";
+import { prisma } from "@/lib/prisma";
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
@@ -34,6 +35,83 @@ const ADMIN_ALERT_FALLBACK_PHONES = (process.env.ADMIN_ALERT_FALLBACK_PHONES || 
 // Best-effort in-process dedupe to reduce noisy repeated admin alerts.
 // Repeats are keyed by severity+title unless a caller provides dedupeKey.
 const adminAlertCooldownCache = new Map<string, number>();
+
+function normalizeAlertTitleForDedupe(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/\b\d+\b/g, "#")
+    .replace(/\b[a-f0-9]{6,}\b/gi, "{id}")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function wasAdminAlertSentRecently(dedupeKey: string, cooldownMs: number): Promise<boolean> {
+  if (cooldownMs <= 0) return false;
+
+  const now = Date.now();
+  const nextAllowedAt = adminAlertCooldownCache.get(dedupeKey) ?? 0;
+  if (now < nextAllowedAt) {
+    return true;
+  }
+
+  try {
+    const threshold = new Date(now - cooldownMs);
+    const recentlySent = await prisma.agentDecision.findFirst({
+      where: {
+        agent: "system-alerts",
+        platform: "global",
+        action: `telegram_admin_alert:${dedupeKey}`,
+        createdAt: { gte: threshold },
+      },
+      select: { id: true },
+    });
+
+    if (recentlySent) {
+      adminAlertCooldownCache.set(dedupeKey, now + cooldownMs);
+      return true;
+    }
+  } catch (error) {
+    // Fail open on dedupe storage errors to avoid suppressing true incidents.
+    console.warn("[Telegram][dedupe] DB check failed, proceeding:", error);
+  }
+
+  return false;
+}
+
+async function recordAdminAlertSent(dedupeKey: string, data: {
+  title: string;
+  message: string;
+  severity: "info" | "warning" | "error";
+}): Promise<void> {
+  const now = Date.now();
+  const cooldownMs = getAdminAlertCooldownMs(data.severity);
+  if (cooldownMs > 0) {
+    adminAlertCooldownCache.set(dedupeKey, now + cooldownMs);
+  }
+
+  try {
+    await prisma.agentDecision.create({
+      data: {
+        agent: "system-alerts",
+        platform: "global",
+        action: `telegram_admin_alert:${dedupeKey}`,
+        payload: {
+          title: data.title,
+          message: data.message,
+          severity: data.severity,
+        },
+        policySnapshot: { source: "sendAdminAlert" },
+        dryRun: false,
+        outcome: "ok",
+        outcomeMessage: "telegram_sent",
+        executedAt: new Date(),
+      },
+    });
+  } catch (error) {
+    // Fail open: notification delivery should not be blocked by audit write errors.
+    console.warn("[Telegram][dedupe] Failed to persist sent alert marker:", error);
+  }
+}
 
 function getAdminAlertCooldownMs(severity: "info" | "warning" | "error"): number {
   const infoMinutes = Number(process.env.TELEGRAM_ALERT_INFO_COOLDOWN_MINUTES ?? "60");
@@ -803,18 +881,14 @@ export async function sendAdminAlert(data: {
   const icon = icons[severity];
 
   // Spam guard: repeated alerts with the same dedupe key are suppressed.
-  const dedupeKey = data.dedupeKey || `${severity}:${data.title}`;
+  // Default key normalizes dynamic numeric/id fragments in titles.
+  const dedupeKey = data.dedupeKey || `${severity}:${normalizeAlertTitleForDedupe(data.title)}`;
   const cooldownMs = getAdminAlertCooldownMs(severity);
-  if (cooldownMs > 0) {
-    const now = Date.now();
-    const nextAllowedAt = adminAlertCooldownCache.get(dedupeKey) ?? 0;
-    if (now < nextAllowedAt) {
-      console.log(
-        `[Telegram][dedupe] suppressed alert key=${dedupeKey} severity=${severity} title=${data.title}`,
-      );
-      return true;
-    }
-    adminAlertCooldownCache.set(dedupeKey, now + cooldownMs);
+  if (await wasAdminAlertSentRecently(dedupeKey, cooldownMs)) {
+    console.log(
+      `[Telegram][dedupe] suppressed alert key=${dedupeKey} severity=${severity} title=${data.title}`,
+    );
+    return true;
   }
 
   const message = `
@@ -826,7 +900,14 @@ ${escapeHtml(data.message)}
 `;
 
   const sentToTelegram = await sendTelegramMessage(message, "HTML", TOPIC_AGENTS);
-  if (sentToTelegram) return true;
+  if (sentToTelegram) {
+    await recordAdminAlertSent(dedupeKey, {
+      title: data.title,
+      message: data.message,
+      severity,
+    });
+    return true;
+  }
 
   // P1 fallback path: critical alerts should still page humans when Telegram is down.
   if (severity !== "error" || !ADMIN_SMS_FALLBACK_ENABLED) {
@@ -857,6 +938,11 @@ ${escapeHtml(data.message)}
 
     const successful = results.filter((r) => r.success).length;
     if (successful > 0) {
+      await recordAdminAlertSent(dedupeKey, {
+        title: data.title,
+        message: data.message,
+        severity,
+      });
       console.warn(
         `[Telegram][fallback] Telegram failed; sent critical alert via SMS to ${successful}/${fallbackPhones.length} recipients`,
       );
