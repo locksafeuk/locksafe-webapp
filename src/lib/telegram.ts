@@ -15,6 +15,14 @@
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 const TELEGRAM_ENABLED = process.env.TELEGRAM_NOTIFICATIONS_ENABLED === "true";
+const TELEGRAM_SEND_RETRY_ATTEMPTS = Math.max(
+  1,
+  Number.parseInt(process.env.TELEGRAM_SEND_RETRY_ATTEMPTS || "3", 10) || 3,
+);
+const TELEGRAM_SEND_RETRY_BASE_MS = Math.max(
+  100,
+  Number.parseInt(process.env.TELEGRAM_SEND_RETRY_BASE_MS || "350", 10) || 350,
+);
 
 // Forum topic thread IDs — set these env vars after creating topics in your Telegram supergroup.
 // Leave unset (or set to 0) to send all messages to the General topic.
@@ -32,6 +40,10 @@ interface TelegramResponse {
   ok: boolean;
   result?: unknown;
   description?: string;
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -54,39 +66,72 @@ async function sendTelegramMessage(
     return false;
   }
 
-  try {
-    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+  const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
 
-    const body: Record<string, unknown> = {
-      chat_id: TELEGRAM_CHAT_ID,
-      text: message,
-      parse_mode: parseMode,
-      disable_web_page_preview: true,
-    };
+  const body: Record<string, unknown> = {
+    chat_id: TELEGRAM_CHAT_ID,
+    text: message,
+    parse_mode: parseMode,
+    disable_web_page_preview: true,
+  };
 
-    if (threadId) {
-      body.message_thread_id = threadId;
-    }
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-
-    const data: TelegramResponse = await response.json();
-
-    if (!data.ok) {
-      console.error(`[Telegram] API error (threadId=${threadId}):`, data.description);
-      return false;
-    }
-
-    console.log(`[Telegram] Message sent${threadId ? ` to topic ${threadId}` : ""}`);
-    return true;
-  } catch (error) {
-    console.error("[Telegram] Failed to send message:", error);
-    return false;
+  if (threadId) {
+    body.message_thread_id = threadId;
   }
+
+  let lastError: unknown = null;
+
+  for (let attempt = 1; attempt <= TELEGRAM_SEND_RETRY_ATTEMPTS; attempt += 1) {
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      let data: TelegramResponse | null = null;
+      try {
+        data = (await response.json()) as TelegramResponse;
+      } catch {
+        data = null;
+      }
+
+      if (response.ok && data?.ok) {
+        console.log(`[Telegram] Message sent${threadId ? ` to topic ${threadId}` : ""}`);
+        return true;
+      }
+
+      const description = data?.description || `HTTP ${response.status}`;
+      lastError = new Error(description);
+
+      console.warn(
+        `[Telegram] Send failed (attempt ${attempt}/${TELEGRAM_SEND_RETRY_ATTEMPTS}, threadId=${threadId}): ${description}`,
+      );
+
+      if (attempt < TELEGRAM_SEND_RETRY_ATTEMPTS) {
+        const retryAfterHeader = response.headers.get("retry-after");
+        const retryAfterMs = retryAfterHeader
+          ? Number.parseInt(retryAfterHeader, 10) * 1000
+          : 0;
+        const backoffMs = TELEGRAM_SEND_RETRY_BASE_MS * Math.pow(2, attempt - 1);
+        await wait(Math.max(backoffMs, retryAfterMs));
+      }
+    } catch (error) {
+      lastError = error;
+      console.warn(
+        `[Telegram] Send errored (attempt ${attempt}/${TELEGRAM_SEND_RETRY_ATTEMPTS}, threadId=${threadId})`,
+        error,
+      );
+
+      if (attempt < TELEGRAM_SEND_RETRY_ATTEMPTS) {
+        const backoffMs = TELEGRAM_SEND_RETRY_BASE_MS * Math.pow(2, attempt - 1);
+        await wait(backoffMs);
+      }
+    }
+  }
+
+  console.error("[Telegram] Failed to send message after retries:", lastError);
+  return false;
 }
 
 /**
@@ -686,34 +731,37 @@ export async function sendAdminAlert(data: {
   title: string;
   message: string;
   severity?: "info" | "warning" | "error";
+  bypassPolicyGate?: boolean;
 }): Promise<boolean> {
   // Runtime alert-sensitivity gate for admin/agent topic noise control.
   // Defaults are handled by operational policy module if DB fields are null.
-  try {
-    const { getOperationalPolicy } = await import("@/agents/core/operational-policy");
-    const policy = await getOperationalPolicy();
-    const severityRank: Record<"info" | "warning" | "error", number> = {
-      info: 1,
-      warning: 3,
-      error: 4,
-    };
-    const threshold =
-      policy.alertSensitivity === "critical"
-        ? 4
-        : policy.alertSensitivity === "workflow"
-          ? 3
-          : 1;
-    const severity = data.severity || "info";
+  if (!data.bypassPolicyGate) {
+    try {
+      const { getOperationalPolicy } = await import("@/agents/core/operational-policy");
+      const policy = await getOperationalPolicy();
+      const severityRank: Record<"info" | "warning" | "error", number> = {
+        info: 1,
+        warning: 3,
+        error: 4,
+      };
+      const threshold =
+        policy.alertSensitivity === "critical"
+          ? 4
+          : policy.alertSensitivity === "workflow"
+            ? 3
+            : 1;
+      const severity = data.severity || "info";
 
-    if (severityRank[severity] < threshold) {
-      console.log(
-        `[Telegram][gated] sendAdminAlert suppressed severity=${severity} sensitivity=${policy.alertSensitivity} title=${data.title}`,
-      );
-      return true;
+      if (severityRank[severity] < threshold) {
+        console.log(
+          `[Telegram][gated] sendAdminAlert suppressed severity=${severity} sensitivity=${policy.alertSensitivity} title=${data.title}`,
+        );
+        return true;
+      }
+    } catch (error) {
+      // Fail open on policy read errors to avoid hiding critical incidents.
+      console.warn("[Telegram][gating] policy lookup failed, sending alert:", error);
     }
-  } catch (error) {
-    // Fail open on policy read errors to avoid hiding critical incidents.
-    console.warn("[Telegram][gating] policy lookup failed, sending alert:", error);
   }
 
   const icons = {

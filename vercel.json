@@ -4,6 +4,12 @@
   "installCommand": "npm install --legacy-peer-deps",
   "framework": "nextjs",
   "regions": ["lhr1"],
+  "crons": [
+    {
+      "path": "/api/cron/voice-call-watchdog",
+      "schedule": "* * * * *"
+    }
+  ],
   "functions": {
     "app/api/**/*.ts": {
       "maxDuration": 300

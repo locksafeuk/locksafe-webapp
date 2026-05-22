@@ -8,6 +8,7 @@
 import { prisma } from "@/lib/db";
 import { buildRetellPrompt } from "@/lib/retell-prompt";
 import { SUPPORT_PHONE } from "@/lib/config";
+import { sendAdminAlert } from "@/lib/telegram";
 
 export interface RetellCallEvent {
   event: string;
@@ -56,6 +57,16 @@ const ESTIMATED_REVENUE: Record<string, number> = {
   complaint: 0,
   spam: 0,
 };
+
+const VOICE_CALL_TELEGRAM_ALERTS_ENABLED =
+  process.env.VOICE_CALL_TELEGRAM_ALERTS_ENABLED !== "false";
+
+function redactPhone(phone?: string | null): string {
+  if (!phone) return "unknown";
+  const clean = phone.replace(/\s+/g, "");
+  if (clean.length <= 4) return clean;
+  return `${"*".repeat(Math.max(0, clean.length - 4))}${clean.slice(-4)}`;
+}
 
 export async function processRetellEvent(event: RetellCallEvent): Promise<{ success: boolean; error?: string }> {
   const eventType = event?.event;
@@ -114,6 +125,17 @@ async function handleCallStarted(call: RetellCallData): Promise<{ success: boole
       dedupeKey,
     },
   });
+
+  if (VOICE_CALL_TELEGRAM_ALERTS_ENABLED && call.direction !== "outbound") {
+    sendAdminAlert({
+      title: "Voice AI call started",
+      message: `Retell call ${call.call_id} is now live. Caller ${redactPhone(call.from_number)}.`,
+      severity: "warning",
+      bypassPolicyGate: true,
+    }).catch((error) => {
+      console.warn(`[Retell] Call-start alert failed for ${call.call_id}:`, error);
+    });
+  }
 
   console.log(`[Retell] Call started: ${call.call_id} from ${call.from_number ?? "unknown"}`);
   return { success: true };
@@ -209,6 +231,20 @@ async function handleCallEnded(call: RetellCallData): Promise<{ success: boolean
     console.warn(`[Retell] Could not log analytics: ${analyticsError?.message}`);
   }
 
+  if (VOICE_CALL_TELEGRAM_ALERTS_ENABLED && call.direction !== "outbound") {
+    const failed = call.disconnection_reason === "error";
+    sendAdminAlert({
+      title: failed ? "Voice AI call failed" : "Voice AI call ended",
+      message: failed
+        ? `Retell call ${call.call_id} failed after ${durationSec}s. Reason: ${call.disconnection_reason ?? "unknown"}.`
+        : `Retell call ${call.call_id} completed in ${durationSec}s.`,
+      severity: failed ? "error" : "info",
+      bypassPolicyGate: true,
+    }).catch((error) => {
+      console.warn(`[Retell] Call-end alert failed for ${call.call_id}:`, error);
+    });
+  }
+
   console.log(`[Retell] Call ended: ${call.call_id}, duration: ${durationSec}s`);
   return { success: true };
 }
@@ -268,6 +304,17 @@ async function handleTransferStarted(call: RetellCallData): Promise<{ success: b
   }).catch((err: any) => {
     console.warn(`[Retell] Could not update transfer for ${call.call_id}:`, err?.message);
   });
+
+  if (VOICE_CALL_TELEGRAM_ALERTS_ENABLED && call.direction !== "outbound") {
+    sendAdminAlert({
+      title: "Voice AI call transferred",
+      message: `Retell call ${call.call_id} transferred to ${call.transfer_destination ?? SUPPORT_PHONE}.`,
+      severity: "warning",
+      bypassPolicyGate: true,
+    }).catch((error) => {
+      console.warn(`[Retell] Transfer alert failed for ${call.call_id}:`, error);
+    });
+  }
 
   console.log(`[Retell] Call transferred: ${call.call_id} to ${call.transfer_destination}`);
   return { success: true };

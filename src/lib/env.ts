@@ -79,6 +79,14 @@ const envSchema = z.object({
   TELEGRAM_TOPIC_APPLICATIONS: z.string().regex(/^\d+$/).optional(),
   TELEGRAM_TOPIC_QUOTES: z.string().regex(/^\d+$/).optional(),
   TELEGRAM_TOPIC_REVIEWS: z.string().regex(/^\d+$/).optional(),
+  TELEGRAM_SEND_RETRY_ATTEMPTS: z.string().regex(/^\d+$/).optional(),
+  TELEGRAM_SEND_RETRY_BASE_MS: z.string().regex(/^\d+$/).optional(),
+
+  // Voice AI alerting and watchdog
+  VOICE_CALL_TELEGRAM_ALERTS_ENABLED: z.enum(["true", "false"]).optional(),
+  VOICE_CALL_WATCHDOG_STALE_MINUTES: z.string().regex(/^\d+$/).optional(),
+  VOICE_CALL_WATCHDOG_ALERT_COOLDOWN_MINUTES: z.string().regex(/^\d+$/).optional(),
+  VOICE_CALL_WATCHDOG_LOOKBACK_HOURS: z.string().regex(/^\d+$/).optional(),
 
   // WhatsApp Business API
   WHATSAPP_ACCESS_TOKEN: z.string().optional(),
