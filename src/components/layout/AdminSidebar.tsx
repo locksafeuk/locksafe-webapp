@@ -37,6 +37,8 @@ import {
   Globe,
   Search,
   Crown,
+  Brain,
+  Sprout,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -172,6 +174,8 @@ const navGroups: NavGroup[] = [
     activeText: "text-cyan-300",
     items: [
       { href: "/admin/integrations", label: "Integrations", icon: Plug },
+      { href: "/admin/agents/reflections", label: "Agent Reflections", icon: Brain },
+      { href: "/admin/integrations/google-ads/seed-bank", label: "Keyword Seed Bank", icon: Sprout },
     ],
   },
 ];

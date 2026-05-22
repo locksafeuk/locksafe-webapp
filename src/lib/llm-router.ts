@@ -1,11 +1,17 @@
 /**
  * LLM Router — unified interface for all AI calls
  *
- * Local-first routes:
- *   AGENT   → llama3.3:70b  (Ollama)
- *   CONTENT → qwen2.5:72b   (Ollama)
- *   FAST    → llama3:70b    (Ollama)
- *   QUALITY → qwen2.5:72b   (Ollama)
+ * Local-first routes (2026 stack, all overridable via env):
+ *   AGENT     → llama4:scout      (Mixture-of-Experts, native tool use)
+ *   CONTENT   → qwen3:32b         (thinking mode, long-context content gen)
+ *   FAST      → llama3.2:3b       (cheap classification + extraction)
+ *   QUALITY   → qwen3:72b         (highest-quality long-form generation)
+ *   HERMES    → hermes-4:70b      (Nous Research tool-calling specialist)
+ *   REASONING → qwen3:32b         (deliberation / reflection / outcome grading)
+ *
+ * Env overrides (rollback without code changes):
+ *   OLLAMA_MODEL_AGENT, OLLAMA_MODEL_CONTENT, OLLAMA_MODEL_FAST,
+ *   OLLAMA_MODEL_QUALITY, OLLAMA_MODEL_HERMES, OLLAMA_MODEL_REASONING
  *
  * OpenAI is emergency fallback only and must be explicitly enabled.
  */
@@ -15,8 +21,10 @@ export const Models = {
   CONTENT:     "CONTENT",
   FAST:        "FAST",
   QUALITY:     "QUALITY",
-  /** Hermes 3 (NousResearch) — 8B, fine-tuned for tool-calling / function dispatch */
+  /** Hermes 4 (NousResearch) — 70B, function-calling specialist */
   HERMES:      "HERMES",
+  /** Qwen3 thinking model — deliberation / reflection / outcome grading */
+  REASONING:   "REASONING",
 } as const;
 
 export type ModelAlias = typeof Models[keyof typeof Models];
@@ -28,26 +36,36 @@ type ModelConfig = {
   openAiFallbackModel: string;
 };
 
+// Read OLLAMA_MODEL_<TIER> first, fall back to 2026 default.
+// Empty-string values fall through (Vercel sometimes stores blanks).
+function modelFromEnv(tier: string, defaultModel: string): string {
+  return process.env[`OLLAMA_MODEL_${tier}`] || defaultModel;
+}
+
 const MODEL_CONFIG: Record<ModelAlias, ModelConfig> = {
   AGENT: {
-    localModel: "llama3.3:70b",
+    localModel: modelFromEnv("AGENT", "llama4:scout"),
     openAiFallbackModel: "gpt-4o-mini",
   },
   CONTENT: {
-    localModel: "qwen2.5:72b",
+    localModel: modelFromEnv("CONTENT", "qwen3:32b"),
     openAiFallbackModel: "gpt-4o-mini",
   },
   FAST: {
-    localModel: "llama3:70b",
+    localModel: modelFromEnv("FAST", "llama3.2:3b"),
     openAiFallbackModel: "gpt-4o-mini",
   },
   QUALITY: {
-    localModel: "qwen2.5:72b",
+    localModel: modelFromEnv("QUALITY", "qwen3:72b"),
     openAiFallbackModel: "gpt-4o",
   },
   HERMES: {
-    localModel: "hermes3",
+    localModel: modelFromEnv("HERMES", "hermes-4:70b"),
     openAiFallbackModel: "gpt-4o-mini",
+  },
+  REASONING: {
+    localModel: modelFromEnv("REASONING", "qwen3:32b"),
+    openAiFallbackModel: "gpt-4o",
   },
 };
 
@@ -379,11 +397,12 @@ async function callOpenAI(
 /** Cost tracking for budget system — Ollama is near-zero, OpenAI is real cost */
 export function estimateLLMCost(modelAlias: ModelAlias, tokens = 1000): number {
   const costPer1k: Record<ModelAlias, number> = {
-    AGENT:   0.0001,  // near-zero — local compute only
-    CONTENT: 0.0001,
-    FAST:    0.00001,
-    QUALITY: 0.0001,
-    HERMES:  0.00001, // near-zero — local Hermes 3 8B
+    AGENT:     0.0001,  // near-zero — local compute only
+    CONTENT:   0.0001,
+    FAST:      0.00001,
+    QUALITY:   0.0001,
+    HERMES:    0.00001, // near-zero — local Hermes 4 70B
+    REASONING: 0.0001,  // local qwen3 thinking, OpenAI fallback billed elsewhere
   };
   return (costPer1k[modelAlias] * tokens) / 1000;
 }

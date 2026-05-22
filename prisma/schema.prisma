@@ -2701,6 +2701,75 @@ model AgentDecision {
 }
 
 // ==========================================
+// AGENT REFLECTION / SELF-LEARNING
+// ==========================================
+
+// Post-execution reflection on an agent decision or output.
+// Outcome (WIN/LOSS/INCONCLUSIVE/NEUTRAL) is graded deterministically from
+// downstream metrics; for non-inconclusive cases the REASONING LLM tier writes
+// the narrative + lessons. Lessons feed back into AgentMemory for the next
+// heartbeat.
+model AgentReflection {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  agentName   String // "opportunity-scout" | "ads-specialist" | "copywriter" | ...
+  subjectType String // "opportunity" | "draft" | "campaign" | "adset" | "ad" | "pause-action"
+  subjectId   String // loose FK to whatever was decided about
+
+  decisionId  String? @db.ObjectId // optional FK to AgentDecision
+  executionId String? @db.ObjectId // optional FK to AgentExecution
+
+  windowDays Int    @default(28) // 7 | 14 | 28
+  outcome    String // "WIN" | "LOSS" | "INCONCLUSIVE" | "NEUTRAL"
+  metric     String // "roas" | "cpa" | "ctr" | "conversionRate" | "score_accuracy"
+
+  expectedValue Float?
+  actualValue   Float?
+  delta         Float?
+  confidence    Float  @default(0.5) // 0-1, computed from sample size
+
+  narrative String? // REASONING-tier LLM output (WIN/LOSS only)
+  lessons   String[] // bullet list distilled from narrative
+
+  appliedAt DateTime? // when lessons were written into AgentMemory
+
+  computedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@index([agentName, computedAt])
+  @@index([subjectType, subjectId])
+  @@index([outcome, computedAt])
+}
+
+// Adaptive seed bank for Opportunity Scout (and future keyword-driven agents).
+// Replaces the hardcoded BASELINE_SEEDS array. Each row tracks its own
+// performance and is re-ranked by the reflection cron.
+model KeywordSeed {
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  keyword  String @unique
+  category String @default("baseline") // "baseline" | "learned" | "competitor" | "experimental"
+
+  score              Float @default(1.0) // Wilson-ish (winCount+1) / (winCount+lossCount+2)
+  winCount           Int   @default(0)
+  lossCount          Int   @default(0)
+  inconclusiveCount  Int   @default(0)
+  usageCount         Int   @default(0)
+
+  lastUsedAt DateTime?
+  lastWinAt  DateTime?
+  lastLossAt DateTime?
+
+  firstSeenSource String? // "baseline" | "learnings:gads:90d" | "reflection:opp-bristol" | ...
+  isActive        Boolean @default(true)
+  notes           String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, score])
+  @@index([category])
+}
+
+// ==========================================
 // REFERRAL SYSTEM
 // ==========================================
 

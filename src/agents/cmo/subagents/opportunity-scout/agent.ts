@@ -31,6 +31,12 @@ import { extractDefaultAccountLearnings } from "@/lib/google-ads-learnings";
 import { scoreOpportunities, type GeoOpportunity } from "@/lib/google-ads-opportunities";
 import { generateDraftPlanForLocksmith } from "@/lib/google-ads-onboarding";
 import { UK_GEO_IDS, type UKGeoKey } from "@/lib/google-ads-locations";
+import {
+  getTopSeeds,
+  addSeed,
+  markSeedsUsed,
+  FALLBACK_BASELINE_SEEDS,
+} from "@/agents/core/seed-bank";
 
 // =========================================================================
 // Agent config
@@ -94,16 +100,10 @@ export async function initializeOpportunityScoutAgent(): Promise<void> {
 // Heartbeat
 // =========================================================================
 
-const BASELINE_SEEDS = [
-  "locksmith",
-  "emergency locksmith",
-  "24 hour locksmith",
-  "locked out",
-  "auto locksmith",
-  "lock change",
-  "door lock repair",
-  "lock replacement",
-];
+// Static fallback — only used if the KeywordSeed bank is empty AND the
+// seed-bank module's own fallback fails (defence-in-depth). Real seeds live in
+// the `KeywordSeed` collection and are reshuffled by reflection outcomes.
+const BASELINE_SEEDS = FALLBACK_BASELINE_SEEDS;
 
 export interface OpportunityScoutOptions {
   /** Skip the recruit-here scan (Phase 9). Default false. */
@@ -188,7 +188,9 @@ export async function runOpportunityScoutHeartbeat(
   // 1. Universe
   const universe = await getCoverageUniverse();
 
-  // 2 + 3. Build seed list (Option B — baseline + top-converting historical)
+  // 2 + 3. Build seed list — adaptive KeywordSeed bank (ranked by win/loss
+  // score) merged with the top-converting historical keywords for this
+  // account. Falls back to BASELINE_SEEDS if the bank is empty.
   const learnings = await extractDefaultAccountLearnings({ windowDays: 90 }).catch(
     () => null,
   );
@@ -196,7 +198,11 @@ export async function runOpportunityScoutHeartbeat(
     .slice(0, 10)
     .map((k) => k.text)
     .filter((t) => t && t.length < 40);
-  const seedKeywords = dedupe([...BASELINE_SEEDS, ...provenSeeds]).slice(0, 20);
+  const bankSeeds = await getTopSeeds({ limit: 12 }).catch(() => BASELINE_SEEDS);
+  const seedKeywords = dedupe([...bankSeeds, ...provenSeeds]).slice(0, 20);
+
+  // Mark these seeds as used (drives the usageCount/lastUsedAt counters).
+  markSeedsUsed(seedKeywords).catch(() => undefined);
 
   // 4. Score coverage universe
   const coverageResult = await scoreOpportunities(client, universe.entries, {
@@ -209,6 +215,18 @@ export async function runOpportunityScoutHeartbeat(
 
   // 5. Persist coverage opportunities
   await persistOpportunities("COVERAGE", coverageResult.opportunities);
+
+  // 5b. Discover new seeds — every keyword that surfaced in a top opportunity
+  // gets pushed into the seed bank as `category="learned"`. Idempotent.
+  for (const opp of coverageResult.opportunities.slice(0, 10)) {
+    for (const kw of (opp.topKeywords ?? []).slice(0, 5)) {
+      if (!kw?.text) continue;
+      await addSeed(kw.text, {
+        category: "learned",
+        source: `opportunity-scout:${opp.geoId}`,
+      }).catch(() => undefined);
+    }
+  }
 
   // 6. Recruit-here scan (Phase 9)
   let recruitResult: { opportunities: GeoOpportunity[] } = { opportunities: [] };
@@ -397,6 +415,41 @@ async function maybeAutoDraft(args: {
     },
     data: { status: "DRAFTED", draftId: created.id },
   });
+
+  // Emit an AgentDecision row so the reflection cron has a typed audit trail.
+  await prisma.agentDecision
+    .create({
+      data: {
+        agent: "opportunity-scout",
+        platform: "google",
+        action: "draft-coverage-opportunity",
+        payload: {
+          opportunityGeoId: opportunity.geoId,
+          opportunityLabel: opportunity.label,
+          predictedScore: opportunity.score,
+          medianCpcGbp: opportunity.medianCpcGbp,
+          competitionTier: opportunity.competitionTier,
+          locksmithId: picked.id,
+          locksmithJobs: picked.totalJobs,
+          locksmithRating: picked.rating,
+          seedKeywords: (opportunity.topKeywords ?? [])
+            .slice(0, 5)
+            .map((k) => k.text),
+          draftId: created.id,
+          reasoning: plan.plan.reasoning,
+        },
+        policySnapshot: {
+          minLocksmithJobs,
+          dailyBudget,
+        },
+        dryRun: false,
+        outcome: "ok",
+        executedAt: new Date(),
+      },
+    })
+    .catch((err) => {
+      console.warn("[opportunity-scout] failed to emit AgentDecision", err);
+    });
 
   return true;
 }
