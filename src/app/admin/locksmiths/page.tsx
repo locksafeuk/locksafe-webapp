@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
 import {
@@ -105,7 +105,6 @@ interface Locksmith {
 
 export default function AdminLocksmithsPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [locksmiths, setLocksmiths] = useState<Locksmith[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -145,6 +144,7 @@ export default function AdminLocksmithsPage() {
   const [reminderLog, setReminderLog] = useState<{ sentAt: string; adminEmail: string }[]>([]);
   const [loadingReminderLog, setLoadingReminderLog] = useState(false);
   const [sendingStripeReminder, setSendingStripeReminder] = useState(false);
+  const locksmithIdFromUrlRef = useRef<string | null>(null);
 
   // Profile editing state
   const [editingProfile, setEditingProfile] = useState(false);
@@ -250,13 +250,14 @@ export default function AdminLocksmithsPage() {
 
         setLocksmiths(nextLocksmiths);
 
-        const locksmithId = searchParams.get("locksmithId");
+        const locksmithId = locksmithIdFromUrlRef.current;
         if (locksmithId) {
           const matched = nextLocksmiths.find((ls: Locksmith) => ls.id === locksmithId);
           if (matched) {
             setSelectedLocksmith(matched);
             setEditingProfile(false);
-            router.replace("/admin/locksmiths", { scroll: false });
+            locksmithIdFromUrlRef.current = null;
+            window.history.replaceState(null, "", "/admin/locksmiths");
           }
         }
       }
@@ -265,7 +266,14 @@ export default function AdminLocksmithsPage() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, searchQuery, router, searchParams]);
+  }, [statusFilter, searchQuery]);
+
+  useEffect(() => {
+    const locksmithId = new URLSearchParams(window.location.search).get("locksmithId");
+    if (locksmithId) {
+      locksmithIdFromUrlRef.current = locksmithId;
+    }
+  }, []);
 
   useEffect(() => {
     fetchLocksmiths();
