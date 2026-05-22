@@ -14,10 +14,22 @@ import {
   processWebhook,
   type WhatsAppWebhookPayload,
 } from "@/lib/whatsapp-business";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { getRequestIdentifier } from "@/lib/auth-rate-limit";
+import { logSuspiciousActivity } from "@/lib/fraud-logger";
 
 // Force the Node.js runtime so node:crypto is available for HMAC verification.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const WHATSAPP_WEBHOOK_MAX_REQUESTS = Number.parseInt(
+  process.env.WHATSAPP_WEBHOOK_RATE_LIMIT_MAX || "180",
+  10,
+);
+const WHATSAPP_WEBHOOK_WINDOW_SECONDS = Number.parseInt(
+  process.env.WHATSAPP_WEBHOOK_RATE_LIMIT_WINDOW_SECONDS || "60",
+  10,
+);
 
 /**
  * GET - Webhook verification (required by Meta)
@@ -54,6 +66,25 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    const ip = getRequestIdentifier(request);
+    const rateLimitResult = checkRateLimit(`whatsapp_webhook:${ip}`, {
+      maxRequests: WHATSAPP_WEBHOOK_MAX_REQUESTS,
+      windowSeconds: WHATSAPP_WEBHOOK_WINDOW_SECONDS,
+    });
+
+    if (!rateLimitResult.success) {
+      await logSuspiciousActivity({
+        category: "webhook_abuse",
+        event: "whatsapp_webhook_rate_limited",
+        severity: "warn",
+        ip,
+      });
+      return NextResponse.json(
+        { error: "Too many webhook requests" },
+        { status: 429, headers: rateLimitHeaders(rateLimitResult) },
+      );
+    }
+
     // Read the raw body once so we can verify the signature against the
     // exact bytes Meta signed, then parse JSON ourselves.
     const rawBody = await request.text();
@@ -66,6 +97,12 @@ export async function POST(request: NextRequest) {
       );
     } else if (!sig.valid) {
       console.warn("[WhatsApp Webhook] Invalid signature — rejecting request");
+      await logSuspiciousActivity({
+        category: "webhook_abuse",
+        event: "whatsapp_webhook_invalid_signature",
+        severity: "warn",
+        ip,
+      });
       return NextResponse.json({ error: "Invalid signature" }, { status: 403 });
     }
 

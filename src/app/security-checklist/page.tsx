@@ -7,6 +7,7 @@ import {
   Phone, X, Download, Mail, Share2
 } from "lucide-react";
 import Link from "next/link";
+import { executeRecaptcha } from "@/lib/recaptcha-client";
 
 interface ChecklistItem {
   id: string;
@@ -207,6 +208,7 @@ export default function SecurityChecklistPage() {
   const [email, setEmail] = useState("");
   const [showEmailCapture, setShowEmailCapture] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
+  const [emailSubmitting, setEmailSubmitting] = useState(false);
 
   const currentSection = checklistSections[currentSectionIndex];
   const totalItems = checklistSections.reduce((sum, s) => sum + s.items.length, 0);
@@ -293,15 +295,20 @@ export default function SecurityChecklistPage() {
   };
 
   const handleEmailResults = async () => {
-    if (!email) return;
+    if (!email || emailSubmitting) return;
+
+    setEmailSubmitting(true);
 
     try {
+      const recaptchaToken = await executeRecaptcha("lead_signup");
       await fetch("/api/marketing/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email,
           source: "security-checklist",
+          recaptchaToken,
+          website: "",
           data: {
             score: overallScore,
             sectionScores,
@@ -312,6 +319,8 @@ export default function SecurityChecklistPage() {
       setEmailSent(true);
     } catch (error) {
       console.error("Failed to send email:", error);
+    } finally {
+      setEmailSubmitting(false);
     }
   };
 
@@ -437,10 +446,10 @@ export default function SecurityChecklistPage() {
                 />
                 <button
                   onClick={handleEmailResults}
-                  disabled={!email}
+                  disabled={!email || emailSubmitting}
                   className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium disabled:opacity-50"
                 >
-                  Send Report
+                  {emailSubmitting ? "Sending..." : "Send Report"}
                 </button>
               </div>
             </div>

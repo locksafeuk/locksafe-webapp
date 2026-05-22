@@ -8,6 +8,10 @@
     {
       "path": "/api/cron/voice-call-watchdog",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/google-ads-fraud-monitor",
+      "schedule": "15 */6 * * *"
     }
   ],
   "functions": {

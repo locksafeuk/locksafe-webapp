@@ -9,6 +9,7 @@ import { prisma } from "@/lib/db";
 import { buildRetellPrompt } from "@/lib/retell-prompt";
 import { SUPPORT_PHONE } from "@/lib/config";
 import { sendAdminAlert } from "@/lib/telegram";
+import { logSuspiciousActivity } from "@/lib/fraud-logger";
 
 export interface RetellCallEvent {
   event: string;
@@ -60,6 +61,14 @@ const ESTIMATED_REVENUE: Record<string, number> = {
 
 const VOICE_CALL_TELEGRAM_ALERTS_ENABLED =
   process.env.VOICE_CALL_TELEGRAM_ALERTS_ENABLED !== "false";
+const RETELL_DUPLICATE_WINDOW_MINUTES = Math.max(
+  1,
+  Number.parseInt(process.env.RETELL_DUPLICATE_WINDOW_MINUTES || "5", 10) || 5,
+);
+const RETELL_DUPLICATE_START_THRESHOLD = Math.max(
+  1,
+  Number.parseInt(process.env.RETELL_DUPLICATE_START_THRESHOLD || "2", 10) || 2,
+);
 
 function redactPhone(phone?: string | null): string {
   if (!phone) return "unknown";
@@ -102,6 +111,7 @@ export async function processRetellEvent(event: RetellCallEvent): Promise<{ succ
 
 async function handleCallStarted(call: RetellCallData): Promise<{ success: boolean; error?: string }> {
   const dedupeKey = `started_${call.call_id}`;
+  const callerPhone = call.from_number?.trim() || null;
   const activeVersion = await prisma.voiceAgentConfigVersion.findFirst({
     where: { isDeployed: true },
     orderBy: { deployedAt: "desc" },
@@ -113,20 +123,54 @@ async function handleCallStarted(call: RetellCallData): Promise<{ success: boole
     return { success: true };
   }
 
+  let duplicateStarts = 0;
+  if (callerPhone && call.direction !== "outbound") {
+    const windowStart = new Date(Date.now() - RETELL_DUPLICATE_WINDOW_MINUTES * 60 * 1000);
+    duplicateStarts = await prisma.voiceCall.count({
+      where: {
+        callerPhone,
+        createdAt: { gte: windowStart },
+      },
+    });
+
+    if (duplicateStarts >= RETELL_DUPLICATE_START_THRESHOLD) {
+      await logSuspiciousActivity({
+        category: "fake_call",
+        event: "retell_duplicate_call_start",
+        severity: "warn",
+        phone: callerPhone,
+        details: {
+          duplicateStarts,
+          windowMinutes: RETELL_DUPLICATE_WINDOW_MINUTES,
+          threshold: RETELL_DUPLICATE_START_THRESHOLD,
+        },
+      });
+    }
+  }
+
   await prisma.voiceCall.create({
     data: {
       retellCallId: call.call_id,
       agentId: call.agent_id ?? null,
       configVersionId: activeVersion?.id ?? null,
-      callerPhone: call.from_number ?? null,
+      callerPhone,
       callType: call.direction === "outbound" ? "outbound" : (call.call_type === "web_call" ? "web" : "inbound"),
       callStatus: "in_progress",
       startedAt: call.start_timestamp ? new Date(call.start_timestamp) : new Date(),
       dedupeKey,
+      flaggedForReview: duplicateStarts >= RETELL_DUPLICATE_START_THRESHOLD,
+      reviewNotes:
+        duplicateStarts >= RETELL_DUPLICATE_START_THRESHOLD
+          ? `Repeated caller start activity detected (${duplicateStarts} prior starts in ${RETELL_DUPLICATE_WINDOW_MINUTES}m)`
+          : null,
     },
   });
 
-  if (VOICE_CALL_TELEGRAM_ALERTS_ENABLED && call.direction !== "outbound") {
+  if (
+    VOICE_CALL_TELEGRAM_ALERTS_ENABLED &&
+    call.direction !== "outbound" &&
+    duplicateStarts < RETELL_DUPLICATE_START_THRESHOLD
+  ) {
     sendAdminAlert({
       title: "Voice AI call started",
       message: `Retell call ${call.call_id} is now live. Caller ${redactPhone(call.from_number)}.`,

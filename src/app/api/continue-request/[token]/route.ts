@@ -2,6 +2,37 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { notifyNearbyLocksmiths } from "@/lib/job-notifications";
 import { notifyNewJob } from "@/lib/telegram";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { getRequestIdentifier } from "@/lib/auth-rate-limit";
+import { verifyRecaptchaToken } from "@/lib/recaptcha";
+import { logSuspiciousActivity } from "@/lib/fraud-logger";
+
+const CONTINUE_IP_LIMIT_MAX = Number.parseInt(
+  process.env.CONTINUE_REQUEST_IP_LIMIT_MAX || "6",
+  10,
+);
+const CONTINUE_IP_LIMIT_WINDOW_SECONDS = Number.parseInt(
+  process.env.CONTINUE_REQUEST_IP_LIMIT_WINDOW_SECONDS || "300",
+  10,
+);
+const CONTINUE_TOKEN_LIMIT_MAX = Number.parseInt(
+  process.env.CONTINUE_REQUEST_TOKEN_LIMIT_MAX || "4",
+  10,
+);
+const CONTINUE_TOKEN_LIMIT_WINDOW_SECONDS = Number.parseInt(
+  process.env.CONTINUE_REQUEST_TOKEN_LIMIT_WINDOW_SECONDS || "900",
+  10,
+);
+const CONTINUE_RECAPTCHA_MIN_SCORE = Number.parseFloat(
+  process.env.CONTINUE_REQUEST_RECAPTCHA_MIN_SCORE || "0.4",
+);
+const CONTINUE_RECAPTCHA_ENFORCED =
+  process.env.CONTINUE_REQUEST_RECAPTCHA_ENFORCED === "true";
+
+function cleanText(value: unknown): string {
+  if (typeof value !== "string") return "";
+  return value.trim();
+}
 
 // Geocode postcode to coordinates
 async function geocodePostcode(postcode: string): Promise<{ lat: number; lng: number } | null> {
@@ -125,13 +156,105 @@ export async function POST(
       );
     }
 
+    const ip = getRequestIdentifier(request);
+
+    const ipRateLimit = checkRateLimit(`continue_request_ip:${ip}`, {
+      maxRequests: CONTINUE_IP_LIMIT_MAX,
+      windowSeconds: CONTINUE_IP_LIMIT_WINDOW_SECONDS,
+    });
+
+    if (!ipRateLimit.success) {
+      await logSuspiciousActivity({
+        category: "fake_job",
+        event: "continue_request_ip_rate_limited",
+        severity: "warn",
+        ip,
+        token,
+      });
+      return NextResponse.json(
+        { success: false, error: "Too many attempts. Please try again shortly." },
+        { status: 429, headers: rateLimitHeaders(ipRateLimit) },
+      );
+    }
+
+    const tokenRateLimit = checkRateLimit(`continue_request_token:${token}`, {
+      maxRequests: CONTINUE_TOKEN_LIMIT_MAX,
+      windowSeconds: CONTINUE_TOKEN_LIMIT_WINDOW_SECONDS,
+    });
+
+    if (!tokenRateLimit.success) {
+      await logSuspiciousActivity({
+        category: "fake_job",
+        event: "continue_request_token_rate_limited",
+        severity: "warn",
+        ip,
+        token,
+      });
+      return NextResponse.json(
+        { success: false, error: "This link has reached its submission limit" },
+        { status: 429, headers: rateLimitHeaders(tokenRateLimit) },
+      );
+    }
+
     const body = await request.json();
-    const { problemType, propertyType, postcode, address, description } = body;
+    const problemType = cleanText(body?.problemType);
+    const propertyType = cleanText(body?.propertyType);
+    const postcode = cleanText(body?.postcode).toUpperCase();
+    const address = cleanText(body?.address);
+    const description = cleanText(body?.description);
+    const recaptchaToken = cleanText(body?.recaptchaToken);
+    const honeypot = cleanText(body?.website || body?.company);
+
+    if (honeypot) {
+      await logSuspiciousActivity({
+        category: "fake_job",
+        event: "continue_request_honeypot_triggered",
+        severity: "warn",
+        ip,
+        token,
+      });
+      return NextResponse.json(
+        { success: false, error: "Invalid submission" },
+        { status: 400 },
+      );
+    }
 
     if (!problemType || !propertyType || !postcode || !address) {
       return NextResponse.json(
         { success: false, error: "All fields are required" },
         { status: 400 }
+      );
+    }
+
+    if (problemType.length > 120 || propertyType.length > 80 || address.length > 300 || description.length > 2000) {
+      return NextResponse.json(
+        { success: false, error: "One or more fields are too long" },
+        { status: 400 },
+      );
+    }
+
+    const recaptchaResult = await verifyRecaptchaToken({
+      token: recaptchaToken,
+      expectedAction: "continue_request",
+      minScore: CONTINUE_RECAPTCHA_MIN_SCORE,
+      remoteIp: ip,
+    });
+
+    if (!recaptchaResult.success && (CONTINUE_RECAPTCHA_ENFORCED || Boolean(recaptchaToken))) {
+      await logSuspiciousActivity({
+        category: "fake_job",
+        event: "continue_request_recaptcha_failed",
+        severity: "warn",
+        ip,
+        token,
+        details: {
+          errorCode: recaptchaResult.errorCode,
+          score: recaptchaResult.score,
+        },
+      });
+      return NextResponse.json(
+        { success: false, error: "Security verification failed" },
+        { status: 403 },
       );
     }
 
@@ -241,6 +364,8 @@ export async function POST(
       jobId: updatedJob.id,
       jobNumber: updatedJob.jobNumber,
       message: "Your request has been submitted! Locksmiths will start sending you quotes.",
+    }, {
+      headers: rateLimitHeaders(tokenRateLimit),
     });
 
   } catch (error) {

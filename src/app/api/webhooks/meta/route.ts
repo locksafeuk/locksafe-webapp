@@ -18,9 +18,20 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { sendAdminAlert } from "@/lib/telegram";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { getRequestIdentifier } from "@/lib/auth-rate-limit";
+import { logSuspiciousActivity } from "@/lib/fraud-logger";
 
 // Verify token for Meta webhook verification
 const VERIFY_TOKEN = process.env.META_WEBHOOK_VERIFY_TOKEN || "locksafe_meta_webhook_verify_token";
+const META_WEBHOOK_MAX_REQUESTS = Number.parseInt(
+  process.env.META_WEBHOOK_RATE_LIMIT_MAX || "120",
+  10,
+);
+const META_WEBHOOK_WINDOW_SECONDS = Number.parseInt(
+  process.env.META_WEBHOOK_RATE_LIMIT_WINDOW_SECONDS || "60",
+  10,
+);
 
 function verifyMetaSignature(rawBody: string, signatureHeader: string | null): boolean {
   const appSecret = process.env.META_APP_SECRET;
@@ -99,10 +110,35 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    const ip = getRequestIdentifier(request);
+    const rateLimitResult = checkRateLimit(`meta_webhook:${ip}`, {
+      maxRequests: META_WEBHOOK_MAX_REQUESTS,
+      windowSeconds: META_WEBHOOK_WINDOW_SECONDS,
+    });
+
+    if (!rateLimitResult.success) {
+      await logSuspiciousActivity({
+        category: "webhook_abuse",
+        event: "meta_webhook_rate_limited",
+        severity: "warn",
+        ip,
+      });
+      return NextResponse.json(
+        { error: "Too many webhook requests" },
+        { status: 429, headers: rateLimitHeaders(rateLimitResult) },
+      );
+    }
+
     const rawBody = await request.text();
     const signatureHeader = request.headers.get("x-hub-signature-256");
 
     if (!verifyMetaSignature(rawBody, signatureHeader)) {
+      await logSuspiciousActivity({
+        category: "webhook_abuse",
+        event: "meta_webhook_invalid_signature",
+        severity: "warn",
+        ip,
+      });
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
 

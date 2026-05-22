@@ -254,6 +254,46 @@ Changes take effect on the next cron tick.
 
 ---
 
+## 12. Click-Fraud Guardrail (Google Ads)
+
+LockSafe now includes a dedicated fraud-monitor endpoint:
+
+- `POST /api/cron/google-ads-fraud-monitor`
+- `GET /api/cron/google-ads-fraud-monitor` (health)
+
+What it checks (per campaign):
+
+1. `metrics.invalid_clicks`
+2. `metrics.invalid_click_rate`
+3. `metrics.clicks`
+4. `metrics.conversions`
+
+When thresholds are exceeded, it sends a Telegram alert and can optionally
+auto-pause suspicious campaigns.
+
+Environment knobs:
+
+- `GOOGLE_ADS_FRAUD_MIN_INVALID_CLICKS` (default `8`)
+- `GOOGLE_ADS_FRAUD_MIN_INVALID_RATE` (default `0.25`)
+- `GOOGLE_ADS_FRAUD_MIN_CLICKS` (default `20`)
+- `GOOGLE_ADS_FRAUD_MAX_CONVERSIONS` (default `1`)
+- `GOOGLE_ADS_FRAUD_ALERTS_ENABLED` (default `true`)
+- `GOOGLE_ADS_FRAUD_AUTO_PAUSE` (default `false`)
+
+Recommended rollout:
+
+1. Keep auto-pause **off** for 3-5 days.
+2. Validate alert quality and false positives.
+3. Enable auto-pause only after thresholds are tuned.
+
+Manual run:
+
+```bash
+npm run google-ads:fraud-monitor
+```
+
+---
+
 ## TL;DR for the impatient
 
 ```bash

@@ -4,6 +4,7 @@ import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Phone, MapPin, Wrench, Home, Building2, Car, CheckCircle, AlertCircle, ArrowRight, Clock, Shield } from "lucide-react";
+import { executeRecaptcha } from "@/lib/recaptcha-client";
 
 interface PhoneJobData {
   id: string;
@@ -99,6 +100,7 @@ export default function ContinueRequestPage({ params }: { params: Promise<{ toke
     setError(null);
 
     try {
+      const recaptchaToken = await executeRecaptcha("continue_request");
       const response = await fetch(`/api/continue-request/${resolvedParams.token}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -108,6 +110,8 @@ export default function ContinueRequestPage({ params }: { params: Promise<{ toke
           postcode,
           address,
           description,
+          recaptchaToken,
+          website: "",
         }),
       });
 

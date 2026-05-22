@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
+import { executeRecaptcha } from "@/lib/recaptcha-client";
 
 interface UseModalTriggerOptions {
   visitorId: string;
@@ -125,12 +126,16 @@ export function useModalTrigger(options: UseModalTriggerOptions) {
       segment?: string[];
     }) => {
       try {
+        const recaptchaToken = await executeRecaptcha("lead_signup");
+
         const res = await fetch("/api/marketing/leads", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             ...data,
             sessionId,
+            recaptchaToken,
+            website: "",
           }),
         });
 
