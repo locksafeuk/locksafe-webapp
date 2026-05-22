@@ -116,6 +116,7 @@ const navGroups: NavGroup[] = [
       { href: "/admin/payments", label: "Payments", icon: CreditCard },
       { href: "/admin/payouts", label: "Payouts", icon: PoundSterling },
       { href: "/admin/refunds", label: "Refunds", icon: RotateCcw },
+      { href: "/admin/testing", label: "Testing", icon: Rocket },
       { href: "/admin/commission-tiers", label: "Commission Tiers", icon: Percent },
       { href: "/admin/referrals", label: "Referrals", icon: Gift },
       { href: "/admin/subscriptions", label: "Cover Subscriptions", icon: Crown },
@@ -357,6 +358,8 @@ export function AdminSidebar({ children }: AdminSidebarProps) {
           <button
             type="button"
             onClick={() => setSearch("")}
+            aria-label="Clear menu search"
+            title="Clear search"
             className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
           >
             <X className="w-3 h-3" />

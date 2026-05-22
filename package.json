@@ -14,6 +14,7 @@
     "test:e2e:ui": "playwright test --ui",
     "test:stripe-sandbox": "set -a && source .env.test.local && set +a && npx tsx --tsconfig tsconfig.scripts.json scripts/test-stripe-e2e.ts",
     "test:stripe-sandbox:hosted": "set -a && source .env.local && set +a && NEXT_PUBLIC_APP_URL=https://www.locksafe.uk npx tsx --tsconfig tsconfig.scripts.json scripts/test-stripe-e2e.ts",
+    "test:a2z:hosted": "set -a && source .env.local && set +a && NEXT_PUBLIC_APP_URL=https://www.locksafe.uk npx tsx --tsconfig tsconfig.scripts.json scripts/test-a2z-book-pay-flow.ts",
     "reliability:daily": "npx tsx --env-file=.env.local --tsconfig tsconfig.scripts.json scripts/daily-reliability-check.ts",
     "reliability:daily:prod": "RELIABILITY_BASE_URL=https://www.locksafe.uk npx tsx --env-file=.env.local --tsconfig tsconfig.scripts.json scripts/daily-reliability-check.ts",
     "retell:local-eval": "npx tsx --env-file=.env.local --tsconfig tsconfig.scripts.json scripts/retell-local-evaluator.ts",
