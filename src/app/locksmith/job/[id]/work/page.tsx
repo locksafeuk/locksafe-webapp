@@ -868,12 +868,12 @@ export default function JobWorkPage({ params }: { params: Promise<{ id: string }
                 <div className="text-xs sm:text-sm text-slate-500">
                   {gpsStatus === "getting" && "Getting location..."}
                   {gpsStatus === "success" && currentLocation &&
-                    `${currentLocation.lat.toFixed(4)}, ${currentLocation.lng.toFixed(4)}`
+                    `Near ${job.postcode || "job location"}`
                   }
                   {gpsStatus === "error" && "Location unavailable"}
                   {gpsStatus === "idle" && !currentLocation && "Tap to get location"}
                   {gpsStatus === "idle" && currentLocation &&
-                    `${currentLocation.lat.toFixed(4)}, ${currentLocation.lng.toFixed(4)}`
+                    `Near ${job.postcode || "job location"}`
                   }
                 </div>
               </div>

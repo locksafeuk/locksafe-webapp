@@ -29,7 +29,7 @@ export function formatBaseLocationLabel(
     return baseAddress;
   }
 
-  return "Postcode unavailable";
+  return "Location set";
 }
 
 export async function reverseGeocodePostcodeFromCoords(

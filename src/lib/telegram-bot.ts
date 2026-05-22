@@ -14,6 +14,7 @@
  */
 
 import prisma from "@/lib/db";
+import { formatBaseLocationLabel } from "@/lib/location-display";
 import {
   autoDispatchJob,
   findBestLocksmiths,
@@ -655,9 +656,10 @@ export async function handleLocksmithsCommand(chatId: string): Promise<void> {
     if (available.length > 0) {
       message += `<b>🟢 Available (${available.length})</b>\n`;
       for (const ls of available) {
+        const locationLabel = formatBaseLocationLabel(ls.baseAddress);
         message += `• ${escapeHtml(ls.name)}`;
         if (ls.companyName) message += ` (${escapeHtml(ls.companyName)})`;
-        message += ` ⭐${ls.rating.toFixed(1)}`;
+        message += ` ⭐${ls.rating.toFixed(1)} • ${escapeHtml(locationLabel)}`;
         if (ls._count.jobs > 0) message += ` 📋${ls._count.jobs}`;
         message += "\n";
       }
@@ -667,7 +669,8 @@ export async function handleLocksmithsCommand(chatId: string): Promise<void> {
     if (offline.length > 0) {
       message += `<b>⚫ Offline (${offline.length})</b>\n`;
       for (const ls of offline.slice(0, 5)) {
-        message += `• ${escapeHtml(ls.name)} ⭐${ls.rating.toFixed(1)}\n`;
+        const locationLabel = formatBaseLocationLabel(ls.baseAddress);
+        message += `• ${escapeHtml(ls.name)} ⭐${ls.rating.toFixed(1)} • ${escapeHtml(locationLabel)}\n`;
       }
       if (offline.length > 5) {
         message += `<i>...and ${offline.length - 5} more</i>\n`;

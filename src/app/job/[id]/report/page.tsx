@@ -499,7 +499,15 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
                           {item.gps ? (
                             <span className="flex items-center gap-1">
                               <MapPin className="w-3 h-3" />
-                              {item.gps.lat.toFixed(4)}, {item.gps.lng.toFixed(4)}
+                              <span>Near {job.postcode || "job location"}</span>
+                              <a
+                                href={`https://www.google.com/maps?q=${item.gps.lat},${item.gps.lng}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-700 underline text-xs"
+                              >
+                                map
+                              </a>
                             </span>
                           ) : "-"}
                         </td>

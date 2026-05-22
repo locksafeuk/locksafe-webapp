@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { sendLocksmithVerifiedEmail } from "@/lib/email";
 import { isInUkOrIreland } from "@/lib/geo-guard";
+import {
+  extractUkPostcode,
+  isCoordinatePair,
+  normalizeUkPostcode,
+  reverseGeocodePostcodeFromCoords,
+} from "@/lib/location-display";
 
 // GET /api/locksmiths/[id] - Get locksmith public profile with reviews
 export async function GET(
@@ -268,6 +274,29 @@ export async function PATCH(
           );
         }
       }
+    }
+
+    if (filteredData.baseAddress !== undefined || filteredData.baseLat !== undefined || filteredData.baseLng !== undefined) {
+      const rawBaseAddress = typeof filteredData.baseAddress === "string"
+        ? filteredData.baseAddress
+        : typeof updateData.baseAddress === "string"
+          ? updateData.baseAddress
+          : "";
+
+      const lat = Number(filteredData.baseLat ?? updateData.baseLat ?? locksmith.baseLat);
+      const lng = Number(filteredData.baseLng ?? updateData.baseLng ?? locksmith.baseLng);
+
+      const extractedPostcode = normalizeUkPostcode(rawBaseAddress) ?? extractUkPostcode(rawBaseAddress);
+      const reversePostcode = extractedPostcode
+        ? extractedPostcode
+        : await reverseGeocodePostcodeFromCoords(lat, lng);
+
+      const cleanedBaseAddress = rawBaseAddress.trim();
+      filteredData.baseAddress = reversePostcode
+        ? reversePostcode
+        : cleanedBaseAddress && !isCoordinatePair(cleanedBaseAddress)
+          ? cleanedBaseAddress
+          : null;
     }
 
     if (Object.keys(filteredData).length > 0) {

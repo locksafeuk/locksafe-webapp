@@ -203,7 +203,7 @@ export async function generateJobReportPDF(data: JobReportData) {
       doc.setTextColor(100, 116, 139);
       doc.setFontSize(7);
       doc.text(
-        `${item.gps.lat.toFixed(4)}, ${item.gps.lng.toFixed(4)} (${item.gps.accuracy || 0}m)`,
+        `Near ${data.customer.postcode || "job location"}${item.gps.accuracy ? ` (${item.gps.accuracy}m)` : ""}`,
         pageWidth - margin - 45,
         y
       );
