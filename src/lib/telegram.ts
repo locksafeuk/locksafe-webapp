@@ -31,6 +31,19 @@ const ADMIN_ALERT_FALLBACK_PHONES = (process.env.ADMIN_ALERT_FALLBACK_PHONES || 
   .map((v) => v.trim())
   .filter(Boolean);
 
+// Best-effort in-process dedupe to reduce noisy repeated admin alerts.
+// Repeats are keyed by severity+title unless a caller provides dedupeKey.
+const adminAlertCooldownCache = new Map<string, number>();
+
+function getAdminAlertCooldownMs(severity: "info" | "warning" | "error"): number {
+  const infoMinutes = Number(process.env.TELEGRAM_ALERT_INFO_COOLDOWN_MINUTES ?? "60");
+  const warningMinutes = Number(process.env.TELEGRAM_ALERT_WARNING_COOLDOWN_MINUTES ?? "15");
+
+  if (severity === "error") return 0;
+  if (severity === "warning") return Math.max(0, warningMinutes) * 60 * 1000;
+  return Math.max(0, infoMinutes) * 60 * 1000;
+}
+
 // Forum topic thread IDs — set these env vars after creating topics in your Telegram supergroup.
 // Leave unset (or set to 0) to send all messages to the General topic.
 const TOPIC_NEW_JOBS = process.env.TELEGRAM_TOPIC_NEW_JOBS ? parseInt(process.env.TELEGRAM_TOPIC_NEW_JOBS) : undefined;
@@ -747,6 +760,7 @@ export async function sendAdminAlert(data: {
   message: string;
   severity?: "info" | "warning" | "error";
   bypassPolicyGate?: boolean;
+  dedupeKey?: string;
 }): Promise<boolean> {
   // Runtime alert-sensitivity gate for admin/agent topic noise control.
   // Defaults are handled by operational policy module if DB fields are null.
@@ -785,7 +799,23 @@ export async function sendAdminAlert(data: {
     error: "🚨",
   };
 
-  const icon = icons[data.severity || "info"];
+  const severity = data.severity || "info";
+  const icon = icons[severity];
+
+  // Spam guard: repeated alerts with the same dedupe key are suppressed.
+  const dedupeKey = data.dedupeKey || `${severity}:${data.title}`;
+  const cooldownMs = getAdminAlertCooldownMs(severity);
+  if (cooldownMs > 0) {
+    const now = Date.now();
+    const nextAllowedAt = adminAlertCooldownCache.get(dedupeKey) ?? 0;
+    if (now < nextAllowedAt) {
+      console.log(
+        `[Telegram][dedupe] suppressed alert key=${dedupeKey} severity=${severity} title=${data.title}`,
+      );
+      return true;
+    }
+    adminAlertCooldownCache.set(dedupeKey, now + cooldownMs);
+  }
 
   const message = `
 ${icon} <b>${escapeHtml(data.title)}</b>
@@ -799,7 +829,7 @@ ${escapeHtml(data.message)}
   if (sentToTelegram) return true;
 
   // P1 fallback path: critical alerts should still page humans when Telegram is down.
-  if ((data.severity || "info") !== "error" || !ADMIN_SMS_FALLBACK_ENABLED) {
+  if (severity !== "error" || !ADMIN_SMS_FALLBACK_ENABLED) {
     return false;
   }
 
