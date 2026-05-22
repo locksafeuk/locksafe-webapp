@@ -101,6 +101,26 @@ function elapsedMins(iso: string | null): string {
   return `${Math.floor(mins / 60)}h ${mins % 60}m`;
 }
 
+function distanceMilesBetween(
+  fromLat: number,
+  fromLng: number,
+  toLat: number,
+  toLng: number,
+): number {
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const earthRadiusMiles = 3958.8;
+
+  const dLat = toRadians(toLat - fromLat);
+  const dLng = toRadians(toLng - fromLng);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRadians(fromLat)) * Math.cos(toRadians(toLat)) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusMiles * c;
+}
+
 function StatusIcon({ status }: { status: string }) {
   if (status === "PENDING") return <AlertCircle className="w-3.5 h-3.5" />;
   if (status === "EN_ROUTE" || status === "ACCEPTED") return <TruckIcon className="w-3.5 h-3.5" />;
@@ -262,6 +282,12 @@ export default function AdminOpsPage() {
 
     for (const locksmith of locksmiths) {
       const { color, label } = getLocksmithStatus(locksmith);
+      const assignedJob = jobs.find((job) => job.locksmith?.id === locksmith.id);
+      const nearestJobDistanceMiles = jobs
+        .filter((job) => Number.isFinite(job.jobLat) && Number.isFinite(job.jobLng))
+        .map((job) => distanceMilesBetween(locksmith.baseLat, locksmith.baseLng, job.jobLat as number, job.jobLng as number))
+        .sort((a, b) => a - b)[0];
+
       const lsPin = document.createElement("div");
       lsPin.style.cssText = "width:28px; height:28px; cursor:pointer;";
       lsPin.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28">
@@ -305,6 +331,22 @@ export default function AdminOpsPage() {
         coverage.style.color = "#374151";
         coverage.innerHTML = `<b>Coverage:</b> ${coverageLabel}`;
 
+        const jobInfo = document.createElement("div");
+        jobInfo.style.fontSize = "12px";
+        jobInfo.style.color = "#374151";
+        jobInfo.style.marginTop = "4px";
+        jobInfo.innerHTML = assignedJob
+          ? `<b>Assigned:</b> Job ${assignedJob.jobNumber}`
+          : "<b>Assigned:</b> None";
+
+        const distanceInfo = document.createElement("div");
+        distanceInfo.style.fontSize = "12px";
+        distanceInfo.style.color = "#374151";
+        distanceInfo.style.marginTop = "4px";
+        distanceInfo.innerHTML = Number.isFinite(nearestJobDistanceMiles)
+          ? `<b>Nearest active job:</b> ${(nearestJobDistanceMiles as number).toFixed(1)} miles`
+          : "<b>Nearest active job:</b> N/A";
+
         const location = document.createElement("div");
         location.style.fontSize = "11px";
         location.style.color = "#94a3b8";
@@ -325,17 +367,14 @@ export default function AdminOpsPage() {
         openButton.style.cursor = "pointer";
         openButton.addEventListener("click", () => router.push(profileUrl));
 
-        wrapper.append(title, badge, coverage, location, openButton);
+        wrapper.append(title, badge, coverage, jobInfo, distanceInfo, location, openButton);
         return wrapper;
       })());
 
       const lsBaseMarker = new mapboxgl.Marker(lsPin)
         .setLngLat([locksmith.baseLng, locksmith.baseLat])
+        .setPopup(lsPopup)
         .addTo(map.current!);
-
-      lsBaseMarker.getElement().addEventListener("click", () => router.push(profileUrl));
-
-      lsBaseMarker.setPopup(lsPopup);
 
       markers.current.push(lsBaseMarker);
       bounds.extend([locksmith.baseLng, locksmith.baseLat]);
