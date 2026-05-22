@@ -6,74 +6,32 @@
  */
 
 import { sendSMS } from "@/lib/sms";
+import { sendAdminAlert } from "@/lib/telegram";
 import type { AgentTool, ToolResult, AgentContext } from "@/agents/core/types";
 import {
-  canSendTelegramMessage,
-  recordTelegramMessage,
   delegateTask,
   pauseAgent,
   resumeAgent,
   syncAllAgentsFromDB,
 } from "@/agents/core/orchestrator";
 
-// Telegram config
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
-const TELEGRAM_TOPIC_AGENTS = process.env.TELEGRAM_TOPIC_AGENTS
-  ? Number.parseInt(process.env.TELEGRAM_TOPIC_AGENTS, 10)
-  : undefined;
+function getAgentAlertCooldownMs(priority: string, isGuardian: boolean): number {
+  const defaults = {
+    low: isGuardian ? 30 : 240,
+    medium: isGuardian ? 20 : 180,
+    high: isGuardian ? 10 : 120,
+    critical: 0,
+  };
 
-/**
- * Send a message via Telegram Bot API (with rate limiting)
- */
-async function sendTelegramMessage(
-  message: string,
-  threadId?: number,
-): Promise<{ sent: boolean; reason?: string }> {
-  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
-    // Graceful degradation: log locally, don't fail the agent action
-    console.log("[Telegram] Message logged (no token configured):", message.slice(0, 120));
-    return { sent: false, reason: "TELEGRAM_BOT_TOKEN not configured — message logged locally only" };
-  }
+  const fromEnv = {
+    low: Number(process.env.AGENT_ALERT_LOW_COOLDOWN_MINUTES ?? defaults.low),
+    medium: Number(process.env.AGENT_ALERT_MEDIUM_COOLDOWN_MINUTES ?? defaults.medium),
+    high: Number(process.env.AGENT_ALERT_HIGH_COOLDOWN_MINUTES ?? defaults.high),
+    critical: Number(process.env.AGENT_ALERT_CRITICAL_COOLDOWN_MINUTES ?? defaults.critical),
+  };
 
-  // Check rate limit
-  if (!canSendTelegramMessage()) {
-    console.warn("[Telegram] Rate limited - too many messages this hour");
-    return { sent: false, reason: "rate_limited" };
-  }
-
-  try {
-    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-
-    const body: Record<string, unknown> = {
-      chat_id: TELEGRAM_CHAT_ID,
-      text: message,
-      parse_mode: "HTML",
-      disable_web_page_preview: true,
-    };
-    if (threadId && Number.isFinite(threadId)) {
-      body.message_thread_id = threadId;
-    }
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-
-    const data = await response.json();
-
-    if (data.ok) {
-      recordTelegramMessage();
-    }
-
-    return { sent: data.ok, reason: data.ok ? undefined : data.description };
-  } catch (error) {
-    console.error("[Telegram] Failed to send message:", error);
-    return { sent: false, reason: error instanceof Error ? error.message : "network error" };
-  }
+  const minutes = Math.max(0, fromEnv[priority as keyof typeof fromEnv] ?? defaults.medium);
+  return minutes * 60 * 1000;
 }
 
 /**
@@ -103,6 +61,7 @@ export const sendTelegramAlertTool: AgentTool = {
   async execute(params, context): Promise<ToolResult> {
     const message = params.message as string;
     const priority = (params.priority as string) || "medium";
+    let isGuardian = false;
 
     // Sensitivity gating — non-workflow agents (CEO/CMO/copywriter/ads/social)
     // are noisy. Only let them through to Telegram if their priority meets the
@@ -116,7 +75,7 @@ export const sendTelegramAlertTool: AgentTool = {
         import("@/agents/core/operational-policy"),
       ]);
       const policy = await getOperationalPolicy();
-      const isGuardian = isGuardianAgent(context.agentName);
+      isGuardian = isGuardianAgent(context.agentName);
       const sensitivity = policy.alertSensitivity;
       const rank: Record<string, number> = { low: 1, medium: 2, high: 3, critical: 4 };
       const priorityRank = rank[priority] ?? 2;
@@ -143,23 +102,38 @@ export const sendTelegramAlertTool: AgentTool = {
       high: "⚠️",
       critical: "🚨",
     };
+    const severityByPriority: Record<string, "info" | "warning" | "error"> = {
+      low: "info",
+      medium: "info",
+      high: "warning",
+      critical: "error",
+    };
+    const severity = severityByPriority[priority] ?? "info";
 
-    const formattedMessage = `${priorityEmoji[priority as keyof typeof priorityEmoji]} <b>Agent Alert</b>
-From: ${context.agentName.toUpperCase()}
-Priority: ${priority.toUpperCase()}
+    const dedupeKey = `agent-alert:${context.agentName.toLowerCase()}:${priority.toLowerCase()}`;
+    const cooldownMs = getAgentAlertCooldownMs(priority, isGuardian);
 
-${message}
-
-<i>Sent at ${new Date().toLocaleTimeString()}</i>`;
+    const title = `${priorityEmoji[priority as keyof typeof priorityEmoji]} Agent Alert: ${context.agentName.toUpperCase()} (${priority.toUpperCase()})`;
 
     try {
-      const result = await sendTelegramMessage(formattedMessage, TELEGRAM_TOPIC_AGENTS);
-      // Treat missing-token as a graceful success so agents don't retry in loops
-      const isSuccess = result.sent || result.reason?.includes("not configured");
+      const sent = await sendAdminAlert({
+        title,
+        message,
+        severity,
+        dedupeKey,
+        cooldownMsOverride: cooldownMs,
+        bypassPolicyGate: true,
+      });
+
       return {
         success: true,
-        data: { sent: result.sent, priority, timestamp: new Date(), note: result.reason },
-        error: isSuccess ? undefined : result.reason,
+        data: {
+          sent,
+          priority,
+          dedupeKey,
+          cooldownMs,
+          timestamp: new Date(),
+        },
       };
     } catch (error) {
       return {

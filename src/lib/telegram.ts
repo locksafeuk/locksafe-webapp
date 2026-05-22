@@ -82,9 +82,10 @@ async function recordAdminAlertSent(dedupeKey: string, data: {
   title: string;
   message: string;
   severity: "info" | "warning" | "error";
+  cooldownMs: number;
 }): Promise<void> {
   const now = Date.now();
-  const cooldownMs = getAdminAlertCooldownMs(data.severity);
+  const cooldownMs = data.cooldownMs;
   if (cooldownMs > 0) {
     adminAlertCooldownCache.set(dedupeKey, now + cooldownMs);
   }
@@ -839,6 +840,7 @@ export async function sendAdminAlert(data: {
   severity?: "info" | "warning" | "error";
   bypassPolicyGate?: boolean;
   dedupeKey?: string;
+  cooldownMsOverride?: number;
 }): Promise<boolean> {
   // Runtime alert-sensitivity gate for admin/agent topic noise control.
   // Defaults are handled by operational policy module if DB fields are null.
@@ -883,7 +885,7 @@ export async function sendAdminAlert(data: {
   // Spam guard: repeated alerts with the same dedupe key are suppressed.
   // Default key normalizes dynamic numeric/id fragments in titles.
   const dedupeKey = data.dedupeKey || `${severity}:${normalizeAlertTitleForDedupe(data.title)}`;
-  const cooldownMs = getAdminAlertCooldownMs(severity);
+  const cooldownMs = data.cooldownMsOverride ?? getAdminAlertCooldownMs(severity);
   if (await wasAdminAlertSentRecently(dedupeKey, cooldownMs)) {
     console.log(
       `[Telegram][dedupe] suppressed alert key=${dedupeKey} severity=${severity} title=${data.title}`,
@@ -905,6 +907,7 @@ ${escapeHtml(data.message)}
       title: data.title,
       message: data.message,
       severity,
+      cooldownMs,
     });
     return true;
   }
@@ -942,6 +945,7 @@ ${escapeHtml(data.message)}
         title: data.title,
         message: data.message,
         severity,
+        cooldownMs,
       });
       console.warn(
         `[Telegram][fallback] Telegram failed; sent critical alert via SMS to ${successful}/${fallbackPhones.length} recipients`,
