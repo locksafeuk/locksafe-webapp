@@ -134,6 +134,9 @@ export default function AdminOpsPage() {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markers = useRef<mapboxgl.Marker[]>([]);
+  const userMovedMapRef = useRef(false);
+  const hasAutoFittedRef = useRef(false);
+  const latestBoundsRef = useRef<mapboxgl.LngLatBounds | null>(null);
 
   const [jobs, setJobs] = useState<JobEntry[]>([]);
   const [locksmiths, setLocksmiths] = useState<LocksmithEntry[]>([]);
@@ -181,6 +184,12 @@ export default function AdminOpsPage() {
     });
 
     map.current.addControl(new mapboxgl.NavigationControl(), "top-right");
+    map.current.on("zoomstart", () => {
+      userMovedMapRef.current = true;
+    });
+    map.current.on("dragstart", () => {
+      userMovedMapRef.current = true;
+    });
     map.current.on("load", () => setMapReady(true));
 
     return () => {
@@ -382,9 +391,20 @@ export default function AdminOpsPage() {
     }
 
     if (hasBounds) {
-      map.current.fitBounds(bounds, { padding: 60, maxZoom: 13 });
+      latestBoundsRef.current = bounds;
+
+      if (!hasAutoFittedRef.current || !userMovedMapRef.current) {
+        map.current.fitBounds(bounds, { padding: 60, maxZoom: 13 });
+        hasAutoFittedRef.current = true;
+      }
     }
   }, [jobs, locksmiths, mapReady, statusFilter]);
+
+  const recenterMap = useCallback(() => {
+    if (!map.current || !latestBoundsRef.current) return;
+    userMovedMapRef.current = false;
+    map.current.fitBounds(latestBoundsRef.current, { padding: 60, maxZoom: 13 });
+  }, []);
 
   // Focus map on selected job
   const flyToJob = useCallback((job: JobEntry) => {
@@ -404,17 +424,28 @@ export default function AdminOpsPage() {
             <h1 className="text-white font-bold text-lg flex items-center gap-2">
               <MapPin className="w-5 h-5 text-blue-400" /> Live Ops
             </h1>
-            <button
-              onClick={() => fetchData()}
-              className="text-gray-400 hover:text-white transition-colors"
-              title="Refresh"
-            >
-              {loading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <RefreshCw className="w-4 h-4" />
-              )}
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={recenterMap}
+                className="text-gray-400 hover:text-white transition-colors"
+                title="Recenter map"
+              >
+                <MapPin className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => fetchData()}
+                className="text-gray-400 hover:text-white transition-colors"
+                title="Refresh"
+              >
+                {loading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4" />
+                )}
+              </button>
+            </div>
           </div>
 
           {/* Stat chips */}
