@@ -19,7 +19,7 @@ function getAgentAlertCooldownMs(priority: string, isGuardian: boolean): number 
   const defaults = {
     low: isGuardian ? 30 : 240,
     medium: isGuardian ? 20 : 180,
-    high: isGuardian ? 10 : 120,
+    high: isGuardian ? 10 : 180,
     critical: 0,
   };
 
@@ -110,7 +110,8 @@ export const sendTelegramAlertTool: AgentTool = {
     };
     const severity = severityByPriority[priority] ?? "info";
 
-    const dedupeKey = `agent-alert:${context.agentName.toLowerCase()}:${priority.toLowerCase()}`;
+    // Deduplicate by agent (not priority) to avoid near-duplicate summary bursts.
+    const dedupeKey = `agent-alert:${context.agentName.toLowerCase()}`;
     const cooldownMs = getAgentAlertCooldownMs(priority, isGuardian);
 
     const title = `${priorityEmoji[priority as keyof typeof priorityEmoji]} Agent Alert: ${context.agentName.toUpperCase()} (${priority.toUpperCase()})`;
