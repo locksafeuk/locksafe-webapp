@@ -118,6 +118,13 @@ export default function AdminLocksmithsPage() {
   // Postcode lookup: locksmith id -> postcode string
   const [postcodeMap, setPostcodeMap] = useState<Record<string, string>>({});
 
+  // Map search state (find closest locksmiths to an input address)
+  const [mapAddressQuery, setMapAddressQuery] = useState("");
+  const [searchingMapAddress, setSearchingMapAddress] = useState(false);
+  const [mapSearchError, setMapSearchError] = useState<string | null>(null);
+  const [mapTargetLocation, setMapTargetLocation] = useState<{ lat: number; lng: number; label: string } | null>(null);
+  const [nearestLocksmithIds, setNearestLocksmithIds] = useState<string[]>([]);
+
   // Delete state
   const [deleteLocksmithId, setDeleteLocksmithId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -627,6 +634,104 @@ export default function AdminLocksmithsPage() {
     return `${Math.floor(hours / 24)}d ago`;
   };
 
+  const haversineMiles = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    const earthRadiusMiles = 3958.8;
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+    const a = Math.sin(dLat / 2) ** 2
+      + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+    return 2 * earthRadiusMiles * Math.asin(Math.sqrt(a));
+  };
+
+  const handleFindClosestOnMap = async () => {
+    const query = mapAddressQuery.trim();
+    if (!query) {
+      setMapSearchError("Enter an address or postcode first.");
+      return;
+    }
+
+    try {
+      setSearchingMapAddress(true);
+      setMapSearchError(null);
+
+      const response = await fetch("/api/admin/geocode-address", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        setMapSearchError(data.error || "Unable to find this address.");
+        return;
+      }
+
+      const target = {
+        lat: Number(data.lat),
+        lng: Number(data.lng),
+        label: String(data.label || query),
+      };
+
+      setMapTargetLocation(target);
+
+      const nearest = filteredLocksmiths
+        .filter((ls): ls is Locksmith & { baseLat: number; baseLng: number } => ls.baseLat != null && ls.baseLng != null)
+        .map((ls) => ({
+          id: ls.id,
+          distanceMiles: haversineMiles(target.lat, target.lng, ls.baseLat, ls.baseLng),
+        }))
+        .sort((a, b) => a.distanceMiles - b.distanceMiles)
+        .slice(0, 20)
+        .map((item) => item.id);
+
+      setNearestLocksmithIds(nearest);
+    } catch (error) {
+      console.error("Map address search failed:", error);
+      setMapSearchError("Address search failed. Please try again.");
+    } finally {
+      setSearchingMapAddress(false);
+    }
+  };
+
+  const clearMapSearch = () => {
+    setMapTargetLocation(null);
+    setNearestLocksmithIds([]);
+    setMapSearchError(null);
+  };
+
+  const mapLocksmiths = filteredLocksmiths
+    .filter(
+      (ls): ls is Locksmith & { baseLat: number; baseLng: number } =>
+        ls.baseLat != null && ls.baseLng != null,
+    )
+    .map((ls) => {
+      const distanceMiles = mapTargetLocation
+        ? haversineMiles(mapTargetLocation.lat, mapTargetLocation.lng, ls.baseLat, ls.baseLng)
+        : undefined;
+
+      return {
+        id: ls.id,
+        name: ls.name,
+        baseLat: ls.baseLat,
+        baseLng: ls.baseLng,
+        coverageRadius: ls.coverageRadius,
+        isVerified: ls.isVerified,
+        isActive: ls.isActive,
+        isAvailable: ls.isAvailable,
+        distanceMiles,
+      };
+    })
+    .filter((ls) => nearestLocksmithIds.length === 0 || nearestLocksmithIds.includes(ls.id))
+    .sort((a, b) => {
+      if (typeof a.distanceMiles === "number" && typeof b.distanceMiles === "number") {
+        return a.distanceMiles - b.distanceMiles;
+      }
+      return a.name.localeCompare(b.name);
+    });
+
+  const mapNearestTop = mapLocksmiths.slice(0, 5);
+
   return (
     <AdminSidebar>
       <div className="p-4 lg:p-8">
@@ -786,28 +891,136 @@ export default function AdminLocksmithsPage() {
               <p className="text-sm text-slate-500 mt-1">
                 {locksmiths.filter(ls => ls.baseLat && ls.baseLng).length} of {locksmiths.length} locksmiths have set their coverage area
               </p>
+              <div className="mt-3 grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-2">
+                <input
+                  type="text"
+                  placeholder="Enter address or postcode to find closest locksmiths"
+                  value={mapAddressQuery}
+                  onChange={(e) => setMapAddressQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleFindClosestOnMap();
+                    }
+                  }}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                />
+                <Button
+                  type="button"
+                  onClick={handleFindClosestOnMap}
+                  disabled={searchingMapAddress}
+                  className="bg-orange-500 hover:bg-orange-600 text-white"
+                >
+                  {searchingMapAddress ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Search className="w-4 h-4 mr-2" />
+                  )}
+                  Find Closest
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={clearMapSearch}
+                  disabled={!mapTargetLocation && nearestLocksmithIds.length === 0}
+                >
+                  Clear
+                </Button>
+              </div>
+              {mapSearchError && (
+                <div className="mt-2 text-sm text-red-600">{mapSearchError}</div>
+              )}
+              {mapTargetLocation && (
+                <div className="mt-2 text-sm text-slate-600">
+                  Showing closest locksmiths to <span className="font-medium text-slate-900">{mapTargetLocation.label}</span>
+                  {mapLocksmiths.length > 0 ? ` (${mapLocksmiths.length} shown)` : ""}
+                </div>
+              )}
             </div>
             <div className="p-4">
               <AdminCoverageMap
-                locksmiths={locksmiths
-                  .filter(
-                    (ls): ls is typeof ls & { baseLat: number; baseLng: number } =>
-                      ls.baseLat != null && ls.baseLng != null,
-                  )
-                  .map(ls => ({
-                    id: ls.id,
-                    name: ls.name,
-                    baseLat: ls.baseLat,
-                    baseLng: ls.baseLng,
-                    coverageRadius: ls.coverageRadius,
-                    isVerified: ls.isVerified,
-                  }))}
+                locksmiths={mapLocksmiths}
                 height="500px"
+                targetLocation={mapTargetLocation}
                 onLocksmithClick={(id) => {
                   const locksmith = locksmiths.find(ls => ls.id === id);
                   if (locksmith) setSelectedLocksmith(locksmith);
                 }}
               />
+
+              {mapTargetLocation && (
+                <div className="mt-4 rounded-xl border border-slate-200 overflow-hidden">
+                  <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+                    <h3 className="text-sm font-semibold text-slate-900">Closest Locksmiths</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">Top {mapNearestTop.length} nearest matches to the searched address</p>
+                  </div>
+
+                  {mapNearestTop.length === 0 ? (
+                    <div className="px-4 py-4 text-sm text-slate-500">No locksmiths with base coordinates match current filters.</div>
+                  ) : (
+                    <div className="divide-y divide-slate-100">
+                      {mapNearestTop.map((item) => {
+                        const full = locksmiths.find((ls) => ls.id === item.id);
+                        if (!full) return null;
+
+                        const status = full.isActive
+                          ? (full.isAvailable ? "available" : "unavailable")
+                          : "offline";
+
+                        const statusClasses = status === "available"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : status === "unavailable"
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-red-100 text-red-700";
+
+                        const statusLabel = status === "available"
+                          ? "Available"
+                          : status === "unavailable"
+                            ? "Unavailable"
+                            : "Offline";
+
+                        return (
+                          <div key={item.id} className="px-4 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm font-semibold text-slate-900">{full.name}</span>
+                                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusClasses}`}>
+                                  {statusLabel}
+                                </span>
+                              </div>
+                              <div className="text-xs text-slate-500 mt-0.5">
+                                {typeof item.distanceMiles === "number" ? `${item.distanceMiles.toFixed(1)} miles away` : "Distance unavailable"}
+                                {full.companyName ? ` • ${full.companyName}` : ""}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <a
+                                href={`tel:${full.phone}`}
+                                className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                              >
+                                <Phone className="w-3.5 h-3.5" />
+                                Call
+                              </a>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setSelectedLocksmith(full);
+                                  setEditingProfile(false);
+                                }}
+                              >
+                                Open Profile
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}

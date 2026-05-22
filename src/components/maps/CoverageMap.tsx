@@ -154,10 +154,18 @@ interface AdminCoverageMapProps {
     baseLng: number;
     coverageRadius: number;
     isVerified: boolean;
+    isActive?: boolean;
+    isAvailable?: boolean;
+    distanceMiles?: number;
   }>;
   height?: string;
   className?: string;
   onLocksmithClick?: (id: string) => void;
+  targetLocation?: {
+    lat: number;
+    lng: number;
+    label?: string;
+  } | null;
 }
 
 export function AdminCoverageMap({
@@ -165,9 +173,11 @@ export function AdminCoverageMap({
   height = "500px",
   className = "",
   onLocksmithClick,
+  targetLocation = null,
 }: AdminCoverageMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
+  const overlayGroupRef = useRef<L.LayerGroup | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
@@ -190,24 +200,44 @@ export function AdminCoverageMap({
       maxZoom: 19,
     }).addTo(map);
 
-    // Add locksmiths to map
+    overlayGroupRef.current = L.layerGroup().addTo(map);
+
+    mapInstanceRef.current = map;
+    setIsLoaded(true);
+
+    return () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+      overlayGroupRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    const overlays = overlayGroupRef.current;
+    if (!map || !overlays) return;
+
+    overlays.clearLayers();
     const bounds = L.latLngBounds([]);
 
     locksmiths.forEach((locksmith) => {
       if (!locksmith.baseLat || !locksmith.baseLng) return;
 
-      const color = locksmith.isVerified ? "#22c55e" : "#f59e0b";
+      const isOffline = locksmith.isActive === false;
+      const isUnavailable = locksmith.isActive !== false && locksmith.isAvailable === false;
+      const statusLabel = isOffline ? "Offline" : isUnavailable ? "Unavailable" : "Available";
+      const color = isOffline ? "#ef4444" : isUnavailable ? "#f59e0b" : "#22c55e";
 
-      // Add coverage circle
-      const circle = L.circle([locksmith.baseLat, locksmith.baseLng], {
+      L.circle([locksmith.baseLat, locksmith.baseLng], {
         radius: milesToMeters(locksmith.coverageRadius),
-        color: color,
+        color,
         fillColor: color,
-        fillOpacity: 0.1,
-        weight: 2,
-      }).addTo(map);
+        fillOpacity: 0.08,
+        weight: 1.5,
+      }).addTo(overlays);
 
-      // Add marker
       const markerIcon = L.divIcon({
         html: `
           <div style="
@@ -232,15 +262,13 @@ export function AdminCoverageMap({
         iconAnchor: [12, 12],
       });
 
-      const marker = L.marker([locksmith.baseLat, locksmith.baseLng], { icon: markerIcon }).addTo(map);
-
+      const marker = L.marker([locksmith.baseLat, locksmith.baseLng], { icon: markerIcon }).addTo(overlays);
       marker.bindPopup(`
-        <div style="min-width: 150px;">
+        <div style="min-width: 190px;">
           <strong>${locksmith.name}</strong><br/>
-          <span style="color: ${color}; font-size: 12px;">
-            ${locksmith.isVerified ? "Verified" : "Pending"}
-          </span><br/>
+          <span style="color: ${color}; font-size: 12px; font-weight: 600;">${statusLabel}</span><br/>
           <span style="font-size: 12px;">Coverage: ${locksmith.coverageRadius} miles</span>
+          ${typeof locksmith.distanceMiles === "number" ? `<br/><span style="font-size: 12px;">Distance: ${locksmith.distanceMiles.toFixed(1)} miles</span>` : ""}
         </div>
       `);
 
@@ -251,21 +279,32 @@ export function AdminCoverageMap({
       bounds.extend([locksmith.baseLat, locksmith.baseLng]);
     });
 
-    // Fit bounds if we have locksmiths
-    if (locksmiths.length > 0 && bounds.isValid()) {
-      map.fitBounds(bounds, { padding: [50, 50] });
+    if (targetLocation) {
+      const targetIcon = L.divIcon({
+        html: `
+          <div style="
+            width: 18px;
+            height: 18px;
+            background: #2563eb;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 0 0 3px rgba(37,99,235,0.25), 0 2px 6px rgba(0,0,0,0.25);
+          "></div>
+        `,
+        className: "custom-target-marker",
+        iconSize: [18, 18],
+        iconAnchor: [9, 9],
+      });
+
+      const targetMarker = L.marker([targetLocation.lat, targetLocation.lng], { icon: targetIcon }).addTo(overlays);
+      targetMarker.bindPopup(`<strong>${targetLocation.label || "Searched address"}</strong>`);
+      bounds.extend([targetLocation.lat, targetLocation.lng]);
     }
 
-    mapInstanceRef.current = map;
-    setIsLoaded(true);
-
-    return () => {
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
-      }
-    };
-  }, [locksmiths, onLocksmithClick]);
+    if (bounds.isValid()) {
+      map.fitBounds(bounds, { padding: [50, 50] });
+    }
+  }, [locksmiths, targetLocation, onLocksmithClick]);
 
   return (
     <div className={`relative rounded-xl overflow-hidden ${className}`} style={{ height }}>
@@ -280,11 +319,19 @@ export function AdminCoverageMap({
         <div className="text-xs font-semibold text-slate-700 mb-2">Legend</div>
         <div className="flex items-center gap-2 text-xs">
           <div className="w-3 h-3 rounded-full bg-green-500" />
-          <span>Verified</span>
+          <span>Available</span>
         </div>
         <div className="flex items-center gap-2 text-xs mt-1">
           <div className="w-3 h-3 rounded-full bg-amber-500" />
-          <span>Pending</span>
+          <span>Unavailable</span>
+        </div>
+        <div className="flex items-center gap-2 text-xs mt-1">
+          <div className="w-3 h-3 rounded-full bg-red-500" />
+          <span>Offline</span>
+        </div>
+        <div className="flex items-center gap-2 text-xs mt-1">
+          <div className="w-3 h-3 rounded-full bg-blue-600" />
+          <span>Searched address</span>
         </div>
       </div>
     </div>

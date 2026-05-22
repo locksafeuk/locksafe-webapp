@@ -47,6 +47,8 @@ interface Job {
   propertyType: string;
   address: string;
   postcode: string;
+  latitude?: number | null;
+  longitude?: number | null;
   assessmentFee: number | null;
   quote: { total: number } | null;
   createdAt: string;
@@ -72,6 +74,12 @@ interface Locksmith {
   id: string;
   name: string;
   companyName?: string;
+  isActive?: boolean;
+  isAvailable?: boolean;
+  baseLat?: number | null;
+  baseLng?: number | null;
+  distanceMiles?: number | null;
+  priorityGroup?: number;
 }
 
 const statusColors: Record<
@@ -185,6 +193,7 @@ function AdminJobsContent() {
   const [availableLocksmiths, setAvailableLocksmiths] = useState<Locksmith[]>(
     [],
   );
+  const [isLocksmithsLoading, setIsLocksmithsLoading] = useState(false);
   const [selectedLocksmithId, setSelectedLocksmithId] = useState<string>("");
   const [isAssigning, setIsAssigning] = useState(false);
   const [editFormData, setEditFormData] = useState({
@@ -232,15 +241,109 @@ function AdminJobsContent() {
     }
   };
 
-  const fetchLocksmiths = async () => {
+  const haversineMiles = (
+    lat1: number,
+    lng1: number,
+    lat2: number,
+    lng2: number,
+  ) => {
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    const earthRadiusMiles = 3958.8;
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(lat1)) *
+        Math.cos(toRad(lat2)) *
+        Math.sin(dLng / 2) ** 2;
+    return 2 * earthRadiusMiles * Math.asin(Math.sqrt(a));
+  };
+
+  const geocodeJobLocation = async (job: Job) => {
     try {
-      const response = await fetch("/api/locksmiths?available=true");
+      if (job.latitude != null && job.longitude != null) {
+        return { lat: job.latitude, lng: job.longitude };
+      }
+
+      const query = `${job.address}, ${job.postcode}`.trim();
+      const response = await fetch("/api/admin/geocode-address", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query }),
+      });
+
       const data = await response.json();
+      if (!response.ok || !data.success) return null;
+
+      return {
+        lat: Number(data.lat),
+        lng: Number(data.lng),
+      };
+    } catch {
+      return null;
+    }
+  };
+
+  const fetchLocksmiths = async (job: Job) => {
+    try {
+      setIsLocksmithsLoading(true);
+      const response = await fetch("/api/locksmiths");
+      const data = await response.json();
+
       if (data.success && data.locksmiths) {
-        setAvailableLocksmiths(data.locksmiths);
+        const targetLocation = await geocodeJobLocation(job);
+
+        const sorted = (data.locksmiths as Locksmith[])
+          .map((ls) => {
+            const priorityGroup =
+              ls.isActive !== false && ls.isAvailable === true
+                ? 0
+                : ls.isActive !== false && ls.isAvailable === false
+                  ? 1
+                  : 2;
+
+            const distanceMiles =
+              targetLocation != null &&
+              typeof ls.baseLat === "number" &&
+              typeof ls.baseLng === "number"
+                ? haversineMiles(
+                    targetLocation.lat,
+                    targetLocation.lng,
+                    ls.baseLat,
+                    ls.baseLng,
+                  )
+                : null;
+
+            return {
+              ...ls,
+              priorityGroup,
+              distanceMiles,
+            };
+          })
+          .sort((a, b) => {
+            const groupDelta = (a.priorityGroup || 0) - (b.priorityGroup || 0);
+            if (groupDelta !== 0) return groupDelta;
+
+            const aDist = a.distanceMiles;
+            const bDist = b.distanceMiles;
+
+            if (aDist == null && bDist == null) {
+              return a.name.localeCompare(b.name);
+            }
+            if (aDist == null) return 1;
+            if (bDist == null) return -1;
+
+            if (aDist !== bDist) return aDist - bDist;
+            return a.name.localeCompare(b.name);
+          });
+
+        setAvailableLocksmiths(sorted);
       }
     } catch (error) {
       console.error("Error fetching locksmiths:", error);
+      setAvailableLocksmiths([]);
+    } finally {
+      setIsLocksmithsLoading(false);
     }
   };
 
@@ -443,7 +546,7 @@ function AdminJobsContent() {
   const handleOpenAssignModal = (job: Job) => {
     setAssignModalJob(job);
     setSelectedLocksmithId(job.locksmith?.id || "");
-    fetchLocksmiths();
+    fetchLocksmiths(job);
   };
 
   const handleAssignLocksmith = async () => {
@@ -502,6 +605,12 @@ function AdminJobsContent() {
       setIsDeleting(false);
     }
   };
+
+  const topClosestLocksmiths = availableLocksmiths
+    .filter((ls) => ls.distanceMiles != null)
+    .slice()
+    .sort((a, b) => (a.distanceMiles ?? Number.MAX_SAFE_INTEGER) - (b.distanceMiles ?? Number.MAX_SAFE_INTEGER))
+    .slice(0, 3);
 
   return (
     <div className="p-4 lg:p-8">
@@ -1297,26 +1406,102 @@ function AdminJobsContent() {
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   Select Locksmith
                 </label>
-                {availableLocksmiths.length === 0 ? (
+                {isLocksmithsLoading ? (
+                  <div className="text-center py-8">
+                    <Loader2 className="w-10 h-10 text-slate-300 mx-auto mb-2 animate-spin" />
+                    <p className="text-sm text-slate-500">Finding closest locksmiths...</p>
+                  </div>
+                ) : availableLocksmiths.length === 0 ? (
                   <div className="text-center py-8">
                     <AlertCircle className="w-10 h-10 text-slate-300 mx-auto mb-2" />
                     <p className="text-sm text-slate-500">
-                      No available locksmiths found
+                      No locksmiths found
                     </p>
                   </div>
                 ) : (
-                  <select
-                    value={selectedLocksmithId}
-                    onChange={(e) => setSelectedLocksmithId(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none text-sm"
-                  >
-                    <option value="">Choose a locksmith...</option>
-                    {availableLocksmiths.map((ls) => (
-                      <option key={ls.id} value={ls.id}>
-                        {ls.name} {ls.companyName ? `(${ls.companyName})` : ""}
-                      </option>
-                    ))}
-                  </select>
+                  <>
+                    {topClosestLocksmiths.length > 0 && (
+                      <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <div className="text-xs font-semibold text-slate-700 mb-2">
+                          Top 3 Closest Locksmiths
+                        </div>
+                        <div className="space-y-1.5">
+                          {topClosestLocksmiths.map((ls, index) => {
+                            const status = ls.isActive !== false
+                              ? (ls.isAvailable ? "Available" : "Unavailable")
+                              : "Other";
+
+                            const statusClass = status === "Available"
+                              ? "text-emerald-700"
+                              : status === "Unavailable"
+                                ? "text-amber-700"
+                                : "text-slate-600";
+
+                            return (
+                              <div key={ls.id} className="flex items-center justify-between text-xs">
+                                <div className="text-slate-700">
+                                  <span className="font-semibold text-slate-900">#{index + 1}</span> {ls.name}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className={statusClass}>{status}</span>
+                                  <span className="font-medium text-slate-900">{(ls.distanceMiles ?? 0).toFixed(1)} mi</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    <div className="text-xs text-slate-500 mb-2">
+                      Sorted by nearest distance in this order: Available, Unavailable, then Other locksmiths.
+                    </div>
+                    <select
+                      value={selectedLocksmithId}
+                      onChange={(e) => setSelectedLocksmithId(e.target.value)}
+                      className="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none text-sm"
+                    >
+                      <option value="">Choose a locksmith...</option>
+                      <optgroup label="Available">
+                        {availableLocksmiths
+                          .filter((ls) => ls.priorityGroup === 0)
+                          .map((ls) => (
+                            <option key={ls.id} value={ls.id}>
+                              {ls.name}
+                              {ls.companyName ? ` (${ls.companyName})` : ""}
+                              {ls.distanceMiles != null
+                                ? ` - ${ls.distanceMiles.toFixed(1)} mi`
+                                : " - distance n/a"}
+                            </option>
+                          ))}
+                      </optgroup>
+                      <optgroup label="Unavailable">
+                        {availableLocksmiths
+                          .filter((ls) => ls.priorityGroup === 1)
+                          .map((ls) => (
+                            <option key={ls.id} value={ls.id}>
+                              {ls.name}
+                              {ls.companyName ? ` (${ls.companyName})` : ""}
+                              {ls.distanceMiles != null
+                                ? ` - ${ls.distanceMiles.toFixed(1)} mi`
+                                : " - distance n/a"}
+                            </option>
+                          ))}
+                      </optgroup>
+                      <optgroup label="Other Locksmiths">
+                        {availableLocksmiths
+                          .filter((ls) => ls.priorityGroup === 2)
+                          .map((ls) => (
+                            <option key={ls.id} value={ls.id}>
+                              {ls.name}
+                              {ls.companyName ? ` (${ls.companyName})` : ""}
+                              {ls.distanceMiles != null
+                                ? ` - ${ls.distanceMiles.toFixed(1)} mi`
+                                : " - distance n/a"}
+                            </option>
+                          ))}
+                      </optgroup>
+                    </select>
+                  </>
                 )}
               </div>
 
