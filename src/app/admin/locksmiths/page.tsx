@@ -1057,7 +1057,14 @@ export default function AdminLocksmithsPage() {
                             : "Offline";
 
                         return (
-                          <div key={item.id} className="px-4 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <div
+                            key={item.id}
+                            className="px-4 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between cursor-pointer hover:bg-slate-50"
+                            onClick={() => {
+                              setSelectedLocksmith(full);
+                              setEditingProfile(false);
+                            }}
+                          >
                             <div>
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-sm font-semibold text-slate-900">{full.name}</span>
@@ -1075,6 +1082,7 @@ export default function AdminLocksmithsPage() {
                               <a
                                 href={`tel:${full.phone}`}
                                 className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                                onClick={(event) => event.stopPropagation()}
                               >
                                 <Phone className="w-3.5 h-3.5" />
                                 Call
@@ -1083,7 +1091,8 @@ export default function AdminLocksmithsPage() {
                                 type="button"
                                 size="sm"
                                 variant="outline"
-                                onClick={() => {
+                                onClick={(event) => {
+                                  event.stopPropagation();
                                   setSelectedLocksmith(full);
                                   setEditingProfile(false);
                                 }}
