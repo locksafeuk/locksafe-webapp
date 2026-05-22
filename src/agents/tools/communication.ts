@@ -110,8 +110,11 @@ export const sendTelegramAlertTool: AgentTool = {
     };
     const severity = severityByPriority[priority] ?? "info";
 
-    // Deduplicate by agent (not priority) to avoid near-duplicate summary bursts.
-    const dedupeKey = `agent-alert:${context.agentName.toLowerCase()}`;
+    // Collapse noisy executive/marketing heartbeat summaries into one shared
+    // non-guardian lane so CEO and CMO don't both page within minutes.
+    const dedupeKey = !isGuardian && priority !== "critical"
+      ? `agent-alert:non-guardian:${priority.toLowerCase()}`
+      : `agent-alert:${context.agentName.toLowerCase()}`;
     const cooldownMs = getAgentAlertCooldownMs(priority, isGuardian);
 
     const title = `${priorityEmoji[priority as keyof typeof priorityEmoji]} Agent Alert: ${context.agentName.toUpperCase()} (${priority.toUpperCase()})`;
