@@ -17,6 +17,8 @@ const normalizedOutputMode =
 const nextConfig = {
   distDir: normalizedDistDir,
   ...(normalizedOutputMode ? { output: normalizedOutputMode } : {}),
+  // Explicit root prevents remote builder path resolution from becoming undefined.
+  outputFileTracingRoot: __dirname,
   typescript: {
     ignoreBuildErrors: false,
   },
