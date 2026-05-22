@@ -294,6 +294,83 @@ npm run google-ads:fraud-monitor
 
 ---
 
+## 13. Production Env Checklist
+
+Set these in Vercel for production rollout.
+
+### Required for bot protection
+
+- `GOOGLE_RECAPTCHA_SECRET_KEY` = server-side secret for reCAPTCHA v3
+- `NEXT_PUBLIC_GOOGLE_RECAPTCHA_SITE_KEY` = client-side reCAPTCHA site key
+- `FRAUD_ALERTS_TELEGRAM_ENABLED=true`
+- `TELEGRAM_NOTIFICATIONS_ENABLED=true`
+- `CRON_SECRET` = strong random value
+
+### Recommended starting thresholds
+
+- `LEAD_FORM_RATE_LIMIT_MAX=5`
+- `LEAD_FORM_RATE_LIMIT_WINDOW_SECONDS=60`
+- `LEAD_RECAPTCHA_ENFORCED=true`
+- `LEAD_RECAPTCHA_MIN_SCORE=0.5`
+- `CONTINUE_REQUEST_IP_LIMIT_MAX=6`
+- `CONTINUE_REQUEST_IP_LIMIT_WINDOW_SECONDS=300`
+- `CONTINUE_REQUEST_TOKEN_LIMIT_MAX=4`
+- `CONTINUE_REQUEST_TOKEN_LIMIT_WINDOW_SECONDS=900`
+- `CONTINUE_REQUEST_RECAPTCHA_ENFORCED=true`
+- `CONTINUE_REQUEST_RECAPTCHA_MIN_SCORE=0.4`
+- `RETELL_DUPLICATE_WINDOW_MINUTES=5`
+- `RETELL_DUPLICATE_START_THRESHOLD=2`
+
+### Google Ads monitor settings
+
+- `GOOGLE_ADS_FRAUD_ALERTS_ENABLED=true`
+- `GOOGLE_ADS_FRAUD_AUTO_PAUSE=false` for the first 48 hours
+- `GOOGLE_ADS_FRAUD_MIN_INVALID_CLICKS=8`
+- `GOOGLE_ADS_FRAUD_MIN_INVALID_RATE=0.25`
+- `GOOGLE_ADS_FRAUD_MIN_CLICKS=20`
+- `GOOGLE_ADS_FRAUD_MAX_CONVERSIONS=1`
+
+### What to avoid on day 1
+
+- Do not enable `GOOGLE_ADS_FRAUD_AUTO_PAUSE=true` until the alert quality is proven.
+- Do not set reCAPTCHA to strict enforcement without confirming the site key/secret pair works on both lead forms.
+- Do not increase rate limits until you have at least 48 hours of clean traffic telemetry.
+
+---
+
+## 14. 48-Hour Tuning Plan
+
+### Hour 0-2: Launch + verify
+
+1. Deploy the env vars above.
+2. Verify the form flows still submit from a clean browser.
+3. Confirm Telegram receives a test FraudGuard alert.
+4. Run `npm run google-ads:fraud-monitor` once and inspect the output.
+
+### Hour 2-24: Observe
+
+1. Watch for lead form 403/429 counts.
+2. Review suspicious call-start alerts and confirm they correspond to real repeat callers.
+3. Check whether the Google Ads monitor is flagging any campaigns unexpectedly.
+4. Keep auto-pause off.
+
+### Hour 24-48: Tune
+
+1. If clean traffic is getting blocked, lower enforcement to score-only on the affected form and raise the threshold slightly after review.
+2. If spam is still getting through, lower the reCAPTCHA score threshold by 0.05 increments only after confirming false positives are low.
+3. If call spam continues, raise `RETELL_DUPLICATE_START_THRESHOLD` from 2 to 3 and shorten the duplicate window only if callers are genuinely legitimate repeat dialers.
+4. If Google Ads fraud alerts are noisy, raise `GOOGLE_ADS_FRAUD_MIN_INVALID_CLICKS` before touching the invalid-rate threshold.
+5. If alerts are stable and useful, consider enabling `GOOGLE_ADS_FRAUD_AUTO_PAUSE=true` for one campaign group only.
+
+### Day-2 decision gate
+
+1. Keep the current thresholds if false positives are below 5% of blocked events.
+2. Tighten by one step if spam is still visible.
+3. Roll back the last change immediately if conversion rate drops while blocked events rise sharply.
+
+
+---
+
 ## TL;DR for the impatient
 
 ```bash
