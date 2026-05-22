@@ -1,5 +1,76 @@
 import Stripe from "stripe";
 
+// ---------------------------------------------------------------------------
+// Stripe mode helpers
+// ---------------------------------------------------------------------------
+
+/** Returns "test" or "live" based on the secret key prefix. */
+export function getStripeMode(): "test" | "live" | "unconfigured" {
+  const key = process.env.STRIPE_SECRET_KEY || "";
+  if (key.startsWith("sk_test_")) return "test";
+  if (key.startsWith("sk_live_")) return "live";
+  return "unconfigured";
+}
+
+/**
+ * Validate that the secret key and publishable key use the same mode, and
+ * that the mode matches the expected runtime environment.
+ *
+ * Throws on mismatch so the misconfiguration is surfaced early (server start,
+ * not at payment time).
+ */
+export function assertStripeModeConsistency(): void {
+  const secretKey = process.env.STRIPE_SECRET_KEY || "";
+  const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "";
+
+  if (!secretKey || !publishableKey) return; // let the "key not set" guard below handle it
+
+  const secretIsTest = secretKey.startsWith("sk_test_");
+  const secretIsLive = secretKey.startsWith("sk_live_");
+  const publishableIsTest = publishableKey.startsWith("pk_test_");
+  const publishableIsLive = publishableKey.startsWith("pk_live_");
+
+  if (secretIsTest && publishableIsLive) {
+    throw new Error(
+      "[Stripe] Key mismatch: STRIPE_SECRET_KEY is test (sk_test_*) but " +
+        "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY is live (pk_live_*). " +
+        "Both must use the same Stripe environment."
+    );
+  }
+
+  if (secretIsLive && publishableIsTest) {
+    throw new Error(
+      "[Stripe] Key mismatch: STRIPE_SECRET_KEY is live (sk_live_*) but " +
+        "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY is test (pk_test_*). " +
+        "Both must use the same Stripe environment."
+    );
+  }
+
+  // In production, warn (not throw) when still using test keys so the app
+  // keeps running but the issue is visible in logs.
+  if (process.env.NODE_ENV === "production" && secretIsTest) {
+    console.warn(
+      "[Stripe] WARNING: Running in production with Stripe TEST keys (sk_test_*). " +
+        "No real payments will be collected. Switch to live keys when ready."
+    );
+  }
+}
+
+// Run consistency check once at module load (server-side only).
+if (typeof window === "undefined") {
+  try {
+    assertStripeModeConsistency();
+  } catch (err) {
+    console.error((err as Error).message);
+    // Rethrow only in production so local dev remains easy to start.
+    if (process.env.NODE_ENV === "production") throw err;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Server-side Stripe instance
+// ---------------------------------------------------------------------------
+
 // Server-side Stripe instance — lazy to avoid throwing during Next.js build
 // when STRIPE_SECRET_KEY is not available at module-evaluation time.
 let _stripe: Stripe | null = null;

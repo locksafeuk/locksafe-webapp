@@ -9,9 +9,15 @@ import {
 import prisma from "@/lib/db";
 import { sendTransferNotificationEmail } from "@/lib/email";
 import { applyReferralCredit, revertReferralCredit, triggerReferralReward } from "@/lib/referrals";
+import { enforceAuthRateLimit } from "@/lib/auth-rate-limit";
 
 // POST - Charge a saved card for assessment fee or final payment
 export async function POST(request: NextRequest) {
+  const rateLimitResponse = enforceAuthRateLimit(request, "payment:charge-saved-card", {
+    maxRequests: 10,
+    windowSeconds: 60,
+  });
+  if (rateLimitResponse) return rateLimitResponse;
   try {
     const body = await request.json();
     const {

@@ -9,8 +9,14 @@ import {
 } from "@/lib/stripe";
 import prisma from "@/lib/db";
 import { validatePaymentAmount } from "@/lib/risk-controls";
+import { enforceAuthRateLimit } from "@/lib/auth-rate-limit";
 
 export async function POST(request: NextRequest) {
+  const rateLimitResponse = enforceAuthRateLimit(request, "payment:create-intent", {
+    maxRequests: 20,
+    windowSeconds: 60,
+  });
+  if (rateLimitResponse) return rateLimitResponse;
   try {
     const body = await request.json();
     const {

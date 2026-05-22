@@ -6,9 +6,15 @@ import {
   updateCustomerDefaultPaymentMethod,
 } from "@/lib/stripe";
 import prisma from "@/lib/db";
+import { enforceAuthRateLimit } from "@/lib/auth-rate-limit";
 
 // POST - Create a SetupIntent to save card for future use
 export async function POST(request: NextRequest) {
+  const rateLimitResponse = enforceAuthRateLimit(request, "payment:setup-card", {
+    maxRequests: 10,
+    windowSeconds: 60,
+  });
+  if (rateLimitResponse) return rateLimitResponse;
   try {
     const body = await request.json();
     const { customerId, email, name, phone, jobId } = body;

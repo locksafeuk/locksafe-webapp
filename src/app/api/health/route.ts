@@ -73,8 +73,27 @@ export async function GET() {
 
   // Check Stripe configuration
   const stripeKey = process.env.STRIPE_SECRET_KEY;
+  const stripePubKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
   if (stripeKey) {
-    checks.stripe = { status: "ok" };
+    const mode = stripeKey.startsWith("sk_live_")
+      ? "live"
+      : stripeKey.startsWith("sk_test_")
+        ? "test"
+        : "unknown_prefix";
+    const pubMode = stripePubKey
+      ? stripePubKey.startsWith("pk_live_")
+        ? "live"
+        : stripePubKey.startsWith("pk_test_")
+          ? "test"
+          : "unknown_prefix"
+      : null;
+    const mismatch = pubMode !== null && pubMode !== mode;
+    checks.stripe = {
+      status: mismatch ? "error" : "ok",
+      message: mismatch
+        ? `Key mode mismatch: secret=${mode} publishable=${pubMode}`
+        : `mode=${mode}`,
+    };
   } else {
     checks.stripe = { status: "unconfigured" };
   }
