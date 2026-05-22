@@ -1217,6 +1217,18 @@ model MarketingPolicy {
   // Manual admin actions through the UI are unaffected.
   autonomyEnabled Boolean @default(false)
 
+  // Copilot-mode hard guard. When false (default), NO automatic mutations
+  // are sent to Google Ads / Meta — every action proposed by an agent is
+  // written to the CampaignSuggestion queue for human approve/reject.
+  // This is a defence-in-depth flag on top of autonomyEnabled: even if
+  // autonomyEnabled is accidentally flipped on, this must also be true
+  // for any auto-mutation to fire.
+  allowAutomaticMutations Boolean @default(false)
+
+  // Copilot mode (always-on by default): generate suggestions even when
+  // autonomyEnabled is false, so humans get a queue to review.
+  copilotEnabled Boolean @default(true)
+
   // Hard caps (GBP). 0 = "not enforced" (use parent global row).
   maxDailySpend          Float @default(15) // total per platform per day
   maxMonthlySpend        Float @default(300) // total per platform per calendar month

@@ -319,7 +319,13 @@ export async function analyzeCampaignPerformance(campaignId: string): Promise<{
 }
 
 /**
- * Pause underperforming campaigns
+ * Identify underperforming campaigns. SUGGESTION-ONLY in copilot mode.
+ *
+ * As of Phase 0 of the campaign-copilot rollout, this function no longer
+ * mutates AdCampaign.status. It returns the list of campaigns that WOULD be
+ * paused under the existing CTR/CAC thresholds, so the CMO heartbeat can
+ * surface them as recommendations only. Pausing requires explicit human
+ * approval through the CampaignSuggestion queue (Phase 2).
  */
 export async function pauseUnderperformingCampaigns(): Promise<{
   paused: number;
@@ -355,27 +361,21 @@ export async function pauseUnderperformingCampaigns(): Promise<{
     }
   }
 
-  // Pause the campaigns
-  for (const campaign of toPause) {
-    await prisma.adCampaign.update({
-      where: { id: campaign.id },
-      data: { status: AdStatus.PAUSED },
-    });
-  }
-
-  // Store decision
+  // Copilot mode: NO mutations. Record the suggestion list as a decision and
+  // return it. A human must approve through the CampaignSuggestion queue
+  // before any campaign is actually paused.
   const agent = await prisma.agent.findUnique({ where: { name: "ads-specialist" } });
   if (agent && toPause.length > 0) {
     await storeDecision(
       agent.id,
-      `Paused ${toPause.length} underperforming campaigns`,
+      `Identified ${toPause.length} campaigns for human review (no auto-pause)`,
       toPause.map(c => `${c.name}: ${c.reason}`).join("; "),
       "completed"
     );
   }
 
   return {
-    paused: toPause.length,
+    paused: 0,
     campaigns: toPause,
   };
 }

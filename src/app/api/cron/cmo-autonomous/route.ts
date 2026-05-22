@@ -69,18 +69,42 @@ async function handle(request: NextRequest) {
     } else {
       googleResult = result.data;
       const data = result.data as {
-        negatives: { added: number };
-        paused: { actuallyPaused: number };
+        copilotMode?: boolean;
+        mutationsAllowed?: boolean;
+        negatives: { added: number; candidatesFound: number };
+        paused: { actuallyPaused: number; candidatesFound: number };
+        policy?: { pauseRoasThreshold?: number; pauseGraceDays?: number };
       };
-      if (
-        googlePolicy.notifyOnAutoAction &&
-        (data.negatives.added > 0 || data.paused.actuallyPaused > 0)
-      ) {
-        await sendAdminAlert({
-          title: "CMO auto-optimised Google Ads",
-          message: `Added ${data.negatives.added} negative keywords. Paused ${data.paused.actuallyPaused} underperforming campaigns.`,
-          severity: "info",
-        });
+      if (googlePolicy.notifyOnAutoAction) {
+        const copilot = data.copilotMode === true || data.mutationsAllowed === false;
+        const negAdded = data.negatives.added;
+        const negCands = data.negatives.candidatesFound;
+        const pausedNow = data.paused.actuallyPaused;
+        const pauseCands = data.paused.candidatesFound;
+        const roasRule = data.policy?.pauseRoasThreshold ?? "?";
+        const graceDays = data.policy?.pauseGraceDays ?? "?";
+
+        if (copilot && (negCands > 0 || pauseCands > 0)) {
+          // Suggestion-only: no mutations fired. Tell the human what we'd do.
+          await sendAdminAlert({
+            title: "CMO copilot suggestions (Google Ads)",
+            message:
+              `Copilot mode — no automatic changes were made.\n` +
+              `• ${negCands} wasteful search terms could be added as negatives\n` +
+              `• ${pauseCands} campaigns matched the legacy pause rule (ROAS < ${roasRule} over ${graceDays}d)\n` +
+              `Review and approve at /admin/agents/campaign-copilot (queue arrives in Phase 2).`,
+            severity: "info",
+          });
+        } else if (!copilot && (negAdded > 0 || pausedNow > 0)) {
+          // Real mutations fired — deterministic, no LLM paraphrasing.
+          await sendAdminAlert({
+            title: "CMO auto-optimised Google Ads",
+            message:
+              `Added ${negAdded} negative keyword(s). ` +
+              `Paused ${pausedNow} campaign(s) under ROAS < ${roasRule} over ${graceDays}d.`,
+            severity: "info",
+          });
+        }
       }
     }
   }

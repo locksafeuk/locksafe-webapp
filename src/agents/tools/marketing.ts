@@ -1247,6 +1247,16 @@ export const optimiseGoogleCampaignsTool: AgentTool = {
       };
     }
 
+    // Copilot-mode hard guard. Even if autonomyEnabled is true, no mutations
+    // fire unless allowAutomaticMutations is also true. Default is false: the
+    // tool runs as a dry-run, produces the candidate list, and the cron route
+    // / future CampaignSuggestion queue is responsible for routing those
+    // candidates to humans for approval.
+    const mutationsAllowed = Boolean(
+      (policy as { allowAutomaticMutations?: boolean }).allowAutomaticMutations,
+    );
+    const effectiveDryRun = dryRun || !mutationsAllowed;
+
     const until = new Date();
     const since = new Date(until.getTime() - lookbackDays * 24 * 60 * 60 * 1000);
     const range = {
@@ -1267,7 +1277,7 @@ export const optimiseGoogleCampaignsTool: AgentTool = {
       .slice(0, 20);
 
     const negativesAdded: Array<{ campaignId: string; text: string; wasted: number }> = [];
-    if (!dryRun && negativeCandidates.length > 0) {
+    if (!effectiveDryRun && negativeCandidates.length > 0) {
       const byCampaign = new Map<string, typeof negativeCandidates>();
       for (const n of negativeCandidates) {
         const arr = byCampaign.get(n.campaignId) ?? [];
@@ -1358,7 +1368,7 @@ export const optimiseGoogleCampaignsTool: AgentTool = {
     }
 
     const paused: typeof pauseCandidates = [];
-    if (!dryRun) {
+    if (!effectiveDryRun) {
       for (const cand of pauseCandidates) {
         try {
           const resourceName = buildResourceName(
@@ -1388,21 +1398,25 @@ export const optimiseGoogleCampaignsTool: AgentTool = {
       success: true,
       data: {
         dryRun,
+        effectiveDryRun,
+        mutationsAllowed,
+        copilotMode: !mutationsAllowed,
         range,
         policy: {
           pauseRoasThreshold: policy.pauseRoasThreshold,
           pauseGraceDays: policy.pauseGraceDays,
           minImpressionsForPause: policy.minImpressionsForPause,
+          allowAutomaticMutations: mutationsAllowed,
         },
         negatives: {
           candidatesFound: negativeCandidates.length,
           added: negativesAdded.length,
-          details: dryRun ? negativeCandidates.slice(0, 20) : negativesAdded,
+          details: effectiveDryRun ? negativeCandidates.slice(0, 20) : negativesAdded,
         },
         paused: {
           candidatesFound: pauseCandidates.length,
           actuallyPaused: paused.length,
-          details: dryRun ? pauseCandidates : paused,
+          details: effectiveDryRun ? pauseCandidates : paused,
         },
       },
     };
