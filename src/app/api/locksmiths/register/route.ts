@@ -4,6 +4,12 @@ import { hashPassword, generateToken, AUTH_COOKIE_OPTIONS } from "@/lib/auth";
 import { notifyNewLocksmith } from "@/lib/telegram";
 import { sendLocksmithWelcomeEmail } from "@/lib/email";
 import { isInUkOrIreland } from "@/lib/geo-guard";
+import {
+  extractUkPostcode,
+  isCoordinatePair,
+  normalizeUkPostcode,
+  reverseGeocodePostcodeFromCoords,
+} from "@/lib/location-display";
 
 // POST - Locksmith registration
 export async function POST(request: NextRequest) {
@@ -77,6 +83,18 @@ export async function POST(request: NextRequest) {
     // Hash password
     const passwordHash = hashPassword(password);
 
+    const cleanedBaseAddress = typeof baseAddress === "string" ? baseAddress.trim() : "";
+    const extractedPostcode = normalizeUkPostcode(cleanedBaseAddress) ?? extractUkPostcode(cleanedBaseAddress);
+    const reverseGeocodedPostcode = extractedPostcode
+      ? extractedPostcode
+      : await reverseGeocodePostcodeFromCoords(Number(baseLat), Number(baseLng));
+
+    const persistedBaseAddress = reverseGeocodedPostcode
+      ? reverseGeocodedPostcode
+      : cleanedBaseAddress && !isCoordinatePair(cleanedBaseAddress)
+        ? cleanedBaseAddress
+        : null;
+
     // Create locksmith
     const locksmith = await prisma.locksmith.create({
       data: {
@@ -96,7 +114,7 @@ export async function POST(request: NextRequest) {
         // Location & Coverage
         baseLat: baseLat,
         baseLng: baseLng,
-        baseAddress: baseAddress || null,
+        baseAddress: persistedBaseAddress,
         coverageRadius: coverageRadius || 10,
       },
     });
@@ -108,6 +126,7 @@ export async function POST(request: NextRequest) {
       phone: locksmith.phone,
       companyName: locksmith.companyName,
       baseAddress: locksmith.baseAddress,
+      basePostcode: reverseGeocodedPostcode,
       coverageRadius: locksmith.coverageRadius,
     }).catch(err => console.error("Failed to send Telegram notification:", err));
 

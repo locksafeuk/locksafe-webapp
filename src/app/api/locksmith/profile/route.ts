@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { getConnectAccountStatus, getAccountBalance, listPayouts, listTransfers, PLATFORM_FEE_PERCENT } from "@/lib/stripe";
 import { isLocksmithAuthenticated } from "@/lib/auth";
+import {
+  extractUkPostcode,
+  isCoordinatePair,
+  normalizeUkPostcode,
+  reverseGeocodePostcodeFromCoords,
+} from "@/lib/location-display";
 
 // Locksmith receives 85% of the total (100% - 15% platform fee)
 const LOCKSMITH_SHARE_RATE = 1 - PLATFORM_FEE_PERCENT;
@@ -333,6 +339,33 @@ export async function PATCH(request: NextRequest) {
 
         filteredUpdates[key] = value;
       }
+    }
+
+    if ("baseAddress" in filteredUpdates || "baseLat" in filteredUpdates || "baseLng" in filteredUpdates) {
+      const rawBaseAddress = typeof filteredUpdates.baseAddress === "string"
+        ? filteredUpdates.baseAddress
+        : typeof updates.baseAddress === "string"
+          ? updates.baseAddress
+          : "";
+
+      const baseLat = Number(
+        filteredUpdates.baseLat ?? updates.baseLat ?? 0,
+      );
+      const baseLng = Number(
+        filteredUpdates.baseLng ?? updates.baseLng ?? 0,
+      );
+
+      const extractedPostcode = normalizeUkPostcode(rawBaseAddress) ?? extractUkPostcode(rawBaseAddress);
+      const reversePostcode = extractedPostcode
+        ? extractedPostcode
+        : await reverseGeocodePostcodeFromCoords(baseLat, baseLng);
+
+      const cleanedBaseAddress = rawBaseAddress.trim();
+      filteredUpdates.baseAddress = reversePostcode
+        ? reversePostcode
+        : cleanedBaseAddress && !isCoordinatePair(cleanedBaseAddress)
+          ? cleanedBaseAddress
+          : null;
     }
 
     const locksmith = await prisma.locksmith.update({

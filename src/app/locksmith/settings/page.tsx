@@ -36,6 +36,7 @@ import { useAuth } from "@/components/auth/AuthContext";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { AvailabilityToggle } from "@/components/locksmith/AvailabilityToggle";
 import { AvailabilitySchedule } from "@/components/locksmith/AvailabilitySchedule";
+import { extractUkPostcode, formatBaseLocationLabel, normalizeUkPostcode } from "@/lib/location-display";
 
 // Dynamically import CoverageMap to avoid SSR issues with Leaflet
 const CoverageMap = dynamic(
@@ -214,13 +215,19 @@ export default function LocksmithSettingsPage() {
           );
           const data = await response.json();
           if (data.display_name) {
-            const parts = data.display_name.split(", ");
-            const shortAddress = parts.slice(0, 3).join(", ");
-            setBaseAddress(shortAddress);
+            const resolvedPostcode = extractUkPostcode(data.display_name);
+            if (resolvedPostcode) {
+              setPostcode(resolvedPostcode);
+              setBaseAddress(resolvedPostcode);
+            } else {
+              const parts = data.display_name.split(", ");
+              const shortAddress = parts.slice(0, 3).join(", ");
+              setBaseAddress(shortAddress);
+            }
           }
         } catch (err) {
           console.error("Reverse geocoding failed:", err);
-          setBaseAddress(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+          setBaseAddress(postcode ? normalizeUkPostcode(postcode) || "Location set" : "Location set");
         }
 
         setLocationLoading(false);
@@ -255,9 +262,9 @@ export default function LocksmithSettingsPage() {
         const { lat, lon, display_name } = data[0];
         setBaseLat(Number.parseFloat(lat));
         setBaseLng(Number.parseFloat(lon));
-        const parts = display_name.split(", ");
-        const shortAddress = parts.slice(0, 3).join(", ");
-        setBaseAddress(shortAddress);
+        const resolvedPostcode = extractUkPostcode(display_name) || normalizeUkPostcode(postcode);
+        setBaseAddress(resolvedPostcode || "Location set");
+        if (resolvedPostcode) setPostcode(resolvedPostcode);
         setShowLocationEditor(false);
         setPostcode("");
       } else {
@@ -818,7 +825,7 @@ export default function LocksmithSettingsPage() {
                 <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <p className="font-medium text-green-800">Base Location</p>
-                  <p className="text-sm text-green-700">{baseAddress || `${baseLat.toFixed(4)}, ${baseLng.toFixed(4)}`}</p>
+                  <p className="text-sm text-green-700">{formatBaseLocationLabel(baseAddress, postcode)}</p>
                 </div>
                 <button
                   type="button"

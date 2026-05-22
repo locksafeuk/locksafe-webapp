@@ -13,6 +13,7 @@
  */
 
 import { LOCKSMITH_ADMIN_PHONE } from "@/lib/config";
+import { formatBaseLocationLabel } from "@/lib/location-display";
 import { prisma } from "@/lib/prisma";
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -307,8 +308,11 @@ export async function notifyNewLocksmith(data: {
   phone: string;
   companyName?: string | null;
   baseAddress?: string | null;
+  basePostcode?: string | null;
   coverageRadius?: number | null;
 }): Promise<boolean> {
+  const baseLabel = formatBaseLocationLabel(data.baseAddress, data.basePostcode);
+
   const message = `
 🔧 <b>New Locksmith Registered</b>
 
@@ -316,7 +320,7 @@ export async function notifyNewLocksmith(data: {
 🏢 <b>Company:</b> ${data.companyName ? escapeHtml(data.companyName) : "Individual"}
 📧 <b>Email:</b> ${escapeHtml(data.email)}
 📱 <b>Phone:</b> ${escapeHtml(data.phone)}
-📍 <b>Base:</b> ${data.baseAddress ? escapeHtml(data.baseAddress) : "Not set"}
+📍 <b>Base Postcode:</b> ${escapeHtml(baseLabel)}
 🎯 <b>Coverage:</b> ${data.coverageRadius || 10} miles
 
 ⚠️ <i>Pending verification</i>

@@ -46,6 +46,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { WhatsAppButton } from "@/components/WhatsAppButton";
+import { formatBaseLocationLabel } from "@/lib/location-display";
 
 // Dynamically import AdminCoverageMap to avoid SSR issues with Leaflet
 const AdminCoverageMap = dynamic(
@@ -830,6 +831,9 @@ export default function AdminLocksmithsPage() {
     return a.name.localeCompare(b.name);
   });
   const isMapView = viewMode === "map";
+  const selectedBaseLocationLabel = selectedLocksmith
+    ? formatBaseLocationLabel(selectedLocksmith.baseAddress)
+    : null;
   const totalLocksmithsCount = locksmiths.length;
   const verifiedCount = locksmiths.filter((ls) => ls.isVerified).length;
   const availableCount = locksmiths.filter((ls) => ls.isAvailable).length;
@@ -1765,7 +1769,7 @@ export default function AdminLocksmithsPage() {
                             {selectedLocksmith.coverageRadius} miles radius
                           </div>
                           <p className="text-xs text-slate-500">
-                            Coverage distance from base location{selectedLocksmith.baseAddress ? ` (${selectedLocksmith.baseAddress})` : ""}
+                            Coverage distance from base location{selectedBaseLocationLabel ? ` (${selectedBaseLocationLabel})` : ""}
                           </p>
                         </div>
                       </div>

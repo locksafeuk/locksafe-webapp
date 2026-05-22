@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { extractUkPostcode, formatBaseLocationLabel, normalizeUkPostcode } from "@/lib/location-display";
 import {
   KeyRound,
   Lock,
@@ -95,16 +96,17 @@ export default function LocksmithSignupPage() {
             // Extract a shorter address
             const parts = data.display_name.split(", ");
             const shortAddress = parts.slice(0, 3).join(", ");
-            setBaseAddress(shortAddress);
-            // Try to extract postcode
-            const postcodeMatch = data.display_name.match(/[A-Z]{1,2}[0-9][0-9A-Z]?\s?[0-9][A-Z]{2}/i);
-            if (postcodeMatch) {
-              setPostcode(postcodeMatch[0].toUpperCase());
+            const resolvedPostcode = extractUkPostcode(data.display_name);
+            if (resolvedPostcode) {
+              setPostcode(resolvedPostcode);
+              setBaseAddress(resolvedPostcode);
+            } else {
+              setBaseAddress(shortAddress);
             }
           }
         } catch (err) {
           console.error("Reverse geocoding failed:", err);
-          setBaseAddress(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+          setBaseAddress(postcode ? normalizeUkPostcode(postcode) || "Location set" : "Location set");
         }
 
         setLocationLoading(false);
@@ -144,10 +146,9 @@ export default function LocksmithSignupPage() {
         }
         setBaseLat(parsedLat);
         setBaseLng(parsedLng);
-        // Extract a shorter address
-        const parts = display_name.split(", ");
-        const shortAddress = parts.slice(0, 3).join(", ");
-        setBaseAddress(shortAddress);
+        const resolvedPostcode = extractUkPostcode(display_name) || normalizeUkPostcode(postcode);
+        setBaseAddress(resolvedPostcode || "Location set");
+        if (resolvedPostcode) setPostcode(resolvedPostcode);
       } else {
         setError("Could not find that postcode. Please check and try again.");
       }
@@ -520,7 +521,7 @@ export default function LocksmithSignupPage() {
                         <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
                         <div className="flex-1">
                           <p className="font-medium text-green-800">Location set</p>
-                          <p className="text-sm text-green-700">{baseAddress || `${baseLat.toFixed(4)}, ${baseLng.toFixed(4)}`}</p>
+                          <p className="text-sm text-green-700">{formatBaseLocationLabel(baseAddress, postcode)}</p>
                         </div>
                         <button
                           type="button"
