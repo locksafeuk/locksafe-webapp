@@ -1,7 +1,22 @@
+const nextDistDirEnv = process.env.NEXT_DIST_DIR;
+const nextOutputModeEnv = process.env.NEXT_OUTPUT_MODE;
+
+const normalizedDistDir =
+  typeof nextDistDirEnv === 'string' &&
+  nextDistDirEnv.trim().length > 0 &&
+  nextDistDirEnv !== 'undefined'
+    ? nextDistDirEnv.trim()
+    : '.next';
+
+const normalizedOutputMode =
+  nextOutputModeEnv === 'standalone' || nextOutputModeEnv === 'export'
+    ? nextOutputModeEnv
+    : undefined;
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  distDir: process.env.NEXT_DIST_DIR || '.next',
-  output: process.env.NEXT_OUTPUT_MODE,
+  distDir: normalizedDistDir,
+  ...(normalizedOutputMode ? { output: normalizedOutputMode } : {}),
   typescript: {
     ignoreBuildErrors: false,
   },
