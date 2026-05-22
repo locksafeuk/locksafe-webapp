@@ -356,7 +356,8 @@ export default function AdminOpsPage() {
             { key: "ARRIVED", label: "Arrived" },
             { key: "IN_PROGRESS", label: "In Progress" },
           ].map(({ key, label }) => (
-            <button
+              <button
+                type="button"
               key={key}
               onClick={() => setStatusFilter(key)}
               className={`text-xs px-2.5 py-1 rounded-full font-medium transition-colors whitespace-nowrap ${
@@ -388,7 +389,8 @@ export default function AdminOpsPage() {
                 const isSelected = selectedJob === job.id;
                 return (
                   <button
-                    key={job.id}
+                      key={job.id}
+                      type="button"
                     onClick={() => {
                       setSelectedJob(job.id);
                       flyToJob(job);
