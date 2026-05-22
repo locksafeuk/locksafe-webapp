@@ -32,8 +32,14 @@ export const UK_GEO_IDS = {
   westminster: "1006453",
   camden: "1006459",
   islington: "1006456",
-  hackney: "1006460",
-  "tower hamlets": "1006463",
+  // East London boroughs — verified against Google Ads GeoTargetConstant ref.
+  // (The legacy 100644xx IDs in this range collide with random English villages
+  // — e.g. 1006460 → Addlestone, 1006463 → Aldbourne — so do NOT reuse them.)
+  hackney: "9198373",
+  "tower hamlets": "9198785",
+  "waltham forest": "9198805",
+  newham: "9198858",
+  redbridge: "9208638",
   southwark: "1006465",
   lambeth: "1006466",
   wandsworth: "1006467",

@@ -1,0 +1,208 @@
+/**
+ * POST /api/admin/google-ads/drafts/from-locksmith
+ *
+ * Generates a fresh GoogleAdsCampaignDraft for ONE specific onboarded
+ * locksmith, seeded with the account's historical learnings (best-performing
+ * keywords, proven ad copy, blocked search terms).
+ *
+ * Body: { locksmithId: string, dailyBudget?: number, finalUrl?: string,
+ *         skipLearnings?: boolean }
+ *
+ * Response: { draftId, geoTargets, cityLabel, usedLearnings,
+ *             keywordCount, negativeKeywordCount, learningsSummary }
+ *
+ * Auth: admin only.
+ */
+
+import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import prisma from "@/lib/db";
+import { verifyToken } from "@/lib/auth";
+import { generateDraftPlanForLocksmith } from "@/lib/google-ads-onboarding";
+import { extractDefaultAccountLearnings } from "@/lib/google-ads-learnings";
+
+async function verifyAdmin() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("auth_token")?.value;
+  if (!token) return null;
+  const payload = await verifyToken(token);
+  if (!payload || payload.type !== "admin") return null;
+  return payload;
+}
+
+/**
+ * GET — list onboarded locksmiths eligible for per-locksmith draft creation.
+ * Used by the admin UI dropdown.
+ */
+export async function GET() {
+  const admin = await verifyAdmin();
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const locksmiths = await prisma.locksmith.findMany({
+    where: {
+      isActive: true,
+      isVerified: true,
+      onboardingCompleted: true,
+      stripeConnectVerified: true,
+    },
+    select: {
+      id: true,
+      name: true,
+      companyName: true,
+      baseAddress: true,
+      rating: true,
+      totalJobs: true,
+    },
+    orderBy: [{ totalJobs: "desc" }, { rating: "desc" }],
+    take: 200,
+  });
+
+  return NextResponse.json({ locksmiths });
+}
+
+export async function POST(request: NextRequest) {
+  const admin = await verifyAdmin();
+  if (!admin) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  let body: {
+    locksmithId?: string;
+    dailyBudget?: number;
+    finalUrl?: string;
+    skipLearnings?: boolean;
+  } = {};
+  try {
+    body = await request.json();
+  } catch {
+    // empty body is acceptable but locksmithId is required
+  }
+
+  if (!body.locksmithId || typeof body.locksmithId !== "string") {
+    return NextResponse.json(
+      { error: "locksmithId is required" },
+      { status: 400 },
+    );
+  }
+
+  // 1. Fetch the locksmith (strict eligibility gates)
+  const locksmith = await prisma.locksmith.findUnique({
+    where: { id: body.locksmithId },
+    select: {
+      id: true,
+      name: true,
+      companyName: true,
+      baseAddress: true,
+      yearsExperience: true,
+      rating: true,
+      totalJobs: true,
+      isActive: true,
+      isVerified: true,
+      onboardingCompleted: true,
+      stripeConnectVerified: true,
+    },
+  });
+
+  if (!locksmith) {
+    return NextResponse.json({ error: "Locksmith not found" }, { status: 404 });
+  }
+  if (
+    !locksmith.isActive ||
+    !locksmith.isVerified ||
+    !locksmith.onboardingCompleted ||
+    !locksmith.stripeConnectVerified
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          "Locksmith is not fully eligible (must be active, verified, onboarded, and Stripe Connect verified).",
+        eligibility: {
+          isActive: locksmith.isActive,
+          isVerified: locksmith.isVerified,
+          onboardingCompleted: locksmith.onboardingCompleted,
+          stripeConnectVerified: locksmith.stripeConnectVerified,
+        },
+      },
+      { status: 422 },
+    );
+  }
+
+  // 2. Default Google Ads account
+  const account = await prisma.googleAdsAccount.findFirst({
+    where: { isActive: true },
+    orderBy: { createdAt: "asc" },
+  });
+  if (!account) {
+    return NextResponse.json(
+      {
+        error:
+          "No active Google Ads account connected. Connect one at /admin/integrations/google-ads first.",
+      },
+      { status: 422 },
+    );
+  }
+
+  // 3. Pull learnings unless caller opted out
+  const learnings = body.skipLearnings
+    ? null
+    : await extractDefaultAccountLearnings().catch((err) => {
+        console.warn("[from-locksmith] learnings extract failed:", err);
+        return null;
+      });
+
+  // 4. Build the plan
+  const { plan, geoTargets, cityLabel, usedLearnings } =
+    await generateDraftPlanForLocksmith(locksmith, {
+      dailyBudget: body.dailyBudget,
+      finalUrl: body.finalUrl,
+      learnings,
+    });
+
+  // 5. Persist as PENDING_APPROVAL draft
+  const draft = await prisma.googleAdsCampaignDraft.create({
+    data: {
+      accountId: account.id,
+      status: "PENDING_APPROVAL",
+      name: plan.campaignName,
+      dailyBudget: plan.recommendedDailyBudget,
+      biddingStrategy: "MANUAL_CPC", // safer default for per-locksmith pilots
+      channel: "SEARCH",
+      geoTargets,
+      languageTargets: ["1000"],
+      headlines: plan.headlines,
+      descriptions: plan.descriptions,
+      finalUrl: plan.finalUrl,
+      keywords: plan.keywords as unknown as object[],
+      negativeKeywords: plan.negativeKeywords,
+      aiGenerated: true,
+      aiPrompt: `from-locksmith:${locksmith.id} ${locksmith.companyName || locksmith.name}`,
+      aiReasoning: plan.reasoning,
+      createdBy: "admin",
+      createdByAdminId: typeof admin.id === "string" ? admin.id : undefined,
+    },
+  });
+
+  return NextResponse.json(
+    {
+      draftId: draft.id,
+      status: draft.status,
+      geoTargets,
+      cityLabel,
+      usedLearnings,
+      keywordCount: plan.keywords.length,
+      negativeKeywordCount: plan.negativeKeywords.length,
+      learningsSummary: learnings
+        ? {
+            windowDays: learnings.windowDays,
+            totals: learnings.totals,
+            topConvertingKeywords: learnings.topConvertingKeywords.length,
+            searchTermCandidates: learnings.searchTermCandidates.length,
+            searchTermNegativeCandidates: learnings.searchTermNegativeCandidates.length,
+            bestPerformingAds: learnings.bestPerformingAds.length,
+          }
+        : null,
+      message: `Draft created for ${locksmith.companyName || locksmith.name}${cityLabel ? ` (${cityLabel})` : ""}. Review at /admin/integrations/google-ads/drafts/${draft.id}.`,
+    },
+    { status: 201 },
+  );
+}

@@ -58,8 +58,6 @@ async function extractWithClient(
       campaign.network_settings.target_search_network,
       campaign.network_settings.target_content_network,
       campaign.network_settings.target_partner_search_network,
-      campaign.start_date,
-      campaign.end_date,
       campaign.serving_status,
       campaign_budget.id,
       campaign_budget.amount_micros,

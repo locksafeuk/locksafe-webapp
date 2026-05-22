@@ -54,6 +54,28 @@ export default function GoogleAdsDraftsListPage() {
     error?: string;
   } | null>(null);
 
+  // Per-locksmith generator state
+  const [eligible, setEligible] = useState<Array<{
+    id: string;
+    name: string;
+    companyName: string | null;
+    baseAddress: string | null;
+    rating: number;
+    totalJobs: number;
+  }>>([]);
+  const [selectedLocksmithId, setSelectedLocksmithId] = useState<string>("");
+  const [perLockBudget, setPerLockBudget] = useState<number>(10);
+  const [generatingPerLock, setGeneratingPerLock] = useState(false);
+  const [perLockResult, setPerLockResult] = useState<{
+    message: string;
+    draftId?: string;
+    cityLabel?: string | null;
+    usedLearnings?: boolean;
+    keywordCount?: number;
+    negativeKeywordCount?: number;
+    error?: string;
+  } | null>(null);
+
   const refresh = useCallback(async () => {
     setLoading(true);
     const controller = new AbortController();
@@ -81,6 +103,66 @@ export default function GoogleAdsDraftsListPage() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // Load eligible locksmiths once
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/google-ads/drafts/from-locksmith");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && Array.isArray(data.locksmiths)) {
+          setEligible(data.locksmiths);
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleGenerateForLocksmith = useCallback(async () => {
+    if (!selectedLocksmithId) {
+      setPerLockResult({ message: "Pick a locksmith first", error: "no-locksmith" });
+      return;
+    }
+    setGeneratingPerLock(true);
+    setPerLockResult(null);
+    try {
+      const res = await fetch("/api/admin/google-ads/drafts/from-locksmith", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          locksmithId: selectedLocksmithId,
+          dailyBudget: perLockBudget,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPerLockResult({ message: data.error ?? "Unknown error", error: data.error });
+      } else {
+        setPerLockResult({
+          message: data.message,
+          draftId: data.draftId,
+          cityLabel: data.cityLabel,
+          usedLearnings: data.usedLearnings,
+          keywordCount: data.keywordCount,
+          negativeKeywordCount: data.negativeKeywordCount,
+        });
+        await refresh();
+        if (data.draftId) {
+          router.push(`/admin/integrations/google-ads/drafts/${data.draftId}`);
+        }
+      }
+    } catch (err) {
+      setPerLockResult({ message: String(err), error: String(err) });
+    } finally {
+      setGeneratingPerLock(false);
+    }
+  }, [selectedLocksmithId, perLockBudget, refresh, router]);
 
   const handleCreateFromCoverage = useCallback(async () => {
     setCreating(true);
@@ -166,6 +248,83 @@ export default function GoogleAdsDraftsListPage() {
           )}
         </div>
       )}
+
+      {/* ── Per-locksmith generator (uses Google Ads learnings) ─────────── */}
+      <div className="rounded border border-emerald-300 bg-emerald-50/40 p-4 space-y-3">
+        <div>
+          <h2 className="text-base font-semibold text-emerald-900">
+            Generate draft from a locksmith
+          </h2>
+          <p className="text-xs text-emerald-900/80 mt-0.5">
+            Pulls historical keywords, search-term winners, blocked terms and best-performing ad copy
+            from the connected Google Ads account, then tailors a fresh draft to one onboarded locksmith's
+            city. Falls back to the baseline keyword set when no learnings exist yet.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="flex-1 min-w-[260px]">
+            <label className="block text-xs font-medium text-emerald-900 mb-1">
+              Locksmith ({eligible.length} eligible)
+            </label>
+            <select
+              aria-label="Select locksmith for draft"
+              value={selectedLocksmithId}
+              onChange={(e) => setSelectedLocksmithId(e.target.value)}
+              className="w-full rounded border px-2 py-1.5 text-sm"
+              disabled={generatingPerLock || eligible.length === 0}
+            >
+              <option value="">— pick a locksmith —</option>
+              {eligible.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {(l.companyName || l.name)}
+                  {l.baseAddress ? ` · ${l.baseAddress.split(",").slice(-2, -1)[0]?.trim() || l.baseAddress}` : ""}
+                  {l.totalJobs > 0 ? ` · ${l.totalJobs} jobs · ${l.rating.toFixed(1)}★` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-emerald-900 mb-1">£/day</label>
+            <input
+              aria-label="Daily budget in GBP"
+              placeholder="10"
+              type="number"
+              min={1}
+              max={100}
+              value={perLockBudget}
+              onChange={(e) => setPerLockBudget(Math.max(1, Math.min(100, Number(e.target.value) || 10)))}
+              className="w-24 rounded border px-2 py-1.5 text-sm"
+              disabled={generatingPerLock}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleGenerateForLocksmith}
+            disabled={generatingPerLock || !selectedLocksmithId}
+            className="rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+          >
+            {generatingPerLock ? "Generating…" : "Generate draft"}
+          </button>
+        </div>
+        {perLockResult && (
+          <div
+            className={`rounded border p-2 text-xs ${
+              perLockResult.error
+                ? "border-red-300 bg-red-50 text-red-800"
+                : "border-emerald-300 bg-white text-emerald-900"
+            }`}
+          >
+            <p>{perLockResult.message}</p>
+            {!perLockResult.error && (
+              <p className="mt-1">
+                {perLockResult.usedLearnings ? "✓ Used historical learnings · " : "ℹ No prior learnings — baseline only · "}
+                {perLockResult.cityLabel ? `Geo: ${perLockResult.cityLabel} · ` : "Geo: UK · "}
+                {perLockResult.keywordCount} keywords · {perLockResult.negativeKeywordCount} negatives
+              </p>
+            )}
+          </div>
+        )}
+      </div>
 
       <div className="flex flex-wrap gap-2">
         {STATUSES.map((s) => (
