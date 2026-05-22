@@ -172,8 +172,6 @@ const navGroups: NavGroup[] = [
     activeText: "text-cyan-300",
     items: [
       { href: "/admin/integrations", label: "Integrations", icon: Plug },
-      { href: "/admin/integrations/google-ads", label: "Google Ads", icon: Globe },
-      { href: "/admin/integrations/google-ads/drafts", label: "Ad Drafts", icon: BarChart3 },
     ],
   },
 ];
