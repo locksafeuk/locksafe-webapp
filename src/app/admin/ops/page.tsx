@@ -52,6 +52,16 @@ interface Stats {
   accepted: number;
 }
 
+interface LocksmithEntry {
+  id: string;
+  name: string;
+  baseLat: number;
+  baseLng: number;
+  coverageRadius: number;
+  isActive: boolean;
+  isAvailable: boolean;
+}
+
 // ── Status colour helpers ──────────────────────────────────────────────────
 const STATUS_COLOR: Record<string, string> = {
   PENDING: "#ef4444",           // red
@@ -77,6 +87,12 @@ const STATUS_LABEL: Record<string, string> = {
   PENDING_CUSTOMER_CONFIRMATION: "Awaiting Sign-off",
 };
 
+function getLocksmithStatus(locksmith: LocksmithEntry): { label: string; color: string } {
+  if (!locksmith.isActive) return { label: "Offline", color: "#ef4444" };
+  if (!locksmith.isAvailable) return { label: "Unavailable", color: "#f59e0b" };
+  return { label: "Available", color: "#22c55e" };
+}
+
 function elapsedMins(iso: string | null): string {
   if (!iso) return "–";
   const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -98,6 +114,7 @@ export default function AdminOpsPage() {
   const markers = useRef<mapboxgl.Marker[]>([]);
 
   const [jobs, setJobs] = useState<JobEntry[]>([]);
+  const [locksmiths, setLocksmiths] = useState<LocksmithEntry[]>([]);
   const [stats, setStats] = useState<Stats>({ total: 0, pending: 0, enRoute: 0, onSite: 0, accepted: 0 });
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -113,6 +130,7 @@ export default function AdminOpsPage() {
       const data = await res.json();
       if (data.success) {
         setJobs(data.jobs);
+        setLocksmiths(Array.isArray(data.locksmiths) ? data.locksmiths : []);
         setStats(data.stats);
         setLastUpdated(new Date());
       }
@@ -121,10 +139,10 @@ export default function AdminOpsPage() {
     }
   }, []);
 
-  // Initial load + 15s polling
+  // Initial load + fast polling for near-real-time map updates
   useEffect(() => {
     fetchData();
-    const interval = setInterval(() => fetchData(true), 15000);
+    const interval = setInterval(() => fetchData(true), 5000);
     return () => clearInterval(interval);
   }, [fetchData]);
 
@@ -240,10 +258,46 @@ export default function AdminOpsPage() {
       }
     }
 
-    if (hasBounds && filtered.length > 1) {
+    for (const locksmith of locksmiths) {
+      const { color, label } = getLocksmithStatus(locksmith);
+      const lsPin = document.createElement("div");
+      lsPin.style.cssText = "width:28px; height:28px; cursor:pointer;";
+      lsPin.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28">
+        <circle cx="14" cy="14" r="9.5" fill="${color}" stroke="white" stroke-width="2.5" />
+        <circle cx="14" cy="14" r="12" fill="none" stroke="${color}" stroke-opacity="0.35" stroke-width="2" />
+      </svg>`;
+      lsPin.title = `${locksmith.name} — ${label}`;
+
+      const coverageLabel = Number.isFinite(locksmith.coverageRadius)
+        ? `${locksmith.coverageRadius} miles`
+        : "N/A";
+
+      const lsPopup = new mapboxgl.Popup({ offset: 14, closeButton: false, maxWidth: "240px" })
+        .setHTML(`
+          <div style="font-family:system-ui; padding:4px;">
+            <div style="font-weight:700; margin-bottom:4px; color:#1e293b">${locksmith.name}</div>
+            <div style="display:inline-block; padding:2px 8px; border-radius:12px; font-size:11px; background:${color}22; color:${color}; font-weight:600; margin-bottom:6px;">
+              ${label}
+            </div>
+            <div style="font-size:12px; color:#374151"><b>Coverage:</b> ${coverageLabel}</div>
+            <div style="font-size:11px; color:#94a3b8; margin-top:4px">Base location</div>
+          </div>
+        `);
+
+      const lsBaseMarker = new mapboxgl.Marker(lsPin)
+        .setLngLat([locksmith.baseLng, locksmith.baseLat])
+        .setPopup(lsPopup)
+        .addTo(map.current!);
+
+      markers.current.push(lsBaseMarker);
+      bounds.extend([locksmith.baseLng, locksmith.baseLat]);
+      hasBounds = true;
+    }
+
+    if (hasBounds) {
       map.current.fitBounds(bounds, { padding: 60, maxZoom: 13 });
     }
-  }, [jobs, mapReady, statusFilter]);
+  }, [jobs, locksmiths, mapReady, statusFilter]);
 
   // Focus map on selected job
   const flyToJob = useCallback((job: JobEntry) => {
@@ -405,6 +459,20 @@ export default function AdminOpsPage() {
             </svg>
             <span className="text-xs text-gray-500">Locksmith car (live GPS)</span>
           </div>
+          <div className="mt-2 flex flex-wrap gap-3">
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-500" />
+              <span className="text-xs text-gray-500">Locksmith available</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-500" />
+              <span className="text-xs text-gray-500">Locksmith unavailable</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500" />
+              <span className="text-xs text-gray-500">Locksmith offline</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -437,7 +505,7 @@ export default function AdminOpsPage() {
         {/* Auto-refresh indicator */}
         <div className="absolute bottom-4 right-4 bg-gray-900/80 text-gray-400 text-xs px-2.5 py-1.5 rounded-full flex items-center gap-1.5 backdrop-blur">
           <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-          Auto-refresh every 15s
+          Auto-refresh every 5s
         </div>
       </div>
     </div>

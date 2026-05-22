@@ -9,7 +9,7 @@ import {
   Send,
   X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 interface NotifyJob {
   id: string;
@@ -46,10 +46,10 @@ function buildDefaultSms(args: {
   const firstName = args.customerName.split(" ")[0] || args.customerName;
   const url = `${SITE_URL}/customer/job/${args.jobId}`;
   return (
-    `LockSafe UK: Hi ${firstName}, honest update on ${args.jobNumber} — ` +
-    `no verified locksmith free in ${args.postcode} right now. ` +
-    `Don't wait: call our priority line ${SUPPORT_PHONE} and we'll hand-match you in ~15 mins. ` +
-    `Or widen radius/cancel here: ${url} — assessment fee fully refundable.`
+    `Hi ${firstName}, we’re really sorry — we couldn’t find an available verified locksmith in ${args.postcode} for ${args.jobNumber}. ` +
+    `No assessment fee has been charged. ` +
+    `If helpful, call our priority line ${SUPPORT_PHONE} and we’ll still try to hand-match someone nearby as quickly as possible. ` +
+    `You can also view your options here: ${url}.`
   );
 }
 
@@ -75,6 +75,22 @@ export function NotifyNoLocksmithModal({
       : "",
   );
   const [isSending, setIsSending] = useState(false);
+
+  useEffect(() => {
+    if (!job) {
+      setSmsBody("");
+      return;
+    }
+
+    setSmsBody(
+      buildDefaultSms({
+        customerName: job.customer?.name || "there",
+        jobNumber: job.jobNumber,
+        postcode: job.postcode,
+        jobId: job.id,
+      }),
+    );
+  }, [job?.id, job?.jobNumber, job?.postcode, job?.customer?.name]);
 
   const smsCount = smsBody.length;
   const segments = useMemo(() => {

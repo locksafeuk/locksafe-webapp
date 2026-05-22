@@ -100,7 +100,21 @@ interface Job {
     lng: number;
     accuracy?: number;
   };
+  messages?: Array<{
+    id: string;
+    senderType: string;
+    senderName: string;
+    body: string;
+    isAdminMessage: boolean;
+    createdAt: string;
+  }>;
 }
+
+type TimelineItem = {
+  at: string;
+  event: string;
+  gps?: { lat: number; lng: number } | null;
+};
 
 const problemLabels: Record<string, string> = {
   lockout: "Locked Out",
@@ -117,6 +131,36 @@ const propertyLabels: Record<string, string> = {
   commercial: "Commercial",
   vehicle: "Vehicle",
 };
+
+function buildTimelineItems(job: Job): TimelineItem[] {
+  const items: TimelineItem[] = [];
+
+  items.push({ at: job.createdAt, event: "Request Submitted", gps: job.requestGps || null });
+  if (job.acceptedAt) items.push({ at: job.acceptedAt, event: "Job Accepted", gps: job.acceptedGps || null });
+  if (job.arrivedAt) items.push({ at: job.arrivedAt, event: "Locksmith Arrived", gps: job.arrivalGps || null });
+  if (job.diagnosedAt) {
+    items.push({
+      at: job.diagnosedAt,
+      event: `Quote Sent ${job.quote ? `(£${job.quote.total.toFixed(2)})` : ""}`.trim(),
+      gps: job.quoteGps || null,
+    });
+  }
+  if (job.workStartedAt) items.push({ at: job.workStartedAt, event: "Work Started", gps: job.workStartedGps || null });
+  if (job.workCompletedAt) items.push({ at: job.workCompletedAt, event: "Work Completed", gps: job.completionGps || null });
+  if (job.signedAt) items.push({ at: job.signedAt, event: "Customer Signed", gps: job.signatureGps || null });
+
+  const activityRows = (job.messages || [])
+    .filter((m) => m.senderType === "admin" || m.senderType === "system" || m.isAdminMessage)
+    .map((m) => ({
+      at: m.createdAt,
+      event: m.senderType === "admin" ? `Admin: ${m.body}` : m.body,
+      gps: null,
+    }));
+
+  return [...items, ...activityRows].sort(
+    (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime(),
+  );
+}
 
 export default function ReportPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -159,6 +203,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
     setIsGenerating(true);
     try {
       await new Promise(resolve => setTimeout(resolve, 500));
+      const timelineItems = buildTimelineItems(job);
 
       const reportData: JobReportData = {
         jobNumber: job.jobNumber,
@@ -182,16 +227,11 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
           propertyType: propertyLabels[job.propertyType] || job.propertyType,
           description: job.description || "No description provided",
         },
-        timeline: [
-          { time: new Date(job.createdAt).toLocaleTimeString(), event: "Request Submitted", gps: job.requestGps || null },
-          ...(job.acceptedAt ? [{ time: new Date(job.acceptedAt).toLocaleTimeString(), event: "Job Accepted", gps: job.acceptedGps || null }] : []),
-          ...(job.arrivedAt ? [{ time: new Date(job.arrivedAt).toLocaleTimeString(), event: "Locksmith Arrived", gps: job.arrivalGps || null }] : []),
-          ...(job.diagnosedAt ? [{ time: new Date(job.diagnosedAt).toLocaleTimeString(), event: "Diagnostic Completed", gps: null }] : []),
-          ...(job.quote ? [{ time: new Date(job.diagnosedAt || job.createdAt).toLocaleTimeString(), event: `Quote Sent (£${job.quote.total.toFixed(2)})`, gps: job.quoteGps || null }] : []),
-          ...(job.workStartedAt ? [{ time: new Date(job.workStartedAt).toLocaleTimeString(), event: "Work Started", gps: job.workStartedGps || null }] : []),
-          ...(job.workCompletedAt ? [{ time: new Date(job.workCompletedAt).toLocaleTimeString(), event: "Work Completed", gps: job.completionGps || null }] : []),
-          ...(job.signedAt ? [{ time: new Date(job.signedAt).toLocaleTimeString(), event: "Customer Signed", gps: job.signatureGps || null }] : []),
-        ],
+        timeline: timelineItems.map((item) => ({
+          time: new Date(item.at).toLocaleTimeString(),
+          event: item.event,
+          gps: item.gps || null,
+        })),
         quote: job.quote ? {
           diagnostic: job.quote.defect || "Diagnosis completed",
           lockType: job.quote.lockType,
@@ -296,6 +336,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
   const locksmithRating = job.locksmith?.rating;
 
   const reportNumber = `LRS-${new Date().getFullYear()}-${job.id.slice(-6).toUpperCase()}`;
+  const timelineItems = buildTimelineItems(job);
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -449,109 +490,21 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr className="border-t">
-                      <td className="px-4 py-2 font-mono">{formatDate(job.createdAt)}</td>
-                      <td className="px-4 py-2 font-mono">{formatTime(job.createdAt)}</td>
-                      <td className="px-4 py-2">Request Submitted</td>
-                      <td className="px-4 py-2 text-slate-500">
-                        {job.requestGps ? (
-                          <span className="flex items-center gap-1">
-                            <MapPin className="w-3 h-3" />
-                            {job.requestGps.lat.toFixed(4)}, {job.requestGps.lng.toFixed(4)}
-                          </span>
-                        ) : "-"}
-                      </td>
-                    </tr>
-                    {job.acceptedAt && (
-                      <tr className="border-t">
-                        <td className="px-4 py-2 font-mono">{formatDate(job.acceptedAt)}</td>
-                        <td className="px-4 py-2 font-mono">{formatTime(job.acceptedAt)}</td>
-                        <td className="px-4 py-2">Job Accepted</td>
+                    {timelineItems.map((item, idx) => (
+                      <tr key={`${item.at}-${idx}`} className="border-t">
+                        <td className="px-4 py-2 font-mono">{formatDate(item.at)}</td>
+                        <td className="px-4 py-2 font-mono">{formatTime(item.at)}</td>
+                        <td className="px-4 py-2">{item.event}</td>
                         <td className="px-4 py-2 text-slate-500">
-                          {job.acceptedGps ? (
+                          {item.gps ? (
                             <span className="flex items-center gap-1">
                               <MapPin className="w-3 h-3" />
-                              {job.acceptedGps.lat.toFixed(4)}, {job.acceptedGps.lng.toFixed(4)}
+                              {item.gps.lat.toFixed(4)}, {item.gps.lng.toFixed(4)}
                             </span>
                           ) : "-"}
                         </td>
                       </tr>
-                    )}
-                    {job.arrivedAt && (
-                      <tr className="border-t">
-                        <td className="px-4 py-2 font-mono">{formatDate(job.arrivedAt)}</td>
-                        <td className="px-4 py-2 font-mono">{formatTime(job.arrivedAt)}</td>
-                        <td className="px-4 py-2">Locksmith Arrived</td>
-                        <td className="px-4 py-2 text-slate-500">
-                          {job.arrivalGps ? (
-                            <span className="flex items-center gap-1">
-                              <MapPin className="w-3 h-3" />
-                              {job.arrivalGps.lat.toFixed(4)}, {job.arrivalGps.lng.toFixed(4)}
-                            </span>
-                          ) : "-"}
-                        </td>
-                      </tr>
-                    )}
-                    {job.diagnosedAt && (
-                      <tr className="border-t">
-                        <td className="px-4 py-2 font-mono">{formatDate(job.diagnosedAt)}</td>
-                        <td className="px-4 py-2 font-mono">{formatTime(job.diagnosedAt)}</td>
-                        <td className="px-4 py-2">Quote Sent {job.quote && `(£${job.quote.total.toFixed(2)})`}</td>
-                        <td className="px-4 py-2 text-slate-500">
-                          {job.quoteGps ? (
-                            <span className="flex items-center gap-1">
-                              <MapPin className="w-3 h-3" />
-                              {job.quoteGps.lat.toFixed(4)}, {job.quoteGps.lng.toFixed(4)}
-                            </span>
-                          ) : "-"}
-                        </td>
-                      </tr>
-                    )}
-                    {job.workStartedAt && (
-                      <tr className="border-t">
-                        <td className="px-4 py-2 font-mono">{formatDate(job.workStartedAt)}</td>
-                        <td className="px-4 py-2 font-mono">{formatTime(job.workStartedAt)}</td>
-                        <td className="px-4 py-2">Work Started</td>
-                        <td className="px-4 py-2 text-slate-500">
-                          {job.workStartedGps ? (
-                            <span className="flex items-center gap-1">
-                              <MapPin className="w-3 h-3" />
-                              {job.workStartedGps.lat.toFixed(4)}, {job.workStartedGps.lng.toFixed(4)}
-                            </span>
-                          ) : "-"}
-                        </td>
-                      </tr>
-                    )}
-                    {job.workCompletedAt && (
-                      <tr className="border-t">
-                        <td className="px-4 py-2 font-mono">{formatDate(job.workCompletedAt)}</td>
-                        <td className="px-4 py-2 font-mono">{formatTime(job.workCompletedAt)}</td>
-                        <td className="px-4 py-2">Work Completed</td>
-                        <td className="px-4 py-2 text-slate-500">
-                          {job.completionGps ? (
-                            <span className="flex items-center gap-1">
-                              <MapPin className="w-3 h-3" />
-                              {job.completionGps.lat.toFixed(4)}, {job.completionGps.lng.toFixed(4)}
-                            </span>
-                          ) : "-"}
-                        </td>
-                      </tr>
-                    )}
-                    {job.signedAt && (
-                      <tr className="border-t">
-                        <td className="px-4 py-2 font-mono">{formatDate(job.signedAt)}</td>
-                        <td className="px-4 py-2 font-mono">{formatTime(job.signedAt)}</td>
-                        <td className="px-4 py-2">Customer Signed</td>
-                        <td className="px-4 py-2 text-slate-500">
-                          {job.signatureGps ? (
-                            <span className="flex items-center gap-1">
-                              <MapPin className="w-3 h-3" />
-                              {job.signatureGps.lat.toFixed(4)}, {job.signatureGps.lng.toFixed(4)}
-                            </span>
-                          ) : "-"}
-                        </td>
-                      </tr>
-                    )}
+                    ))}
                   </tbody>
                 </table>
               </div>

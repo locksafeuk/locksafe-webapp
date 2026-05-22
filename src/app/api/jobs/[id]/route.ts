@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { sendLocksmithArrivedEmail } from "@/lib/email";
+import { appendJobActivity } from "@/lib/job-activity";
 
 // GET - Get a single job by ID
 export async function GET(
@@ -62,6 +63,17 @@ export async function GET(
             createdAt: true,
           },
         },
+        messages: {
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            senderType: true,
+            senderName: true,
+            body: true,
+            isAdminMessage: true,
+            createdAt: true,
+          },
+        },
       },
     });
 
@@ -120,6 +132,15 @@ export async function DELETE(
       },
     });
 
+    await appendJobActivity({
+      jobId: id,
+      senderType: "admin",
+      senderName: "Admin",
+      message: "Job status updated: CANCELLED",
+    }).catch((err) => {
+      console.error("[Job DELETE] Failed to append activity log:", err);
+    });
+
     return NextResponse.json({
       success: true,
       message: "Job cancelled successfully",
@@ -173,6 +194,15 @@ export async function PATCH(
           customer: true,
           locksmith: true,
         },
+      });
+
+      await appendJobActivity({
+        jobId: id,
+        senderType: "system",
+        senderName: "System",
+        message: `Job status updated: ${existingJob.status} -> ARRIVED`,
+      }).catch((err) => {
+        console.error("[Job PATCH] Failed to append activity log:", err);
       });
 
       // Send notification to customer when locksmith arrives
@@ -255,6 +285,17 @@ export async function PATCH(
           locksmith: true,
         },
       });
+
+      if (existingJob.status !== status) {
+        await appendJobActivity({
+          jobId: id,
+          senderType: "admin",
+          senderName: "Admin",
+          message: `Job status updated: ${existingJob.status} -> ${status}`,
+        }).catch((err) => {
+          console.error("[Job PATCH] Failed to append activity log:", err);
+        });
+      }
 
       return NextResponse.json({
         success: true,

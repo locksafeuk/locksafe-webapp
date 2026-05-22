@@ -9,6 +9,7 @@ import {
   notifyCustomerLocksmithEnRoute,
   type JobSMSContext,
 } from "@/lib/sms";
+import { appendJobActivity } from "@/lib/job-activity";
 
 // PATCH - Update job status
 export async function PATCH(
@@ -128,6 +129,17 @@ export async function PATCH(
         quote: true,
       },
     });
+
+    if (existingJob.status !== status) {
+      await appendJobActivity({
+        jobId: job.id,
+        senderType: "system",
+        senderName: "System",
+        message: `Job status updated: ${existingJob.status} -> ${status}`,
+      }).catch((err) => {
+        console.error("[Job Status] Failed to append activity log:", err);
+      });
+    }
 
     // Build SMS context for notifications
     const smsContext: JobSMSContext = {

@@ -7,6 +7,7 @@ import { sendLocksmithAssignmentEmail } from "@/lib/email";
 import { createNotification } from "@/lib/notifications";
 import { SITE_URL } from "@/lib/config";
 import { sendNativePush } from "@/lib/native-push";
+import { appendJobActivity } from "@/lib/job-activity";
 
 // Verify admin session
 async function verifyAdmin() {
@@ -207,6 +208,15 @@ Reply STOP to opt out.`;
     }
 
     console.log(`[Admin Assign] Admin assigned locksmith ${locksmith.name} to job ${job.jobNumber}`);
+
+    await appendJobActivity({
+      jobId: job.id,
+      senderType: "admin",
+      senderName: "Admin",
+      message: `Assigned locksmith ${locksmith.name} (assessment fee £${defaultFee.toFixed(2)}).`,
+    }).catch((err) => {
+      console.error("[Admin Assign] Failed to append job activity:", err);
+    });
 
     return NextResponse.json({
       success: true,

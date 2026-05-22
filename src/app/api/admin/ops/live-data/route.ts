@@ -31,47 +31,66 @@ export async function GET(request: NextRequest) {
     const admin = await requireAdmin(request);
     if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const jobs = await prisma.job.findMany({
-      where: {
-        status: { in: ACTIVE_STATUSES as unknown as ("PENDING" | "ACCEPTED" | "EN_ROUTE" | "ARRIVED" | "DIAGNOSING" | "QUOTED" | "QUOTE_ACCEPTED" | "IN_PROGRESS" | "PENDING_CUSTOMER_CONFIRMATION")[] },
-      },
-      select: {
-        id: true,
-        jobNumber: true,
-        status: true,
-        problemType: true,
-        propertyType: true,
-        postcode: true,
-        address: true,
-        latitude: true,
-        longitude: true,
-        acceptedAt: true,
-        enRouteAt: true,
-        arrivedAt: true,
-        createdAt: true,
-        acceptedEta: true,
-        // GPS snapshots
-        acceptedGps: true,
-        arrivalGps: true,
-        locksmith: {
-          select: {
-            id: true,
-            name: true,
-            phone: true,
-            baseLat: true,
-            baseLng: true,
-            rating: true,
+    const [jobs, locksmiths] = await Promise.all([
+      prisma.job.findMany({
+        where: {
+          status: { in: ACTIVE_STATUSES as unknown as ("PENDING" | "ACCEPTED" | "EN_ROUTE" | "ARRIVED" | "DIAGNOSING" | "QUOTED" | "QUOTE_ACCEPTED" | "IN_PROGRESS" | "PENDING_CUSTOMER_CONFIRMATION")[] },
+        },
+        select: {
+          id: true,
+          jobNumber: true,
+          status: true,
+          problemType: true,
+          propertyType: true,
+          postcode: true,
+          address: true,
+          latitude: true,
+          longitude: true,
+          acceptedAt: true,
+          enRouteAt: true,
+          arrivedAt: true,
+          createdAt: true,
+          acceptedEta: true,
+          // GPS snapshots
+          acceptedGps: true,
+          arrivalGps: true,
+          locksmith: {
+            select: {
+              id: true,
+              name: true,
+              phone: true,
+              baseLat: true,
+              baseLng: true,
+              rating: true,
+            },
+          },
+          customer: {
+            select: {
+              name: true,
+              phone: true,
+            },
           },
         },
-        customer: {
-          select: {
-            name: true,
-            phone: true,
-          },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.locksmith.findMany({
+        where: {
+          isVerified: true,
+          baseLat: { not: null },
+          baseLng: { not: null },
         },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+        select: {
+          id: true,
+          name: true,
+          baseLat: true,
+          baseLng: true,
+          coverageRadius: true,
+          isActive: true,
+          isAvailable: true,
+        },
+        orderBy: { name: "asc" },
+      }),
+    ]);
 
     // Build response with resolved locksmith position
     // For jobs missing lat/lng, geocode from postcode and persist
@@ -153,7 +172,23 @@ export async function GET(request: NextRequest) {
       accepted: enriched.filter((j) => j.status === "ACCEPTED").length,
     };
 
-    return NextResponse.json({ success: true, jobs: enriched, stats, updatedAt: new Date().toISOString() });
+    const mappedLocksmiths = locksmiths.map((locksmith) => ({
+      id: locksmith.id,
+      name: locksmith.name,
+      baseLat: locksmith.baseLat,
+      baseLng: locksmith.baseLng,
+      coverageRadius: locksmith.coverageRadius ?? 10,
+      isActive: locksmith.isActive,
+      isAvailable: locksmith.isAvailable,
+    }));
+
+    return NextResponse.json({
+      success: true,
+      jobs: enriched,
+      locksmiths: mappedLocksmiths,
+      stats,
+      updatedAt: new Date().toISOString(),
+    });
   } catch (error) {
     console.error("GET /api/admin/ops/live-data error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

@@ -1,5 +1,6 @@
 import { verifyToken } from "@/lib/auth";
 import prisma from "@/lib/db";
+import { appendJobActivity } from "@/lib/job-activity";
 import {
   type NotifyChannel,
   notifyNoLocksmithAvailable,
@@ -123,6 +124,15 @@ export async function POST(
           noLocksmithNotifiedChannels: result.channelsSent,
           noLocksmithNotifiedBy: String(adminId),
         },
+      });
+
+      await appendJobActivity({
+        jobId: job.id,
+        senderType: "admin",
+        senderName: "Admin",
+        message: `Customer notified: no locksmith available via ${result.channelsSent.join(" + ")}.`,
+      }).catch((err) => {
+        console.error("[notify-no-locksmith] failed to append job activity:", err);
       });
     }
 
