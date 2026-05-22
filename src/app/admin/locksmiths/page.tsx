@@ -829,56 +829,83 @@ export default function AdminLocksmithsPage() {
 
     return a.name.localeCompare(b.name);
   });
+  const isMapView = viewMode === "map";
+  const totalLocksmithsCount = locksmiths.length;
+  const verifiedCount = locksmiths.filter((ls) => ls.isVerified).length;
+  const availableCount = locksmiths.filter((ls) => ls.isAvailable).length;
+  const totalEarnings = locksmiths.reduce((sum, ls) => sum + ls.totalEarnings, 0);
 
   return (
     <AdminSidebar>
-      <div className="p-4 lg:p-8">
+      <div className={isMapView ? "p-2.5 lg:p-3" : "p-4 lg:p-8"}>
         {/* Page Header */}
-        <div className="flex items-center justify-between mb-4 lg:mb-5">
+        <div className={`${isMapView ? "mb-2 lg:mb-2.5 flex flex-wrap items-center justify-between gap-2" : "mb-4 lg:mb-5 flex items-center justify-between"}`}>
           <div>
-            <h1 className="text-lg lg:text-xl font-bold text-slate-900 leading-tight">Locksmith Management</h1>
-            <p className="text-xs lg:text-sm text-slate-500 mt-0.5">{filteredLocksmiths.length} locksmiths</p>
+            <h1 className={isMapView ? "text-base lg:text-lg font-bold text-slate-900 leading-tight" : "text-lg lg:text-xl font-bold text-slate-900 leading-tight"}>Locksmith Management</h1>
+            <p className={isMapView ? "text-[11px] lg:text-xs text-slate-500 mt-0" : "text-xs lg:text-sm text-slate-500 mt-0.5"}>{filteredLocksmiths.length} locksmiths</p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={fetchLocksmiths} className="h-8 px-2.5 text-xs lg:text-sm">
+          <div className={isMapView ? "flex items-center flex-wrap justify-end gap-1.5 lg:gap-2" : "flex items-center gap-2"}>
+            {isMapView && (
+              <>
+                <div className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] lg:text-[11px] text-slate-600">
+                  <span className="text-slate-400">Total</span>
+                  <span className="font-semibold text-slate-900">{totalLocksmithsCount}</span>
+                </div>
+                <div className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] lg:text-[11px] text-slate-600">
+                  <span className="text-slate-400">Verified</span>
+                  <span className="font-semibold text-green-600">{verifiedCount}</span>
+                </div>
+                <div className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] lg:text-[11px] text-slate-600">
+                  <span className="text-slate-400">Available</span>
+                  <span className="font-semibold text-emerald-600">{availableCount}</span>
+                </div>
+                <div className="hidden lg:inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-600">
+                  <span className="text-slate-400">Earnings</span>
+                  <span className="font-semibold text-orange-600">£{totalEarnings.toLocaleString()}</span>
+                </div>
+              </>
+            )}
+            <Button variant="outline" size="sm" onClick={fetchLocksmiths} className={isMapView ? "h-7 px-2 text-[11px]" : "h-8 px-2.5 text-xs lg:text-sm"}>
               <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
               Refresh
             </Button>
-            <Button className="bg-orange-500 hover:bg-orange-600 text-white hidden sm:flex h-8 px-2.5 text-xs lg:text-sm">
+            <Button className={isMapView ? "bg-orange-500 hover:bg-orange-600 text-white hidden sm:flex h-7 px-2 text-[11px]" : "bg-orange-500 hover:bg-orange-600 text-white hidden sm:flex h-8 px-2.5 text-xs lg:text-sm"}>
               <UserPlus className="w-3.5 h-3.5 mr-1.5" />
               Invite
             </Button>
           </div>
         </div>
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 lg:gap-4 mb-3 lg:mb-4">
-          <div className="bg-white rounded-xl p-2.5 lg:p-4 shadow-sm">
-            <div className="text-[11px] lg:text-sm text-slate-500">Total Locksmiths</div>
-            <div className="text-lg lg:text-2xl font-bold text-slate-900 leading-tight">{locksmiths.length}</div>
-          </div>
-          <div className="bg-white rounded-xl p-2.5 lg:p-4 shadow-sm">
-            <div className="text-[11px] lg:text-sm text-slate-500">Verified</div>
-            <div className="text-lg lg:text-2xl font-bold text-green-600 leading-tight">
-              {locksmiths.filter(ls => ls.isVerified).length}
+        {!isMapView && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 lg:gap-4 mb-3 lg:mb-4">
+            <div className="bg-white rounded-xl p-2.5 lg:p-4 shadow-sm">
+            <div className={isMapView ? "text-[10px] lg:text-[11px] text-slate-500" : "text-[11px] lg:text-sm text-slate-500"}>Total Locksmiths</div>
+              <div className={isMapView ? "text-base lg:text-lg font-bold text-slate-900 leading-tight" : "text-lg lg:text-2xl font-bold text-slate-900 leading-tight"}>{totalLocksmithsCount}</div>
+            </div>
+            <div className="bg-white rounded-xl p-2.5 lg:p-4 shadow-sm">
+            <div className={isMapView ? "text-[10px] lg:text-[11px] text-slate-500" : "text-[11px] lg:text-sm text-slate-500"}>Verified</div>
+            <div className={isMapView ? "text-base lg:text-lg font-bold text-green-600 leading-tight" : "text-lg lg:text-2xl font-bold text-green-600 leading-tight"}>
+                {verifiedCount}
+            </div>
+            </div>
+            <div className="bg-white rounded-xl p-2.5 lg:p-4 shadow-sm">
+            <div className={isMapView ? "text-[10px] lg:text-[11px] text-slate-500" : "text-[11px] lg:text-sm text-slate-500"}>Available Now</div>
+            <div className={isMapView ? "text-base lg:text-lg font-bold text-emerald-600 leading-tight" : "text-lg lg:text-2xl font-bold text-emerald-600 leading-tight"}>
+                {availableCount}
+            </div>
+            </div>
+            <div className="bg-white rounded-xl p-2.5 lg:p-4 shadow-sm">
+            <div className={isMapView ? "text-[10px] lg:text-[11px] text-slate-500" : "text-[11px] lg:text-sm text-slate-500"}>Total Earnings</div>
+            <div className={isMapView ? "text-base lg:text-lg font-bold text-orange-600 leading-tight" : "text-lg lg:text-2xl font-bold text-orange-600 leading-tight"}>
+                £{totalEarnings.toLocaleString()}
+            </div>
             </div>
           </div>
-          <div className="bg-white rounded-xl p-2.5 lg:p-4 shadow-sm">
-            <div className="text-[11px] lg:text-sm text-slate-500">Available Now</div>
-            <div className="text-lg lg:text-2xl font-bold text-emerald-600 leading-tight">
-              {locksmiths.filter(ls => ls.isAvailable).length}
-            </div>
-          </div>
-          <div className="bg-white rounded-xl p-2.5 lg:p-4 shadow-sm">
-            <div className="text-[11px] lg:text-sm text-slate-500">Total Earnings</div>
-            <div className="text-lg lg:text-2xl font-bold text-orange-600 leading-tight">
-              £{locksmiths.reduce((sum, ls) => sum + ls.totalEarnings, 0).toLocaleString()}
-            </div>
-          </div>
-        </div>
+        )}
 
         {/* Filters */}
-        <div className="bg-white rounded-xl shadow-sm p-2.5 lg:p-3 mb-3 lg:mb-4">
-          <div className="flex flex-col lg:flex-row gap-2.5 lg:gap-3">
+        <div className={isMapView ? "bg-white rounded-xl shadow-sm p-2 lg:p-2.5 mb-2 lg:mb-2.5" : "bg-white rounded-xl shadow-sm p-2.5 lg:p-3 mb-3 lg:mb-4"}>
+          <div className={isMapView ? "flex flex-col lg:flex-row gap-2" : "flex flex-col lg:flex-row gap-2.5 lg:gap-3"}>
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input
@@ -886,14 +913,14 @@ export default function AdminLocksmithsPage() {
                 placeholder="Search name, email, company..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                className={isMapView ? "w-full pl-9 pr-3 py-1.5 text-xs lg:text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none" : "w-full pl-9 pr-4 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"}
               />
             </div>
             <div className="flex flex-wrap gap-1.5">
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="flex-1 lg:flex-none px-2.5 py-1.5 text-xs lg:text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none bg-white"
+                className={isMapView ? "flex-1 lg:flex-none px-2 py-1.5 text-[11px] lg:text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none bg-white" : "flex-1 lg:flex-none px-2.5 py-1.5 text-xs lg:text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none bg-white"}
               >
                 <option value="all">All Locksmiths</option>
                 <option value="available">Available Now</option>
@@ -911,7 +938,7 @@ export default function AdminLocksmithsPage() {
                 <button
                   type="button"
                   onClick={() => setViewMode("list")}
-                  className={`px-2 py-1.5 flex items-center gap-1 text-[11px] lg:text-xs font-medium transition-colors ${
+                  className={`${isMapView ? "px-1.5 lg:px-2" : "px-2"} py-1.5 flex items-center gap-1 text-[11px] lg:text-xs font-medium transition-colors ${
                     viewMode === "list"
                       ? "bg-orange-500 text-white"
                       : "bg-white text-slate-600 hover:bg-slate-50"
@@ -923,7 +950,7 @@ export default function AdminLocksmithsPage() {
                 <button
                   type="button"
                   onClick={() => setViewMode("map")}
-                  className={`px-2 py-1.5 flex items-center gap-1 text-[11px] lg:text-xs font-medium transition-colors ${
+                  className={`${isMapView ? "px-1.5 lg:px-2" : "px-2"} py-1.5 flex items-center gap-1 text-[11px] lg:text-xs font-medium transition-colors ${
                     viewMode === "map"
                       ? "bg-orange-500 text-white"
                       : "bg-white text-slate-600 hover:bg-slate-50"
@@ -938,7 +965,7 @@ export default function AdminLocksmithsPage() {
                 type="button"
                 onClick={handleSendWelcomeEmails}
                 disabled={sendingWelcomeEmails || locksmiths.length === 0}
-                className="px-2.5 lg:px-3 py-1.5 flex items-center gap-1.5 text-[11px] lg:text-xs font-medium bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className={isMapView ? "px-2 py-1.5 flex items-center gap-1 text-[10px] lg:text-[11px] font-medium bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" : "px-2.5 lg:px-3 py-1.5 flex items-center gap-1.5 text-[11px] lg:text-xs font-medium bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"}
                 title="Send welcome emails to all locksmiths"
               >
                 {sendingWelcomeEmails ? (
@@ -958,7 +985,7 @@ export default function AdminLocksmithsPage() {
                 type="button"
                 onClick={handleSendStripeReminders}
                 disabled={sendingStripeReminders || locksmiths.filter(ls => !ls.stripeConnectOnboarded).length === 0}
-                className="px-2.5 lg:px-3 py-1.5 flex items-center gap-1.5 text-[11px] lg:text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className={isMapView ? "px-2 py-1.5 flex items-center gap-1 text-[10px] lg:text-[11px] font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" : "px-2.5 lg:px-3 py-1.5 flex items-center gap-1.5 text-[11px] lg:text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"}
                 title="Send Stripe onboarding reminders to locksmiths who have not completed onboarding"
               >
                 {sendingStripeReminders ? (
