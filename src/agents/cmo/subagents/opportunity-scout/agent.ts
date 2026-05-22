@@ -23,6 +23,7 @@
  */
 
 import prisma from "@/lib/db";
+import type { Prisma } from "@prisma/client";
 import type { AgentConfig } from "@/agents/core/types";
 
 import { getDefaultGoogleAdsClient } from "@/lib/google-ads";
@@ -170,8 +171,8 @@ export async function runOpportunityScoutHeartbeat(
     };
   }
 
-  const client = await getDefaultGoogleAdsClient();
-  if (!client) {
+  const defaultClient = await getDefaultGoogleAdsClient();
+  if (!defaultClient) {
     failures.push("could-not-build-default-client");
     return {
       startedAt,
@@ -184,6 +185,7 @@ export async function runOpportunityScoutHeartbeat(
       topRecruitTargets: [],
     };
   }
+  const { client } = defaultClient;
 
   // 1. Universe
   const universe = await getCoverageUniverse();
@@ -324,7 +326,7 @@ async function persistOpportunities(
         medianCompetitionIndex: o.medianCompetitionIndex,
         competitionTier: o.competitionTier,
         totalMonthlySearches: o.totalMonthlySearches,
-        topKeywords: o.topKeywords,
+        topKeywords: o.topKeywords as unknown as Prisma.InputJsonValue,
         locksmithCount: o.locksmithCount,
         locksmithIds: o.locksmithIds,
         supplyRatio: o.supplyRatio,
