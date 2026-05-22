@@ -283,20 +283,40 @@ export function AdminCoverageMap({
       const targetIcon = L.divIcon({
         html: `
           <div style="
-            width: 18px;
-            height: 18px;
-            background: #2563eb;
-            border-radius: 50%;
-            border: 3px solid white;
-            box-shadow: 0 0 0 3px rgba(37,99,235,0.25), 0 2px 6px rgba(0,0,0,0.25);
-          "></div>
+            position: relative;
+            width: 36px;
+            height: 52px;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            filter: drop-shadow(0 8px 12px rgba(30, 64, 175, 0.45));
+          ">
+            <div style="
+              width: 28px;
+              height: 28px;
+              background: linear-gradient(160deg, #60a5fa, #1d4ed8);
+              border-radius: 50% 50% 50% 0;
+              transform: rotate(-45deg);
+              border: 3px solid white;
+              box-shadow: 0 0 0 6px rgba(59,130,246,0.28);
+            "></div>
+            <div style="
+              position: absolute;
+              top: 9px;
+              width: 10px;
+              height: 10px;
+              background: white;
+              border-radius: 50%;
+              box-shadow: 0 0 0 2px rgba(147,197,253,0.65);
+            "></div>
+          </div>
         `,
         className: "custom-target-marker",
-        iconSize: [18, 18],
-        iconAnchor: [9, 9],
+        iconSize: [36, 52],
+        iconAnchor: [18, 52],
       });
 
-      const targetMarker = L.marker([targetLocation.lat, targetLocation.lng], { icon: targetIcon }).addTo(overlays);
+      const targetMarker = L.marker([targetLocation.lat, targetLocation.lng], { icon: targetIcon, zIndexOffset: 2000 }).addTo(overlays);
       targetMarker.bindPopup(`<strong>${targetLocation.label || "Searched address"}</strong>`);
       bounds.extend([targetLocation.lat, targetLocation.lng]);
     }
