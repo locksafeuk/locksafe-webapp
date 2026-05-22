@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import {
@@ -109,6 +110,7 @@ function StatusIcon({ status }: { status: string }) {
 
 // ── Main component ─────────────────────────────────────────────────────────
 export default function AdminOpsPage() {
+  const router = useRouter();
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markers = useRef<mapboxgl.Marker[]>([]);
@@ -272,22 +274,68 @@ export default function AdminOpsPage() {
         ? `${locksmith.coverageRadius} miles`
         : "N/A";
 
-      const lsPopup = new mapboxgl.Popup({ offset: 14, closeButton: false, maxWidth: "240px" })
-        .setHTML(`
-          <div style="font-family:system-ui; padding:4px;">
-            <div style="font-weight:700; margin-bottom:4px; color:#1e293b">${locksmith.name}</div>
-            <div style="display:inline-block; padding:2px 8px; border-radius:12px; font-size:11px; background:${color}22; color:${color}; font-weight:600; margin-bottom:6px;">
-              ${label}
-            </div>
-            <div style="font-size:12px; color:#374151"><b>Coverage:</b> ${coverageLabel}</div>
-            <div style="font-size:11px; color:#94a3b8; margin-top:4px">Base location</div>
-          </div>
-        `);
+      const profileUrl = `/admin/locksmiths?locksmithId=${encodeURIComponent(locksmith.id)}`;
+
+      const lsPopup = new mapboxgl.Popup({ offset: 14, closeButton: false, maxWidth: "240px" });
+
+      lsPopup.setDOMContent((() => {
+        const wrapper = document.createElement("div");
+        wrapper.style.fontFamily = "system-ui";
+        wrapper.style.padding = "4px";
+
+        const title = document.createElement("div");
+        title.style.fontWeight = "700";
+        title.style.marginBottom = "4px";
+        title.style.color = "#1e293b";
+        title.textContent = locksmith.name;
+
+        const badge = document.createElement("div");
+        badge.style.display = "inline-block";
+        badge.style.padding = "2px 8px";
+        badge.style.borderRadius = "12px";
+        badge.style.fontSize = "11px";
+        badge.style.background = `${color}22`;
+        badge.style.color = color;
+        badge.style.fontWeight = "600";
+        badge.style.marginBottom = "6px";
+        badge.textContent = label;
+
+        const coverage = document.createElement("div");
+        coverage.style.fontSize = "12px";
+        coverage.style.color = "#374151";
+        coverage.innerHTML = `<b>Coverage:</b> ${coverageLabel}`;
+
+        const location = document.createElement("div");
+        location.style.fontSize = "11px";
+        location.style.color = "#94a3b8";
+        location.style.marginTop = "4px";
+        location.textContent = "Base location";
+
+        const openButton = document.createElement("button");
+        openButton.type = "button";
+        openButton.textContent = "Open Profile";
+        openButton.style.marginTop = "10px";
+        openButton.style.width = "100%";
+        openButton.style.borderRadius = "8px";
+        openButton.style.border = "1px solid #cbd5e1";
+        openButton.style.padding = "8px 10px";
+        openButton.style.fontSize = "12px";
+        openButton.style.fontWeight = "600";
+        openButton.style.background = "white";
+        openButton.style.cursor = "pointer";
+        openButton.addEventListener("click", () => router.push(profileUrl));
+
+        wrapper.append(title, badge, coverage, location, openButton);
+        return wrapper;
+      })());
 
       const lsBaseMarker = new mapboxgl.Marker(lsPin)
         .setLngLat([locksmith.baseLng, locksmith.baseLat])
-        .setPopup(lsPopup)
         .addTo(map.current!);
+
+      lsBaseMarker.getElement().addEventListener("click", () => router.push(profileUrl));
+
+      lsBaseMarker.setPopup(lsPopup);
 
       markers.current.push(lsBaseMarker);
       bounds.extend([locksmith.baseLng, locksmith.baseLat]);

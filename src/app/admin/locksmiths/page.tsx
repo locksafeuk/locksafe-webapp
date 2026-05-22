@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
 import {
@@ -103,6 +104,8 @@ interface Locksmith {
 }
 
 export default function AdminLocksmithsPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [locksmiths, setLocksmiths] = useState<Locksmith[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -170,7 +173,7 @@ export default function AdminLocksmithsPage() {
       const data = await response.json();
 
       if (data.success) {
-        setLocksmiths(data.locksmiths.map((ls: {
+        const nextLocksmiths = data.locksmiths.map((ls: {
           id: string;
           name: string;
           email: string;
@@ -243,14 +246,26 @@ export default function AdminLocksmithsPage() {
           isAvailable: ls.isAvailable ?? true,
           scheduleEnabled: ls.scheduleEnabled ?? false,
           lastAvailabilityChange: ls.lastAvailabilityChange || null,
-        })));
+        }));
+
+        setLocksmiths(nextLocksmiths);
+
+        const locksmithId = searchParams.get("locksmithId");
+        if (locksmithId) {
+          const matched = nextLocksmiths.find((ls: Locksmith) => ls.id === locksmithId);
+          if (matched) {
+            setSelectedLocksmith(matched);
+            setEditingProfile(false);
+            router.replace("/admin/locksmiths", { scroll: false });
+          }
+        }
       }
     } catch (error) {
       console.error("Error fetching locksmiths:", error);
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, searchQuery]);
+  }, [statusFilter, searchQuery, router, searchParams]);
 
   useEffect(() => {
     fetchLocksmiths();
