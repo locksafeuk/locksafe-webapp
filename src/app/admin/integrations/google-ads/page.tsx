@@ -157,10 +157,18 @@ function GoogleAdsIntegrationPageInner() {
           Configure your Google Ads API credentials, then connect via OAuth. The CMO agent will
           be able to pull metrics and publish approved campaign drafts.
         </p>
-        <p className="text-sm mt-2">
+        <p className="text-sm mt-2 flex flex-wrap gap-x-4 gap-y-1">
           <Link href="/admin/integrations/google-ads/drafts" className="text-blue-600 hover:underline">
             → View AI-generated campaign drafts
           </Link>
+          <a
+            href="https://ads.google.com/aw/campaigns"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:underline"
+          >
+            ↗ Open Google Ads dashboard
+          </a>
         </p>
       </div>
 
@@ -319,9 +327,21 @@ function GoogleAdsIntegrationPageInner() {
               </tr>
             </thead>
             <tbody>
-              {accounts.map((a) => (
+              {accounts.map((a) => {
+                const adsUrl = `https://ads.google.com/aw/campaigns?__c=${a.customerId}${a.loginCustomerId ? `&__u=${a.loginCustomerId}` : ""}&authuser=0`;
+                return (
                 <tr key={a.id} className="border-b">
-                  <td className="py-2 font-mono text-xs">{a.customerId}</td>
+                  <td className="py-2 font-mono text-xs">
+                    <a
+                      href={adsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline"
+                      title="Open this account in Google Ads"
+                    >
+                      {a.customerId} ↗
+                    </a>
+                  </td>
                   <td className="py-2 font-mono text-xs">{a.loginCustomerId ?? "—"}</td>
                   <td className="py-2">
                     {a.isActive ? (
@@ -332,7 +352,15 @@ function GoogleAdsIntegrationPageInner() {
                   </td>
                   <td className="py-2 text-xs">{a.lastSyncAt ? new Date(a.lastSyncAt).toLocaleString() : "Never"}</td>
                   <td className="py-2 text-xs">{a.tokenExpiresAt ? new Date(a.tokenExpiresAt).toLocaleString() : "—"}</td>
-                  <td className="py-2">
+                  <td className="py-2 space-x-2">
+                    <a
+                      href={adsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block rounded border px-2 py-1 text-xs hover:bg-blue-50"
+                    >
+                      Open in Google Ads ↗
+                    </a>
                     <button
                       type="button"
                       disabled={busy}
@@ -343,7 +371,8 @@ function GoogleAdsIntegrationPageInner() {
                     </button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}
