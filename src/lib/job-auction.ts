@@ -4,10 +4,9 @@
  * When a job lands in a postcode area with 3+ active+onboarded locksmiths,
  * instead of immediate dispatch we run a timed auction:
  *
- *   Step 0 → 40% commission offered  (notify all eligible locksmiths)
- *   Step 1 → 35% commission offered  (+2 min)
- *   Step 2 → 30% commission offered  (+2 min)
- *   Step 3 → 25% commission offered  (+2 min)
+ *   Step 0 → 40% commission offered  (small private cohort)
+ *   Step 1 → 30% commission offered  (next private cohort)
+ *   Step 2 → 25% commission offered  (remaining eligible locksmiths)
  *   EXPIRED → admin Telegram alert for manual assignment
  *
  * The first locksmith to tap "Accept" wins and the job is assigned at that rate.
@@ -21,7 +20,37 @@ const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const AUCTION_STEP_MINUTES = 2;
 
 /** Commission rate for each auction step */
-const STEP_RATES = [0.40, 0.35, 0.30, 0.25] as const;
+const STEP_RATES = [0.40, 0.30, 0.25] as const;
+
+/**
+ * Build non-overlapping locksmith cohorts for auction waves:
+ * - Wave 1 (40%): 1-2 locksmiths
+ * - Wave 2 (30%): 1-2 different locksmiths
+ * - Wave 3 (25%): all remaining locksmiths
+ */
+export function buildAuctionCohorts(locksmithIds: string[]): [string[], string[], string[]] {
+  const uniqueIds = [...new Set(locksmithIds)];
+  const total = uniqueIds.length;
+
+  // Keep at least one locksmith for the final wave.
+  const firstWaveSize = Math.min(2, Math.max(1, total - 2));
+  const firstWave = uniqueIds.slice(0, firstWaveSize);
+
+  const remainingAfterFirst = uniqueIds.slice(firstWave.length);
+  const secondWaveSize = Math.min(2, Math.max(1, remainingAfterFirst.length - 1));
+  const secondWave = remainingAfterFirst.slice(0, secondWaveSize);
+
+  const finalWave = remainingAfterFirst.slice(secondWave.length);
+  return [firstWave, secondWave, finalWave];
+}
+
+export function getWaveRecipients(currentStep: number, locksmithIds: string[]): string[] {
+  const [wave1, wave2, wave3] = buildAuctionCohorts(locksmithIds);
+  if (currentStep === 0) return wave1;
+  if (currentStep === 1) return wave2;
+  if (currentStep === 2) return wave3;
+  return [];
+}
 
 /** Haversine distance in miles */
 function haversineDistance(
@@ -100,12 +129,16 @@ export async function shouldTriggerAuction(
     },
   });
 
-  const eligible = locksmiths.filter((ls) => {
-    if (ls.baseLat == null || ls.baseLng == null) return false;
-    const dist = haversineDistance(jobLat, jobLng, ls.baseLat, ls.baseLng);
-    const radius = ls.coverageRadius ?? 10;
-    return dist <= radius;
-  });
+  const eligible = locksmiths
+    .map((ls) => {
+      if (ls.baseLat == null || ls.baseLng == null) return null;
+      const dist = haversineDistance(jobLat, jobLng, ls.baseLat, ls.baseLng);
+      const radius = ls.coverageRadius ?? 10;
+      return { id: ls.id, dist, radius };
+    })
+    .filter((ls): ls is { id: string; dist: number; radius: number } => ls !== null)
+    .filter((ls) => ls.dist <= ls.radius)
+    .sort((a, b) => a.dist - b.dist);
 
   if (eligible.length >= 3) {
     return eligible.map((ls) => ls.id);
@@ -139,7 +172,8 @@ export async function createAuction(
     data: { notifiedLocksmithIds: locksmithIds, notifiedAt: new Date() },
   });
 
-  await sendAuctionNotifications(jobId, 0, STEP_RATES[0], locksmithIds);
+  const waveOneRecipients = getWaveRecipients(0, locksmithIds);
+  await sendAuctionNotifications(jobId, 0, STEP_RATES[0], waveOneRecipients);
 }
 
 /**
@@ -152,6 +186,8 @@ export async function sendAuctionNotifications(
   rate: number,
   locksmithIds: string[],
 ): Promise<void> {
+  if (locksmithIds.length === 0) return;
+
   const job = await prisma.job.findUnique({
     where: { id: jobId },
     select: {
@@ -168,9 +204,11 @@ export async function sendAuctionNotifications(
   const commissionPercent = Math.round(rate * 100);
   const isFirstStep = step === 0;
   const dropMinutes = AUCTION_STEP_MINUTES;
+  const waveLabel = step === 0 ? "Wave 1/3" : step === 1 ? "Wave 2/3" : "Wave 3/3";
 
   const text =
-    `🔑 <b>New Job Auction – ${commissionPercent}% Commission</b>\n\n` +
+    `🔑 <b>New Job Auction – ${commissionPercent}% Commission</b>\n` +
+    `📣 <b>${waveLabel}</b>\n\n` +
     `📋 <b>Job #${job.jobNumber}</b>\n` +
     `📍 ${job.address}, ${job.postcode}\n` +
     `🔑 ${job.problemType} · ${job.propertyType}\n\n` +
@@ -226,6 +264,18 @@ export async function acceptAuction(
       success: false,
       message: "You were not invited to this auction",
     };
+
+  const currentWaveRecipients = getWaveRecipients(
+    auction.currentStep,
+    auction.notifiedLocksmithIds,
+  );
+  if (!currentWaveRecipients.includes(locksmithId)) {
+    return {
+      success: false,
+      message:
+        "This offer is currently open to another locksmith cohort. You were not invited for this wave.",
+    };
+  }
 
   // Accept the auction and assign the job — both in a transaction
   await prisma.$transaction([
@@ -291,6 +341,15 @@ export async function advanceAuction(jobId: string): Promise<void> {
 
   const newRate = STEP_RATES[nextStep];
   const nextDropAt = new Date(Date.now() + AUCTION_STEP_MINUTES * 60 * 1000);
+  const nextWaveRecipients = getWaveRecipients(nextStep, auction.notifiedLocksmithIds);
+
+  if (nextWaveRecipients.length === 0) {
+    await prisma.jobAuction.update({
+      where: { jobId },
+      data: { state: "EXPIRED" },
+    });
+    return;
+  }
 
   await prisma.jobAuction.update({
     where: { jobId },
@@ -305,7 +364,7 @@ export async function advanceAuction(jobId: string): Promise<void> {
     jobId,
     nextStep,
     newRate,
-    auction.notifiedLocksmithIds,
+    nextWaveRecipients,
   );
 }
 

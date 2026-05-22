@@ -93,12 +93,64 @@ async function cleanupTestData(jobId: string) {
   await prisma.quote.deleteMany({ where: { jobId } });
   await prisma.locksmithApplication.deleteMany({ where: { jobId } });
   await prisma.jobAuction.deleteMany({ where: { jobId } });
-  await prisma.job.delete({ where: { id: jobId } });
+
+  // Job deletion can race with background writes; retry a few times.
+  let lastErr: unknown = null;
+  for (let i = 0; i < 3; i++) {
+    try {
+      await prisma.job.delete({ where: { id: jobId } });
+      return;
+    } catch (err) {
+      lastErr = err;
+      await new Promise((r) => setTimeout(r, 250 * (i + 1)));
+    }
+  }
+  throw lastErr;
 }
 
 async function main() {
   console.log(`\n${C.bold}LockSafe Real Scenario: Booking + Payment A2Z${C.reset}`);
   console.log(`Base URL: ${BASE_URL}`);
+
+  // Guard against mixed Stripe environments (e.g. local sk_test_ while hosted is live).
+  // That mismatch creates payment-intent ownership errors and invalidates the test result.
+  const localMode = (process.env.STRIPE_SECRET_KEY || "").startsWith("sk_live_")
+    ? "live"
+    : (process.env.STRIPE_SECRET_KEY || "").startsWith("sk_test_")
+      ? "test"
+      : "unknown";
+
+  try {
+    const healthRes = await fetch(`${BASE_URL}/api/health`, { signal: AbortSignal.timeout(8000) });
+    if (healthRes.ok) {
+      const health = (await healthRes.json()) as {
+        checks?: { stripe?: { message?: string } };
+      };
+      const stripeMsg = health.checks?.stripe?.message || "";
+      const hostedMode = stripeMsg.includes("mode=live")
+        ? "live"
+        : stripeMsg.includes("mode=test")
+          ? "test"
+          : "unknown";
+
+      if (
+        localMode !== "unknown" &&
+        hostedMode !== "unknown" &&
+        localMode !== hostedMode &&
+        process.env.ALLOW_A2Z_MODE_MISMATCH !== "true"
+      ) {
+        throw new Error(
+          `Stripe mode mismatch: local=${localMode} hosted=${hostedMode}. ` +
+            `Set matching keys or set ALLOW_A2Z_MODE_MISMATCH=true to override.`
+        );
+      }
+      ok("Stripe mode guard", `local=${localMode} hosted=${hostedMode}`);
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("Stripe mode mismatch")) throw err;
+    warn("Could not verify hosted Stripe mode", msg);
+  }
 
   const stripe = getStripe();
   const { default: prisma } = await import("@/lib/db");
@@ -121,6 +173,15 @@ async function main() {
     });
     ok("Created test customer", customer.id);
   } else {
+    // Reset cached Stripe references for the internal test customer to avoid
+    // failures when a Stripe test customer/payment method was deleted.
+    customer = await prisma.customer.update({
+      where: { id: customer.id },
+      data: {
+        stripeCustomerId: null,
+        stripePaymentMethodId: null,
+      },
+    });
     ok("Reusing test customer", customer.id);
   }
 

@@ -591,7 +591,7 @@ model JobAuction {
   job   Job    @relation(fields: [jobId], references: [id])
 
   state       String   @default("RUNNING") // RUNNING | ACCEPTED | EXPIRED | ADMIN_ASSIGNED
-  currentStep Int      @default(0) // 0=40% | 1=35% | 2=30% | 3=25%
+  currentStep Int      @default(0) // 0=40% | 1=30% | 2=25%
   currentRate Float    @default(0.40) // Commission rate currently on offer
   nextDropAt  DateTime // When to move to next step
 
