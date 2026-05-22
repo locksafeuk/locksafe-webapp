@@ -179,6 +179,9 @@ export function AdminCoverageMap({
   const mapInstanceRef = useRef<L.Map | null>(null);
   const overlayGroupRef = useRef<L.LayerGroup | null>(null);
   const onLocksmithClickRef = useRef<typeof onLocksmithClick>(onLocksmithClick);
+  const hasInitialFitRef = useRef(false);
+  const userMovedMapRef = useRef(false);
+  const previousTargetKeyRef = useRef<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
@@ -197,6 +200,12 @@ export function AdminCoverageMap({
       zoom: 10,
       zoomControl: true,
       attributionControl: true,
+      scrollWheelZoom: true,
+      doubleClickZoom: true,
+      touchZoom: true,
+      dragging: true,
+      boxZoom: true,
+      keyboard: true,
     });
 
     // Add tile layer
@@ -206,6 +215,14 @@ export function AdminCoverageMap({
     }).addTo(map);
 
     overlayGroupRef.current = L.layerGroup().addTo(map);
+
+    // Once user manually zooms or pans, stop forcing auto-fit on routine data refresh.
+    map.on("zoomstart", () => {
+      userMovedMapRef.current = true;
+    });
+    map.on("dragstart", () => {
+      userMovedMapRef.current = true;
+    });
 
     mapInstanceRef.current = map;
     setIsLoaded(true);
@@ -327,7 +344,22 @@ export function AdminCoverageMap({
     }
 
     if (bounds.isValid()) {
-      map.fitBounds(bounds, { padding: [50, 50] });
+      const targetKey = targetLocation
+        ? `${targetLocation.lat.toFixed(5)},${targetLocation.lng.toFixed(5)}`
+        : null;
+      const targetChanged = targetKey !== previousTargetKeyRef.current;
+
+      if (!hasInitialFitRef.current || targetChanged || !userMovedMapRef.current) {
+        map.fitBounds(bounds, { padding: [50, 50] });
+        hasInitialFitRef.current = true;
+
+        // New searched address should recenter map and then allow manual control again.
+        if (targetChanged) {
+          userMovedMapRef.current = false;
+        }
+      }
+
+      previousTargetKeyRef.current = targetKey;
     }
   }, [locksmiths, targetLocation]);
 
