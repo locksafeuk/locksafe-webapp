@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
@@ -124,6 +124,7 @@ export default function AdminLocksmithsPage() {
   const [mapSearchError, setMapSearchError] = useState<string | null>(null);
   const [mapTargetLocation, setMapTargetLocation] = useState<{ lat: number; lng: number; label: string } | null>(null);
   const [nearestLocksmithIds, setNearestLocksmithIds] = useState<string[]>([]);
+  const liveLookupRequestIdRef = useRef(0);
 
   // Delete state
   const [deleteLocksmithId, setDeleteLocksmithId] = useState<string | null>(null);
@@ -644,6 +645,39 @@ export default function AdminLocksmithsPage() {
     return 2 * earthRadiusMiles * Math.asin(Math.sqrt(a));
   };
 
+  const computeNearestLocksmithIds = useCallback((target: { lat: number; lng: number }) => {
+    return filteredLocksmiths
+      .filter((ls): ls is Locksmith & { baseLat: number; baseLng: number } => ls.baseLat != null && ls.baseLng != null)
+      .map((ls) => ({
+        id: ls.id,
+        distanceMiles: haversineMiles(target.lat, target.lng, ls.baseLat, ls.baseLng),
+      }))
+      .sort((a, b) => a.distanceMiles - b.distanceMiles)
+      .slice(0, 20)
+      .map((item) => item.id);
+  }, [filteredLocksmiths]);
+
+  const geocodeAddressForMap = useCallback(async (query: string) => {
+    const response = await fetch("/api/admin/geocode-address", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    });
+
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+      return { error: data.error || "Unable to find this address." };
+    }
+
+    return {
+      target: {
+        lat: Number(data.lat),
+        lng: Number(data.lng),
+        label: String(data.label || query),
+      },
+    };
+  }, []);
+
   const handleFindClosestOnMap = async () => {
     const query = mapAddressQuery.trim();
     if (!query) {
@@ -655,37 +689,16 @@ export default function AdminLocksmithsPage() {
       setSearchingMapAddress(true);
       setMapSearchError(null);
 
-      const response = await fetch("/api/admin/geocode-address", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query }),
-      });
-
-      const data = await response.json();
-      if (!response.ok || !data.success) {
-        setMapSearchError(data.error || "Unable to find this address.");
+      const result = await geocodeAddressForMap(query);
+      if (!result || result.error || !result.target) {
+        setMapSearchError(result?.error || "Unable to find this address.");
         return;
       }
 
-      const target = {
-        lat: Number(data.lat),
-        lng: Number(data.lng),
-        label: String(data.label || query),
-      };
+      const target = result.target;
 
       setMapTargetLocation(target);
-
-      const nearest = filteredLocksmiths
-        .filter((ls): ls is Locksmith & { baseLat: number; baseLng: number } => ls.baseLat != null && ls.baseLng != null)
-        .map((ls) => ({
-          id: ls.id,
-          distanceMiles: haversineMiles(target.lat, target.lng, ls.baseLat, ls.baseLng),
-        }))
-        .sort((a, b) => a.distanceMiles - b.distanceMiles)
-        .slice(0, 20)
-        .map((item) => item.id);
-
-      setNearestLocksmithIds(nearest);
+      setNearestLocksmithIds(computeNearestLocksmithIds(target));
     } catch (error) {
       console.error("Map address search failed:", error);
       setMapSearchError("Address search failed. Please try again.");
@@ -693,6 +706,52 @@ export default function AdminLocksmithsPage() {
       setSearchingMapAddress(false);
     }
   };
+
+  useEffect(() => {
+    if (viewMode !== "map") return;
+
+    const query = mapAddressQuery.trim();
+    if (!query) {
+      setMapTargetLocation(null);
+      setNearestLocksmithIds([]);
+      setMapSearchError(null);
+      setSearchingMapAddress(false);
+      return;
+    }
+
+    if (query.length < 5) {
+      return;
+    }
+
+    const requestId = ++liveLookupRequestIdRef.current;
+    setSearchingMapAddress(true);
+
+    const timer = setTimeout(async () => {
+      try {
+        const result = await geocodeAddressForMap(query);
+        if (requestId !== liveLookupRequestIdRef.current) return;
+
+        if (!result || result.error || !result.target) {
+          setMapSearchError(result?.error || "Unable to find this address.");
+          return;
+        }
+
+        setMapSearchError(null);
+        setMapTargetLocation(result.target);
+        setNearestLocksmithIds(computeNearestLocksmithIds(result.target));
+      } catch (error) {
+        if (requestId !== liveLookupRequestIdRef.current) return;
+        console.error("Live map geocode failed:", error);
+        setMapSearchError("Address search failed. Please try again.");
+      } finally {
+        if (requestId === liveLookupRequestIdRef.current) {
+          setSearchingMapAddress(false);
+        }
+      }
+    }, 650);
+
+    return () => clearTimeout(timer);
+  }, [mapAddressQuery, viewMode, geocodeAddressForMap, computeNearestLocksmithIds]);
 
   const clearMapSearch = () => {
     setMapTargetLocation(null);
@@ -926,6 +985,9 @@ export default function AdminLocksmithsPage() {
                 >
                   Clear
                 </Button>
+              </div>
+              <div className="mt-2 text-xs text-slate-500">
+                Blue pin updates automatically while you type the address.
               </div>
               {mapSearchError && (
                 <div className="mt-2 text-sm text-red-600">{mapSearchError}</div>

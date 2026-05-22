@@ -164,6 +164,11 @@ LockSafe UK is a **full-stack emergency locksmith marketplace** that connects:
 |----------|-------------|
 | [CRON_SETUP.md](./CRON_SETUP.md) | Cron job configuration |
 | [CRON_JOBS_COMPLETE.md](./CRON_JOBS_COMPLETE.md) | Complete cron job reference |
+| [PROJECT_OS_BLUEPRINT.md](./PROJECT_OS_BLUEPRINT.md) | Reusable phase-by-phase project delivery framework |
+| [PROJECT_OS_PROMPT_PACK.md](./PROJECT_OS_PROMPT_PACK.md) | Copy-paste prompts for each implementation phase |
+| [PROJECT_OS_EXECUTION_CHECKLIST.md](./PROJECT_OS_EXECUTION_CHECKLIST.md) | Launch checklist and gate tracker |
+| [PROJECT_OS_MASTER_COPYPASTE.md](./PROJECT_OS_MASTER_COPYPASTE.md) | Single-file copy-paste + downloadable project starter pack |
+| [PROJECT_OS_MASTER_COPYPASTE.txt](./PROJECT_OS_MASTER_COPYPASTE.txt) | Plain text copy-paste version for chat apps and quick sharing |
 
 ---
 
