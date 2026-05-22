@@ -810,66 +810,66 @@ export default function AdminLocksmithsPage() {
     <AdminSidebar>
       <div className="p-4 lg:p-8">
         {/* Page Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-4 lg:mb-5">
           <div>
-            <h1 className="text-xl lg:text-2xl font-bold text-slate-900">Locksmith Management</h1>
-            <p className="text-sm text-slate-500">{filteredLocksmiths.length} locksmiths</p>
+            <h1 className="text-lg lg:text-xl font-bold text-slate-900 leading-tight">Locksmith Management</h1>
+            <p className="text-xs lg:text-sm text-slate-500 mt-0.5">{filteredLocksmiths.length} locksmiths</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={fetchLocksmiths}>
-              <RefreshCw className="w-4 h-4 mr-2" />
+            <Button variant="outline" size="sm" onClick={fetchLocksmiths} className="h-8 px-2.5 text-xs lg:text-sm">
+              <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
               Refresh
             </Button>
-            <Button className="bg-orange-500 hover:bg-orange-600 text-white hidden sm:flex">
-              <UserPlus className="w-4 h-4 mr-2" />
+            <Button className="bg-orange-500 hover:bg-orange-600 text-white hidden sm:flex h-8 px-2.5 text-xs lg:text-sm">
+              <UserPlus className="w-3.5 h-3.5 mr-1.5" />
               Invite
             </Button>
           </div>
         </div>
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-4 lg:mb-6">
-          <div className="bg-white rounded-xl p-3 lg:p-4 shadow-sm">
-            <div className="text-xs lg:text-sm text-slate-500">Total Locksmiths</div>
-            <div className="text-xl lg:text-2xl font-bold text-slate-900">{locksmiths.length}</div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 lg:gap-4 mb-3 lg:mb-4">
+          <div className="bg-white rounded-xl p-2.5 lg:p-4 shadow-sm">
+            <div className="text-[11px] lg:text-sm text-slate-500">Total Locksmiths</div>
+            <div className="text-lg lg:text-2xl font-bold text-slate-900 leading-tight">{locksmiths.length}</div>
           </div>
-          <div className="bg-white rounded-xl p-3 lg:p-4 shadow-sm">
-            <div className="text-xs lg:text-sm text-slate-500">Verified</div>
-            <div className="text-xl lg:text-2xl font-bold text-green-600">
+          <div className="bg-white rounded-xl p-2.5 lg:p-4 shadow-sm">
+            <div className="text-[11px] lg:text-sm text-slate-500">Verified</div>
+            <div className="text-lg lg:text-2xl font-bold text-green-600 leading-tight">
               {locksmiths.filter(ls => ls.isVerified).length}
             </div>
           </div>
-          <div className="bg-white rounded-xl p-3 lg:p-4 shadow-sm">
-            <div className="text-xs lg:text-sm text-slate-500">Available Now</div>
-            <div className="text-xl lg:text-2xl font-bold text-emerald-600">
+          <div className="bg-white rounded-xl p-2.5 lg:p-4 shadow-sm">
+            <div className="text-[11px] lg:text-sm text-slate-500">Available Now</div>
+            <div className="text-lg lg:text-2xl font-bold text-emerald-600 leading-tight">
               {locksmiths.filter(ls => ls.isAvailable).length}
             </div>
           </div>
-          <div className="bg-white rounded-xl p-3 lg:p-4 shadow-sm">
-            <div className="text-xs lg:text-sm text-slate-500">Total Earnings</div>
-            <div className="text-xl lg:text-2xl font-bold text-orange-600">
+          <div className="bg-white rounded-xl p-2.5 lg:p-4 shadow-sm">
+            <div className="text-[11px] lg:text-sm text-slate-500">Total Earnings</div>
+            <div className="text-lg lg:text-2xl font-bold text-orange-600 leading-tight">
               £{locksmiths.reduce((sum, ls) => sum + ls.totalEarnings, 0).toLocaleString()}
             </div>
           </div>
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-xl shadow-sm p-3 lg:p-4 mb-4 lg:mb-6">
-          <div className="flex flex-col lg:flex-row gap-3 lg:gap-4">
+        <div className="bg-white rounded-xl shadow-sm p-2.5 lg:p-3 mb-3 lg:mb-4">
+          <div className="flex flex-col lg:flex-row gap-2.5 lg:gap-3">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 lg:w-5 lg:h-5 text-slate-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input
                 type="text"
                 placeholder="Search name, email, company..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 lg:pl-10 pr-4 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                className="w-full pl-9 pr-4 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
               />
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5">
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="flex-1 lg:flex-none px-3 lg:px-4 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none bg-white"
+                className="flex-1 lg:flex-none px-2.5 py-1.5 text-xs lg:text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none bg-white"
               >
                 <option value="all">All Locksmiths</option>
                 <option value="available">Available Now</option>
@@ -887,7 +887,7 @@ export default function AdminLocksmithsPage() {
                 <button
                   type="button"
                   onClick={() => setViewMode("list")}
-                  className={`px-2.5 lg:px-3 py-2 flex items-center gap-1 text-xs lg:text-sm font-medium transition-colors ${
+                  className={`px-2 py-1.5 flex items-center gap-1 text-[11px] lg:text-xs font-medium transition-colors ${
                     viewMode === "list"
                       ? "bg-orange-500 text-white"
                       : "bg-white text-slate-600 hover:bg-slate-50"
@@ -899,7 +899,7 @@ export default function AdminLocksmithsPage() {
                 <button
                   type="button"
                   onClick={() => setViewMode("map")}
-                  className={`px-2.5 lg:px-3 py-2 flex items-center gap-1 text-xs lg:text-sm font-medium transition-colors ${
+                  className={`px-2 py-1.5 flex items-center gap-1 text-[11px] lg:text-xs font-medium transition-colors ${
                     viewMode === "map"
                       ? "bg-orange-500 text-white"
                       : "bg-white text-slate-600 hover:bg-slate-50"
@@ -914,17 +914,17 @@ export default function AdminLocksmithsPage() {
                 type="button"
                 onClick={handleSendWelcomeEmails}
                 disabled={sendingWelcomeEmails || locksmiths.length === 0}
-                className="px-3 lg:px-4 py-2 flex items-center gap-2 text-xs lg:text-sm font-medium bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-2.5 lg:px-3 py-1.5 flex items-center gap-1.5 text-[11px] lg:text-xs font-medium bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Send welcome emails to all locksmiths"
               >
                 {sendingWelcomeEmails ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     <span className="hidden sm:inline">Sending...</span>
                   </>
                 ) : (
                   <>
-                    <Send className="w-4 h-4" />
+                    <Send className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline">Send Welcome Emails</span>
                     <span className="sm:hidden">Welcome</span>
                   </>
@@ -934,17 +934,17 @@ export default function AdminLocksmithsPage() {
                 type="button"
                 onClick={handleSendStripeReminders}
                 disabled={sendingStripeReminders || locksmiths.filter(ls => !ls.stripeConnectOnboarded).length === 0}
-                className="px-3 lg:px-4 py-2 flex items-center gap-2 text-xs lg:text-sm font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-2.5 lg:px-3 py-1.5 flex items-center gap-1.5 text-[11px] lg:text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Send Stripe onboarding reminders to locksmiths who have not completed onboarding"
               >
                 {sendingStripeReminders ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     <span className="hidden sm:inline">Sending...</span>
                   </>
                 ) : (
                   <>
-                    <CreditCard className="w-4 h-4" />
+                    <CreditCard className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline">Send Stripe Reminders</span>
                     <span className="sm:hidden">Stripe</span>
                   </>
@@ -956,13 +956,13 @@ export default function AdminLocksmithsPage() {
 
         {/* Coverage Map View */}
         {viewMode === "map" && (
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden mb-6">
-            <div className="p-4 border-b">
-              <h2 className="font-semibold text-slate-900 flex items-center gap-2">
-                <MapIcon className="w-5 h-5 text-orange-500" />
+          <div className="bg-white rounded-xl shadow-sm overflow-hidden mb-4">
+            <div className="p-3 border-b">
+              <h2 className="font-semibold text-sm lg:text-base text-slate-900 flex items-center gap-2">
+                <MapIcon className="w-4 h-4 text-orange-500" />
                 Locksmith Coverage Areas
               </h2>
-              <p className="text-sm text-slate-500 mt-1">
+              <p className="text-xs lg:text-sm text-slate-500 mt-1">
                 {locksmiths.filter(ls => ls.baseLat && ls.baseLng).length} of {locksmiths.length} locksmiths have set their coverage area
               </p>
               <div className="mt-3 grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-2">
@@ -977,7 +977,7 @@ export default function AdminLocksmithsPage() {
                       handleFindClosestOnMap();
                     }
                   }}
-                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                  className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
                 />
                 <Button
                   type="button"
