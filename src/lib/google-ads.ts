@@ -527,6 +527,96 @@ export class GoogleAdsClient {
     }
     return (await res.json()) as T;
   }
+
+  /**
+   * Call KeywordPlanIdeaService.generateKeywordIdeas — Google's free keyword
+   * research endpoint. Used by the Opportunity Scout to compare CPC /
+   * competition / search volume across UK geos without spending a penny.
+   *
+   * One call = one (geoTargetIds × seeds) cell. Combine geos in one call
+   * (Google sums the volumes across them) or call once per geo if you need
+   * per-geo numbers — the scout uses per-geo.
+   *
+   * Quota: KeywordPlan API has a small daily cap; cache aggressively at the
+   * caller layer (the scout caches via the GoogleAdsOpportunity table).
+   */
+  async generateKeywordIdeas(opts: {
+    geoTargetIds: string[]; // numeric geo constant IDs, e.g. "1006886" (Bristol)
+    keywordSeeds: string[]; // e.g. ["locksmith", "emergency locksmith"]
+    languageId?: string; // default 1000 = English
+    network?: "GOOGLE_SEARCH" | "GOOGLE_SEARCH_AND_PARTNERS";
+    pageSize?: number;
+  }): Promise<KeywordIdea[]> {
+    if (!opts.geoTargetIds.length) throw new Error("generateKeywordIdeas: geoTargetIds required");
+    if (!opts.keywordSeeds.length) throw new Error("generateKeywordIdeas: keywordSeeds required");
+
+    const cfg = await getGoogleAdsApiConfig().catch(() => null);
+    const developerToken = cfg?.developerToken || process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
+    if (!developerToken) throw new Error("GOOGLE_ADS_DEVELOPER_TOKEN not configured");
+
+    const accessToken = await this.getAccessToken();
+    const url = `${API_BASE}/customers/${this.customerId}:generateKeywordIdeas`;
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${accessToken}`,
+      "developer-token": developerToken,
+      "Content-Type": "application/json",
+    };
+    if (this.loginCustomerId) headers["login-customer-id"] = this.loginCustomerId;
+
+    const body = {
+      language: `languageConstants/${opts.languageId ?? "1000"}`,
+      geoTargetConstants: opts.geoTargetIds.map((g) => `geoTargetConstants/${g}`),
+      keywordPlanNetwork: opts.network ?? "GOOGLE_SEARCH",
+      keywordSeed: { keywords: opts.keywordSeeds.slice(0, 20) }, // API max 20 seeds
+      pageSize: opts.pageSize ?? 200,
+      includeAdultKeywords: false,
+    };
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(
+        `Google Ads generateKeywordIdeas failed (${res.status}) for customer ${this.customerId}: ${text.slice(0, 400)}`,
+      );
+    }
+
+    const json = (await res.json()) as {
+      results?: Array<{
+        text?: string;
+        keywordIdeaMetrics?: {
+          avgMonthlySearches?: string;
+          competition?: "UNKNOWN" | "UNSPECIFIED" | "LOW" | "MEDIUM" | "HIGH";
+          competitionIndex?: string;
+          lowTopOfPageBidMicros?: string;
+          highTopOfPageBidMicros?: string;
+        };
+      }>;
+    };
+
+    return (json.results ?? []).map((r) => ({
+      text: r.text ?? "",
+      avgMonthlySearches: Number(r.keywordIdeaMetrics?.avgMonthlySearches ?? 0),
+      competition: (r.keywordIdeaMetrics?.competition ?? "UNKNOWN") as KeywordIdea["competition"],
+      competitionIndex: Number(r.keywordIdeaMetrics?.competitionIndex ?? 0),
+      lowTopOfPageBidMicros: Number(r.keywordIdeaMetrics?.lowTopOfPageBidMicros ?? 0),
+      highTopOfPageBidMicros: Number(r.keywordIdeaMetrics?.highTopOfPageBidMicros ?? 0),
+    }));
+  }
+}
+
+export interface KeywordIdea {
+  text: string;
+  avgMonthlySearches: number;
+  competition: "UNKNOWN" | "UNSPECIFIED" | "LOW" | "MEDIUM" | "HIGH";
+  /** 0–100. Higher = more competitive. */
+  competitionIndex: number;
+  lowTopOfPageBidMicros: number;
+  highTopOfPageBidMicros: number;
 }
 
 /** Resource-name builder helpers (used when chaining mutations). */

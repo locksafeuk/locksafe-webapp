@@ -138,7 +138,151 @@ export const UK_GEO_IDS = {
   "londonderry": "1006586",
 } as const;
 
+/**
+ * Approximate centroid coordinates for the major UK_GEO_IDS keys. Used by
+ * `nearestCityByCoords` and by the Opportunity Scout to expand a locksmith's
+ * home city outward by their `coverageRadius` (miles) and collect every
+ * UK_GEO_IDS city within reach.
+ *
+ * Distances are computed with the haversine formula by `haversineMiles()`.
+ * Coverage is intentionally limited to the most populated cities — borough-
+ * level coords (Camden, Hackney, etc.) are not required because the scout
+ * scores at city granularity.
+ */
+export const UK_CITY_CENTROIDS: Record<string, { lat: number; lng: number }> = {
+  london: { lat: 51.5074, lng: -0.1278 },
+  manchester: { lat: 53.4808, lng: -2.2426 },
+  birmingham: { lat: 52.4862, lng: -1.8904 },
+  leeds: { lat: 53.8008, lng: -1.5491 },
+  glasgow: { lat: 55.8642, lng: -4.2518 },
+  sheffield: { lat: 53.3811, lng: -1.4701 },
+  bradford: { lat: 53.7960, lng: -1.7594 },
+  liverpool: { lat: 53.4084, lng: -2.9916 },
+  edinburgh: { lat: 55.9533, lng: -3.1883 },
+  bristol: { lat: 51.4545, lng: -2.5879 },
+  cardiff: { lat: 51.4816, lng: -3.1791 },
+  coventry: { lat: 52.4068, lng: -1.5197 },
+  nottingham: { lat: 52.9548, lng: -1.1581 },
+  leicester: { lat: 52.6369, lng: -1.1398 },
+  southampton: { lat: 50.9097, lng: -1.4044 },
+  portsmouth: { lat: 50.8198, lng: -1.0880 },
+  reading: { lat: 51.4543, lng: -0.9781 },
+  oxford: { lat: 51.7520, lng: -1.2577 },
+  brighton: { lat: 50.8225, lng: -0.1372 },
+  newcastle: { lat: 54.9783, lng: -1.6178 },
+  belfast: { lat: 54.5973, lng: -5.9301 },
+  aberdeen: { lat: 57.1497, lng: -2.0943 },
+  derby: { lat: 52.9225, lng: -1.4746 },
+  sunderland: { lat: 54.9061, lng: -1.3816 },
+  york: { lat: 53.9600, lng: -1.0873 },
+  cambridge: { lat: 52.2053, lng: 0.1218 },
+  norwich: { lat: 52.6309, lng: 1.2974 },
+  peterborough: { lat: 52.5695, lng: -0.2405 },
+  ipswich: { lat: 52.0567, lng: 1.1482 },
+  exeter: { lat: 50.7184, lng: -3.5339 },
+  plymouth: { lat: 50.3755, lng: -4.1427 },
+  bath: { lat: 51.3751, lng: -2.3617 },
+  bournemouth: { lat: 50.7192, lng: -1.8808 },
+  swansea: { lat: 51.6214, lng: -3.9436 },
+  wolverhampton: { lat: 52.5870, lng: -2.1287 },
+  preston: { lat: 53.7632, lng: -2.7031 },
+  blackpool: { lat: 53.8175, lng: -3.0357 },
+  bolton: { lat: 53.5780, lng: -2.4290 },
+  stockport: { lat: 53.4106, lng: -2.1576 },
+  middlesbrough: { lat: 54.5742, lng: -1.2348 },
+  hull: { lat: 53.7676, lng: -0.3274 },
+  wakefield: { lat: 53.6833, lng: -1.4977 },
+  doncaster: { lat: 53.5228, lng: -1.1285 },
+  dundee: { lat: 56.4620, lng: -2.9707 },
+  inverness: { lat: 57.4778, lng: -4.2247 },
+  stirling: { lat: 56.1165, lng: -3.9369 },
+  perth: { lat: 56.3950, lng: -3.4307 },
+  newport: { lat: 51.5842, lng: -2.9977 },
+  wrexham: { lat: 53.0430, lng: -2.9925 },
+  derry: { lat: 54.9966, lng: -7.3086 },
+  guildford: { lat: 51.2362, lng: -0.5704 },
+  canterbury: { lat: 51.2802, lng: 1.0789 },
+  maidstone: { lat: 51.2720, lng: 0.5292 },
+  crawley: { lat: 51.1092, lng: -0.1872 },
+  worthing: { lat: 50.8147, lng: -0.3714 },
+  eastbourne: { lat: 50.7687, lng: 0.2900 },
+  slough: { lat: 51.5105, lng: -0.5950 },
+  poole: { lat: 50.7150, lng: -1.9872 },
+  salisbury: { lat: 51.0688, lng: -1.7945 },
+  truro: { lat: 50.2632, lng: -5.0510 },
+  carlisle: { lat: 54.8925, lng: -2.9329 },
+};
+
+/** Haversine distance between two points in MILES (UK marketers think in miles). */
+export function haversineMiles(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+): number {
+  const R = 3958.7613; // Earth radius in miles
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const lat1 = (a.lat * Math.PI) / 180;
+  const lat2 = (b.lat * Math.PI) / 180;
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
 export type UKGeoKey = keyof typeof UK_GEO_IDS;
+
+/**
+ * Resolve a locksmith's home location to the best-matching UK geo (city key
+ * + Google geo constant ID). Tries address parsing first, then falls back
+ * to nearest-city by lat/lng. Returns null when neither method finds a hit.
+ *
+ * Exported so the Opportunity Scout and onboarding generator share one
+ * canonical resolution path.
+ */
+export function resolveLocksmithGeo(locksmith: {
+  baseAddress?: string | null;
+  baseLat?: number | null;
+  baseLng?: number | null;
+}): { geoId: string; cityKey: UKGeoKey; label: string } | null {
+  if (locksmith.baseAddress) {
+    const tokens = extractCityTokens(locksmith.baseAddress);
+    const geoId = resolveTokensToGeoId(tokens);
+    if (geoId) {
+      const entry = (Object.entries(UK_GEO_IDS) as [UKGeoKey, string][]).find(
+        ([, v]) => v === geoId,
+      );
+      if (entry) {
+        return { geoId, cityKey: entry[0], label: titleCase(entry[0]) };
+      }
+    }
+  }
+  if (typeof locksmith.baseLat === "number" && typeof locksmith.baseLng === "number") {
+    const city = nearestCityByCoords(locksmith.baseLat, locksmith.baseLng);
+    if (city && city in UK_GEO_IDS) {
+      return {
+        geoId: UK_GEO_IDS[city as UKGeoKey],
+        cityKey: city as UKGeoKey,
+        label: titleCase(city),
+      };
+    }
+  }
+  return null;
+}
+
+/** Reverse lookup: geo ID → human label (Title Case). */
+export function labelForGeoId(geoId: string): string | null {
+  const entry = (Object.entries(UK_GEO_IDS) as [UKGeoKey, string][]).find(
+    ([, v]) => v === geoId,
+  );
+  return entry ? titleCase(entry[0]) : null;
+}
+
+function titleCase(s: string): string {
+  return s
+    .split(/\s+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
 
 // =========================================================================
 // Helpers
@@ -184,63 +328,17 @@ function resolveTokensToGeoId(tokens: string[]): string | null {
  * Used as a fallback when address parsing fails.
  */
 function nearestCityByCoords(lat: number, lng: number): string | null {
-  const cityCoords: Record<string, { lat: number; lng: number }> = {
-    "london": { lat: 51.5074, lng: -0.1278 },
-    "manchester": { lat: 53.4808, lng: -2.2426 },
-    "birmingham": { lat: 52.4862, lng: -1.8904 },
-    "leeds": { lat: 53.8008, lng: -1.5491 },
-    "glasgow": { lat: 55.8642, lng: -4.2518 },
-    "sheffield": { lat: 53.3811, lng: -1.4701 },
-    "bradford": { lat: 53.7960, lng: -1.7594 },
-    "liverpool": { lat: 53.4084, lng: -2.9916 },
-    "edinburgh": { lat: 55.9533, lng: -3.1883 },
-    "bristol": { lat: 51.4545, lng: -2.5879 },
-    "cardiff": { lat: 51.4816, lng: -3.1791 },
-    "coventry": { lat: 52.4068, lng: -1.5197 },
-    "nottingham": { lat: 52.9548, lng: -1.1581 },
-    "leicester": { lat: 52.6369, lng: -1.1398 },
-    "southampton": { lat: 50.9097, lng: -1.4044 },
-    "portsmouth": { lat: 50.8198, lng: -1.0880 },
-    "reading": { lat: 51.4543, lng: -0.9781 },
-    "oxford": { lat: 51.7520, lng: -1.2577 },
-    "brighton": { lat: 50.8225, lng: -0.1372 },
-    "newcastle": { lat: 54.9783, lng: -1.6178 },
-    "belfast": { lat: 54.5973, lng: -5.9301 },
-    "aberdeen": { lat: 57.1497, lng: -2.0943 },
-    "derby": { lat: 52.9225, lng: -1.4746 },
-    "sunderland": { lat: 54.9061, lng: -1.3816 },
-    "york": { lat: 53.9600, lng: -1.0873 },
-    "cambridge": { lat: 52.2053, lng: 0.1218 },
-    "norwich": { lat: 52.6309, lng: 1.2974 },
-    "peterborough": { lat: 52.5695, lng: -0.2405 },
-    "ipswich": { lat: 52.0567, lng: 1.1482 },
-    "exeter": { lat: 50.7184, lng: -3.5339 },
-    "plymouth": { lat: 50.3755, lng: -4.1427 },
-    "bath": { lat: 51.3751, lng: -2.3617 },
-    "bournemouth": { lat: 50.7192, lng: -1.8808 },
-    "swansea": { lat: 51.6214, lng: -3.9436 },
-  };
-
   let best: string | null = null;
-  let bestDist = Infinity;
-
-  for (const [city, coords] of Object.entries(cityCoords)) {
-    const dLat = (lat - coords.lat) * (Math.PI / 180);
-    const dLng = (lng - coords.lng) * (Math.PI / 180);
-    const a =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos(lat * (Math.PI / 180)) *
-        Math.cos(coords.lat * (Math.PI / 180)) *
-        Math.sin(dLng / 2) ** 2;
-    const distKm = 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    if (distKm < bestDist) {
-      bestDist = distKm;
+  let bestMiles = Infinity;
+  for (const [city, coords] of Object.entries(UK_CITY_CENTROIDS)) {
+    const miles = haversineMiles({ lat, lng }, coords);
+    if (miles < bestMiles) {
+      bestMiles = miles;
       best = city;
     }
   }
-
-  // Only accept if within 80 km of a known city
-  return bestDist <= 80 ? best : null;
+  // Only accept if within 50 miles of a known city (was 80 km ~= 50 mi)
+  return bestMiles <= 50 ? best : null;
 }
 
 // =========================================================================

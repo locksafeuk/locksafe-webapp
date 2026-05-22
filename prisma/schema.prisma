@@ -1117,6 +1117,54 @@ model GoogleAdsCampaignDraft {
   @@index([status])
 }
 
+// =========================================================================
+// Google Ads Opportunity Scout
+// =========================================================================
+// One row per (geoTargetId, computedAt) cell, produced weekly by the
+// Opportunity Scout subagent. Sourced from Google Ads KeywordPlanIdeaService
+// per UK city/borough where we have eligible locksmiths (or zero, for the
+// `kind = "RECRUIT"` variant which feeds the "where should we recruit"
+// report).
+model GoogleAdsOpportunity {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  // "COVERAGE" — geos with ≥1 onboarded locksmith ready to fulfil leads.
+  // "RECRUIT"  — geos with zero locksmiths; high score = sales recruit target.
+  kind String @default("COVERAGE")
+
+  // Google Ads GeoTargetConstant numeric ID + human label.
+  geoTargetId String
+  geoLabel    String
+
+  // Scoring snapshot.
+  computedAt             DateTime @default(now())
+  score                  Float
+  medianCpcGbp           Float
+  medianCompetitionIndex Float
+  competitionTier        String   @default("UNKNOWN") // LOW | MEDIUM | HIGH | UNKNOWN
+  totalMonthlySearches   Int      @default(0)
+  topKeywords            Json     // OpportunityKeyword[]
+
+  // Fulfilment context (zero for RECRUIT rows).
+  locksmithCount    Int      @default(0)
+  locksmithIds      String[] @default([])
+  supplyRatio       Float    @default(0)
+
+  // Workflow.
+  status      String   @default("NEW") // NEW | REVIEWED | DRAFTED | DISMISSED
+  draftId     String?  @db.ObjectId
+  dismissedAt DateTime?
+  dismissedBy String?
+  agentNotes  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([kind, status])
+  @@index([geoTargetId, computedAt])
+  @@index([score])
+}
+
 // Reusable Google Ads campaign template captured from a published draft.
 // One row per "playbook" the admin wants to clone in future automations
 // (manual-publish-now → save-as-template → AI agent reuses the geometry).

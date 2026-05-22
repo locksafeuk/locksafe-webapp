@@ -12,6 +12,10 @@
     {
       "path": "/api/cron/google-ads-fraud-monitor",
       "schedule": "15 */6 * * *"
+    },
+    {
+      "path": "/api/cron/google-ads-opportunity-scout",
+      "schedule": "0 4 * * 1"
     }
   ],
   "functions": {

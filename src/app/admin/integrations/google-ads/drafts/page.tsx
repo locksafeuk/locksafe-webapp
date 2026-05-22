@@ -206,6 +206,13 @@ export default function GoogleAdsDraftsListPage() {
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Link
+            href="/admin/integrations/google-ads/opportunities"
+            className="rounded border border-amber-500 px-4 py-2 text-sm font-medium text-amber-700 hover:bg-amber-50"
+            title="Find cheap, under-served UK markets"
+          >
+            🎯 Opportunity Scout
+          </Link>
+          <Link
             href="/admin/integrations/google-ads/drafts/new"
             className="rounded border border-blue-600 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
           >

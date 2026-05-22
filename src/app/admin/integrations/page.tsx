@@ -32,6 +32,15 @@ const integrations: IntegrationCard[] = [
     border: "border-violet-500/30",
   },
   {
+    href: "/admin/integrations/google-ads/opportunities",
+    icon: BarChart3,
+    title: "Opportunity Scout",
+    description: "Weekly scan for cheap, under-served UK cities. Auto-drafts top markets and surfaces recruit-here gaps.",
+    color: "text-amber-400",
+    bg: "bg-amber-500/10",
+    border: "border-amber-500/30",
+  },
+  {
     href: "https://ads.google.com/aw/campaigns?__c=4715226378&authuser=0",
     icon: ExternalLink,
     title: "Open Google Ads ↗",

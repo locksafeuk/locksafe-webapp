@@ -161,6 +161,9 @@ function GoogleAdsIntegrationPageInner() {
           <Link href="/admin/integrations/google-ads/drafts" className="text-blue-600 hover:underline">
             → View AI-generated campaign drafts
           </Link>
+          <Link href="/admin/integrations/google-ads/opportunities" className="text-blue-600 hover:underline">
+            → Opportunity Scout (cheap UK markets)
+          </Link>
           <a
             href="https://ads.google.com/aw/campaigns"
             target="_blank"
