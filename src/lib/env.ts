@@ -81,6 +81,8 @@ const envSchema = z.object({
   TELEGRAM_TOPIC_REVIEWS: z.string().regex(/^\d+$/).optional(),
   TELEGRAM_SEND_RETRY_ATTEMPTS: z.string().regex(/^\d+$/).optional(),
   TELEGRAM_SEND_RETRY_BASE_MS: z.string().regex(/^\d+$/).optional(),
+  ADMIN_SMS_FALLBACK_ENABLED: z.enum(["true", "false"]).optional(),
+  ADMIN_ALERT_FALLBACK_PHONES: z.string().optional(),
 
   // Voice AI alerting and watchdog
   VOICE_CALL_TELEGRAM_ALERTS_ENABLED: z.enum(["true", "false"]).optional(),

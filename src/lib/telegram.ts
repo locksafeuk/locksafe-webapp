@@ -12,6 +12,8 @@
  * - etc.
  */
 
+import { LOCKSMITH_ADMIN_PHONE } from "@/lib/config";
+
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 const TELEGRAM_ENABLED = process.env.TELEGRAM_NOTIFICATIONS_ENABLED === "true";
@@ -23,6 +25,11 @@ const TELEGRAM_SEND_RETRY_BASE_MS = Math.max(
   100,
   Number.parseInt(process.env.TELEGRAM_SEND_RETRY_BASE_MS || "350", 10) || 350,
 );
+const ADMIN_SMS_FALLBACK_ENABLED = process.env.ADMIN_SMS_FALLBACK_ENABLED === "true";
+const ADMIN_ALERT_FALLBACK_PHONES = (process.env.ADMIN_ALERT_FALLBACK_PHONES || "")
+  .split(",")
+  .map((v) => v.trim())
+  .filter(Boolean);
 
 // Forum topic thread IDs — set these env vars after creating topics in your Telegram supergroup.
 // Leave unset (or set to 0) to send all messages to the General topic.
@@ -44,6 +51,14 @@ interface TelegramResponse {
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function uniqueNonEmpty(values: string[]): string[] {
+  return [...new Set(values.map((v) => v.trim()).filter(Boolean))];
+}
+
+function getAdminFallbackPhones(): string[] {
+  return uniqueNonEmpty([...ADMIN_ALERT_FALLBACK_PHONES, LOCKSMITH_ADMIN_PHONE]);
 }
 
 /**
@@ -780,7 +795,53 @@ ${escapeHtml(data.message)}
 🕐 <b>Time:</b> ${formatDate(new Date())}
 `;
 
-  return sendTelegramMessage(message, "HTML", TOPIC_AGENTS);
+  const sentToTelegram = await sendTelegramMessage(message, "HTML", TOPIC_AGENTS);
+  if (sentToTelegram) return true;
+
+  // P1 fallback path: critical alerts should still page humans when Telegram is down.
+  if ((data.severity || "info") !== "error" || !ADMIN_SMS_FALLBACK_ENABLED) {
+    return false;
+  }
+
+  const fallbackPhones = getAdminFallbackPhones();
+  if (fallbackPhones.length === 0) {
+    console.warn("[Telegram][fallback] No fallback phone numbers configured for critical alert");
+    return false;
+  }
+
+  try {
+    const { sendSMS } = await import("@/lib/sms");
+    const smsText =
+      `LOCKSAFE P1 ALERT\n` +
+      `${data.title}\n` +
+      `${data.message}\n` +
+      `Time: ${formatDate(new Date())}`;
+
+    const results = await Promise.all(
+      fallbackPhones.map((phone) =>
+        sendSMS(phone, smsText, {
+          logContext: `admin_alert_fallback:${data.title}`,
+        }),
+      ),
+    );
+
+    const successful = results.filter((r) => r.success).length;
+    if (successful > 0) {
+      console.warn(
+        `[Telegram][fallback] Telegram failed; sent critical alert via SMS to ${successful}/${fallbackPhones.length} recipients`,
+      );
+      return true;
+    }
+
+    console.error("[Telegram][fallback] Telegram failed and SMS fallback also failed", {
+      title: data.title,
+      phones: fallbackPhones,
+    });
+    return false;
+  } catch (error) {
+    console.error("[Telegram][fallback] SMS fallback threw an error:", error);
+    return false;
+  }
 }
 
 /**
