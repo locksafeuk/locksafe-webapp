@@ -190,6 +190,11 @@ export default function VoiceReceptionistPage() {
   const [testLoading, setTestLoading] = useState(false);
   const [savingConfig, setSavingConfig] = useState(false);
 
+  const handleTabChange = (tab: TabId) => {
+    setSelectedCall(null);
+    setActiveTab(tab);
+  };
+
   const fetchCalls = useCallback(async (pageNum?: number, search?: string, category?: string) => {
     setCallsLoading(true);
     try {
@@ -330,12 +335,12 @@ export default function VoiceReceptionistPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-6 bg-slate-100 p-1 rounded-xl w-fit">
+        <div className="relative z-[60] flex gap-1 mb-6 bg-slate-100 p-1 rounded-xl w-fit">
           {tabs.map((tab: any) => (
             <button
               key={tab.id}
               type="button"
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabChange(tab.id)}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 activeTab === tab.id
                   ? "bg-white text-slate-900 shadow-sm"
