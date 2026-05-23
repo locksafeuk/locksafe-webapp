@@ -1113,6 +1113,8 @@ model GoogleAdsCampaignDraft {
   updatedAt  DateTime  @updatedAt
   lastSyncAt DateTime?
 
+  suggestions CampaignSuggestion[]
+
   @@index([accountId])
   @@index([status])
 }
@@ -3066,4 +3068,78 @@ model Subscription {
 
   @@index([status])
   @@index([currentPeriodEnd])
+}
+
+// =========================================================================
+// Google Ads Copilot — Campaign Suggestion Queue
+// =========================================================================
+// Every insight the AI generates becomes a suggestion card here. No Google
+// Ads mutations fire without a human APPROVE action on this record.
+// The ads-specialist / opportunity-scout agents write rows; the admin
+// dashboard reads and acts on them.
+model CampaignSuggestion {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  // What type of action is being suggested.
+  // "ADD_NEGATIVE_KEYWORD" | "ADD_KEYWORD" | "REMOVE_KEYWORD"
+  // "INCREASE_BUDGET"      | "DECREASE_BUDGET"
+  // "LOWER_BID"            | "RAISE_BID"
+  // "PAUSE_CANDIDATE"      | "SCALE_WINNER"
+  // "NEW_DRAFT_CITY"       ← cheap-city discovery suggestions
+  type String
+
+  // Which Google Ads campaign draft this concerns (nullable for NEW_DRAFT_CITY).
+  draftId          String? @db.ObjectId
+  draft            GoogleAdsCampaignDraft? @relation(fields: [draftId], references: [id])
+  googleCampaignId String?
+  campaignName     String?
+
+  // Raw evidence shown to the admin in plain English.
+  // e.g. { keyword: "car locksmith", spend: 4.20, conversions: 0, clicks: 23, days: 7 }
+  evidence Json
+
+  // What the AI proposes to change.
+  // e.g. { negativeKeyword: "car locksmith" } or { newDailyBudget: 9.00 }
+  suggestedValue Json
+
+  // What it currently is (for budget/bid suggestions).
+  currentValue Json?
+
+  // Plain-English reasoning shown to the admin.
+  reasoning String
+
+  // AI self-assessed confidence 0–1. Low-confidence suggestions are surfaced
+  // less prominently in the UI and filtered by stricter thresholds.
+  confidence Float @default(0.5)
+
+  // Status lifecycle.
+  // PENDING → APPROVED → APPLIED (mutation fired successfully)
+  //         → REJECTED
+  //         → EXPIRED  (not actioned within 7 days)
+  status String @default("PENDING")
+
+  // Human decision fields.
+  approvedBy     String?
+  approvedAt     DateTime?
+  rejectedBy     String?
+  rejectedAt     DateTime?
+  // "too_early" | "disagree_with_data" | "manual_override_planned"
+  // "wrong_context" | "already_handled" | "other"
+  rejectedReason String?
+
+  // Execution result.
+  appliedAt  DateTime?
+  applyError String?
+
+  // Which agent produced this suggestion.
+  agentId String? @db.ObjectId
+
+  createdAt DateTime @default(now())
+  // Suggestions auto-expire after 7 days if not actioned.
+  expiresAt DateTime
+
+  @@index([status, createdAt])
+  @@index([draftId])
+  @@index([googleCampaignId])
+  @@index([type, status])
 }

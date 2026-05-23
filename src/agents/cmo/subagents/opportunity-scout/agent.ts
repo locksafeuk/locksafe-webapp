@@ -29,7 +29,7 @@ import type { AgentConfig } from "@/agents/core/types";
 import { getDefaultGoogleAdsClient } from "@/lib/google-ads";
 import { getCoverageUniverse, type CoverageUniverseEntry } from "@/lib/google-ads-geo-universe";
 import { extractDefaultAccountLearnings } from "@/lib/google-ads-learnings";
-import { scoreOpportunities, type GeoOpportunity } from "@/lib/google-ads-opportunities";
+import { scoreOpportunities, type GeoOpportunity, LONDON_GEO_IDS } from "@/lib/google-ads-opportunities";
 import { generateDraftPlanForLocksmith } from "@/lib/google-ads-onboarding";
 import { UK_GEO_IDS, type UKGeoKey } from "@/lib/google-ads-locations";
 import {
@@ -111,16 +111,24 @@ export interface OpportunityScoutOptions {
   skipRecruit?: boolean;
   /** Skip auto-draft (Option C). Default false. */
   skipAutoDraft?: boolean;
-  /** Cap coverage geos scored per run. Default 25 (covers most realistic UKs). */
+  /** Cap coverage geos scored per run. Default 40. */
   maxCoverageGeos?: number;
   /** Cap recruit geos scored per run. Default 15. */
   maxRecruitGeos?: number;
   /** Auto-draft only when a locksmith has at least this many jobs. Default 5. */
   minLocksmithJobsForAutoDraft?: number;
-  /** Auto-draft the top N covered opportunities per run. Default 3. */
+  /** Auto-draft the top N covered opportunities per run. Default 5. */
   autoDraftTopN?: number;
-  /** Daily budget (GBP) for auto-drafted campaigns. Default £5. */
-  autoDraftDailyBudget?: number;
+  /**
+   * Maximum median CPC (GBP) allowed for auto-draft. Defaults to 1.50 —
+   * tighter than the £1.80 production max bid to leave room for auction variance.
+   */
+  maxAutoDraftCpcGbp?: number;
+  /**
+   * Skip auto-draft for HIGH competition geos. Default true.
+   * MEDIUM and LOW competition cities are the cheap-city-first target.
+   */
+  skipHighCompetition?: boolean;
 }
 
 export interface OpportunityScoutResult {
@@ -255,11 +263,12 @@ export async function runOpportunityScoutHeartbeat(
     await persistOpportunities("RECRUIT", recruitResult.opportunities);
   }
 
-  // 7. Auto-draft top-N covered opportunities
+  // 7. Auto-draft top-N covered opportunities (cheap cities only)
   if (!opts.skipAutoDraft) {
-    const autoDraftN = opts.autoDraftTopN ?? 3;
+    const autoDraftN = opts.autoDraftTopN ?? 5;
     const minJobs = opts.minLocksmithJobsForAutoDraft ?? 5;
-    const dailyBudget = opts.autoDraftDailyBudget ?? 5;
+    const maxCpc = opts.maxAutoDraftCpcGbp ?? 1.50;
+    const skipHigh = opts.skipHighCompetition !== false; // default true
     const topCovered = coverageResult.opportunities.slice(0, autoDraftN);
 
     for (const opp of topCovered) {
@@ -268,7 +277,8 @@ export async function runOpportunityScoutHeartbeat(
           opportunity: opp,
           accountId: account.id,
           minLocksmithJobs: minJobs,
-          dailyBudget,
+          maxAutoDraftCpcGbp: maxCpc,
+          skipHighCompetition: skipHigh,
           learnings,
         });
         if (created) autoDraftsCreated += 1;
@@ -340,12 +350,27 @@ async function maybeAutoDraft(args: {
   opportunity: GeoOpportunity;
   accountId: string;
   minLocksmithJobs: number;
-  dailyBudget: number;
+  maxAutoDraftCpcGbp: number;
+  skipHighCompetition: boolean;
   // biome-ignore lint/suspicious/noExplicitAny: learnings shape is verbose
   learnings: any;
 }): Promise<boolean> {
-  const { opportunity, accountId, minLocksmithJobs, dailyBudget, learnings } = args;
+  const { opportunity, accountId, minLocksmithJobs, maxAutoDraftCpcGbp, skipHighCompetition, learnings } = args;
   if (opportunity.locksmithIds.length === 0) return false;
+
+  // Hard-block London boroughs — the two existing UK-wide campaigns already
+  // cover London via phrase-match; competing in London auctions burns budget.
+  if (LONDON_GEO_IDS.has(opportunity.geoId)) return false;
+
+  // Skip if median CPC is above the threshold (can't win at our £1.80 ceiling).
+  if (opportunity.medianCpcGbp > maxAutoDraftCpcGbp) return false;
+
+  // Skip HIGH competition geos — too many national chains, low win rate.
+  if (skipHighCompetition && opportunity.competitionTier === "HIGH") return false;
+
+  // Dynamic budget: target ~12 clicks/day at median CPC, clamped £3–£15.
+  // This matches the production pattern (£15/day on the existing hardened campaigns).
+  const dailyBudget = Math.max(3, Math.min(15, Math.round(12 / Math.max(0.5, opportunity.medianCpcGbp))));
 
   // Skip if a NEW/PENDING_APPROVAL/PUBLISHED draft already targets this geo.
   const existing = await prisma.googleAdsCampaignDraft.findFirst({

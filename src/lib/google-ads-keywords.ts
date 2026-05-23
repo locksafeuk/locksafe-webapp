@@ -75,10 +75,58 @@ const BROAD_BASELINE: GoogleKeyword[] = [
   { text: "anti scam locksmith",           matchType: "BROAD" },
 ];
 
+// ── Commercial / business locksmith (lower competition, higher job value) ──
+const COMMERCIAL_BASELINE: GoogleKeyword[] = [
+  { text: "office locksmith",             matchType: "EXACT"  },
+  { text: "commercial locksmith",         matchType: "EXACT"  },
+  { text: "business locksmith",           matchType: "EXACT"  },
+  { text: "office locksmith",             matchType: "PHRASE" },
+  { text: "commercial locksmith",         matchType: "PHRASE" },
+];
+
+// ── Anti-snap / security upgrade (LockSafe differentiator, low CPC) ────────
+const ANTI_SNAP_BASELINE: GoogleKeyword[] = [
+  { text: "anti snap lock fitting",       matchType: "EXACT"  },
+  { text: "ts007 lock fitting",           matchType: "EXACT"  },
+  { text: "anti snap upgrade",            matchType: "PHRASE" },
+  { text: "anti snap lock",              matchType: "PHRASE" },  // already in PHRASE_BASELINE but only as "anti snap lock"
+  { text: "3 star lock fitting",          matchType: "PHRASE" },
+];
+
+// ── UPVC / composite door repairs (repair intent, lower CPC than emergency) ─
+const UPVC_BASELINE: GoogleKeyword[] = [
+  { text: "upvc door won't open",         matchType: "EXACT"  },
+  { text: "composite door lock repair",   matchType: "EXACT"  },
+  { text: "upvc lock broken",             matchType: "EXACT"  },
+  { text: "upvc door lock repair",        matchType: "PHRASE" },
+  { text: "composite door locksmith",     matchType: "PHRASE" },
+];
+
+// ── Time-specific / out-of-hours (low competition, high conversion intent) ──
+const TIME_SPECIFIC_BASELINE: GoogleKeyword[] = [
+  { text: "bank holiday locksmith",       matchType: "EXACT"  },
+  { text: "sunday locksmith",             matchType: "EXACT"  },
+  { text: "out of hours locksmith",       matchType: "EXACT"  },
+  { text: "bank holiday locksmith",       matchType: "PHRASE" },
+  { text: "out of hours locksmith",       matchType: "PHRASE" },
+];
+
+// ── Lifecycle / tenancy (clear conversion intent, low competition) ──────────
+const LIFECYCLE_BASELINE: GoogleKeyword[] = [
+  { text: "new tenant lock change",       matchType: "EXACT"  },
+  { text: "lock change after moving in",  matchType: "EXACT"  },
+  { text: "lock change new tenant",       matchType: "PHRASE" },
+];
+
 export const BASELINE_LOCKSMITH_KEYWORDS: GoogleKeyword[] = [
   ...EXACT_BASELINE,
   ...PHRASE_BASELINE,
   ...BROAD_BASELINE,
+  ...COMMERCIAL_BASELINE,
+  ...ANTI_SNAP_BASELINE,
+  ...UPVC_BASELINE,
+  ...TIME_SPECIFIC_BASELINE,
+  ...LIFECYCLE_BASELINE,
 ];
 
 // =========================================================================
@@ -215,6 +263,57 @@ export const BASELINE_NEGATIVE_KEYWORDS: string[] = [
   "car key programming",
   "car key replacement",            // mostly dealerships / auto specialists
   "transponder key",
+
+  // ── Auto / vehicle locksmith (our locksmiths don't do cars) ─────────────────
+  "car locksmith",
+  "auto locksmith",
+  "vehicle locksmith",
+  "automotive locksmith",
+  "car lockout",
+  "car door lock",
+  "van locksmith",
+  "motorbike locksmith",
+
+  // ── Safe / vault specialist (different trade entirely) ───────────────────────
+  "safe opening",
+  "safe cracking",
+  "safe engineer",
+  "vault locksmith",
+  "open a safe",
+  "safe locksmith",
+
+  // ── Hardware purchase intent (not a service call) ────────────────────────────
+  "key safe",
+  "key box",
+  "combination key box",
+  "letterbox lock",
+  "mailbox lock",
+  "lock box",
+
+  // ── Price comparison / bargain hunters ───────────────────────────────────────
+  "cheap locksmith",
+  "cheapest locksmith",
+  "locksmith price comparison",
+  "compare locksmiths",
+  "locksmith quote comparison",
+
+  // ── DIY rekeying ─────────────────────────────────────────────────────────────
+  "how to rekey",
+  "rekey lock",
+  "rekey a lock",
+  "rekey door lock",
+
+  // ── Insurance / housing association (slow commercial jobs, not emergency) ────
+  "insurance approved locksmith",
+  "nhbc locksmith",
+  "housing association locksmith",
+  "council locksmith",
+
+  // ── Aggregator / directory searches ─────────────────────────────────────────
+  "locksmith app",
+  "locksmith website",
+  "locksmith directory listing",
+  "find a locksmith website",
 ];
 
 // =========================================================================

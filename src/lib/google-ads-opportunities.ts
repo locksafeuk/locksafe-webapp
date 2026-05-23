@@ -20,6 +20,36 @@ import type { GoogleAdsClient, KeywordIdea } from "@/lib/google-ads";
 import { microsToCurrency } from "@/lib/google-ads";
 import type { CoverageUniverseEntry } from "@/lib/google-ads-geo-universe";
 
+// =========================================================================
+// London geo IDs — excluded from auto-draft to avoid competing with
+// national chains (Lockforce, Local Heroes, HomeServe) who dominate London
+// auctions at £5–15/click. The two existing UK-wide campaigns already
+// cover London via phrase-match on "emergency locksmith london" etc.
+// Admins can still create London drafts manually.
+// =========================================================================
+export const LONDON_GEO_IDS = new Set([
+  "1006450", // London (city)
+  "9041107", // Greater London
+  "1006453", // Westminster
+  "1006459", // Camden
+  "1006456", // Islington
+  "9198373", // Hackney
+  "9198785", // Tower Hamlets
+  "9198805", // Waltham Forest
+  "9198858", // Newham
+  "9208638", // Redbridge
+  "1006465", // Southwark
+  "1006466", // Lambeth
+  "1006467", // Wandsworth
+  "1006468", // Kensington & Chelsea
+  "1006469", // Hammersmith & Fulham
+  "1006470", // Greenwich
+  "1006471", // Lewisham
+  "1006472", // Croydon
+  "1006473", // Bromley
+  "1006474", // Bexley
+]);
+
 export type CompetitionTier = "LOW" | "MEDIUM" | "HIGH" | "UNKNOWN";
 
 export interface OpportunityKeyword {
@@ -67,6 +97,17 @@ export interface ScoreOpportunitiesOptions {
   perGeoDelayMs?: number;
   /** Max geos to call the Planner for. Cuts cost on huge universes. */
   maxGeos?: number;
+  /**
+   * Exclude all London borough geo IDs from scoring (LONDON_GEO_IDS set).
+   * Defaults to true — the two existing UK-wide campaigns already cover London.
+   */
+  excludeLondon?: boolean;
+  /**
+   * Skip geos whose computed medianCpcGbp exceeds this threshold.
+   * Defaults to 1.80 (matching the production-hardened MANUAL_CPC max bid).
+   * Set to Infinity to score all geos regardless of CPC.
+   */
+  maxMedianCpcGbp?: number;
   /** Optional callback when one geo finishes — used for cron progress logs. */
   onGeoScored?: (geo: GeoOpportunity) => void;
   /** Hook to record per-geo failures without aborting the whole batch. */
@@ -91,7 +132,15 @@ export async function scoreOpportunities(
   }
   const seeds = opts.seedKeywords.slice(0, 20);
   const delay = opts.perGeoDelayMs ?? 250;
-  const candidates = opts.maxGeos ? universe.slice(0, opts.maxGeos) : universe;
+  const excludeLondon = opts.excludeLondon !== false; // default true
+  const maxCpc = opts.maxMedianCpcGbp ?? 1.80;
+
+  // Filter the universe before hitting the Planner API to save quota.
+  let filtered = universe;
+  if (excludeLondon) {
+    filtered = filtered.filter((e) => !LONDON_GEO_IDS.has(e.geoId));
+  }
+  const candidates = opts.maxGeos ? filtered.slice(0, opts.maxGeos) : filtered;
 
   const opportunities: GeoOpportunity[] = [];
   const failures: ScoreOpportunitiesResult["failures"] = [];
@@ -133,11 +182,31 @@ export async function scoreOpportunities(
       const medianComp = median(compIdx);
       const totalSearches = scored.reduce((acc, s) => acc + s.monthlySearches, 0);
 
+      // Skip this geo if its median CPC exceeds the production max bid.
+      // No point scoring a city where we can't compete at our £1.80 ceiling.
+      if (medianCpc > maxCpc) {
+        opts.onGeoFailed?.(
+          entry.geoId,
+          entry.label,
+          new Error(`medianCpc £${medianCpc.toFixed(2)} > maxMedianCpcGbp £${maxCpc.toFixed(2)} — skipped`),
+        );
+        continue;
+      }
+
+      // Supply-fitness multiplier: reward cities with enough locksmiths to
+      // fulfil demand. supplyRatio ≥ 0.5 → full score; lower → partial.
+      const supplyRatio =
+        totalSearches > 0
+          ? Number(((entry.locksmithCount / (totalSearches / 100)) || 0).toFixed(2))
+          : entry.locksmithCount;
+      const supplyFactor = Math.min(1, supplyRatio > 0 ? supplyRatio / 0.5 : 0.5);
+      const adjustedScore = Number((top5Score * (0.5 + 0.5 * supplyFactor)).toFixed(2));
+
       const opportunity: GeoOpportunity = {
         geoId: entry.geoId,
         cityKey: entry.cityKey,
         label: entry.label,
-        score: Number(top5Score.toFixed(2)),
+        score: adjustedScore,
         medianCpcGbp: Number(medianCpc.toFixed(2)),
         medianCompetitionIndex: Number(medianComp.toFixed(1)),
         competitionTier: classifyTier(medianComp),
@@ -145,12 +214,7 @@ export async function scoreOpportunities(
         topKeywords: top10,
         locksmithCount: entry.locksmithCount,
         locksmithIds: entry.locksmithIds,
-        supplyRatio:
-          totalSearches > 0
-            ? Number(
-                ((entry.locksmithCount / (totalSearches / 100)) || 0).toFixed(2),
-              )
-            : entry.locksmithCount,
+        supplyRatio,
       };
 
       opportunities.push(opportunity);
