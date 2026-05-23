@@ -18,14 +18,23 @@ function getPulseStatus(lastHeartbeat: Date | null): "green" | "amber" | "red" {
   return "red";
 }
 
+function classifyModel(model: string | null): "local" | "openai" | "unknown" {
+  if (!model) return "unknown";
+  const m = model.toLowerCase();
+  if (/hermes|llama|qwen|mistral|gemma|deepseek|phi/.test(m)) return "local";
+  if (/gpt|o1|o3|o4|openai/.test(m)) return "openai";
+  return "unknown";
+}
+
 export async function GET() {
   const admin = await requireAdminFromCookies();
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60_000);
 
-  const [agents, pendingApprovals, todayExecutions] = await Promise.all([
+  const [agents, pendingApprovals, todayExecutions, recentExecutions] = await Promise.all([
     prisma.agent.findMany({
       include: {
         _count: {
@@ -38,6 +47,11 @@ export async function GET() {
     }),
     prisma.agentApproval.count({ where: { status: "pending" } }),
     prisma.agentExecution.count({ where: { startedAt: { gte: todayStart } } }),
+    prisma.agentExecution.findMany({
+      where: { startedAt: { gte: oneDayAgo }, model: { not: null } },
+      select: { model: true, startedAt: true },
+      orderBy: { startedAt: "desc" },
+    }),
   ]);
 
   const agentData = agents.map((agent) => ({
@@ -59,6 +73,11 @@ export async function GET() {
 
   const hermesModeEnabled = !!process.env.OLLAMA_BASE_URL;
 
+  const localCount   = recentExecutions.filter(e => classifyModel(e.model) === "local").length;
+  const openaiCount  = recentExecutions.filter(e => classifyModel(e.model) === "openai").length;
+  const unknownCount = recentExecutions.filter(e => classifyModel(e.model) === "unknown").length;
+  const total        = recentExecutions.length;
+
   return NextResponse.json({
     agents: agentData,
     system: {
@@ -70,6 +89,15 @@ export async function GET() {
       totalBudget: agents.reduce((s, a) => s + a.monthlyBudgetUsd, 0),
       activeAgents: agents.filter((a) => a.status === "active").length,
       totalAgents: agents.length,
+      llmRuntime: {
+        total,
+        localCount,
+        openaiCount,
+        unknownCount,
+        localPct: total > 0 ? Math.round((localCount / total) * 100) : null,
+        lastModel: recentExecutions[0]?.model ?? null,
+        lastSeenAt: recentExecutions[0]?.startedAt?.toISOString() ?? null,
+      },
     },
     timestamp: new Date().toISOString(),
   });

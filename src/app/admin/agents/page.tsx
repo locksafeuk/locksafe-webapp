@@ -50,6 +50,16 @@ interface AgentStatus {
   successRate: number;
 }
 
+interface LlmRuntime {
+  total: number;
+  localCount: number;
+  openaiCount: number;
+  unknownCount: number;
+  localPct: number | null;
+  lastModel: string | null;
+  lastSeenAt: string | null;
+}
+
 interface SystemStatus {
   hermesModeEnabled: boolean;
   ollamaUrl: string | null;
@@ -59,6 +69,7 @@ interface SystemStatus {
   totalBudget: number;
   activeAgents: number;
   totalAgents: number;
+  llmRuntime?: LlmRuntime;
 }
 
 interface ActivityItem {
@@ -465,8 +476,25 @@ export default function MissionControlPage() {
                 <div className="min-w-0">
                   <p className="text-[10px] text-muted-foreground uppercase tracking-wide">LLM</p>
                   <p className={`text-xs font-semibold truncate ${system?.hermesModeEnabled ? "text-purple-400" : "text-orange-400"}`}>
-                    {system?.hermesModeEnabled ? "🟣 Hermes (local-first)" : "🟠 Local LLM unavailable"}
+                    {system?.hermesModeEnabled ? "🟣 Local-first (Ollama)" : "🟠 OpenAI only"}
                   </p>
+                  {(() => {
+                    const rt = system?.llmRuntime;
+                    if (rt && rt.total > 0) return (
+                      <>
+                        <p className="text-[10px] text-muted-foreground">
+                          Local {rt.localCount} / OpenAI {rt.openaiCount}
+                          {rt.localPct !== null && ` · ${rt.localPct}% local`} (24h)
+                        </p>
+                        {rt.lastModel && (
+                          <p className="text-[10px] text-muted-foreground truncate" title={rt.lastModel}>
+                            {rt.lastModel}{rt.lastSeenAt ? ` · ${formatTimeAgo(rt.lastSeenAt)}` : ""}
+                          </p>
+                        )}
+                      </>
+                    );
+                    return <p className="text-[10px] text-muted-foreground">No executions in 24h</p>;
+                  })()}
                   <p className={`text-[10px] truncate ${llmPolicy.openAiFallbackEnabled ? "text-amber-500" : "text-green-500"}`}>
                     {llmPolicy.openAiFallbackEnabled
                       ? `OpenAI fallback armed (${llmPolicy.openAiFallbackMinSeverity}+)`
