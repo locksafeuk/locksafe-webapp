@@ -34,6 +34,10 @@ function cleanText(value: unknown): string {
   return value.trim();
 }
 
+function canContinueJobStatus(status: string): boolean {
+  return status === "PHONE_INITIATED" || status === "PENDING";
+}
+
 // Geocode postcode to coordinates
 async function geocodePostcode(postcode: string): Promise<{ lat: number; lng: number } | null> {
   try {
@@ -100,8 +104,8 @@ export async function GET(
       );
     }
 
-    // Check if job is still in PHONE_INITIATED status
-    if (job.status !== "PHONE_INITIATED") {
+    // Allow continuation for phone-initiated jobs and legacy pending jobs with active tokens.
+    if (!canContinueJobStatus(job.status)) {
       return NextResponse.json({
         success: false,
         error: "This request has already been submitted or completed",
@@ -273,8 +277,8 @@ export async function POST(
       );
     }
 
-    // Check if job is still in PHONE_INITIATED status
-    if (job.status !== "PHONE_INITIATED") {
+    // Allow continuation for phone-initiated jobs and legacy pending jobs with active tokens.
+    if (!canContinueJobStatus(job.status)) {
       return NextResponse.json({
         success: false,
         error: "This request has already been submitted",

@@ -239,7 +239,7 @@ export async function POST(request: NextRequest) {
           data: {
             jobId: result.job.id,
             customerId: result.customer?.id,
-            outcome: "job_created",
+            outcome: result.dedup?.reusedExistingJob ? "job_reused" : "job_created",
           },
         })
         .catch((err: any) =>
@@ -250,29 +250,34 @@ export async function POST(request: NextRequest) {
     }
 
     // ─── Send Telegram notification (non-blocking) ───
-    notifyNewJob({
-      jobNumber: result.job.jobNumber,
-      jobId: result.job.id,
-      customerName: result.customer?.name || customerName,
-      customerPhone,
-      problemType,
-      propertyType: property_type || "house",
-      postcode: postcode?.toUpperCase() || "Not provided",
-      address: address || "Not provided",
-      description:
-        description ||
-        `Phone request: ${service_type || "Emergency locksmith"}`,
-      isUrgent:
-        urgency === "immediate" ||
-        service_type?.toLowerCase()?.includes("lockout"),
-    }).catch((err) =>
-      console.error("Failed to send Telegram notification:", err)
-    );
+    if (!result.dedup?.reusedExistingJob) {
+      notifyNewJob({
+        jobNumber: result.job.jobNumber,
+        jobId: result.job.id,
+        customerName: result.customer?.name || customerName,
+        customerPhone,
+        problemType,
+        propertyType: property_type || "house",
+        postcode: postcode?.toUpperCase() || "Not provided",
+        address: address || "Not provided",
+        description:
+          description ||
+          `Phone request: ${service_type || "Emergency locksmith"}`,
+        isUrgent:
+          urgency === "immediate" ||
+          service_type?.toLowerCase()?.includes("lockout"),
+      }).catch((err) =>
+        console.error("Failed to send Telegram notification:", err)
+      );
+    }
 
     // ─── Build response for Sarah ───
     const notifiedCount = result.notifications?.notifiedCount || 0;
     let notificationStatus: string;
-    if (notifiedCount > 0) {
+    if (result.dedup?.reusedExistingJob) {
+      notificationStatus =
+        "Your existing request has been updated with the latest details.";
+    } else if (notifiedCount > 0) {
       notificationStatus = `${notifiedCount} nearby locksmith${notifiedCount > 1 ? "s have" : " has"} been notified and will respond shortly.`;
     } else {
       notificationStatus =
@@ -281,8 +286,17 @@ export async function POST(request: NextRequest) {
 
     const elapsed = Date.now() - startTime;
     console.log(
-      `[Retell create-job] ✅ Created emergency job: ${result.job.jobNumber} | Customer: ${result.customer?.name} (${result.customer?.isNew ? "NEW" : "existing"}) | Notified: ${notifiedCount} locksmiths (${elapsed}ms)`
+      `[Retell create-job] ✅ ${result.dedup?.reusedExistingJob ? "Reused" : "Created"} emergency job: ${result.job.jobNumber} | Customer: ${result.customer?.name} (${result.customer?.isNew ? "NEW" : "existing"}) | Notified: ${notifiedCount} locksmiths (${elapsed}ms)`
     );
+
+    if (result.dedup?.reusedExistingJob) {
+      console.log("[Retell create-job] Dedup merge details", {
+        jobId: result.job.id,
+        jobNumber: result.job.jobNumber,
+        mergeReason: result.dedup.mergeReason,
+        updatedFields: result.dedup.updatedFields || [],
+      });
+    }
 
     // SMS is queued (fire-and-forget) inside createEmergencyJob whenever a
     // customer phone is present. We treat that as "queued" for the prompt.
@@ -298,6 +312,9 @@ export async function POST(request: NextRequest) {
         customer_id: result.customer?.id,
         customer_name: result.customer?.name,
         customer_is_new: result.customer?.isNew || false,
+        job_reused: result.dedup?.reusedExistingJob || false,
+        dedup_reason: result.dedup?.mergeReason,
+        dedup_updated_fields: result.dedup?.updatedFields || [],
         locksmiths_notified: notifiedCount,
         notification_status: notificationStatus,
         sms_sent: smsSent,

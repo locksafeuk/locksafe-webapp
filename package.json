@@ -30,6 +30,7 @@
     "db:seed-dev": "FORCE_SEED=true bun prisma/seed.ts",
     "db:reset": "echo '⚠️ DISABLED - Use db:seed-dev with FORCE_SEED=true for dev reset'",
     "holding:metrics": "bun run scripts/send-holding-metrics.ts",
+    "asc:resubmit:ios": "node scripts/asc-resubmit-ios.mjs",
     "postinstall": "npx prisma generate"
   },
   "prisma": {

@@ -75,7 +75,6 @@ export async function GET(request: NextRequest) {
       }),
       prisma.locksmith.findMany({
         where: {
-          isVerified: true,
           baseLat: { not: null },
           baseLng: { not: null },
         },

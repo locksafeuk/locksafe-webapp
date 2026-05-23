@@ -372,8 +372,30 @@ export async function DELETE(
     });
     const jobIds = locksmithJobs.map((j) => j.id);
 
+    // Some relations (team ownership/membership, reminder logs, auction acceptance)
+    // are not tied directly to Job and must be cleaned up explicitly before deleting.
+    const companyLinks = await prisma.locksmithCompanyMember.count({
+      where: { locksmithId: id },
+    });
+    const ownedCompanies = await prisma.locksmithCompany.count({
+      where: { ownerId: id },
+    });
+    const reminderLogs = await prisma.stripeReminderLog.count({
+      where: { locksmithId: id },
+    });
+
     // Delete all related records in a transaction with proper order
     await prisma.$transaction([
+      // Detach optional ownership refs first so parent deletion cannot violate relations
+      prisma.locksmithCompany.updateMany({
+        where: { ownerId: id },
+        data: { ownerId: null },
+      }),
+      prisma.jobAuction.updateMany({
+        where: { acceptedByLocksmithId: id },
+        data: { acceptedByLocksmithId: null },
+      }),
+
       // First, delete job-related records for all jobs assigned to this locksmith
       // Delete reports
       prisma.report.deleteMany({
@@ -403,6 +425,14 @@ export async function DELETE(
       prisma.quote.deleteMany({
         where: { jobId: { in: jobIds } },
       }),
+      // Delete in-platform job chat messages
+      prisma.jobMessage.deleteMany({
+        where: { jobId: { in: jobIds } },
+      }),
+      // Delete auctions for locksmith-owned jobs
+      prisma.jobAuction.deleteMany({
+        where: { jobId: { in: jobIds } },
+      }),
       // Now delete the jobs themselves
       prisma.job.deleteMany({
         where: { locksmithId: id },
@@ -427,23 +457,51 @@ export async function DELETE(
       prisma.notification.deleteMany({
         where: { locksmithId: id },
       }),
+      // Delete email campaign recipient records scoped to this locksmith
+      prisma.emailRecipient.deleteMany({
+        where: { locksmithId: id },
+      }),
+      // Delete team memberships and reminder logs that reference this locksmith
+      prisma.locksmithCompanyMember.deleteMany({
+        where: { locksmithId: id },
+      }),
+      prisma.stripeReminderLog.deleteMany({
+        where: { locksmithId: id },
+      }),
       // Finally, delete the locksmith
       prisma.locksmith.delete({
         where: { id },
       }),
     ]);
 
-    console.log(`[Admin Delete Locksmith] Successfully deleted locksmith ${locksmith.name} and ${jobIds.length} associated job(s)`);
+    console.log(`[Admin Delete Locksmith] Successfully deleted locksmith ${locksmith.name} and ${jobIds.length} associated job(s)`, {
+      companyLinks,
+      ownedCompanies,
+      reminderLogs,
+    });
 
     return NextResponse.json({
       success: true,
       message: `Locksmith "${locksmith.name}" and ${locksmith._count.jobs} associated job(s) deleted successfully`,
       deletedJobs: locksmithJobs.map((j) => j.jobNumber),
     });
-  } catch (error) {
-    console.error("Error deleting locksmith:", error);
+  } catch (error: any) {
+    console.error("Error deleting locksmith:", {
+      message: error?.message,
+      code: error?.code,
+      meta: error?.meta,
+    });
     return NextResponse.json(
-      { success: false, error: "Failed to delete locksmith" },
+      {
+        success: false,
+        error: "Failed to delete locksmith",
+        ...(error?.code ? { code: error.code } : {}),
+        ...(process.env.NODE_ENV !== "production"
+          ? {
+              detail: error?.message,
+            }
+          : {}),
+      },
       { status: 500 }
     );
   }

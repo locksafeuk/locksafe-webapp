@@ -24,6 +24,7 @@ import { createCheckoutSession } from "@/lib/stripe";
 import { EMERGENCY_SMS_TEMPLATES } from "@/lib/sms-templates";
 import { createNotification } from "@/lib/notifications";
 import { evaluateEmergencyJobRisk, getEmergencyJobRiskConfig } from "@/lib/risk-controls";
+import { normalizePhoneNumber } from "@/lib/phone";
 
 // ============================================
 // TYPES
@@ -59,6 +60,11 @@ export interface EmergencyJobResult {
     status: string;
     continueUrl?: string;
   };
+  dedup?: {
+    reusedExistingJob: boolean;
+    mergeReason?: string;
+    updatedFields?: string[];
+  };
   customer?: {
     id: string;
     name: string;
@@ -82,7 +88,7 @@ async function findOrCreateCustomer(params: {
   createdVia?: string;
 }): Promise<{ customer: { id: string; name: string; phone: string; email: string | null }; isNew: boolean }> {
   // First try to find by phone
-  const normalizedPhone = normalizePhone(params.phone);
+  const normalizedPhone = normalizePhoneNumber(params.phone);
 
   let customer = await prisma.customer.findFirst({
     where: { phone: normalizedPhone },
@@ -121,22 +127,142 @@ async function findOrCreateCustomer(params: {
   return { customer: newCustomer, isNew: true };
 }
 
-function normalizePhone(phone: string): string {
-  // Remove all non-numeric characters
-  let cleaned = phone.replace(/[^0-9+]/g, "");
+const RETELL_DEDUP_WINDOW_MS = 2 * 60 * 60 * 1000;
 
-  // Handle UK formats
-  if (cleaned.startsWith("0")) {
-    cleaned = "+44" + cleaned.slice(1);
-  } else if (cleaned.startsWith("44") && !cleaned.startsWith("+44")) {
-    cleaned = "+" + cleaned;
-  } else if (cleaned.startsWith("0044")) {
-    cleaned = "+44" + cleaned.slice(4);
-  } else if (!cleaned.startsWith("+")) {
-    cleaned = "+44" + cleaned;
+function getBaseUrl(): string {
+  return (
+    process.env.NEXT_PUBLIC_BASE_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    "https://locksafe.uk"
+  );
+}
+
+function createContinueToken(): string {
+  return crypto.randomBytes(24).toString("hex");
+}
+
+function toContinueUrl(token: string): string {
+  return `${getBaseUrl()}/continue-request/${token}`;
+}
+
+function isBlank(value?: string | null): boolean {
+  return !value || value.trim().length === 0;
+}
+
+async function findRecentMergeCandidate(params: {
+  customerId: string;
+  postcode: string;
+}): Promise<{
+  job: {
+    id: string;
+    jobNumber: string;
+    status: string;
+    continueToken: string | null;
+    problemType: string;
+    propertyType: string;
+    description: string | null;
+    postcode: string;
+    address: string;
+    emergencyDetails: string | null;
+    exactLocation: string | null;
+    retellCallId: string | null;
+  };
+  reason: string;
+} | null> {
+  const windowStart = new Date(Date.now() - RETELL_DEDUP_WINDOW_MS);
+  const normalizedPostcode = params.postcode.toUpperCase();
+
+  const jobs = await prisma.job.findMany({
+    where: {
+      customerId: params.customerId,
+      isEmergency: true,
+      status: { in: ["PHONE_INITIATED", "PENDING"] },
+      createdAt: { gte: windowStart },
+    },
+    select: {
+      id: true,
+      jobNumber: true,
+      status: true,
+      continueToken: true,
+      problemType: true,
+      propertyType: true,
+      description: true,
+      postcode: true,
+      address: true,
+      emergencyDetails: true,
+      exactLocation: true,
+      retellCallId: true,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (jobs.length === 0) return null;
+
+  const samePostcode = jobs.find(
+    (job) => job.postcode.toUpperCase() === normalizedPostcode
+  );
+  if (samePostcode) {
+    return { job: samePostcode, reason: "same_phone_recent_same_postcode" };
   }
 
-  return cleaned;
+  return { job: jobs[0], reason: "same_phone_recent_any_postcode" };
+}
+
+async function mergeEmergencyJobDetails(params: {
+  existingJob: {
+    id: string;
+    continueToken: string | null;
+    description: string | null;
+    emergencyDetails: string | null;
+    exactLocation: string | null;
+    retellCallId: string | null;
+  };
+  input: EmergencyJobInput;
+}): Promise<{ continueUrl: string; updatedFields: string[] }> {
+  const updates: Record<string, unknown> = {};
+  const updatedFields: string[] = [];
+
+  if (isBlank(params.existingJob.description) && !isBlank(params.input.description)) {
+    updates.description = params.input.description;
+    updatedFields.push("description");
+  }
+
+  if (
+    isBlank(params.existingJob.emergencyDetails) &&
+    !isBlank(params.input.emergencyDetails)
+  ) {
+    updates.emergencyDetails = params.input.emergencyDetails;
+    updatedFields.push("emergencyDetails");
+  }
+
+  if (isBlank(params.existingJob.exactLocation) && !isBlank(params.input.exactLocation)) {
+    updates.exactLocation = params.input.exactLocation;
+    updatedFields.push("exactLocation");
+  }
+
+  if (isBlank(params.existingJob.retellCallId) && !isBlank(params.input.retellCallId)) {
+    updates.retellCallId = params.input.retellCallId;
+    updatedFields.push("retellCallId");
+  }
+
+  let continueToken = params.existingJob.continueToken;
+  if (!continueToken) {
+    continueToken = createContinueToken();
+    updates.continueToken = continueToken;
+    updatedFields.push("continueToken");
+  }
+
+  if (Object.keys(updates).length > 0) {
+    await prisma.job.update({
+      where: { id: params.existingJob.id },
+      data: updates,
+    });
+  }
+
+  return {
+    continueUrl: toContinueUrl(continueToken!),
+    updatedFields,
+  };
 }
 
 // ============================================
@@ -174,6 +300,52 @@ export async function createEmergencyJob(
     console.log(`[Job Service] Customer ${isNew ? "created" : "found"}: ${customer.id}`);
 
     const normalizedPostcode = input.postcode.toUpperCase();
+
+    const mergeCandidate = await findRecentMergeCandidate({
+      customerId: customer.id,
+      postcode: normalizedPostcode,
+    });
+
+    if (mergeCandidate) {
+      const { continueUrl, updatedFields } = await mergeEmergencyJobDetails({
+        existingJob: mergeCandidate.job,
+        input,
+      });
+
+      console.log("[Job Service] Reusing existing emergency job", {
+        customerId: customer.id,
+        jobId: mergeCandidate.job.id,
+        jobNumber: mergeCandidate.job.jobNumber,
+        mergeReason: mergeCandidate.reason,
+        updatedFields,
+        dedupWindowMs: RETELL_DEDUP_WINDOW_MS,
+      });
+
+      return {
+        success: true,
+        job: {
+          id: mergeCandidate.job.id,
+          jobNumber: mergeCandidate.job.jobNumber,
+          status: mergeCandidate.job.status,
+          continueUrl,
+        },
+        dedup: {
+          reusedExistingJob: true,
+          mergeReason: mergeCandidate.reason,
+          updatedFields,
+        },
+        customer: {
+          id: customer.id,
+          name: customer.name,
+          isNew,
+        },
+        notifications: {
+          notifiedCount: 0,
+          locksmithIds: [],
+        },
+      };
+    }
+
     const riskConfig = getEmergencyJobRiskConfig();
     const now = new Date();
     const duplicateWindowStart = new Date(now.getTime() - riskConfig.duplicateWindowMinutes * 60 * 1000);
@@ -225,17 +397,13 @@ export async function createEmergencyJob(
 
     // 3. Create job
     const jobNumber = await generateJobNumber(input.postcode);
-    const continueToken = crypto.randomBytes(24).toString("hex");
-    const baseUrl =
-      process.env.NEXT_PUBLIC_BASE_URL ||
-      process.env.NEXT_PUBLIC_SITE_URL ||
-      "https://locksafe.uk";
-    const continueUrl = `${baseUrl}/continue-request/${continueToken}`;
+    const continueToken = createContinueToken();
+    const continueUrl = toContinueUrl(continueToken);
 
     const job = await prisma.job.create({
       data: {
         jobNumber,
-        status: "PENDING",
+        status: "PHONE_INITIATED",
         customerId: customer.id,
         problemType: input.problemType,
         propertyType: input.propertyType || "house",
@@ -322,6 +490,9 @@ export async function createEmergencyJob(
         jobNumber: job.jobNumber,
         status: job.status,
         continueUrl,
+      },
+      dedup: {
+        reusedExistingJob: false,
       },
       customer: {
         id: customer.id,

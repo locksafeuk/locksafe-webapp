@@ -387,7 +387,8 @@ export default function AdminLocksmithsPage() {
         setSelectedLocksmith(null);
         fetchLocksmiths();
       } else {
-        alert(data.error || "Failed to delete locksmith");
+        const extra = [data.code, data.detail].filter(Boolean).join(" | ");
+        alert(extra ? `${data.error || "Failed to delete locksmith"}\n${extra}` : (data.error || "Failed to delete locksmith"));
       }
     } catch (error) {
       console.error("Error deleting locksmith:", error);
@@ -839,6 +840,14 @@ export default function AdminLocksmithsPage() {
   const availableCount = locksmiths.filter((ls) => ls.isAvailable).length;
   const totalEarnings = locksmiths.reduce((sum, ls) => sum + ls.totalEarnings, 0);
 
+  const filteredTotalCount = filteredLocksmiths.length;
+  const filteredVerifiedCount = filteredLocksmiths.filter((ls) => ls.isVerified).length;
+  const filteredAvailableCount = filteredLocksmiths.filter((ls) => ls.isAvailable).length;
+  const filteredTotalEarnings = filteredLocksmiths.reduce((sum, ls) => sum + ls.totalEarnings, 0);
+  const filteredWithCoverageCount = filteredLocksmiths.filter(
+    (ls) => ls.baseLat != null && ls.baseLng != null
+  ).length;
+
   return (
     <AdminSidebar>
       <div className={isMapView ? "p-2.5 lg:p-3" : "p-4 lg:p-8"}>
@@ -853,19 +862,19 @@ export default function AdminLocksmithsPage() {
               <>
                 <div className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] lg:text-[11px] text-slate-600">
                   <span className="text-slate-400">Total</span>
-                  <span className="font-semibold text-slate-900">{totalLocksmithsCount}</span>
+                  <span className="font-semibold text-slate-900">{filteredTotalCount}</span>
                 </div>
                 <div className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] lg:text-[11px] text-slate-600">
                   <span className="text-slate-400">Verified</span>
-                  <span className="font-semibold text-green-600">{verifiedCount}</span>
+                  <span className="font-semibold text-green-600">{filteredVerifiedCount}</span>
                 </div>
                 <div className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] lg:text-[11px] text-slate-600">
                   <span className="text-slate-400">Available</span>
-                  <span className="font-semibold text-emerald-600">{availableCount}</span>
+                  <span className="font-semibold text-emerald-600">{filteredAvailableCount}</span>
                 </div>
                 <div className="hidden lg:inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-600">
                   <span className="text-slate-400">Earnings</span>
-                  <span className="font-semibold text-orange-600">£{totalEarnings.toLocaleString()}</span>
+                  <span className="font-semibold text-orange-600">£{filteredTotalEarnings.toLocaleString()}</span>
                 </div>
               </>
             )}
@@ -1018,7 +1027,7 @@ export default function AdminLocksmithsPage() {
                 Locksmith Coverage Areas
               </h2>
               <p className="text-xs lg:text-sm text-slate-500 mt-1">
-                {locksmiths.filter(ls => ls.baseLat && ls.baseLng).length} of {locksmiths.length} locksmiths have set their coverage area
+                {filteredWithCoverageCount} of {filteredTotalCount} locksmiths match current filters and have set their coverage area
               </p>
               <div className="mt-3 grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-2">
                 <input

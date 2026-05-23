@@ -59,9 +59,12 @@ describe("Retell Endpoint Response Contracts", () => {
         success: true,
         job_id: "job-123",
         job_number: "LRS-202604-0001",
-        job_status: "PENDING",
+        job_status: "PHONE_INITIATED",
         customer_id: "cust-123",
         customer_is_new: false,
+        job_reused: false,
+        dedup_reason: undefined,
+        dedup_updated_fields: [],
         locksmiths_notified: 3,
         notification_status:
           "3 nearby locksmiths have been notified and will respond shortly.",
@@ -72,6 +75,8 @@ describe("Retell Endpoint Response Contracts", () => {
       expect(response).toHaveProperty("job_number");
       expect(response).toHaveProperty("locksmiths_notified");
       expect(response).toHaveProperty("notification_status");
+      expect(response).toHaveProperty("job_reused");
+      expect(response).toHaveProperty("dedup_updated_fields");
       expect(response.locksmiths_notified).toBe(3);
       expect(response.message).toContain("LRS-202604-0001");
       expect(response.message).toContain("notified");
@@ -94,6 +99,27 @@ describe("Retell Endpoint Response Contracts", () => {
       expect(notificationStatus).toBe(
         "1 nearby locksmith has been notified and will respond shortly."
       );
+    });
+
+    it("should support dedup metadata when existing job is reused", () => {
+      const response = {
+        success: true,
+        job_id: "job-123",
+        job_number: "LRS-202604-0001",
+        job_status: "PHONE_INITIATED",
+        customer_id: "cust-123",
+        customer_is_new: false,
+        job_reused: true,
+        dedup_reason: "same_phone_recent_same_postcode",
+        dedup_updated_fields: ["description", "continueToken"],
+        locksmiths_notified: 0,
+        notification_status:
+          "Your existing request has been updated with the latest details.",
+      };
+
+      expect(response.job_reused).toBe(true);
+      expect(response.dedup_reason).toContain("same_phone_recent");
+      expect(response.dedup_updated_fields).toContain("continueToken");
     });
   });
 
