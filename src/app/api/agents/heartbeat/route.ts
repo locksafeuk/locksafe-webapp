@@ -16,6 +16,46 @@ import { verifyCronAuth } from "@/lib/cron-auth";
 
 const AGENTS_ENABLED = process.env.AGENTS_ENABLED === "true";
 
+// ─── Alert deduplication ─────────────────────────────────────────────────────
+// Prevents the same error from paging every 5-minute heartbeat cycle.
+// Module-level state persists across warm Vercel invocations; a cold start
+// resets it (acceptable — one extra alert on restart).
+const COOLDOWN_DEFAULT_MS = 30 * 60_000;  // 30 min for general errors
+const COOLDOWN_QUOTA_MS   = 60 * 60_000;  // 60 min for billing/quota errors
+
+let lastAlertFingerprint = "";
+let lastAlertAt = 0;
+
+function isQuotaError(errors: string[]): boolean {
+  return errors.some(e => /429|insufficient_quota|quota|billing/i.test(e));
+}
+
+function cleanErrors(errors: string[]): string[] {
+  return errors.map(e => {
+    // Extract just the OpenAI "message" field from raw JSON blobs
+    try {
+      const match = e.match(/"message":\s*"([^"]+)"/);
+      if (match) {
+        const prefix = e.slice(0, e.indexOf("{")).trim();
+        return `${prefix} ${match[1]}`.trim();
+      }
+    } catch { /* ignore */ }
+    return e;
+  });
+}
+
+function shouldAlert(fingerprint: string, quota: boolean): boolean {
+  const cooldown = quota ? COOLDOWN_QUOTA_MS : COOLDOWN_DEFAULT_MS;
+  const sameError = fingerprint === lastAlertFingerprint;
+  const withinCooldown = (Date.now() - lastAlertAt) < cooldown;
+  return !(sameError && withinCooldown);
+}
+
+function errorFingerprint(errors: string[]): string {
+  // Count + first ~80 chars of first error (strips dynamic timestamps/IDs)
+  return `${errors.length}:${errors[0]?.slice(0, 80) ?? ""}`;
+}
+
 export async function POST(req: NextRequest) {
   try {
     // Check if agents are enabled
@@ -87,13 +127,38 @@ export async function POST(req: NextRequest) {
       (e) => !/\bis paused\b/i.test(e),
     );
     if (actionableErrors.length > 0) {
-      sendAdminAlert({
-        title: "🚨 Agent Heartbeat Error",
-        message: `${actionableErrors.length} agent(s) failed during heartbeat:\n\n${actionableErrors.slice(0, 5).join("\n")}`,
-        severity: "error",
-      }).catch(() => {});
-    } else if ((result.errors || []).length > 0) {
-      console.log("[Heartbeat API] Suppressed paused-agent heartbeat errors");
+      const quota = isQuotaError(actionableErrors);
+      const fingerprint = errorFingerprint(actionableErrors);
+
+      if (shouldAlert(fingerprint, quota)) {
+        lastAlertFingerprint = fingerprint;
+        lastAlertAt = Date.now();
+
+        const cleaned = cleanErrors(actionableErrors);
+        const title = quota
+          ? "⚠️ Agent LLM Quota Exhausted"
+          : "🚨 Agent Heartbeat Error";
+        const suffix = quota
+          ? "\n\nAction required: top up OpenAI billing or disable fallback (OPENAI_FALLBACK_ENABLED=false)."
+          : "";
+
+        sendAdminAlert({
+          title,
+          message: `${cleaned.length} agent(s) failed:\n\n${cleaned.slice(0, 5).join("\n")}${suffix}`,
+          severity: quota ? "warning" : "error",
+        }).catch(() => {});
+      } else {
+        console.log(`[Heartbeat API] Suppressed duplicate alert (fingerprint: ${fingerprint})`);
+      }
+    } else {
+      // Errors cleared — reset fingerprint so next real error always pages
+      if (lastAlertFingerprint) {
+        lastAlertFingerprint = "";
+        lastAlertAt = 0;
+      }
+      if ((result.errors || []).length > 0) {
+        console.log("[Heartbeat API] Suppressed paused-agent heartbeat errors");
+      }
     }
 
     return NextResponse.json({
