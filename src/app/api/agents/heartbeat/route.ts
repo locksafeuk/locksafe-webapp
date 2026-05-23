@@ -142,10 +142,14 @@ export async function POST(req: NextRequest) {
           ? "\n\nAction required: top up OpenAI billing or disable fallback (OPENAI_FALLBACK_ENABLED=false)."
           : "";
 
+        const dedupeKey = quota ? "heartbeat:quota-error" : "heartbeat:agent-error";
+        const cooldownMs = quota ? COOLDOWN_QUOTA_MS : COOLDOWN_DEFAULT_MS;
         sendAdminAlert({
           title,
           message: `${cleaned.length} agent(s) failed:\n\n${cleaned.slice(0, 5).join("\n")}${suffix}`,
           severity: quota ? "warning" : "error",
+          dedupeKey,
+          cooldownMsOverride: cooldownMs,
         }).catch(() => {});
       } else {
         console.log(`[Heartbeat API] Suppressed duplicate alert (fingerprint: ${fingerprint})`);
