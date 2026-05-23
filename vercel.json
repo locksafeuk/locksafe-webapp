@@ -6,20 +6,16 @@
   "regions": ["lhr1"],
   "crons": [
     {
-      "path": "/api/cron/voice-call-watchdog",
-      "schedule": "* * * * *"
-    },
-    {
-      "path": "/api/cron/google-ads-fraud-monitor",
-      "schedule": "15 */6 * * *"
-    },
-    {
       "path": "/api/cron/google-ads-opportunity-scout",
       "schedule": "0 4 * * 1"
     },
     {
       "path": "/api/cron/agent-reflection",
       "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/google-ads-suggestions",
+      "schedule": "0 7 * * *"
     },
     {
       "path": "/api/cron/memory-consolidate",
