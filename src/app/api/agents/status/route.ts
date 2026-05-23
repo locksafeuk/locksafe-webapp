@@ -9,6 +9,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdminFromCookies } from "@/lib/agent-api-auth";
+import { classifyModel } from "@/lib/classify-model";
 
 function getPulseStatus(lastHeartbeat: Date | null): "green" | "amber" | "red" {
   if (!lastHeartbeat) return "red";
@@ -16,14 +17,6 @@ function getPulseStatus(lastHeartbeat: Date | null): "green" | "amber" | "red" {
   if (ageMins < 5) return "green";
   if (ageMins < 30) return "amber";
   return "red";
-}
-
-function classifyModel(model: string | null): "local" | "openai" | "unknown" {
-  if (!model) return "unknown";
-  const m = model.toLowerCase();
-  if (/hermes|llama|qwen|mistral|gemma|deepseek|phi/.test(m)) return "local";
-  if (/gpt|o1|o3|o4|openai/.test(m)) return "openai";
-  return "unknown";
 }
 
 export async function GET() {
