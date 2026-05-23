@@ -123,16 +123,7 @@ export async function GET(req: NextRequest) {
       prisma.locksmithLead.count({ where: { status: "onboarded" } }),
       prisma.locksmithLead.count({ where: { status: "not_interested" } }),
       prisma.locksmithLead.count({ where: { status: "new", email: { not: null } } }),
-      prisma.locksmithLead.count({
-        where: {
-          status: "new",
-          OR: [
-            { phone: { startsWith: "07" } },
-            { phone: { startsWith: "+447" } },
-            { phone: { startsWith: "00447" } },
-          ],
-        },
-      }),
+      prisma.locksmithLead.count({ where: { status: "new", phone: { not: null } } }),
     ]);
 
   const stats = {
