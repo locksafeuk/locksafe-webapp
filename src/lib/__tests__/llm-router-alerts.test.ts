@@ -1,0 +1,82 @@
+const sendAdminAlertMock = jest.fn().mockResolvedValue(true);
+const mockAgentDecisionFindFirst = jest.fn();
+const mockAgentDecisionCreate = jest.fn().mockResolvedValue({ id: "decision-1" });
+const mockMarketingPolicyFindUnique = jest.fn().mockResolvedValue(null);
+
+jest.mock("@/lib/db", () => ({
+  prisma: {
+    agentDecision: {
+      findFirst: (...args: unknown[]) => mockAgentDecisionFindFirst(...args),
+      create: (...args: unknown[]) => mockAgentDecisionCreate(...args),
+    },
+    marketingPolicy: {
+      findUnique: (...args: unknown[]) => mockMarketingPolicyFindUnique(...args),
+    },
+  },
+}));
+
+jest.mock("@/lib/telegram", () => ({
+  sendAdminAlert: (...args: unknown[]) => sendAdminAlertMock(...args),
+}));
+
+describe("LLM router alerts", () => {
+  const originalEnv = process.env;
+  const fetchMock = jest.fn();
+
+  beforeEach(() => {
+    jest.resetModules();
+    process.env = {
+      ...originalEnv,
+      OLLAMA_BASE_URL: "http://127.0.0.1:11434",
+      OPENAI_API_KEY: "",
+      OPENAI_FALLBACK_ENABLED: "false",
+    };
+    mockAgentDecisionFindFirst.mockReset();
+    mockAgentDecisionCreate.mockClear();
+    mockMarketingPolicyFindUnique.mockClear();
+    fetchMock.mockReset();
+    fetchMock.mockRejectedValue(new Error("fetch failed"));
+    global.fetch = fetchMock as typeof fetch;
+    sendAdminAlertMock.mockClear();
+  });
+
+  afterAll(() => {
+    process.env = originalEnv;
+  });
+
+  it("sends a deduplicated circuit-trip alert with a cooldown override", async () => {
+    mockAgentDecisionFindFirst.mockResolvedValueOnce(null);
+    const { chat, Models } = await import("../llm-router");
+
+    await expect(
+      chat(Models.FAST, [{ role: "user", content: "ping" }], { timeoutMs: 1000 }),
+    ).rejects.toThrow(/Local model failed/i);
+
+    await expect(
+      chat(Models.FAST, [{ role: "user", content: "ping" }], { timeoutMs: 1000 }),
+    ).rejects.toThrow(/Local model failed/i);
+
+    await expect(
+      chat(Models.FAST, [{ role: "user", content: "ping" }], { timeoutMs: 1000 }),
+    ).rejects.toThrow(/OpenAI fallback is disabled/i);
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("bypasses Ollama when a fresh shared circuit-open marker exists", async () => {
+    const recentOpen = new Date(Date.now() - 5 * 60_000);
+    mockAgentDecisionFindFirst.mockResolvedValue({
+      action: "llm-router:circuit-open",
+      createdAt: recentOpen,
+    });
+
+    const { chat, Models } = await import("../llm-router");
+
+    await expect(
+      chat(Models.FAST, [{ role: "user", content: "ping" }], { timeoutMs: 1000 }),
+    ).rejects.toThrow(/OpenAI fallback is disabled/);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(sendAdminAlertMock).not.toHaveBeenCalled();
+  });
+});

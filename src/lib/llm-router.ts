@@ -1,3 +1,5 @@
+import type { Prisma } from "@prisma/client";
+
 /**
  * LLM Router — unified interface for all AI calls
  *
@@ -135,11 +137,99 @@ const LLM_POLICY_CACHE_TTL_MS = 30_000;
 // resets counters (one extra probe on restart — acceptable).
 const CB_TRIP_THRESHOLD = 3;
 const CB_RESET_MS       = 30 * 60_000; // 30 min
+const ROUTER_ALERT_COOLDOWN_MS = CB_RESET_MS;
+const ROUTER_DAILY_ALERT_COOLDOWN_MS = 24 * 60 * 60_000;
+const ROUTER_CIRCUIT_TRIPPED_DEDUPE_KEY = "llm-router:ollama-circuit-tripped";
+const ROUTER_CIRCUIT_RECOVERED_DEDUPE_KEY = "llm-router:ollama-circuit-recovered";
+const ROUTER_FALLBACK_HALF_CAP_DEDUPE_KEY = "llm-router:openai-fallback-half-cap";
+const ROUTER_FALLBACK_CAP_HIT_DEDUPE_KEY = "llm-router:openai-fallback-cap-hit";
+const ROUTER_CIRCUIT_OPEN_ACTION = "llm-router:circuit-open";
+const ROUTER_CIRCUIT_RECOVERED_ACTION = "llm-router:circuit-recovered";
+const ROUTER_CIRCUIT_SHARED_AGENT = "system-alerts";
+const ROUTER_CIRCUIT_SHARED_PLATFORM = "global";
 
 type CBState = "closed" | "open";
 let cbState: CBState   = "closed";
 let cbFailures         = 0;
 let cbOpenedAt         = 0;
+
+async function notifyRouterAdminAlert(data: {
+  title: string;
+  message: string;
+  severity: "info" | "warning" | "error";
+  dedupeKey: string;
+  cooldownMsOverride: number;
+}): Promise<void> {
+  try {
+    const { sendAdminAlert } = await import("@/lib/telegram");
+    await sendAdminAlert(data).catch(() => {});
+  } catch {
+    // Alert delivery is best effort.
+  }
+}
+
+type SharedCircuitMarker = {
+  action: string;
+  createdAt: Date;
+};
+
+function toCircuitPayload(details: Record<string, unknown>): Prisma.InputJsonValue {
+  return details as Prisma.InputJsonValue;
+}
+
+async function loadSharedCircuitMarker(): Promise<SharedCircuitMarker | null> {
+  try {
+    const { prisma } = await import("@/lib/db");
+    return prisma.agentDecision.findFirst({
+      where: {
+        agent: ROUTER_CIRCUIT_SHARED_AGENT,
+        platform: ROUTER_CIRCUIT_SHARED_PLATFORM,
+        action: {
+          in: [ROUTER_CIRCUIT_OPEN_ACTION, ROUTER_CIRCUIT_RECOVERED_ACTION],
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      select: { action: true, createdAt: true },
+    }) as Promise<SharedCircuitMarker | null>;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[LLM Router] Failed to load shared circuit marker, using local state: ${message}`);
+    return null;
+  }
+}
+
+async function recordSharedCircuitMarker(
+  action: typeof ROUTER_CIRCUIT_OPEN_ACTION | typeof ROUTER_CIRCUIT_RECOVERED_ACTION,
+  model: string,
+  err?: string,
+): Promise<void> {
+  try {
+    const { prisma } = await import("@/lib/db");
+    await prisma.agentDecision.create({
+      data: {
+        agent: ROUTER_CIRCUIT_SHARED_AGENT,
+        platform: ROUTER_CIRCUIT_SHARED_PLATFORM,
+        action,
+        payload: toCircuitPayload({
+          model,
+          error: err ?? null,
+          circuitResetMs: CB_RESET_MS,
+        }),
+        policySnapshot: toCircuitPayload({
+          source: "llm-router",
+          model,
+        }),
+        dryRun: false,
+        outcome: "ok",
+        outcomeMessage: action,
+        executedAt: new Date(),
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[LLM Router] Failed to persist shared circuit marker: ${message}`);
+  }
+}
 
 // ─── OpenAI fallback spend cap ────────────────────────────────────────────────
 // In-memory daily tracker. Resets at UTC midnight. Survives warm Vercel
@@ -166,44 +256,72 @@ async function probeOllama(): Promise<boolean> {
 }
 
 async function ollamaCircuitAllows(): Promise<boolean> {
-  if (cbState === "closed") return true;
+  const now = Date.now();
+  if (cbState === "open" && now - cbOpenedAt < CB_RESET_MS) return false;
 
-  // Circuit is open — check if reset window has passed
-  if (Date.now() - cbOpenedAt < CB_RESET_MS) return false;
+  const sharedMarker = await loadSharedCircuitMarker();
+  const sharedOpen =
+    sharedMarker?.action === ROUTER_CIRCUIT_OPEN_ACTION &&
+    now - sharedMarker.createdAt.getTime() < CB_RESET_MS;
 
-  // Half-open probe
+  if (sharedOpen) {
+    cbState = "open";
+    cbOpenedAt = sharedMarker.createdAt.getTime();
+    return false;
+  }
+
+  const shouldProbe =
+    (cbState === "open" && now - cbOpenedAt >= CB_RESET_MS) ||
+    sharedMarker?.action === ROUTER_CIRCUIT_OPEN_ACTION;
+
+  if (!shouldProbe) {
+    cbState = "closed";
+    cbFailures = 0;
+    return true;
+  }
+
   const healthy = await probeOllama();
   if (healthy) {
     cbState   = "closed";
     cbFailures = 0;
+    cbOpenedAt = 0;
     console.log("[LLM Router] Circuit closed — Ollama recovered");
-    import("@/lib/telegram").then(({ sendAdminAlert }) => {
-      sendAdminAlert({
-        title:    "✅ Ollama Circuit Recovered",
-        message:  "Ollama is reachable again. Agents have switched back to local inference.",
-        severity: "info",
-      }).catch(() => {});
-    }).catch(() => {});
+    await recordSharedCircuitMarker(ROUTER_CIRCUIT_RECOVERED_ACTION, "probe");
+    await notifyRouterAdminAlert({
+      title:    "✅ Ollama Circuit Recovered",
+      message:  "Ollama is reachable again. Agents have switched back to local inference.",
+      severity: "info",
+      dedupeKey: ROUTER_CIRCUIT_RECOVERED_DEDUPE_KEY,
+      cooldownMsOverride: ROUTER_ALERT_COOLDOWN_MS,
+    });
   } else {
-    cbOpenedAt = Date.now(); // extend reset window
+    cbState = "open";
+    cbOpenedAt = now; // extend reset window
     console.log("[LLM Router] Circuit still open — Ollama probe failed");
   }
   return healthy;
 }
 
-function recordOllamaFailure(model: string, err: string): void {
+async function recordOllamaFailure(model: string, err: string): Promise<void> {
   cbFailures++;
   if (cbState === "closed" && cbFailures >= CB_TRIP_THRESHOLD) {
     cbState    = "open";
     cbOpenedAt = Date.now();
     console.error(`[LLM Router] Circuit OPEN after ${cbFailures} failures (last: ${model})`);
-    import("@/lib/telegram").then(({ sendAdminAlert }) => {
-      sendAdminAlert({
-        title:    "🔴 Ollama Circuit Tripped",
-        message:  `Ollama failed ${CB_TRIP_THRESHOLD}× in a row. Falling back to OpenAI for 30 min.\n\nLast error (${model}): ${err.slice(0, 200)}`,
-        severity: "error",
-      }).catch(() => {});
-    }).catch(() => {});
+    const sharedMarker = await loadSharedCircuitMarker();
+    if (sharedMarker?.action === ROUTER_CIRCUIT_OPEN_ACTION) {
+      cbOpenedAt = sharedMarker.createdAt.getTime();
+      return;
+    }
+
+    await recordSharedCircuitMarker(ROUTER_CIRCUIT_OPEN_ACTION, model, err);
+    await notifyRouterAdminAlert({
+      title:    "🔴 Ollama Circuit Tripped",
+      message:  `Ollama failed ${CB_TRIP_THRESHOLD}× in a row. Falling back to OpenAI for 30 min.\n\nLast error (${model}): ${err.slice(0, 200)}`,
+      severity: "error",
+      dedupeKey: ROUTER_CIRCUIT_TRIPPED_DEDUPE_KEY,
+      cooldownMsOverride: ROUTER_ALERT_COOLDOWN_MS,
+    });
   }
 }
 
@@ -236,7 +354,7 @@ export async function chat(
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.warn(`[LLM Router] Local model failed (${localModel}): ${msg}`);
-      recordOllamaFailure(localModel, msg);
+      await recordOllamaFailure(localModel, msg);
 
       if (!(await shouldUseOpenAIFallback(options))) {
         throw new Error(
@@ -262,7 +380,7 @@ async function shouldUseOpenAIFallback(options: LLMOptions): Promise<boolean> {
     return false;
   }
 
-  if (isFallbackCapExceeded()) {
+  if (await isFallbackCapExceeded()) {
     return false;
   }
 
@@ -435,7 +553,7 @@ function calcOpenAICost(model: string, promptTokens: number, completionTokens: n
   return (promptTokens / 1_000_000) * inRate + (completionTokens / 1_000_000) * outRate;
 }
 
-function recordFallbackSpend(model: string, promptTokens: number, completionTokens: number): void {
+async function recordFallbackSpend(model: string, promptTokens: number, completionTokens: number): Promise<void> {
   const todayDay = Math.floor(Date.now() / 86_400_000);
   if (todayDay !== fallbackSpendDay) {
     fallbackSpendToday = 0;
@@ -447,29 +565,29 @@ function recordFallbackSpend(model: string, promptTokens: number, completionToke
 
   if (!alertedHalfCap && fallbackSpendToday >= OPENAI_FALLBACK_DAILY_CAP_USD * 0.5) {
     alertedHalfCap = true;
-    import("@/lib/telegram").then(({ sendAdminAlert }) => {
-      sendAdminAlert({
-        title:    "⚠️ OpenAI Fallback at 50% Daily Cap",
-        message:  `Spent $${fallbackSpendToday.toFixed(2)} of $${OPENAI_FALLBACK_DAILY_CAP_USD} today.\n\nOllama may still be unreachable — check Tailscale + Mac Studio.`,
-        severity: "warning",
-      }).catch(() => {});
-    }).catch(() => {});
+    await notifyRouterAdminAlert({
+      title:    "⚠️ OpenAI Fallback at 50% Daily Cap",
+      message:  `Spent $${fallbackSpendToday.toFixed(2)} of $${OPENAI_FALLBACK_DAILY_CAP_USD} today.\n\nOllama may still be unreachable — check Tailscale + Mac Studio.`,
+      severity: "warning",
+      dedupeKey: ROUTER_FALLBACK_HALF_CAP_DEDUPE_KEY,
+      cooldownMsOverride: ROUTER_DAILY_ALERT_COOLDOWN_MS,
+    });
   }
 }
 
-function isFallbackCapExceeded(): boolean {
+async function isFallbackCapExceeded(): Promise<boolean> {
   const todayDay = Math.floor(Date.now() / 86_400_000);
   if (todayDay !== fallbackSpendDay) return false;
   if (fallbackSpendToday < OPENAI_FALLBACK_DAILY_CAP_USD) return false;
 
   console.error(`[LLM Router] OpenAI fallback daily cap ($${OPENAI_FALLBACK_DAILY_CAP_USD}) exceeded — blocking.`);
-  import("@/lib/telegram").then(({ sendAdminAlert }) => {
-    sendAdminAlert({
-      title:    "🚨 OpenAI Fallback Cap HIT — Blocked",
-      message:  `Daily cap of $${OPENAI_FALLBACK_DAILY_CAP_USD} reached. All OpenAI fallback is BLOCKED until midnight UTC.\n\nRestore Ollama or raise OPENAI_FALLBACK_DAILY_CAP_USD.`,
-      severity: "error",
-    }).catch(() => {});
-  }).catch(() => {});
+  await notifyRouterAdminAlert({
+    title:    "🚨 OpenAI Fallback Cap HIT — Blocked",
+    message:  `Daily cap of $${OPENAI_FALLBACK_DAILY_CAP_USD} reached. All OpenAI fallback is BLOCKED until midnight UTC.\n\nRestore Ollama or raise OPENAI_FALLBACK_DAILY_CAP_USD.`,
+    severity: "error",
+    dedupeKey: ROUTER_FALLBACK_CAP_HIT_DEDUPE_KEY,
+    cooldownMsOverride: ROUTER_DAILY_ALERT_COOLDOWN_MS,
+  });
   return true;
 }
 
@@ -534,7 +652,7 @@ async function callOpenAI(
 
   const promptTokens     = data.usage?.prompt_tokens     ?? 0;
   const completionTokens = data.usage?.completion_tokens ?? 0;
-  recordFallbackSpend(model, promptTokens, completionTokens);
+  await recordFallbackSpend(model, promptTokens, completionTokens);
 
   return {
     content:     choice.content ?? "",
