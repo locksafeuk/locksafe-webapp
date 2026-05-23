@@ -114,14 +114,19 @@ const ACCENT_CLASSES: Record<string, { bar: string; iconBg: string; iconText: st
 
 function Tile({ icon: Icon, label, href, value, sub, accent, sev, sevLabel }: TileProps) {
   const a = ACCENT_CLASSES[accent] ?? ACCENT_CLASSES.sky;
+  const borderColor = sev === "alert" ? "border-red-200" : sev === "warn" ? "border-amber-200" : "border-slate-100";
   return (
     <Link
       href={href}
-      className={`group relative bg-white border border-slate-100 ${a.hoverBorder} rounded-xl overflow-hidden
+      className={`group relative bg-white border ${borderColor} ${a.hoverBorder} rounded-xl overflow-hidden
                   hover:shadow-xl hover:-translate-y-1 transition-all duration-200 flex flex-col`}
     >
-      {/* Coloured top strip */}
-      <div className={`h-[3px] w-full ${a.bar}`} />
+      {/* Coloured top strip — taller + pulsing for warn/alert */}
+      <div className={`w-full ${a.bar} ${
+        sev === "alert" ? "h-1.5 animate-pulse" :
+        sev === "warn"  ? "h-1 animate-pulse" :
+        "h-[3px]"
+      }`} />
 
       <div className="p-3 flex-1 flex flex-col gap-2">
         {/* Icon + badge row */}
@@ -157,7 +162,7 @@ function Row({ label, dot, children }: { label: string; dot: string; children: R
         <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">{label}</span>
         <div className="flex-1 h-px bg-slate-100" />
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2.5">
+      <div className="grid grid-cols-2 sm:grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-2.5">
         {children}
       </div>
     </div>
@@ -289,170 +294,180 @@ export default function AdminPage() {
           )}
         </div>
 
-        {/* ── Priority rows ─────────────────────────────────────────────────── */}
-        <div className="space-y-5">
+        {/* ── Priority rows — 2-column layout on xl+ ───────────────────────── */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
 
-          {/* 1 — CRITICAL */}
-          <Row label="Critical" dot="bg-red-500">
-            <Tile icon={Briefcase}   label="Active Jobs"
-              href="/admin/jobs"
-              value={ops?.ops.activeJobs ?? "—"}
-              sub={`${awaitSig} awaiting signature`}
-              accent="red"
-              sev={awaitSig > 8 ? "alert" : awaitSig > 3 ? "warn" : "ok"}
-              sevLabel={awaitSig > 0 ? `${awaitSig} pending` : "On track"} />
-            <Tile icon={PenTool}     label="Awaiting Signature"
-              href="/admin/jobs?status=PENDING_CUSTOMER_CONFIRMATION"
-              value={ops?.ops.awaitingSignature ?? "—"}
-              sub="Pending confirmation"
-              accent="amber"
-              sev={awaitSig > 5 ? "alert" : awaitSig > 2 ? "warn" : "ok"}
-              sevLabel={awaitSig > 0 ? "Needs action" : "All clear"} />
-            <Tile icon={AlertTriangle} label="Disputes"
-              href="/admin/disputes"
-              value={openDisp}
-              sub="Open disputes"
-              accent="red"
-              sev={openDisp > 0 ? "alert" : "ok"}
-              sevLabel={openDisp > 0 ? `${openDisp} open` : "None open"} />
-            <Tile icon={ShieldCheck}  label="Agent Approvals"
-              href="/admin/agents/approvals"
-              value={pendAppr}
-              sub="Pending decisions"
-              accent="violet"
-              sev={pendAppr > 0 ? "warn" : "ok"}
-              sevLabel={pendAppr > 0 ? `${pendAppr} pending` : "All clear"} />
-          </Row>
+          {/* LEFT column — action-critical first */}
+          <div className="space-y-5">
 
-          {/* 2 — AI & AUTOMATION */}
-          <Row label="AI & Automation" dot="bg-violet-500">
-            <Tile icon={Bot}          label="AI Agents"
-              href="/admin/agents"
-              value={ops ? `${ops.agents.active}/${ops.agents.total}` : "—"}
-              sub={ops?.agents.lastHeartbeat ? `Beat ${timeAgo(ops.agents.lastHeartbeat)}` : "No heartbeat"}
-              accent="violet"
-              sev={agentSev()}
-              sevLabel={agentSev() === "ok" ? "Healthy" : agentSev() === "warn" ? "Stale" : "Down"} />
-            <Tile icon={Cpu}          label="LLM Runtime"
-              href="/admin/agents"
-              value={localPct != null ? `${localPct}%` : "—"}
-              sub={lastModel ?? "No runs (24h)"}
-              accent="violet"
-              sev={localPct == null ? "off" : localPct > 50 ? "ok" : "warn"}
-              sevLabel={localPct != null ? `${localPct}% local` : "No data"} />
-            <Tile icon={Phone}        label="Voice AI"
-              href="/admin/voice-receptionist"
-              value={ops?.voice.todayCalls ?? "—"}
-              sub="Calls today"
-              accent="violet"
-              sev={liveVoice > 0 ? "warn" : "ok"}
-              sevLabel={liveVoice > 0 ? `${liveVoice} live` : "Idle"} />
-          </Row>
+            {/* 1 — CRITICAL */}
+            <Row label="Critical" dot="bg-red-500">
+              <Tile icon={Briefcase}   label="Active Jobs"
+                href="/admin/jobs"
+                value={ops?.ops.activeJobs ?? "—"}
+                sub={`${awaitSig} awaiting signature`}
+                accent="red"
+                sev={awaitSig > 8 ? "alert" : awaitSig > 3 ? "warn" : "ok"}
+                sevLabel={awaitSig > 0 ? `${awaitSig} pending` : "On track"} />
+              <Tile icon={PenTool}     label="Awaiting Signature"
+                href="/admin/jobs?status=PENDING_CUSTOMER_CONFIRMATION"
+                value={ops?.ops.awaitingSignature ?? "—"}
+                sub="Pending confirmation"
+                accent="amber"
+                sev={awaitSig > 5 ? "alert" : awaitSig > 2 ? "warn" : "ok"}
+                sevLabel={awaitSig > 0 ? "Needs action" : "All clear"} />
+              <Tile icon={AlertTriangle} label="Disputes"
+                href="/admin/disputes"
+                value={openDisp}
+                sub="Open disputes"
+                accent="red"
+                sev={openDisp > 0 ? "alert" : "ok"}
+                sevLabel={openDisp > 0 ? `${openDisp} open` : "None open"} />
+              <Tile icon={ShieldCheck}  label="Agent Approvals"
+                href="/admin/agents/approvals"
+                value={pendAppr}
+                sub="Pending decisions"
+                accent="violet"
+                sev={pendAppr > 0 ? "warn" : "ok"}
+                sevLabel={pendAppr > 0 ? `${pendAppr} pending` : "All clear"} />
+            </Row>
 
-          {/* 3 — OPERATIONS */}
-          <Row label="Operations" dot="bg-sky-500">
-            <Tile icon={Map}          label="Live Ops Map"
-              href="/admin/ops"
-              sub="Dispatch & coverage"
-              accent="sky"
-              sev="ok"
-              sevLabel="Live" />
-            <Tile icon={Users}        label="Locksmiths"
-              href="/admin/locksmiths"
-              value={ops?.people.totalLocksmiths ?? "—"}
-              sub={`${pendVerif} to verify`}
-              accent="emerald"
-              sev={pendVerif > 0 ? "warn" : "ok"}
-              sevLabel={pendVerif > 0 ? `${pendVerif} pending` : "All verified"} />
-            <Tile icon={PoundSterling} label="Payouts"
-              href="/admin/payouts"
-              value={pendPayout}
-              sub="Pending payouts"
-              accent="green"
-              sev={pendPayout > 0 ? "warn" : "ok"}
-              sevLabel={pendPayout > 0 ? `${pendPayout} queued` : "Settled"} />
-            <Tile icon={Shield}       label="Security"
-              href="/admin/security"
-              sub="Fraud radar"
-              accent="red"
-              sev="ok"
-              sevLabel="Monitoring" />
-          </Row>
+            {/* 2 — AI & AUTOMATION */}
+            <Row label="AI & Automation" dot="bg-violet-500">
+              <Tile icon={Bot}          label="AI Agents"
+                href="/admin/agents"
+                value={ops ? `${ops.agents.active}/${ops.agents.total}` : "—"}
+                sub={ops?.agents.lastHeartbeat ? `Beat ${timeAgo(ops.agents.lastHeartbeat)}` : "No heartbeat"}
+                accent="violet"
+                sev={agentSev()}
+                sevLabel={agentSev() === "ok" ? "Healthy" : agentSev() === "warn" ? "Stale" : "Down"} />
+              <Tile icon={Cpu}          label="LLM Runtime"
+                href="/admin/agents"
+                value={localPct != null ? `${localPct}%` : "—"}
+                sub={lastModel ?? "No runs (24h)"}
+                accent="violet"
+                sev={localPct == null ? "off" : localPct > 50 ? "ok" : "warn"}
+                sevLabel={localPct != null ? `${localPct}% local` : "No data"} />
+              <Tile icon={Phone}        label="Voice AI"
+                href="/admin/voice-receptionist"
+                value={ops?.voice.todayCalls ?? "—"}
+                sub="Calls today"
+                accent="violet"
+                sev={liveVoice > 0 ? "warn" : "ok"}
+                sevLabel={liveVoice > 0 ? `${liveVoice} live` : "Idle"} />
+            </Row>
 
-          {/* 4 — MARKETING */}
-          <Row label="Marketing" dot="bg-pink-500">
-            <Tile icon={Megaphone}    label="Google Ads"
-              href="/admin/ads"
-              value={activeAds}
-              sub="Active campaigns"
-              accent="pink"
-              sev={activeAds === 0 ? "warn" : "ok"}
-              sevLabel={activeAds > 0 ? `${activeAds} live` : "None active"} />
-            <Tile icon={Share2}       label="Organic Posts"
-              href="/admin/organic"
-              value={schedPosts}
-              sub={`${ops?.marketing.draftPosts ?? "—"} drafts`}
-              accent="pink"
-              sev={schedPosts === 0 ? "warn" : "ok"}
-              sevLabel={schedPosts > 0 ? `${schedPosts} scheduled` : "Queue empty"} />
-            <Tile icon={Mail}         label="Email"
-              href="/admin/emails"
-              value={ops?.marketing.activeEmailCampaigns ?? "—"}
-              sub="Live / scheduled"
-              accent="pink"
-              sev="ok"
-              sevLabel="Active" />
-            <Tile icon={BarChart3}    label="Attribution"
-              href="/admin/attribution"
-              sub="ROAS & spend"
-              accent="pink"
-              sev="ok"
-              sevLabel="Tracking" />
-          </Row>
+            {/* 3 — PEOPLE & FINANCE */}
+            <Row label="People & Finance" dot="bg-emerald-500">
+              <Tile icon={UserCircle}   label="Customers"
+                href="/admin/customers"
+                sub="View all customers"
+                accent="emerald"
+                sev="ok"
+                sevLabel="Active" />
+              <Tile icon={Users2}       label="Leads"
+                href="/admin/leads"
+                sub="View pipeline"
+                accent="emerald"
+                sev="ok"
+                sevLabel="Live" />
+              <Tile icon={CreditCard}   label="Payments"
+                href="/admin/payments"
+                sub="All transactions"
+                accent="green"
+                sev="ok"
+                sevLabel="Running" />
+              <Tile icon={Crown}        label="Subscriptions"
+                href="/admin/subscriptions"
+                sub="Cover plans"
+                accent="green"
+                sev="ok"
+                sevLabel="Active" />
+            </Row>
 
-          {/* 5 — PEOPLE & FINANCE */}
-          <Row label="People & Finance" dot="bg-emerald-500">
-            <Tile icon={UserCircle}   label="Customers"
-              href="/admin/customers"
-              sub="View all customers"
-              accent="emerald"
-              sev="ok"
-              sevLabel="Active" />
-            <Tile icon={Users2}       label="Leads"
-              href="/admin/leads"
-              sub="View pipeline"
-              accent="emerald"
-              sev="ok"
-              sevLabel="Live" />
-            <Tile icon={CreditCard}   label="Payments"
-              href="/admin/payments"
-              sub="All transactions"
-              accent="green"
-              sev="ok"
-              sevLabel="Running" />
-            <Tile icon={Crown}        label="Subscriptions"
-              href="/admin/subscriptions"
-              sub="Cover plans"
-              accent="green"
-              sev="ok"
-              sevLabel="Active" />
-          </Row>
+          </div>
 
-          {/* 6 — SYSTEM */}
-          <Row label="System" dot="bg-cyan-500">
-            <Tile icon={Brain}        label="Reflections"
-              href="/admin/agents/reflections"
-              sub="Memory & learning"
-              accent="cyan"
-              sev="ok"
-              sevLabel="Running" />
-            <Tile icon={Plug}         label="Integrations"
-              href="/admin/integrations"
-              sub="Platform connections"
-              accent="cyan"
-              sev="ok"
-              sevLabel="Connected" />
-          </Row>
+          {/* RIGHT column — operations & growth */}
+          <div className="space-y-5">
+
+            {/* 4 — OPERATIONS */}
+            <Row label="Operations" dot="bg-sky-500">
+              <Tile icon={Map}          label="Live Ops Map"
+                href="/admin/ops"
+                sub="Dispatch & coverage"
+                accent="sky"
+                sev="ok"
+                sevLabel="Live" />
+              <Tile icon={Users}        label="Locksmiths"
+                href="/admin/locksmiths"
+                value={ops?.people.totalLocksmiths ?? "—"}
+                sub={`${pendVerif} to verify`}
+                accent="emerald"
+                sev={pendVerif > 0 ? "warn" : "ok"}
+                sevLabel={pendVerif > 0 ? `${pendVerif} pending` : "All verified"} />
+              <Tile icon={PoundSterling} label="Payouts"
+                href="/admin/payouts"
+                value={pendPayout}
+                sub="Pending payouts"
+                accent="green"
+                sev={pendPayout > 0 ? "warn" : "ok"}
+                sevLabel={pendPayout > 0 ? `${pendPayout} queued` : "Settled"} />
+              <Tile icon={Shield}       label="Security"
+                href="/admin/security"
+                sub="Fraud radar"
+                accent="red"
+                sev="ok"
+                sevLabel="Monitoring" />
+            </Row>
+
+            {/* 5 — MARKETING */}
+            <Row label="Marketing" dot="bg-pink-500">
+              <Tile icon={Megaphone}    label="Google Ads"
+                href="/admin/ads"
+                value={activeAds}
+                sub="Active campaigns"
+                accent="pink"
+                sev={activeAds === 0 ? "warn" : "ok"}
+                sevLabel={activeAds > 0 ? `${activeAds} live` : "None active"} />
+              <Tile icon={Share2}       label="Organic Posts"
+                href="/admin/organic"
+                value={schedPosts}
+                sub={`${ops?.marketing.draftPosts ?? "—"} drafts`}
+                accent="pink"
+                sev={schedPosts === 0 ? "warn" : "ok"}
+                sevLabel={schedPosts > 0 ? `${schedPosts} scheduled` : "Queue empty"} />
+              <Tile icon={Mail}         label="Email"
+                href="/admin/emails"
+                value={ops?.marketing.activeEmailCampaigns ?? "—"}
+                sub="Live / scheduled"
+                accent="pink"
+                sev="ok"
+                sevLabel="Active" />
+              <Tile icon={BarChart3}    label="Attribution"
+                href="/admin/attribution"
+                sub="ROAS & spend"
+                accent="pink"
+                sev="ok"
+                sevLabel="Tracking" />
+            </Row>
+
+            {/* 6 — SYSTEM */}
+            <Row label="System" dot="bg-cyan-500">
+              <Tile icon={Brain}        label="Reflections"
+                href="/admin/agents/reflections"
+                sub="Memory & learning"
+                accent="cyan"
+                sev="ok"
+                sevLabel="Running" />
+              <Tile icon={Plug}         label="Integrations"
+                href="/admin/integrations"
+                sub="Platform connections"
+                accent="cyan"
+                sev="ok"
+                sevLabel="Connected" />
+            </Row>
+
+          </div>
 
         </div>
 
@@ -518,7 +533,7 @@ export default function AdminPage() {
                           <span className="truncate">{job.address}, {job.postcode}</span>
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 sm:flex gap-4 lg:gap-6 shrink-0">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-2 shrink-0">
                         <div>
                           <div className="text-[9px] text-slate-400 uppercase tracking-wider mb-0.5">Customer</div>
                           <div className="text-xs font-semibold text-slate-900 truncate">{job.customer.name}</div>
