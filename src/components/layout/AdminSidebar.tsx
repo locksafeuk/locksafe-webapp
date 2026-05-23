@@ -235,8 +235,11 @@ export function AdminSidebar({ children }: AdminSidebarProps) {
     return pathname.startsWith(href);
   };
 
-  const toggleGroup = (label: string) => {
-    setCollapsed((prev) => ({ ...prev, [label]: !prev[label] }));
+  const toggleGroup = (label: string, hasActive: boolean) => {
+    setCollapsed((prev) => {
+      const current = prev[label] ?? !hasActive;
+      return { ...prev, [label]: !current };
+    });
   };
 
   useEffect(() => {
@@ -280,7 +283,7 @@ export function AdminSidebar({ children }: AdminSidebarProps) {
         {/* Section header */}
         <button
           type="button"
-          onClick={() => toggleGroup(group.label)}
+          onClick={() => toggleGroup(group.label, hasActive)}
           className="w-full flex items-center justify-between px-2 py-2 rounded-lg hover:bg-white/5 transition-colors group"
         >
           {/* Left border strip + label */}

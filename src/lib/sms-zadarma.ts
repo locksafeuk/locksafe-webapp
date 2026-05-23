@@ -59,8 +59,10 @@ function resolveSender(callerId?: string): string | undefined {
 
 function sanitizeZadarmaMessage(message: string): string {
   // Some destinations reject SMS containing URLs for Zadarma sender routes.
-  // Keep message semantic content while removing direct links.
+  // Strip "Label: URL" patterns first to avoid dangling "Pay to confirm:", "Complete here:", etc.
+  // Then strip any remaining bare URLs.
   return message
+    .replace(/\b\w[^:\n]{0,33}:\s*https?:\/\/\S+/gi, "")
     .replace(/https?:\/\/\S+/gi, "")
     .replace(/\s{2,}/g, " ")
     .trim();
