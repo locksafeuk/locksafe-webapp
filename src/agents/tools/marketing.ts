@@ -8,7 +8,7 @@ import prisma from "@/lib/db";
 import { generateAdCopy, type AdCopyRequest } from "@/lib/openai-ads";
 import { JobStatus, AdStatus, PostStatus } from "@prisma/client";
 import type { AgentTool, ToolResult, AgentContext } from "@/agents/core/types";
-import OpenAI from "openai";
+import { chat, Models } from "@/lib/llm-router";
 import {
   getDefaultGoogleAdsClient,
   microsToCurrency,
@@ -19,18 +19,6 @@ import { checkAutoAction, getEffectivePolicy } from "@/lib/spend-guard";
 import { isServiceSlug } from "@/lib/services-catalog";
 import { optimiseMetaCampaigns } from "@/lib/meta-optimiser";
 
-// Lazily initialize OpenAI to avoid crashing at module load when key is absent
-let _openai: OpenAI | null = null;
-const openai = new Proxy({} as OpenAI, {
-  get(_t, prop) {
-    if (!_openai) {
-      if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is not set');
-      _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    }
-    return (_openai as unknown as Record<string | symbol, unknown>)[prop];
-  },
-});
-
 /**
  * Generate social post content using AI
  */
@@ -39,30 +27,30 @@ async function generateSocialPost(params: {
   contentType: string;
   topic?: string;
 }): Promise<{ content: string; hashtags: string[] }> {
-  const response = await openai.chat.completions.create({
-    model: "gpt-4-turbo",
-    messages: [
-      {
-        role: "system",
-        content: `You are a social media expert for LockSafe UK, an emergency locksmith marketplace.
+  const response = await chat(Models.CONTENT, [
+    {
+      role: "system",
+      content: `You are a social media expert for LockSafe UK, an emergency locksmith marketplace.
 Create engaging ${params.platform} posts that are:
 - Professional but approachable
 - Include relevant emojis (but not excessive)
 - Under 280 characters for Twitter, under 500 for others
 - Include a call to action
 - Focus on home security tips, locksmith services, or customer safety`,
-      },
-      {
-        role: "user",
-        content: `Create a ${params.contentType} post about ${params.topic || "home security"} for ${params.platform}.
+    },
+    {
+      role: "user",
+      content: `Create a ${params.contentType} post about ${params.topic || "home security"} for ${params.platform}.
 Return JSON: {"content": "post content", "hashtags": ["hashtag1", "hashtag2"]}`,
-      },
-    ],
-    response_format: { type: "json_object" },
+    },
+  ], {
+    responseFormat: "json",
     temperature: 0.8,
+    maxTokens: 600,
+    timeoutMs: 120_000,
   });
 
-  const result = JSON.parse(response.choices[0].message.content || "{}");
+  const result = JSON.parse(response.content || "{}");
   return {
     content: result.content || "",
     hashtags: result.hashtags || [],
@@ -1482,7 +1470,7 @@ export const launchAcquisitionEngineTool: AgentTool = {
     }
 
     // Spend-guard pre-check (the launch route also gates at publish time, but
-    // this short-circuits the agent loop before running the OpenAI bill).
+    // this short-circuits the agent loop before running AI generation cost).
     const guard = await checkAutoAction({
       platform: "meta",
       action: "publish_draft",

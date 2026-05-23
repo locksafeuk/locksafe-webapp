@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
  * Aggregated metrics snapshot sent to the Holding Dashboard.
  * Only contains counts/sums/dates — no PII.
  *
- * NOTE: PiDo Holding reads metric fields at the TOP LEVEL of the
+ * NOTE: The holding dashboard reads metric fields at the TOP LEVEL of the
  * payload. We therefore flatten every group's fields onto the root
  * object, while also keeping the nested groups for self-description.
  */
@@ -23,7 +23,7 @@ export interface HoldingMetricsSnapshot {
     month: string; // YYYY-MM UTC
   };
 
-  // Flat top-level metrics (read by PiDo dashboard)
+  // Flat top-level metrics (read by the holding dashboard)
   revenue_today: number;
   revenue_month: number;
   revenue_year: number;
@@ -379,7 +379,7 @@ export async function collectHoldingMetrics(): Promise<HoldingMetricsSnapshot> {
     collectMaintenance(),
   ]);
 
-  // PiDo Holding's schema rejects null for numeric fields, so coerce to 0
+  // Holding schema rejects null for numeric fields, so coerce to 0
   // for the flat top-level mirror. Date string fields keep null.
   const n = (v: number | null | undefined): number => (v == null ? 0 : v);
 
@@ -389,7 +389,7 @@ export async function collectHoldingMetrics(): Promise<HoldingMetricsSnapshot> {
     platform,
     period: buildPeriodBlock(now),
 
-    // Flat top-level mirror — PiDo dashboard reads these directly
+    // Flat top-level mirror — holding dashboard reads these directly
     revenue_today: n(business.revenue_today),
     revenue_month: n(business.revenue_month),
     revenue_year: n(business.revenue_year),

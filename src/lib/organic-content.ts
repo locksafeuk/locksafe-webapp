@@ -9,7 +9,7 @@
  * - Simon Sinek (purpose-driven content)
  */
 
-import OpenAI from 'openai';
+import { chat, Models, type LLMMessage, type ModelAlias } from './llm-router';
 import {
   BUSINESS_CONTEXT,
   getBusinessSummary,
@@ -24,17 +24,48 @@ import {
   POWER_HEADLINES,
 } from './copywriting-frameworks';
 
-// Lazily initialize OpenAI to avoid crashing at module load when key is absent
-let _openai: OpenAI | null = null;
-const openai = new Proxy({} as OpenAI, {
-  get(_t, prop) {
-    if (!_openai) {
-      if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is not set');
-      _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    }
-    return (_openai as unknown as Record<string | symbol, unknown>)[prop];
+type CompatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
+type CompatCreateRequest = {
+  model?: string;
+  messages: CompatMessage[];
+  temperature?: number;
+  max_tokens?: number;
+  response_format?: { type?: string };
+};
+
+function resolveAlias(model?: string): ModelAlias {
+  const m = (model || '').toLowerCase();
+  if (m.includes('gpt-4') || m.includes('quality')) return Models.QUALITY;
+  if (m.includes('hermes') || m.includes('agent')) return Models.HERMES;
+  if (m.includes('fast') || m.includes('mini')) return Models.FAST;
+  return Models.CONTENT;
+}
+
+const openai = {
+  chat: {
+    completions: {
+      create: async (request: CompatCreateRequest) => {
+        const response = await chat(
+          resolveAlias(request.model),
+          request.messages as LLMMessage[],
+          {
+            temperature: request.temperature,
+            maxTokens: request.max_tokens,
+            responseFormat: request.response_format?.type === 'json_object' ? 'json' : 'text',
+            timeoutMs: 180_000,
+          }
+        );
+        return {
+          choices: [
+            {
+              message: { content: response.content },
+            },
+          ],
+        };
+      },
+    },
   },
-});
+};
 
 async function openAiChat(
   params: Parameters<OpenAI["chat"]["completions"]["create"]>[0]

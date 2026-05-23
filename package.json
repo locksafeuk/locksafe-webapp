@@ -31,6 +31,7 @@
     "db:reset": "echo '⚠️ DISABLED - Use db:seed-dev with FORCE_SEED=true for dev reset'",
     "holding:metrics": "bun run scripts/send-holding-metrics.ts",
     "asc:resubmit:ios": "node scripts/asc-resubmit-ios.mjs",
+    "health:llm-failover": "npx tsx --tsconfig tsconfig.scripts.json scripts/check-llm-failover.ts",
     "postinstall": "npx prisma generate"
   },
   "prisma": {

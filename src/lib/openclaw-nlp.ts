@@ -6,15 +6,17 @@
  * - Locksmith bot interactions
  * - Customer support queries (WhatsApp)
  *
- * Uses OpenAI GPT-4 or compatible LLM via OpenClaw
+ * Uses the shared LLM router (Ollama-first with controlled cloud fallback)
  *
- * Required Environment Variables:
- * - OPENAI_API_KEY: OpenAI API key (or OPENCLAW_API_KEY for self-hosted)
- * - OPENCLAW_ENDPOINT: Optional custom endpoint for self-hosted OpenClaw
+ * Relevant Environment Variables:
+ * - OLLAMA_BASE_URL: local/remote Ollama endpoint
+ * - ENABLE_OPENAI_FALLBACK: set false to disable cloud backup
+ * - OLLAMA_STRICT / OLLAMA_AGENT_STRICT: enforce hard-fail behavior
  */
 
 import prisma from "@/lib/db";
 import { findBestLocksmiths, type DispatchCandidate } from "@/lib/intelligent-dispatch";
+import { chat, Models, type LLMMessage, type OllamaTool } from "@/lib/llm-router";
 import { JobStatus } from "@prisma/client";
 
 // ============================================
@@ -93,9 +95,7 @@ interface LLMResponse {
 // CONFIGURATION
 // ============================================
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENCLAW_ENDPOINT = process.env.OPENCLAW_ENDPOINT || "https://api.openai.com/v1";
-const MODEL = process.env.OPENCLAW_MODEL || "gpt-4o";
+const MODEL = process.env.OPENCLAW_MODEL || "hermes3";
 
 // ============================================
 // SYSTEM PROMPTS
@@ -343,7 +343,7 @@ const TOOLS = {
 // ============================================
 
 /**
- * Call the LLM API (OpenAI or OpenClaw)
+ * Call the shared LLM router
  */
 async function callLLM(
   messages: Message[],
@@ -353,69 +353,31 @@ async function callLLM(
     parameters: Record<string, unknown>;
   }>
 ): Promise<LLMResponse> {
-  if (!OPENAI_API_KEY) {
-    console.warn("[OpenClaw] No API key configured");
-    return { content: "AI assistant not configured" };
-  }
-
   try {
-    const body: Record<string, unknown> = {
-      model: MODEL,
-      messages,
-      temperature: 0.7,
-      max_tokens: 500,
-    };
-
-    if (tools && tools.length > 0) {
-      body.tools = tools.map((t) => ({
-        type: "function",
-        function: {
-          name: t.name,
-          description: t.description,
-          parameters: t.parameters,
-        },
-      }));
-      body.tool_choice = "auto";
-    }
-
-    const response = await fetch(`${OPENCLAW_ENDPOINT}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
+    const toolDefs: OllamaTool[] | undefined = tools?.map((t) => ({
+      type: "function",
+      function: {
+        name: t.name,
+        description: t.description,
+        parameters: t.parameters as OllamaTool["function"]["parameters"],
       },
-      body: JSON.stringify(body),
-    });
+    }));
 
-    if (!response.ok) {
-      const error = await response.text();
-      console.error("[OpenClaw] API error:", error);
-      return { content: "Sorry, I encountered an error. Please try again." };
-    }
+    const response = await chat(
+      MODEL.toLowerCase().includes("hermes") ? Models.HERMES : Models.AGENT,
+      messages as LLMMessage[],
+      {
+        temperature: 0.7,
+        maxTokens: 500,
+        tools: toolDefs,
+        timeoutMs: 120_000,
+      }
+    );
 
-    const data = await response.json();
-    const choice = data.choices?.[0];
-
-    if (!choice) {
-      return { content: "No response from AI" };
-    }
-
-    // Handle tool calls
-    if (choice.message?.tool_calls && choice.message.tool_calls.length > 0) {
-      const toolCalls = choice.message.tool_calls.map((tc: {
-        function: { name: string; arguments: string };
-      }) => ({
-        name: tc.function.name,
-        arguments: JSON.parse(tc.function.arguments),
-      }));
-
-      return {
-        content: choice.message.content || "",
-        toolCalls,
-      };
-    }
-
-    return { content: choice.message?.content || "" };
+    return {
+      content: response.content || "",
+      toolCalls: response.toolCalls,
+    };
   } catch (error) {
     console.error("[OpenClaw] Error:", error);
     return { content: "Sorry, I encountered an error. Please try again." };

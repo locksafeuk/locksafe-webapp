@@ -119,6 +119,9 @@ export async function GET() {
     version: process.env.npm_package_version || "1.0.0",
     environment: process.env.NODE_ENV,
     checks,
+    healthChecks: {
+      llmFailover: "https://locksafe.uk/api/health/llm-failover",
+    },
     webhooks: {
       telegram: "https://locksafe.uk/api/agent/telegram",
       whatsapp: "https://locksafe.uk/api/webhooks/whatsapp",

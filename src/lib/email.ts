@@ -3434,7 +3434,7 @@ export async function sendLocksmithInviteEmail(
           <p class="closing">
             Looking forward to hopefully working together, ${data.locksmithName}.<br /><br />
             Best regards,<br />
-            <strong>Alex Pido</strong><br />
+            <strong>Alex Piky</strong><br />
             Co-founder, LockSafe UK<br />
             <a href="tel:+442045771989" style="color:#f97316;">+44 20 4577 1989</a> | <a href="https://locksafe.uk" style="color:#f97316;">locksafe.uk</a>
           </p>
