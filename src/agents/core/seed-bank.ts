@@ -66,7 +66,7 @@ export async function getTopSeeds(opts: GetTopSeedsOptions = {}): Promise<string
 }
 
 export interface AddSeedOptions {
-  category?: "baseline" | "learned" | "competitor" | "experimental";
+  category?: "baseline" | "learned" | "competitor" | "experimental" | "negative";
   source?: string;
   notes?: string;
 }
@@ -122,6 +122,18 @@ export async function markSeedsUsed(keywords: string[]) {
     },
   });
   return result.count;
+}
+
+/**
+ * Return all keywords that have been marked as negative via the admin seed bank.
+ * These are injected into campaign draft negative keyword lists at build time.
+ */
+export async function getNegativeSeedKeywords(): Promise<string[]> {
+  const rows = await prisma.keywordSeed.findMany({
+    where: { category: "negative" },
+    select: { keyword: true },
+  });
+  return rows.map((r) => r.keyword);
 }
 
 /**

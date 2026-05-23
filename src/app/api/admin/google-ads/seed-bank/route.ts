@@ -1,7 +1,8 @@
 /**
  * GET    /api/admin/google-ads/seed-bank   — list all keyword seeds
  * POST   /api/admin/google-ads/seed-bank   — add a new seed { keyword, category? }
- * PATCH  /api/admin/google-ads/seed-bank   — toggle isActive { id, isActive }
+ * PATCH  /api/admin/google-ads/seed-bank   — update seed { id, isActive?, category? }
+ * DELETE /api/admin/google-ads/seed-bank   — permanently delete a seed { id }
  */
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "keyword required" }, { status: 400 });
   }
 
-  const ALLOWED_CATEGORIES = ["baseline", "learned", "competitor", "experimental"] as const;
+  const ALLOWED_CATEGORIES = ["baseline", "learned", "competitor", "experimental", "negative"] as const;
   type Category = (typeof ALLOWED_CATEGORIES)[number];
   const category: Category = ALLOWED_CATEGORIES.includes(body.category as Category)
     ? (body.category as Category)
@@ -61,17 +62,35 @@ export async function PATCH(request: NextRequest) {
   const admin = await verifyAdmin();
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const ALLOWED_CATEGORIES = ["baseline", "learned", "competitor", "experimental", "negative"] as const;
+  type Category = (typeof ALLOWED_CATEGORIES)[number];
+
   const body = (await request.json().catch(() => ({}))) as {
     id?: string;
     isActive?: boolean;
+    category?: string;
   };
-  if (!body.id || typeof body.isActive !== "boolean") {
-    return NextResponse.json({ error: "id + isActive required" }, { status: 400 });
+  if (!body.id || (typeof body.isActive !== "boolean" && !body.category)) {
+    return NextResponse.json({ error: "id + (isActive or category) required" }, { status: 400 });
   }
 
-  const seed = await prisma.keywordSeed.update({
-    where: { id: body.id },
-    data: { isActive: body.isActive },
-  });
+  const data: Record<string, unknown> = {};
+  if (typeof body.isActive === "boolean") data.isActive = body.isActive;
+  if (body.category && ALLOWED_CATEGORIES.includes(body.category as Category)) {
+    data.category = body.category as Category;
+  }
+
+  const seed = await prisma.keywordSeed.update({ where: { id: body.id }, data });
   return NextResponse.json({ seed });
+}
+
+export async function DELETE(request: NextRequest) {
+  const admin = await verifyAdmin();
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const body = (await request.json().catch(() => ({}))) as { id?: string };
+  if (!body.id) return NextResponse.json({ error: "id required" }, { status: 400 });
+
+  await prisma.keywordSeed.delete({ where: { id: body.id } });
+  return NextResponse.json({ ok: true });
 }

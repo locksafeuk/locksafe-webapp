@@ -36,6 +36,7 @@ import {
   mergeKeywords,
   mergeNegativeKeywords,
 } from "@/lib/google-ads-keywords";
+import { getNegativeSeedKeywords } from "@/agents/core/seed-bank";
 import {
   type GoogleAdsLearnings,
   provenKeywordsToGoogleKeywords,
@@ -342,9 +343,11 @@ export async function generateDraftPlanForLocksmith(
     provenKws,
   ).slice(0, 50);
 
-  // 4. Negative keyword set
+  // 4. Negative keyword set (baseline + admin-marked seeds + learnings + competitors)
+  const dbNegatives = await getNegativeSeedKeywords();
   const negativeKeywords = mergeNegativeKeywords(
     BASELINE_NEGATIVE_KEYWORDS,
+    dbNegatives,
     learnings?.searchTermNegativeCandidates ?? [],
     learnings?.zeroConvKeywords?.map((k) => k.text) ?? [],
     COMPETITOR_BRAND_NEGATIVES,

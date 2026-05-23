@@ -80,6 +80,34 @@ export default function SeedBankPage() {
     }
   }
 
+  async function markNegative(id: string) {
+    setBusy(id + ":negative");
+    try {
+      const r = await fetch("/api/admin/google-ads/seed-bank", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, isActive: false, category: "negative" }),
+      });
+      if (r.ok) await load();
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function deleteSeed(id: string) {
+    setBusy(id + ":delete");
+    try {
+      const r = await fetch("/api/admin/google-ads/seed-bank", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (r.ok) await load();
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <h1 className="text-2xl font-bold mb-1">Keyword Seed Bank</h1>
@@ -124,6 +152,7 @@ export default function SeedBankPage() {
                 <th className="px-3 py-2 text-right">Used</th>
                 <th className="px-3 py-2">Last used</th>
                 <th className="px-3 py-2 text-right">Active</th>
+                <th className="px-3 py-2 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -131,7 +160,9 @@ export default function SeedBankPage() {
                 <tr key={s.id} className={`border-t ${!s.isActive ? "opacity-50" : ""}`}>
                   <td className="px-3 py-2 font-medium">{s.keyword}</td>
                   <td className="px-3 py-2 text-xs">
-                    <span className="px-2 py-0.5 rounded bg-gray-100">{s.category}</span>
+                    <span className={`px-2 py-0.5 rounded text-xs ${s.category === "negative" ? "bg-red-100 text-red-800" : "bg-gray-100 text-gray-700"}`}>
+                      {s.category}
+                    </span>
                   </td>
                   <td className="px-3 py-2 text-right font-mono">{s.score.toFixed(3)}</td>
                   <td className="px-3 py-2 text-right text-xs font-mono">
@@ -147,7 +178,7 @@ export default function SeedBankPage() {
                     <button
                       type="button"
                       onClick={() => toggle(s.id, !s.isActive)}
-                      disabled={busy === s.id}
+                      disabled={busy === s.id || s.category === "negative"}
                       className={`px-3 py-1 rounded text-xs ${
                         s.isActive
                           ? "bg-green-100 text-green-900"
@@ -156,6 +187,30 @@ export default function SeedBankPage() {
                     >
                       {busy === s.id ? "…" : s.isActive ? "Active" : "Disabled"}
                     </button>
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <div className="flex gap-1 justify-end">
+                      {s.category !== "negative" && (
+                        <button
+                          type="button"
+                          onClick={() => markNegative(s.id)}
+                          disabled={busy === s.id + ":negative"}
+                          title="Block from scout and add to future campaign negative keyword lists"
+                          className="px-3 py-1 rounded text-xs bg-amber-100 text-amber-900 disabled:opacity-50"
+                        >
+                          {busy === s.id + ":negative" ? "…" : "Negative"}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => deleteSeed(s.id)}
+                        disabled={busy === s.id + ":delete"}
+                        title="Permanently delete this seed"
+                        className="px-3 py-1 rounded text-xs bg-red-100 text-red-900 disabled:opacity-50"
+                      >
+                        {busy === s.id + ":delete" ? "…" : "Delete"}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
