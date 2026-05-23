@@ -18,11 +18,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import { verifyToken } from '@/lib/auth';
+import { verifyCronAuth } from '@/lib/cron-auth';
 import prisma from '@/lib/db';
 
 // ─── Config ──────────────────────────────────────────────────────────────────
-
-const CRON_SECRET = process.env.CRON_SECRET;
 
 // Resolve path to the campaigns directory relative to the project root.
 // In production (Vercel) this path won't exist — the route becomes a no-op.
@@ -41,16 +40,13 @@ const PLATFORM_FILES: Record<string, string> = {
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
 async function verifyAccess(req: NextRequest): Promise<boolean> {
-  const authHeader = req.headers.get('authorization');
-  if (CRON_SECRET && authHeader === `Bearer ${CRON_SECRET}`) return true;
+  if (verifyCronAuth(req)) return true;
 
   const token = req.cookies.get('auth_token')?.value;
   if (token) {
     const payload = await verifyToken(token);
     if (payload?.type === 'admin') return true;
   }
-
-  if (!CRON_SECRET && process.env.NODE_ENV === 'development') return true;
 
   return false;
 }

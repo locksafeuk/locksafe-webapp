@@ -9,16 +9,14 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
+import { verifyCronAuth } from '@/lib/cron-auth';
 import { initializeAgentSystem } from '@/agents';
 import prisma from '@/lib/db';
 
-const CRON_SECRET = process.env.CRON_SECRET;
 const AGENTS_ENABLED = process.env.AGENTS_ENABLED === 'true';
 
 async function verifyAccess(req: NextRequest): Promise<boolean> {
-  // Cron secret
-  const authHeader = req.headers.get('authorization');
-  if (CRON_SECRET && authHeader === `Bearer ${CRON_SECRET}`) return true;
+  if (verifyCronAuth(req)) return true;
 
   // Admin session cookie
   const token = req.cookies.get('auth_token')?.value;
@@ -26,9 +24,6 @@ async function verifyAccess(req: NextRequest): Promise<boolean> {
     const payload = await verifyToken(token);
     if (payload?.type === 'admin') return true;
   }
-
-  // Allow in dev without any auth
-  if (!CRON_SECRET && process.env.NODE_ENV === 'development') return true;
 
   return false;
 }
