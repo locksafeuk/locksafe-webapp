@@ -45,13 +45,38 @@ function getCredentials() {
   };
 }
 
+function resolveSender(callerId?: string): string | undefined {
+  if (!callerId) return undefined;
+
+  const trimmed = callerId.trim();
+  if (!trimmed) return undefined;
+
+  // "Default" should mean "let Zadarma choose account default sender".
+  if (trimmed.toLowerCase() === "default") return undefined;
+
+  return trimmed;
+}
+
+function sanitizeZadarmaMessage(message: string): string {
+  // Some destinations reject SMS containing URLs for Zadarma sender routes.
+  // Keep message semantic content while removing direct links.
+  return message
+    .replace(/https?:\/\/\S+/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 function buildQueryString(params: Record<string, string>): string {
   // Zadarma signs the params in alphabetical order, joined as a regular
   // urlencoded query string (without leading "?").
+  // Must match PHP_QUERY_RFC1738 semantics from Zadarma docs.
   const sorted = Object.keys(params).sort();
-  return sorted
-    .map((key) => `${key}=${encodeURIComponent(params[key])}`)
-    .join("&");
+  const searchParams = new URLSearchParams();
+  for (const key of sorted) {
+    searchParams.append(key, params[key]);
+  }
+  // Match Zadarma official TS client behavior.
+  return searchParams.toString().replace(/%20/g, "+");
 }
 
 function signRequest(
@@ -59,10 +84,12 @@ function signRequest(
   queryString: string,
   apiSecret: string,
 ): string {
-  // Per Zadarma spec: signature = base64( hmac_sha1( method + queryString + md5(queryString) ) )
+  // Match official zadarma/user-api-typescript client behavior:
+  // base64(hex(hmac_sha1(method + query + md5(query), secret)))
   const md5Body = createHash("md5").update(queryString).digest("hex");
   const payload = method + queryString + md5Body;
-  return createHmac("sha1", apiSecret).update(payload).digest("base64");
+  const sha1Hex = createHmac("sha1", apiSecret).update(payload).digest("hex");
+  return Buffer.from(sha1Hex).toString("base64");
 }
 
 /**
@@ -72,15 +99,20 @@ function signRequest(
 export async function zadarmaRequest<T = unknown>(
   method: string, // e.g. "/v1/sms/send/"
   params: Record<string, string> = {},
-): Promise<{ ok: boolean; data?: T; error?: string }> {
+): Promise<{ ok: boolean; data?: T; error?: string; statusCode?: number }> {
   const { userKey, apiSecret } = getCredentials();
   if (!userKey || !apiSecret) {
     return { ok: false, error: "Zadarma credentials not configured" };
   }
 
-  const queryString = buildQueryString(params);
+  const paramsWithFormat = {
+    ...params,
+    format: "json",
+  };
+
+  const queryString = buildQueryString(paramsWithFormat);
   const signature = signRequest(method, queryString, apiSecret);
-  const url = `${ZADARMA_API_BASE}${method}${queryString ? `?${queryString}` : ""}`;
+  const url = `${ZADARMA_API_BASE}${method}`;
 
   try {
     const response = await fetch(url, {
@@ -89,11 +121,33 @@ export async function zadarmaRequest<T = unknown>(
         Authorization: `${userKey}:${signature}`,
         "Content-Type": "application/x-www-form-urlencoded",
       },
-      // Body is empty — we send params via querystring (matches signature).
+      body: queryString,
     });
 
-    const data = (await response.json()) as T;
-    return { ok: response.ok, data };
+    const raw = await response.text();
+    let data: T | undefined;
+
+    try {
+      data = JSON.parse(raw) as T;
+    } catch {
+      data = undefined;
+    }
+
+    if (!response.ok) {
+      const apiMessage =
+        typeof data === "object" && data !== null && "message" in (data as Record<string, unknown>)
+          ? String((data as Record<string, unknown>).message)
+          : raw.slice(0, 500);
+
+      return {
+        ok: false,
+        data,
+        statusCode: response.status,
+        error: `HTTP ${response.status}${apiMessage ? `: ${apiMessage}` : ""}`,
+      };
+    }
+
+    return { ok: true, data, statusCode: response.status };
   } catch (error) {
     return {
       ok: false,
@@ -127,9 +181,9 @@ export async function sendZadarmaSMS(
 
   const params: ZadarmaSendParams = {
     number,
-    message,
+    message: sanitizeZadarmaMessage(message),
   };
-  const callerId = options?.callerId ?? defaultCallerId;
+  const callerId = resolveSender(options?.callerId ?? defaultCallerId);
   if (callerId) params.caller_id = callerId;
 
   const result = await zadarmaRequest<ZadarmaResponse>(

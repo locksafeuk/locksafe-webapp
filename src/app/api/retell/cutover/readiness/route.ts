@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { evaluateRetellCutoverReadiness } from "@/lib/retell-cutover";
+import { getActiveSmsProvider, isSmsProviderConfigured } from "@/lib/sms";
 
 export async function GET() {
   try {
@@ -65,18 +66,18 @@ export async function GET() {
     const callToJobRate = totalCalls > 0 ? (jobsCreated / totalCalls) * 100 : 0;
     const escalationRate = totalCalls > 0 ? (escalatedCalls / totalCalls) * 100 : 0;
 
+    const smsProvider = getActiveSmsProvider();
+    const hasTwilioConfigured = isSmsProviderConfigured("twilio");
+    const hasZadarmaConfigured = isSmsProviderConfigured("zadarma");
+
     const readiness = evaluateRetellCutoverReadiness({
       env: {
         hasRetellApiKey: Boolean(process.env.RETELL_API_KEY),
         hasRetellAgentId: Boolean(process.env.RETELL_AGENT_ID),
         hasRetellWebhookSecret: Boolean(process.env.RETELL_WEBHOOK_SECRET),
-        hasTwilioAccountSid: Boolean(process.env.TWILIO_ACCOUNT_SID),
-        hasTwilioAuthToken: Boolean(process.env.TWILIO_AUTH_TOKEN),
-        hasTwilioSender: Boolean(
-          process.env.TWILIO_MESSAGING_SERVICE_SID ||
-            process.env.TWILIO_SMS_PHONE_NUMBER ||
-            process.env.TWILIO_PHONE_NUMBER
-        ),
+        smsProvider,
+        hasTwilioConfigured,
+        hasZadarmaConfigured,
         hasSiteUrl: Boolean(
           process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_BASE_URL
         ),

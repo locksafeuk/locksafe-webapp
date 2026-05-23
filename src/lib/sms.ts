@@ -1,13 +1,11 @@
 /**
- * LockSafe UK - Twilio SMS Notification Service
+ * LockSafe UK - SMS Notification Service
  *
  * Sends SMS notifications to customers and locksmiths throughout the job lifecycle.
  *
- * Required Environment Variables:
- * - TWILIO_ACCOUNT_SID: Twilio Account SID
- * - TWILIO_AUTH_TOKEN: Twilio Auth Token
- * - TWILIO_PHONE_NUMBER: UK phone number purchased from Twilio (+44...)
- * - NEXT_PUBLIC_BASE_URL: Base URL for links (e.g., https://locksafe.uk)
+ * Provider selection:
+ * - SMS_PROVIDER=zadarma|twilio (optional)
+ * - If omitted, defaults to Zadarma when configured, else Twilio.
  */
 
 // ============================================
@@ -15,6 +13,7 @@
 // ============================================
 
 import { normalizePhoneNumber } from "@/lib/phone";
+import { sendZadarmaSMS } from "@/lib/sms-zadarma";
 import { buildTwilioApiPayload, hasTwilioSenderConfigured } from "@/lib/twilio-sender";
 
 export interface SMSResult {
@@ -38,6 +37,8 @@ export interface JobSMSContext {
   quotedAmount?: number;
   finalAmount?: number;
 }
+
+export type SMSProvider = "twilio" | "zadarma";
 
 // ============================================
 // SMS TEMPLATES
@@ -180,14 +181,33 @@ function getTwilioCredentials() {
   };
 }
 
+function hasTwilioConfigured(): boolean {
+  const { accountSid, authToken } = getTwilioCredentials();
+  return Boolean(accountSid && authToken && hasTwilioSenderConfigured());
+}
+
+function hasZadarmaConfigured(): boolean {
+  return Boolean(process.env.ZADARMA_USER_KEY && process.env.ZADARMA_API_SECRET);
+}
+
+export function getActiveSmsProvider(): SMSProvider {
+  const configured = (process.env.SMS_PROVIDER || "").trim().toLowerCase();
+  if (configured === "zadarma") return "zadarma";
+  if (configured === "twilio") return "twilio";
+
+  // Default to Zadarma when available, otherwise fallback to Twilio.
+  return hasZadarmaConfigured() ? "zadarma" : "twilio";
+}
+
+export function isSmsProviderConfigured(provider = getActiveSmsProvider()): boolean {
+  return provider === "zadarma" ? hasZadarmaConfigured() : hasTwilioConfigured();
+}
+
 // ============================================
 // CORE SMS FUNCTION
 // ============================================
 
-/**
- * Send SMS via Twilio
- */
-export async function sendSMS(
+async function sendViaTwilio(
   to: string,
   message: string,
   options?: { logContext?: string },
@@ -255,6 +275,31 @@ export async function sendSMS(
       error: error instanceof Error ? error.message : "Unknown error",
     };
   }
+}
+
+/**
+ * Send SMS via the active provider (Zadarma or Twilio).
+ */
+export async function sendSMS(
+  to: string,
+  message: string,
+  options?: { logContext?: string },
+): Promise<SMSResult> {
+  const provider = getActiveSmsProvider();
+
+  if (provider === "zadarma") {
+    const result = await sendZadarmaSMS(to, message, options);
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error || "Failed to send SMS via Zadarma",
+      };
+    }
+
+    return result;
+  }
+
+  return sendViaTwilio(to, message, options);
 }
 
 // ============================================

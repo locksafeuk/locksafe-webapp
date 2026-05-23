@@ -30,6 +30,10 @@ const APNS_BUNDLE_ID = process.env.APNS_BUNDLE_ID || "uk.locksafe.app";
 const APNS_PRIVATE_KEY = process.env.APNS_PRIVATE_KEY || "";
 const FCM_PROJECT_ID = process.env.FCM_PROJECT_ID || "";
 const FCM_SERVICE_ACCOUNT_JSON = process.env.FCM_SERVICE_ACCOUNT_JSON || "";
+const IOS_ALERT_SOUND = process.env.IOS_ALERT_SOUND || "locksafe_alert.wav";
+const ANDROID_ALERT_SOUND = process.env.ANDROID_ALERT_SOUND || "locksafe_alert";
+const ANDROID_CHANNEL_ID =
+  process.env.ANDROID_CHANNEL_ID || "locksafe_jobs_critical";
 
 export interface NativePushPayload {
   title: string;
@@ -96,7 +100,9 @@ async function sendApns(
         body: payload.body,
       },
       badge: payload.badge ?? 1,
-      sound: "default",
+      sound: IOS_ALERT_SOUND,
+      "interruption-level": "time-sensitive",
+      "relevance-score": 1,
     },
     ...(payload.data || {}),
   };
@@ -220,12 +226,16 @@ async function sendFcm(
       android: {
         priority: "high",
         ttl: "86400s",
+        direct_boot_ok: true,
         notification: {
-          sound: "default",
-          channel_id: "locksafe_jobs",
+          sound: ANDROID_ALERT_SOUND,
+          channel_id: ANDROID_CHANNEL_ID,
           notification_priority: "PRIORITY_MAX",
           visibility: "PUBLIC",
           sticky: true,
+          default_sound: false,
+          priority: "PRIORITY_MAX",
+          event_time: String(Date.now()),
           default_vibrate_timings: true,
           default_light_settings: true,
         },

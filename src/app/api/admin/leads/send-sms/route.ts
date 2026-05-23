@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import twilio from "twilio";
-import { buildTwilioSdkPayload, hasTwilioSenderConfigured } from "@/lib/twilio-sender";
+import { getActiveSmsProvider, isSmsProviderConfigured, sendSMS } from "@/lib/sms";
 
 async function verifyAdmin() {
   const cookieStore = await cookies();
@@ -24,14 +23,6 @@ function isUKMobile(phone: string): boolean {
   );
 }
 
-/** Normalise UK mobile to E.164 format for Twilio */
-function toE164(phone: string): string {
-  const clean = phone.replace(/[\s\-().]/g, "");
-  if (clean.startsWith("07")) return "+44" + clean.slice(1);
-  if (clean.startsWith("00447")) return "+" + clean.slice(2);
-  return clean; // already +447...
-}
-
 function buildSms(name: string, city: string): string {
   const firstName = name.split(/\s+/)[0];
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://www.locksafe.uk";
@@ -47,18 +38,16 @@ export async function POST(req: NextRequest) {
   const admin = await verifyAdmin();
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const accountSid = process.env.TWILIO_ACCOUNT_SID;
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const provider = getActiveSmsProvider();
 
-  if (!accountSid || !authToken || !hasTwilioSenderConfigured()) {
+  if (!isSmsProviderConfigured(provider)) {
     return NextResponse.json(
-      { error: "Twilio not configured. Set account credentials plus one sender config (TWILIO_MESSAGING_SERVICE_SID or TWILIO_ALPHANUMERIC_SENDER_ID or TWILIO_SMS_PHONE_NUMBER/TWILIO_PHONE_NUMBER)." },
+      { error: `SMS provider (${provider}) not configured` },
       { status: 503 }
     );
   }
 
   const body = await req.json();
-  const client = twilio(accountSid, authToken);
 
   // Single send: { id: string }
   if (body.id) {
@@ -66,10 +55,18 @@ export async function POST(req: NextRequest) {
     if (!lead || !lead.phone || !isUKMobile(lead.phone)) {
       return NextResponse.json({ error: "Lead has no mobile number" }, { status: 400 });
     }
+    const sendResult = await sendSMS(lead.phone, buildSms(lead.name, lead.city), {
+      logContext: `admin-leads-single:${lead.id}`,
+    });
+
+    if (!sendResult.success) {
+      return NextResponse.json(
+        { error: sendResult.error || "Failed to send SMS" },
+        { status: 500 }
+      );
+    }
+
     try {
-      await client.messages.create({
-        ...buildTwilioSdkPayload(toE164(lead.phone), buildSms(lead.name, lead.city)),
-      });
       await prisma.locksmithLead.update({
         where: { id: lead.id },
         data: {
@@ -78,7 +75,7 @@ export async function POST(req: NextRequest) {
           contactedBy: "sms",
         },
       });
-      return NextResponse.json({ sent: 1, failed: 0 });
+      return NextResponse.json({ sent: 1, failed: 0, provider });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       return NextResponse.json({ error: msg }, { status: 500 });
@@ -101,9 +98,21 @@ export async function POST(req: NextRequest) {
         continue;
       }
       try {
-        await client.messages.create({
-          ...buildTwilioSdkPayload(toE164(lead.phone), buildSms(lead.name, lead.city)),
+        const sendResult = await sendSMS(lead.phone, buildSms(lead.name, lead.city), {
+          logContext: `admin-leads-bulk:${lead.id}`,
         });
+
+        if (!sendResult.success) {
+          results.push({
+            id: lead.id,
+            name: lead.name,
+            success: false,
+            error: sendResult.error || "Failed to send SMS",
+          });
+          failed++;
+          continue;
+        }
+
         await prisma.locksmithLead.update({
           where: { id: lead.id },
           data: { status: "contacted", contactedAt: new Date(), contactedBy: "sms" },
@@ -119,7 +128,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ sent, failed, results });
+    return NextResponse.json({ sent, failed, results, provider });
   }
 
   return NextResponse.json({ error: "Provide id or ids" }, { status: 400 });

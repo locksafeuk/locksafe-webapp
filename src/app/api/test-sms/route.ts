@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sendSMS, sendJobNotification, JobEventType } from "@/lib/sms";
+import {
+  sendSMS,
+  sendJobNotification,
+  JobEventType,
+  getActiveSmsProvider,
+  isSmsProviderConfigured,
+} from "@/lib/sms";
 
 /**
  * Test SMS endpoint
@@ -74,8 +80,22 @@ export async function POST(request: NextRequest) {
  * GET endpoint to show available test events
  */
 export async function GET() {
-  const smsNumber = process.env.TWILIO_SMS_PHONE_NUMBER || process.env.TWILIO_PHONE_NUMBER;
-  const voiceNumber = process.env.TWILIO_PHONE_NUMBER;
+  const activeProvider = getActiveSmsProvider();
+
+  const twilioConfigured = Boolean(
+    process.env.TWILIO_ACCOUNT_SID &&
+      process.env.TWILIO_AUTH_TOKEN &&
+      (process.env.TWILIO_MESSAGING_SERVICE_SID ||
+        process.env.TWILIO_ALPHANUMERIC_SENDER_ID ||
+        process.env.TWILIO_SMS_PHONE_NUMBER ||
+        process.env.TWILIO_PHONE_NUMBER)
+  );
+
+  const zadarmaConfigured = Boolean(
+    process.env.ZADARMA_USER_KEY && process.env.ZADARMA_API_SECRET
+  );
+
+  const twilioNumber = process.env.TWILIO_SMS_PHONE_NUMBER || process.env.TWILIO_PHONE_NUMBER;
 
   return NextResponse.json({
     message: "SMS Test Endpoint",
@@ -102,15 +122,30 @@ export async function GET() {
       "review_request",
       "refund",
     ],
-    twilioConfig: {
-      accountSidConfigured: !!process.env.TWILIO_ACCOUNT_SID,
-      authTokenConfigured: !!process.env.TWILIO_AUTH_TOKEN,
-      smsNumber: smsNumber || "NOT CONFIGURED - Buy an SMS-capable number from Twilio",
-      voiceNumber: voiceNumber || "Not configured",
-      smsReady: !!(process.env.TWILIO_SMS_PHONE_NUMBER),
+    smsConfig: {
+      activeProvider,
+      activeProviderReady: isSmsProviderConfigured(activeProvider),
+      twilio: {
+        configured: twilioConfigured,
+        accountSidConfigured: !!process.env.TWILIO_ACCOUNT_SID,
+        authTokenConfigured: !!process.env.TWILIO_AUTH_TOKEN,
+        senderConfigured: Boolean(
+          process.env.TWILIO_MESSAGING_SERVICE_SID ||
+            process.env.TWILIO_ALPHANUMERIC_SENDER_ID ||
+            process.env.TWILIO_SMS_PHONE_NUMBER ||
+            process.env.TWILIO_PHONE_NUMBER
+        ),
+        smsNumber: twilioNumber || "Not configured",
+      },
+      zadarma: {
+        configured: zadarmaConfigured,
+        userKeyConfigured: !!process.env.ZADARMA_USER_KEY,
+        apiSecretConfigured: !!process.env.ZADARMA_API_SECRET,
+        callerIdConfigured: !!process.env.ZADARMA_SMS_CALLER_ID,
+      },
     },
-    note: !process.env.TWILIO_SMS_PHONE_NUMBER
-      ? "WARNING: No SMS-capable number configured. Your voice number may not support SMS. Set TWILIO_SMS_PHONE_NUMBER in .env"
-      : "SMS configured and ready",
+    note: isSmsProviderConfigured(activeProvider)
+      ? `SMS provider ${activeProvider} configured and ready`
+      : `WARNING: SMS provider ${activeProvider} is not fully configured`,
   });
 }

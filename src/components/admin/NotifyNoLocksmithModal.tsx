@@ -254,7 +254,7 @@ export function NotifyNoLocksmithModal({
                 />
                 <div className="flex-1">
                   <div className="text-sm font-medium text-slate-900 flex items-center gap-1.5">
-                    <MessageSquare className="w-4 h-4" /> SMS (Zadarma)
+                    <MessageSquare className="w-4 h-4" /> SMS
                   </div>
                   <div className="text-xs text-slate-500 mt-0.5">
                     {hasPhone ? "Editable below" : "Customer phone missing"}
@@ -309,6 +309,7 @@ export function NotifyNoLocksmithModal({
                 </span>
               </div>
               <textarea
+                aria-label="SMS message"
                 value={smsBody}
                 onChange={(e) => setSmsBody(e.target.value)}
                 rows={5}

@@ -12,9 +12,9 @@ export type RetellCutoverInput = {
     hasRetellApiKey: boolean;
     hasRetellAgentId: boolean;
     hasRetellWebhookSecret: boolean;
-    hasTwilioAccountSid: boolean;
-    hasTwilioAuthToken: boolean;
-    hasTwilioSender: boolean;
+    smsProvider: "twilio" | "zadarma";
+    hasTwilioConfigured: boolean;
+    hasZadarmaConfigured: boolean;
     hasSiteUrl: boolean;
   };
   activeConfig: {
@@ -50,9 +50,14 @@ export function evaluateRetellCutoverReadiness(input: RetellCutoverInput) {
   if (!input.env.hasRetellApiKey) missingEnv.push("RETELL_API_KEY");
   if (!input.env.hasRetellAgentId) missingEnv.push("RETELL_AGENT_ID");
   if (!input.env.hasRetellWebhookSecret) missingEnv.push("RETELL_WEBHOOK_SECRET");
-  if (!input.env.hasTwilioAccountSid) missingEnv.push("TWILIO_ACCOUNT_SID");
-  if (!input.env.hasTwilioAuthToken) missingEnv.push("TWILIO_AUTH_TOKEN");
-  if (!input.env.hasTwilioSender) missingEnv.push("TWILIO_PHONE_NUMBER/TWILIO_SMS_PHONE_NUMBER/TWILIO_MESSAGING_SERVICE_SID");
+  if (input.env.smsProvider === "twilio" && !input.env.hasTwilioConfigured) {
+    missingEnv.push(
+      "TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN + one sender (TWILIO_MESSAGING_SERVICE_SID or TWILIO_ALPHANUMERIC_SENDER_ID or TWILIO_SMS_PHONE_NUMBER/TWILIO_PHONE_NUMBER)",
+    );
+  }
+  if (input.env.smsProvider === "zadarma" && !input.env.hasZadarmaConfigured) {
+    missingEnv.push("ZADARMA_USER_KEY + ZADARMA_API_SECRET");
+  }
   if (!input.env.hasSiteUrl) missingEnv.push("NEXT_PUBLIC_SITE_URL or NEXT_PUBLIC_BASE_URL");
 
   checks.push({
@@ -61,7 +66,7 @@ export function evaluateRetellCutoverReadiness(input: RetellCutoverInput) {
     status: missingEnv.length === 0 ? "pass" : "fail",
     details:
       missingEnv.length === 0
-        ? "Retell, Twilio, and site URL env vars are present."
+        ? `Retell, ${input.env.smsProvider} SMS, and site URL env vars are present.`
         : `Missing required env vars: ${missingEnv.join(", ")}`,
   });
 

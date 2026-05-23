@@ -5,9 +5,9 @@ const BASE_INPUT = {
     hasRetellApiKey: true,
     hasRetellAgentId: true,
     hasRetellWebhookSecret: true,
-    hasTwilioAccountSid: true,
-    hasTwilioAuthToken: true,
-    hasTwilioSender: true,
+    smsProvider: "zadarma" as const,
+    hasTwilioConfigured: true,
+    hasZadarmaConfigured: true,
     hasSiteUrl: true,
   },
   activeConfig: {
@@ -42,7 +42,7 @@ describe("evaluateRetellCutoverReadiness", () => {
   it("fails when critical env vars are missing", () => {
     const result = evaluateRetellCutoverReadiness({
       ...BASE_INPUT,
-      env: { ...BASE_INPUT.env, hasTwilioAuthToken: false },
+      env: { ...BASE_INPUT.env, hasZadarmaConfigured: false },
     });
 
     expect(result.readyForSwitch).toBe(false);
