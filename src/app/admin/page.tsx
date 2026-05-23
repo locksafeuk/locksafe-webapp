@@ -37,12 +37,10 @@ import { AdminSidebar } from "@/components/layout/AdminSidebar";
 interface DashboardStats {
   totalJobs: number;
   activeJobs: number;
-  completedJobs: number;
   totalRevenue: number;
   totalLocksmiths: number;
   activeLocksmiths: number;
   totalCustomers: number;
-  pendingPayouts: number;
 }
 
 interface AwaitingSignatureJob {
@@ -76,23 +74,26 @@ interface OpsSnapshot {
   timestamp: string;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const problemLabels: Record<string, string> = {
-  lockout:    "Locked Out",
-  broken:     "Broken Lock",
-  "key-stuck": "Key Stuck",
-  "lost-keys": "Lost Keys",
-  burglary:   "After Burglary",
-  other:      "Other",
+  lockout: "Locked Out", broken: "Broken Lock", "key-stuck": "Key Stuck",
+  "lost-keys": "Lost Keys", burglary: "After Burglary", other: "Other",
 };
 
 function formatTimeAgo(iso: string): string {
   const secs = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (secs < 60)  return `${secs}s ago`;
-  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
+  if (secs < 60)    return `${secs}s ago`;
+  if (secs < 3600)  return `${Math.floor(secs / 60)}m ago`;
   if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
   return `${Math.floor(secs / 86400)}d ago`;
+}
+
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
 }
 
 // ─── OpsTile ─────────────────────────────────────────────────────────────────
@@ -107,26 +108,29 @@ interface TileProps {
   sub?: string;
   iconBg: string;
   iconColor: string;
+  borderHover: string;
   dot: DotColor;
 }
 
-function OpsTile({ icon: Icon, label, href, value, sub, iconBg, iconColor, dot }: TileProps) {
+function OpsTile({ icon: Icon, label, href, value, sub, iconBg, iconColor, borderHover, dot }: TileProps) {
   const dotCls: Record<DotColor, string> = {
     green: "bg-green-400",
     amber: "bg-amber-400",
     red:   "bg-red-500",
     gray:  "bg-slate-300",
   };
+  const pulse = dot === "amber" || dot === "red";
   return (
     <Link
       href={href}
-      className="bg-white rounded-xl p-3 shadow-sm border border-transparent hover:shadow-md hover:border-slate-200 transition-all flex flex-col gap-1.5 min-h-[88px]"
+      className={`group bg-white rounded-xl p-3 shadow-sm border border-transparent ${borderHover}
+                  hover:shadow-md hover:-translate-y-0.5 transition-all duration-150 flex flex-col gap-1.5 min-h-[88px]`}
     >
       <div className="flex items-center justify-between">
-        <div className={`w-7 h-7 ${iconBg} rounded-lg flex items-center justify-center shrink-0`}>
+        <div className={`w-7 h-7 ${iconBg} rounded-lg flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-150`}>
           <Icon className={`w-3.5 h-3.5 ${iconColor}`} />
         </div>
-        <span className={`w-2 h-2 rounded-full shrink-0 ${dotCls[dot]}`} title={dot} />
+        <span className={`w-2 h-2 rounded-full shrink-0 ${dotCls[dot]} ${pulse ? "animate-pulse" : ""}`} title={dot} />
       </div>
       <div className="text-[11px] font-semibold text-slate-600 leading-tight">{label}</div>
       {value !== undefined && (
@@ -139,429 +143,381 @@ function OpsTile({ icon: Icon, label, href, value, sub, iconBg, iconColor, dot }
   );
 }
 
+// ─── Domain section wrapper ───────────────────────────────────────────────────
+
+function DomainSection({
+  label, accent, children,
+}: { label: string; accent: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        <div className={`w-1 h-3.5 rounded-full ${accent}`} />
+        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{label}</p>
+      </div>
+      <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-2 lg:gap-3">
+        {children}
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
-  const [stats,    setStats]    = useState<DashboardStats | null>(null);
+  const [stats, setStats]               = useState<DashboardStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
-  const [awaitingSignatureJobs, setAwaitingSignatureJobs] = useState<AwaitingSignatureJob[]>([]);
-  const [signatureLoading, setSignatureLoading] = useState(true);
-  const [ops, setOps] = useState<OpsSnapshot | null>(null);
+  const [awaitingJobs, setAwaitingJobs] = useState<AwaitingSignatureJob[]>([]);
+  const [sigLoading, setSigLoading]     = useState(true);
+  const [ops, setOps]                   = useState<OpsSnapshot | null>(null);
 
   useEffect(() => {
-    fetchStats();
-    fetchAwaitingSignatureJobs();
+    // Stats
+    fetch("/api/admin/stats")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success) {
+          setStats({
+            totalJobs:       data.stats.overview?.totalJobs || 0,
+            activeJobs:      data.stats.jobsByStatus?.inProgress || 0,
+            totalRevenue:    data.stats.overview?.monthlyRevenue || 0,
+            totalLocksmiths: data.stats.overview?.totalLocksmiths || 0,
+            activeLocksmiths: data.stats.overview?.totalLocksmiths || 0,
+            totalCustomers:  data.stats.overview?.totalCustomers || 0,
+          });
+        }
+      })
+      .catch(console.error)
+      .finally(() => setStatsLoading(false));
 
+    // Awaiting signature jobs
+    fetch("/api/admin/jobs?awaitingSignature=true&limit=10")
+      .then((r) => r.json())
+      .then((data) => { if (data.success) setAwaitingJobs(data.jobs); })
+      .catch(console.error)
+      .finally(() => setSigLoading(false));
+
+    // Ops snapshot — poll every 30s
     const loadOps = () =>
-      fetch("/api/admin/ops-snapshot")
-        .then((r) => r.json())
-        .then(setOps)
-        .catch(() => {});
+      fetch("/api/admin/ops-snapshot").then((r) => r.json()).then(setOps).catch(() => {});
     loadOps();
     const t = setInterval(loadOps, 30_000);
     return () => clearInterval(t);
   }, []);
 
-  const fetchStats = async () => {
-    try {
-      const response = await fetch("/api/admin/stats");
-      const data = await response.json();
-      if (data.success) {
-        setStats({
-          totalJobs:       data.stats.overview?.totalJobs || 0,
-          activeJobs:      data.stats.jobsByStatus?.inProgress || 0,
-          completedJobs:   data.stats.jobsByStatus?.completed || 0,
-          totalRevenue:    data.stats.overview?.monthlyRevenue || 0,
-          totalLocksmiths: data.stats.overview?.totalLocksmiths || 0,
-          activeLocksmiths: data.stats.overview?.totalLocksmiths || 0,
-          totalCustomers:  data.stats.overview?.totalCustomers || 0,
-          pendingPayouts:  0,
-        });
-      }
-    } catch (error) {
-      console.error("Failed to fetch stats:", error);
-    } finally {
-      setStatsLoading(false);
-    }
-  };
-
-  const fetchAwaitingSignatureJobs = async () => {
-    try {
-      const response = await fetch("/api/admin/jobs?awaitingSignature=true&limit=10");
-      const data = await response.json();
-      if (data.success) setAwaitingSignatureJobs(data.jobs);
-    } catch (error) {
-      console.error("Failed to fetch awaiting signature jobs:", error);
-    } finally {
-      setSignatureLoading(false);
-    }
-  };
-
-  const getDeadlineStatus = (deadline: string | null) => {
+  const getDeadline = (deadline: string | null) => {
     if (!deadline) return { text: "No deadline", color: "text-slate-500" };
-    const remaining = new Date(deadline).getTime() - Date.now();
-    if (remaining < 0)                          return { text: "Overdue",              color: "text-red-600" };
-    const hours = Math.floor(remaining / (1000 * 60 * 60));
-    if (hours < 2)  return { text: `${Math.floor(remaining / 60000)}m left`, color: "text-red-500" };
-    if (hours < 24) return { text: `${hours}h left`,                         color: "text-amber-500" };
-    return { text: `${Math.floor(hours / 24)}d left`, color: "text-green-600" };
+    const rem = new Date(deadline).getTime() - Date.now();
+    if (rem < 0) return { text: "Overdue", color: "text-red-600" };
+    const h = Math.floor(rem / 3_600_000);
+    if (h < 2)  return { text: `${Math.floor(rem / 60000)}m left`, color: "text-red-500" };
+    if (h < 24) return { text: `${h}h left`, color: "text-amber-500" };
+    return { text: `${Math.floor(h / 24)}d left`, color: "text-green-600" };
   };
 
-  // ── Derived tile values ──────────────────────────────────────────────────────
-
-  const awaitSig = ops?.ops.awaitingSignature ?? 0;
+  // ── Derived values ──────────────────────────────────────────────────────────
+  const awaitSig     = ops?.ops.awaitingSignature ?? 0;
   const pendingVerif = ops?.people.pendingVerification ?? 0;
   const openDisputes = ops?.safety.openDisputes ?? 0;
-  const activeAgents = ops?.agents.active ?? 0;
-  const totalAgents  = ops?.agents.total ?? 0;
   const pendingApprovals = ops?.agents.pendingApprovals ?? 0;
-  const localPct = ops?.agents.llmRuntime.localPct;
-  const lastModel = ops?.agents.llmRuntime.lastModel;
+  const localPct     = ops?.agents.llmRuntime.localPct;
+  const lastModel    = ops?.agents.llmRuntime.lastModel;
   const inProgressVoice = ops?.voice.inProgressCalls ?? 0;
 
-  const agentHeartbeatDot = (): DotColor => {
+  const agentDot = (): DotColor => {
     if (!ops?.agents.lastHeartbeat) return "gray";
     const ageMins = (Date.now() - new Date(ops.agents.lastHeartbeat).getTime()) / 60000;
-    if (ageMins < 30) return "green";
-    if (ageMins < 120) return "amber";
-    return "red";
-  };
-
-  const llmDot = (): DotColor => {
-    if (localPct === null || localPct === undefined) return "gray";
-    return localPct > 50 ? "green" : "amber";
+    return ageMins < 30 ? "green" : ageMins < 120 ? "amber" : "red";
   };
 
   return (
     <AdminSidebar>
-      <div className="p-4 lg:p-8">
-        <div className="mb-6 lg:mb-8">
-          <h1 className="text-2xl lg:text-3xl font-bold text-slate-900">Dashboard</h1>
-          <p className="text-slate-500">Welcome back, Admin User</p>
+      <div className="p-4 lg:p-6 xl:p-8 space-y-6">
+
+        {/* ── Hero Banner ──────────────────────────────────────────────────────── */}
+        <div className="relative overflow-hidden rounded-2xl lg:rounded-3xl">
+          {/* Base gradient */}
+          <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800" />
+          {/* Dot-grid texture */}
+          <div className="absolute inset-0 hero-dot-grid" />
+          {/* Glow orbs */}
+          <div className="absolute -top-20 -right-20 w-80 h-80 bg-orange-500/30 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-16 left-1/3 w-64 h-64 bg-sky-500/15 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute top-1/2 right-1/4 w-48 h-48 bg-violet-500/15 rounded-full blur-2xl pointer-events-none" />
+
+          {/* Content */}
+          <div className="relative z-10 p-5 lg:p-8">
+            {/* Title row */}
+            <div className="flex items-start justify-between mb-5 lg:mb-6">
+              <div>
+                <p className="text-xs font-semibold text-orange-400 uppercase tracking-widest mb-1">
+                  LockSafe Admin
+                </p>
+                <h1 className="text-2xl lg:text-3xl font-bold text-white tracking-tight">
+                  {getGreeting()} 👋
+                </h1>
+                <p className="text-slate-400 text-sm mt-1">
+                  Here&apos;s your live operations overview
+                </p>
+              </div>
+              <div className="text-right hidden sm:block">
+                {ops ? (
+                  <span className="text-xs text-slate-500">
+                    Updated {formatTimeAgo(ops.timestamp)}
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 text-xs text-slate-600">
+                    <Loader2 className="w-3 h-3 animate-spin" /> Loading…
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Compact stat chips */}
+            {statsLoading ? (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="bg-white/5 rounded-xl p-3 lg:p-4 animate-pulse h-16" />
+                ))}
+              </div>
+            ) : stats ? (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { label: "Total Jobs",   value: stats.totalJobs,                            sub: `${stats.activeJobs} active`,       color: "text-sky-400",    icon: Briefcase },
+                  { label: "Revenue",      value: `£${stats.totalRevenue.toLocaleString()}`,   sub: "This month",                       color: "text-green-400",  icon: PoundSterling },
+                  { label: "Locksmiths",   value: stats.totalLocksmiths,                       sub: `${stats.activeLocksmiths} verified`, color: "text-violet-400", icon: Users },
+                  { label: "Customers",    value: stats.totalCustomers,                         sub: "Registered",                       color: "text-amber-400",  icon: UserCircle },
+                ].map(({ label, value, sub, color, icon: Icon }) => (
+                  <div
+                    key={label}
+                    className="bg-white/5 backdrop-blur-sm rounded-xl p-3 lg:p-4 border border-white/10 hover:bg-white/8 transition-colors"
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <Icon className={`w-3.5 h-3.5 ${color} opacity-70`} />
+                      <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{label}</span>
+                    </div>
+                    <div className={`text-xl lg:text-2xl font-bold ${color}`}>{value}</div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">{sub}</div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
         </div>
 
-        {/* ── Stats Grid ──────────────────────────────────────────────────────── */}
-        {statsLoading ? (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-6 mb-6 lg:mb-8">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="bg-white rounded-xl lg:rounded-2xl p-4 lg:p-6 shadow-sm animate-pulse">
-                <div className="h-4 bg-slate-200 rounded w-1/2 mb-4" />
-                <div className="h-6 lg:h-8 bg-slate-200 rounded w-3/4" />
-              </div>
-            ))}
-          </div>
-        ) : stats ? (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-6 mb-6 lg:mb-8">
-            <div className="bg-white rounded-xl lg:rounded-2xl p-4 lg:p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-2 lg:mb-4">
-                <span className="text-slate-500 text-xs lg:text-sm">Total Jobs</span>
-                <div className="w-8 h-8 lg:w-10 lg:h-10 bg-blue-100 rounded-lg lg:rounded-xl flex items-center justify-center">
-                  <Briefcase className="w-4 h-4 lg:w-5 lg:h-5 text-blue-600" />
-                </div>
-              </div>
-              <div className="text-xl lg:text-3xl font-bold text-slate-900">{stats.totalJobs}</div>
-              <div className="text-xs lg:text-sm text-green-600 flex items-center gap-1 mt-1">
-                <TrendingUp className="w-3 h-3 lg:w-4 lg:h-4" />
-                <span>{stats.activeJobs} active</span>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl lg:rounded-2xl p-4 lg:p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-2 lg:mb-4">
-                <span className="text-slate-500 text-xs lg:text-sm">Revenue</span>
-                <div className="w-8 h-8 lg:w-10 lg:h-10 bg-green-100 rounded-lg lg:rounded-xl flex items-center justify-center">
-                  <PoundSterling className="w-4 h-4 lg:w-5 lg:h-5 text-green-600" />
-                </div>
-              </div>
-              <div className="text-xl lg:text-3xl font-bold text-slate-900">
-                £{(stats.totalRevenue || 0).toLocaleString()}
-              </div>
-              <div className="text-xs lg:text-sm text-slate-500 mt-1">This month</div>
-            </div>
-            <div className="bg-white rounded-xl lg:rounded-2xl p-4 lg:p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-2 lg:mb-4">
-                <span className="text-slate-500 text-xs lg:text-sm">Locksmiths</span>
-                <div className="w-8 h-8 lg:w-10 lg:h-10 bg-purple-100 rounded-lg lg:rounded-xl flex items-center justify-center">
-                  <Users className="w-4 h-4 lg:w-5 lg:h-5 text-purple-600" />
-                </div>
-              </div>
-              <div className="text-xl lg:text-3xl font-bold text-slate-900">{stats.totalLocksmiths}</div>
-              <div className="text-xs lg:text-sm text-green-600 flex items-center gap-1 mt-1">
-                <CheckCircle2 className="w-3 h-3 lg:w-4 lg:h-4" />
-                <span>{stats.activeLocksmiths} verified</span>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl lg:rounded-2xl p-4 lg:p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-2 lg:mb-4">
-                <span className="text-slate-500 text-xs lg:text-sm">Customers</span>
-                <div className="w-8 h-8 lg:w-10 lg:h-10 bg-orange-100 rounded-lg lg:rounded-xl flex items-center justify-center">
-                  <Users className="w-4 h-4 lg:w-5 lg:h-5 text-orange-600" />
-                </div>
-              </div>
-              <div className="text-xl lg:text-3xl font-bold text-slate-900">{stats.totalCustomers}</div>
-              <div className="text-xs lg:text-sm text-slate-500 mt-1">Registered users</div>
-            </div>
-          </div>
-        ) : null}
-
-        {/* ── Live Operations Tiles ────────────────────────────────────────────── */}
-        <div className="mb-6 lg:mb-8">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
+        {/* ── Live Operations Tiles ─────────────────────────────────────────────── */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider">
               Live Operations
             </h2>
-            <span className="text-xs text-slate-400">
-              {ops ? `Updated ${formatTimeAgo(ops.timestamp)}` : (
-                <span className="flex items-center gap-1">
-                  <Loader2 className="w-3 h-3 animate-spin" /> Refreshing…
-                </span>
-              )}
-            </span>
+            {ops && (
+              <span className="text-xs text-slate-400 tabular-nums">
+                Auto-refresh 30s · {formatTimeAgo(ops.timestamp)}
+              </span>
+            )}
           </div>
 
-          {/* Domain label rows + tiles in a flat responsive grid */}
-          <div className="space-y-4">
+          <div className="space-y-5">
 
             {/* Operations */}
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-sky-500 mb-1.5 px-0.5">Operations</p>
-              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-2 lg:gap-3">
-                <OpsTile
-                  icon={Briefcase} label="Live Jobs"
-                  href="/admin/jobs"
-                  value={ops?.ops.activeJobs ?? "—"}
-                  sub={`${awaitSig} awaiting sig`}
-                  iconBg="bg-sky-100" iconColor="text-sky-600"
-                  dot={awaitSig > 8 ? "red" : awaitSig > 3 ? "amber" : "green"}
-                />
-                <OpsTile
-                  icon={PenTool} label="Signatures"
-                  href="/admin/jobs?status=PENDING_CUSTOMER_CONFIRMATION"
-                  value={ops?.ops.awaitingSignature ?? "—"}
-                  sub="Pending confirmation"
-                  iconBg="bg-amber-100" iconColor="text-amber-600"
-                  dot={awaitSig > 5 ? "red" : awaitSig > 2 ? "amber" : "green"}
-                />
-                <OpsTile
-                  icon={Map} label="Live Ops Map"
-                  href="/admin/ops"
-                  sub="View map"
-                  iconBg="bg-sky-100" iconColor="text-sky-600"
-                  dot="green"
-                />
-              </div>
-            </div>
+            <DomainSection label="Operations" accent="bg-sky-500">
+              <OpsTile icon={Briefcase} label="Live Jobs"
+                href="/admin/jobs"
+                value={ops?.ops.activeJobs ?? "—"}
+                sub={`${awaitSig} awaiting sig`}
+                iconBg="bg-sky-100" iconColor="text-sky-600"
+                borderHover="hover:border-sky-200"
+                dot={awaitSig > 8 ? "red" : awaitSig > 3 ? "amber" : "green"} />
+              <OpsTile icon={PenTool} label="Signatures"
+                href="/admin/jobs?status=PENDING_CUSTOMER_CONFIRMATION"
+                value={ops?.ops.awaitingSignature ?? "—"}
+                sub="Pending confirmation"
+                iconBg="bg-amber-100" iconColor="text-amber-600"
+                borderHover="hover:border-amber-200"
+                dot={awaitSig > 5 ? "red" : awaitSig > 2 ? "amber" : "green"} />
+              <OpsTile icon={Map} label="Live Ops Map"
+                href="/admin/ops"
+                sub="View map"
+                iconBg="bg-sky-100" iconColor="text-sky-600"
+                borderHover="hover:border-sky-200"
+                dot="green" />
+            </DomainSection>
 
             {/* People */}
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 mb-1.5 px-0.5">People</p>
-              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-2 lg:gap-3">
-                <OpsTile
-                  icon={Users} label="Locksmiths"
-                  href="/admin/locksmiths"
-                  value={ops?.people.totalLocksmiths ?? "—"}
-                  sub={`${pendingVerif} to verify`}
-                  iconBg="bg-emerald-100" iconColor="text-emerald-600"
-                  dot={pendingVerif > 0 ? "amber" : "green"}
-                />
-                <OpsTile
-                  icon={UserCircle} label="Customers"
-                  href="/admin/customers"
-                  sub="View customers"
-                  iconBg="bg-emerald-100" iconColor="text-emerald-600"
-                  dot="green"
-                />
-                <OpsTile
-                  icon={Users2} label="Leads"
-                  href="/admin/leads"
-                  sub="View pipeline"
-                  iconBg="bg-emerald-100" iconColor="text-emerald-600"
-                  dot="green"
-                />
-              </div>
-            </div>
+            <DomainSection label="People" accent="bg-emerald-500">
+              <OpsTile icon={Users} label="Locksmiths"
+                href="/admin/locksmiths"
+                value={ops?.people.totalLocksmiths ?? "—"}
+                sub={`${pendingVerif} to verify`}
+                iconBg="bg-emerald-100" iconColor="text-emerald-600"
+                borderHover="hover:border-emerald-200"
+                dot={pendingVerif > 0 ? "amber" : "green"} />
+              <OpsTile icon={UserCircle} label="Customers"
+                href="/admin/customers"
+                sub="View all customers"
+                iconBg="bg-emerald-100" iconColor="text-emerald-600"
+                borderHover="hover:border-emerald-200"
+                dot="green" />
+              <OpsTile icon={Users2} label="Leads"
+                href="/admin/leads"
+                sub="View pipeline"
+                iconBg="bg-emerald-100" iconColor="text-emerald-600"
+                borderHover="hover:border-emerald-200"
+                dot="green" />
+            </DomainSection>
 
             {/* Finance */}
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-green-500 mb-1.5 px-0.5">Finance</p>
-              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-2 lg:gap-3">
-                <OpsTile
-                  icon={PoundSterling} label="Payouts"
-                  href="/admin/payouts"
-                  value={ops?.finance.pendingPayouts ?? "—"}
-                  sub="Pending payout"
-                  iconBg="bg-green-100" iconColor="text-green-600"
-                  dot={ops?.finance.pendingPayouts ?? 0 > 0 ? "amber" : "green"}
-                />
-                <OpsTile
-                  icon={CreditCard} label="Payments"
-                  href="/admin/payments"
-                  sub="All transactions"
-                  iconBg="bg-green-100" iconColor="text-green-600"
-                  dot="green"
-                />
-                <OpsTile
-                  icon={Crown} label="Subscriptions"
-                  href="/admin/subscriptions"
-                  sub="Cover plans"
-                  iconBg="bg-green-100" iconColor="text-green-600"
-                  dot="green"
-                />
-              </div>
-            </div>
+            <DomainSection label="Finance" accent="bg-green-500">
+              <OpsTile icon={PoundSterling} label="Payouts"
+                href="/admin/payouts"
+                value={ops?.finance.pendingPayouts ?? "—"}
+                sub="Pending payout"
+                iconBg="bg-green-100" iconColor="text-green-600"
+                borderHover="hover:border-green-200"
+                dot={(ops?.finance.pendingPayouts ?? 0) > 0 ? "amber" : "green"} />
+              <OpsTile icon={CreditCard} label="Payments"
+                href="/admin/payments"
+                sub="All transactions"
+                iconBg="bg-green-100" iconColor="text-green-600"
+                borderHover="hover:border-green-200"
+                dot="green" />
+              <OpsTile icon={Crown} label="Subscriptions"
+                href="/admin/subscriptions"
+                sub="Cover plans"
+                iconBg="bg-green-100" iconColor="text-green-600"
+                borderHover="hover:border-green-200"
+                dot="green" />
+            </DomainSection>
 
             {/* Trust & Safety */}
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-red-500 mb-1.5 px-0.5">Trust & Safety</p>
-              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-2 lg:gap-3">
-                <OpsTile
-                  icon={AlertTriangle} label="Disputes"
-                  href="/admin/disputes"
-                  value={ops?.safety.openDisputes ?? "—"}
-                  sub="Open disputes"
-                  iconBg="bg-red-100" iconColor="text-red-600"
-                  dot={openDisputes > 0 ? "red" : "green"}
-                />
-                <OpsTile
-                  icon={Shield} label="Security"
-                  href="/admin/security"
-                  sub="Fraud radar"
-                  iconBg="bg-red-100" iconColor="text-red-600"
-                  dot="green"
-                />
-              </div>
-            </div>
+            <DomainSection label="Trust & Safety" accent="bg-red-500">
+              <OpsTile icon={AlertTriangle} label="Disputes"
+                href="/admin/disputes"
+                value={ops?.safety.openDisputes ?? "—"}
+                sub="Open disputes"
+                iconBg="bg-red-100" iconColor="text-red-600"
+                borderHover="hover:border-red-200"
+                dot={openDisputes > 0 ? "red" : "green"} />
+              <OpsTile icon={Shield} label="Security"
+                href="/admin/security"
+                sub="Fraud radar"
+                iconBg="bg-red-100" iconColor="text-red-600"
+                borderHover="hover:border-red-200"
+                dot="green" />
+            </DomainSection>
 
             {/* AI & Automation */}
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-violet-500 mb-1.5 px-0.5">AI & Automation</p>
-              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-2 lg:gap-3">
-                <OpsTile
-                  icon={Bot} label="AI Agents"
-                  href="/admin/agents"
-                  value={ops ? `${activeAgents}/${totalAgents}` : "—"}
-                  sub={ops?.agents.lastHeartbeat ? `Beat ${formatTimeAgo(ops.agents.lastHeartbeat)}` : "No heartbeat"}
-                  iconBg="bg-violet-100" iconColor="text-violet-600"
-                  dot={agentHeartbeatDot()}
-                />
-                <OpsTile
-                  icon={ShieldCheck} label="Approvals"
-                  href="/admin/agents/approvals"
-                  value={ops?.agents.pendingApprovals ?? "—"}
-                  sub="Pending decisions"
-                  iconBg="bg-violet-100" iconColor="text-violet-600"
-                  dot={pendingApprovals > 0 ? "amber" : "green"}
-                />
-                <OpsTile
-                  icon={Cpu} label="LLM Runtime"
-                  href="/admin/agents"
-                  value={localPct !== null && localPct !== undefined ? `${localPct}% local` : "No data"}
-                  sub={lastModel ?? "No executions (24h)"}
-                  iconBg="bg-violet-100" iconColor="text-violet-600"
-                  dot={llmDot()}
-                />
-                <OpsTile
-                  icon={Phone} label="Voice AI"
-                  href="/admin/voice-receptionist"
-                  value={ops?.voice.todayCalls ?? "—"}
-                  sub={`${inProgressVoice} live now`}
-                  iconBg="bg-violet-100" iconColor="text-violet-600"
-                  dot={inProgressVoice > 0 ? "amber" : "green"}
-                />
-              </div>
-            </div>
+            <DomainSection label="AI & Automation" accent="bg-violet-500">
+              <OpsTile icon={Bot} label="AI Agents"
+                href="/admin/agents"
+                value={ops ? `${ops.agents.active}/${ops.agents.total}` : "—"}
+                sub={ops?.agents.lastHeartbeat ? `Beat ${formatTimeAgo(ops.agents.lastHeartbeat)}` : "No heartbeat"}
+                iconBg="bg-violet-100" iconColor="text-violet-600"
+                borderHover="hover:border-violet-200"
+                dot={agentDot()} />
+              <OpsTile icon={ShieldCheck} label="Approvals"
+                href="/admin/agents/approvals"
+                value={ops?.agents.pendingApprovals ?? "—"}
+                sub="Pending decisions"
+                iconBg="bg-violet-100" iconColor="text-violet-600"
+                borderHover="hover:border-violet-200"
+                dot={pendingApprovals > 0 ? "amber" : "green"} />
+              <OpsTile icon={Cpu} label="LLM Runtime"
+                href="/admin/agents"
+                value={localPct !== null && localPct !== undefined ? `${localPct}% local` : "No data"}
+                sub={lastModel ?? "No runs (24h)"}
+                iconBg="bg-violet-100" iconColor="text-violet-600"
+                borderHover="hover:border-violet-200"
+                dot={localPct === null || localPct === undefined ? "gray" : localPct > 50 ? "green" : "amber"} />
+              <OpsTile icon={Phone} label="Voice AI"
+                href="/admin/voice-receptionist"
+                value={ops?.voice.todayCalls ?? "—"}
+                sub={`${inProgressVoice} live now`}
+                iconBg="bg-violet-100" iconColor="text-violet-600"
+                borderHover="hover:border-violet-200"
+                dot={inProgressVoice > 0 ? "amber" : "green"} />
+            </DomainSection>
 
             {/* Marketing */}
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-pink-500 mb-1.5 px-0.5">Marketing</p>
-              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-2 lg:gap-3">
-                <OpsTile
-                  icon={Megaphone} label="Google Ads"
-                  href="/admin/ads"
-                  value={ops?.marketing.activeAdCampaigns ?? "—"}
-                  sub="Active campaigns"
-                  iconBg="bg-pink-100" iconColor="text-pink-600"
-                  dot={(ops?.marketing.activeAdCampaigns ?? 1) === 0 ? "amber" : "green"}
-                />
-                <OpsTile
-                  icon={Share2} label="Organic Posts"
-                  href="/admin/organic"
-                  value={ops?.marketing.scheduledPosts ?? "—"}
-                  sub={`${ops?.marketing.draftPosts ?? "—"} drafts`}
-                  iconBg="bg-pink-100" iconColor="text-pink-600"
-                  dot={(ops?.marketing.scheduledPosts ?? 1) === 0 ? "amber" : "green"}
-                />
-                <OpsTile
-                  icon={Mail} label="Email Campaigns"
-                  href="/admin/emails"
-                  value={ops?.marketing.activeEmailCampaigns ?? "—"}
-                  sub="Live/scheduled"
-                  iconBg="bg-pink-100" iconColor="text-pink-600"
-                  dot="green"
-                />
-                <OpsTile
-                  icon={BarChart3} label="Attribution"
-                  href="/admin/attribution"
-                  sub="ROAS & spend"
-                  iconBg="bg-pink-100" iconColor="text-pink-600"
-                  dot="green"
-                />
-              </div>
-            </div>
+            <DomainSection label="Marketing" accent="bg-pink-500">
+              <OpsTile icon={Megaphone} label="Google Ads"
+                href="/admin/ads"
+                value={ops?.marketing.activeAdCampaigns ?? "—"}
+                sub="Active campaigns"
+                iconBg="bg-pink-100" iconColor="text-pink-600"
+                borderHover="hover:border-pink-200"
+                dot={(ops?.marketing.activeAdCampaigns ?? 1) === 0 ? "amber" : "green"} />
+              <OpsTile icon={Share2} label="Organic Posts"
+                href="/admin/organic"
+                value={ops?.marketing.scheduledPosts ?? "—"}
+                sub={`${ops?.marketing.draftPosts ?? "—"} drafts`}
+                iconBg="bg-pink-100" iconColor="text-pink-600"
+                borderHover="hover:border-pink-200"
+                dot={(ops?.marketing.scheduledPosts ?? 1) === 0 ? "amber" : "green"} />
+              <OpsTile icon={Mail} label="Email Campaigns"
+                href="/admin/emails"
+                value={ops?.marketing.activeEmailCampaigns ?? "—"}
+                sub="Live / scheduled"
+                iconBg="bg-pink-100" iconColor="text-pink-600"
+                borderHover="hover:border-pink-200"
+                dot="green" />
+              <OpsTile icon={BarChart3} label="Attribution"
+                href="/admin/attribution"
+                sub="ROAS & spend"
+                iconBg="bg-pink-100" iconColor="text-pink-600"
+                borderHover="hover:border-pink-200"
+                dot="green" />
+            </DomainSection>
 
             {/* System */}
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-cyan-500 mb-1.5 px-0.5">System</p>
-              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-2 lg:gap-3">
-                <OpsTile
-                  icon={Brain} label="Reflections"
-                  href="/admin/agents/reflections"
-                  sub="Memory & learning"
-                  iconBg="bg-cyan-100" iconColor="text-cyan-600"
-                  dot="green"
-                />
-                <OpsTile
-                  icon={Plug} label="Integrations"
-                  href="/admin/integrations"
-                  sub="Platform connections"
-                  iconBg="bg-cyan-100" iconColor="text-cyan-600"
-                  dot="green"
-                />
-              </div>
-            </div>
+            <DomainSection label="System" accent="bg-cyan-500">
+              <OpsTile icon={Brain} label="Reflections"
+                href="/admin/agents/reflections"
+                sub="Memory & learning"
+                iconBg="bg-cyan-100" iconColor="text-cyan-600"
+                borderHover="hover:border-cyan-200"
+                dot="green" />
+              <OpsTile icon={Plug} label="Integrations"
+                href="/admin/integrations"
+                sub="Platform connections"
+                iconBg="bg-cyan-100" iconColor="text-cyan-600"
+                borderHover="hover:border-cyan-200"
+                dot="green" />
+            </DomainSection>
 
           </div>
         </div>
 
-        {/* ── Jobs Awaiting Signature ──────────────────────────────────────────── */}
-        <div className="bg-white rounded-xl lg:rounded-2xl shadow-sm overflow-hidden">
-          <div className="p-4 lg:p-6 border-b border-slate-100">
+        {/* ── Jobs Awaiting Signature ───────────────────────────────────────────── */}
+        <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-slate-100">
+          <div className="p-4 lg:p-6 border-b border-slate-100 bg-gradient-to-r from-amber-50 to-white">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 lg:w-12 lg:h-12 bg-amber-100 rounded-xl flex items-center justify-center">
-                  <PenTool className="w-5 h-5 lg:w-6 lg:h-6 text-amber-600" />
+                <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
+                  <PenTool className="w-5 h-5 text-amber-600" />
                 </div>
                 <div>
-                  <h2 className="text-base lg:text-lg font-bold text-slate-900">Jobs Awaiting Signature</h2>
-                  <p className="text-xs lg:text-sm text-slate-500">
-                    {awaitingSignatureJobs.length} job{awaitingSignatureJobs.length !== 1 ? "s" : ""} pending confirmation
+                  <h2 className="text-base font-bold text-slate-900">Jobs Awaiting Signature</h2>
+                  <p className="text-xs text-slate-500">
+                    {awaitingJobs.length} job{awaitingJobs.length !== 1 ? "s" : ""} pending confirmation
                   </p>
                 </div>
               </div>
               <Link
                 href="/admin/jobs?status=PENDING_CUSTOMER_CONFIRMATION"
-                className="text-orange-600 hover:text-orange-700 text-sm font-medium flex items-center gap-1"
+                className="text-orange-600 hover:text-orange-700 text-sm font-medium flex items-center gap-1 shrink-0"
               >
-                View All
-                <ChevronRight className="w-4 h-4" />
+                View All <ChevronRight className="w-4 h-4" />
               </Link>
             </div>
           </div>
-          {signatureLoading ? (
+
+          {sigLoading ? (
             <div className="p-8 text-center">
               <Loader2 className="w-8 h-8 animate-spin text-orange-500 mx-auto mb-2" />
-              <p className="text-slate-500 text-sm">Loading jobs...</p>
+              <p className="text-slate-500 text-sm">Loading jobs…</p>
             </div>
-          ) : awaitingSignatureJobs.length === 0 ? (
+          ) : awaitingJobs.length === 0 ? (
             <div className="p-8 text-center">
               <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-3" />
               <p className="text-slate-600 font-medium">All caught up!</p>
@@ -569,13 +525,13 @@ export default function AdminPage() {
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
-              {awaitingSignatureJobs.map((job) => {
-                const deadlineStatus = getDeadlineStatus(job.confirmationDeadline);
-                const isOverdue = deadlineStatus.text === "Overdue";
+              {awaitingJobs.map((job) => {
+                const dl = getDeadline(job.confirmationDeadline);
+                const overdue = dl.text === "Overdue";
                 return (
                   <div
                     key={job.id}
-                    className={`p-4 lg:p-5 hover:bg-slate-50 transition-colors ${isOverdue ? "bg-red-50" : ""}`}
+                    className={`p-4 lg:p-5 hover:bg-slate-50 transition-colors ${overdue ? "bg-red-50" : ""}`}
                   >
                     <div className="flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-4">
                       <div className="flex-1 min-w-0">
@@ -586,10 +542,9 @@ export default function AdminPage() {
                           >
                             {job.jobNumber}
                           </Link>
-                          {isOverdue && (
+                          {overdue && (
                             <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-medium rounded-full flex items-center gap-1">
-                              <AlertTriangle className="w-3 h-3" />
-                              Overdue
+                              <AlertTriangle className="w-3 h-3" /> Overdue
                             </span>
                           )}
                           {job.confirmationRemindersSent > 0 && (
@@ -611,8 +566,7 @@ export default function AdminPage() {
                           <div className="text-xs text-slate-400 uppercase tracking-wider mb-0.5">Customer</div>
                           <div className="text-sm font-medium text-slate-900 truncate">{job.customer.name}</div>
                           <div className="flex items-center gap-1 text-xs text-slate-500">
-                            <Phone className="w-3 h-3" />
-                            {job.customer.phone}
+                            <Phone className="w-3 h-3" />{job.customer.phone}
                           </div>
                         </div>
                         <div className="min-w-0">
@@ -624,15 +578,15 @@ export default function AdminPage() {
                             <div className="text-xs text-slate-500 truncate">{job.locksmith.companyName}</div>
                           )}
                         </div>
-                        <div className="text-left sm:text-right">
+                        <div>
                           <div className="text-xs text-slate-400 uppercase tracking-wider mb-0.5">Quote</div>
                           <div className="text-sm font-bold text-slate-900">
-                            {job.quote ? `£${job.quote.total.toFixed(2)}` : "-"}
+                            {job.quote ? `£${job.quote.total.toFixed(2)}` : "—"}
                           </div>
                         </div>
-                        <div className="text-left sm:text-right">
+                        <div>
                           <div className="text-xs text-slate-400 uppercase tracking-wider mb-0.5">Deadline</div>
-                          <div className={`text-sm font-medium ${deadlineStatus.color}`}>{deadlineStatus.text}</div>
+                          <div className={`text-sm font-medium ${dl.color}`}>{dl.text}</div>
                         </div>
                       </div>
                     </div>
@@ -642,6 +596,7 @@ export default function AdminPage() {
             </div>
           )}
         </div>
+
       </div>
     </AdminSidebar>
   );

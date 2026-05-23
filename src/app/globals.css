@@ -201,3 +201,9 @@ iframe[name="__stripeJSBridgeFrame"] {
 body > div:not([class]):not([id])[style*="fixed"][style*="bottom"] {
   display: none !important;
 }
+
+/* Dashboard hero dot-grid texture */
+.hero-dot-grid {
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
