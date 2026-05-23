@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth";
+import { verifyCronAuth } from "@/lib/cron-auth";
 import prisma from "@/lib/db";
 
 async function verifyAdmin(): Promise<boolean> {
@@ -16,8 +17,9 @@ async function verifyAdmin(): Promise<boolean> {
   return !!(payload && payload.type === "admin");
 }
 
-export async function GET() {
-  if (!(await verifyAdmin())) {
+export async function GET(request: NextRequest) {
+  // Allow admin session OR cron bearer secret for read-only status checks.
+  if (!(await verifyAdmin()) && !verifyCronAuth(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

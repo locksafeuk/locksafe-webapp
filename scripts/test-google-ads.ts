@@ -86,7 +86,7 @@ async function main() {
 
     if (!res.ok) {
       console.error(`\n❌  Production check failed (${res.status}).`);
-      console.error("   → Set AUTH_TOKEN_COOKIE or ADMIN_COOKIE (admin auth cookie) to query protected accounts API.\n");
+      console.error("   → Set CRON_SECRET (preferred) or AUTH_TOKEN_COOKIE/ADMIN_COOKIE to query protected accounts API.\n");
       process.exit(1);
     }
 
