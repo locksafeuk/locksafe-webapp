@@ -31,6 +31,7 @@ const config: Config = {
     "!src/**/index.ts",
     "!src/**/*.stories.{ts,tsx}",
   ],
+  forceExit: true,
 };
 
 export default config;
