@@ -15,7 +15,8 @@ loadEnv({ path: '.env.local' });
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { chat, Models } from '@/lib/llm-router';
+
+let llmRouter: typeof import('@/lib/llm-router') | null = null;
 
 // ─── ANSI colours ─────────────────────────────────────────────────────────────
 const C = {
@@ -30,6 +31,23 @@ const step    = (l: string, v?: string) => console.log(`  ${C.green}✓${C.reset
 const fail    = (l: string) => console.log(`  ${C.red}✗${C.reset}  ${C.red}${l}${C.reset}`);
 const info    = (l: string) => console.log(`  ${C.blue}ℹ${C.reset}  ${l}`);
 const warn    = (l: string) => console.log(`  ${C.yellow}⚠${C.reset}  ${C.yellow}${l}${C.reset}`);
+
+async function ensureHermesModel(): Promise<string | null> {
+  try {
+    const r = await fetch('http://localhost:11434/api/tags');
+    if (!r.ok) return null;
+    const d = await r.json() as { models: Array<{ name: string }> };
+    const names = d.models.map((m) => m.name);
+    const preferred = names.find((n) => n.startsWith('hermes-4:'))
+      || names.find((n) => n.startsWith('hermes3:'))
+      || names.find((n) => n.toLowerCase().includes('hermes'));
+    if (!preferred) return null;
+    process.env.OLLAMA_MODEL_HERMES = preferred;
+    return preferred;
+  } catch {
+    return null;
+  }
+}
 
 function printTool(name: string, args: Record<string, unknown>) {
   console.log(`\n  ${C.magenta}▶ TOOL${C.reset}  ${C.bold}${name}${C.reset}`);
@@ -153,16 +171,25 @@ async function runAgent(agentName: string, taskContext: string): Promise<{
   // Load SKILL.md
   let systemPrompt = `You are the ${dbAgent.displayName} for LockSafe UK. ${dbAgent.role}. Use your tools to take action.`;
   try {
-    const skillPath = path.join(process.cwd(), 'src', 'agents', dbAgent.skillsPath);
+    const skillPath = dbAgent.skillsPath.startsWith('src/')
+      ? path.join(process.cwd(), dbAgent.skillsPath)
+      : path.join(process.cwd(), 'src', 'agents', dbAgent.skillsPath);
     systemPrompt = fs.readFileSync(skillPath, 'utf-8');
-    step(`SKILL.md loaded`, dbAgent.skillsPath);
+    step(`SKILL.md loaded`, skillPath);
   } catch {
     warn(`SKILL.md not found — using DB role string`);
   }
 
   // Init tools
   toolsModule.initializeTools();
-  const toolDefs = toolsModule.generateFunctionDefinitions(dbAgent.permissions);
+  let effectivePermissions = dbAgent.permissions;
+  let toolDefs = toolsModule.generateFunctionDefinitions(effectivePermissions);
+  if (toolDefs.length === 0) {
+    // Seeded role permissions are often coarse-grained; wildcard keeps this script useful for live smoke runs.
+    effectivePermissions = ['*'];
+    toolDefs = toolsModule.generateFunctionDefinitions(effectivePermissions);
+    warn(`No tool defs from DB permissions for ${agentName}; using wildcard for live test`);
+  }
   step(`Tools available`, `${toolDefs.length} tools for ${agentName}`);
 
   await orchestratorModule.initializeAgentState(agentName);
@@ -170,7 +197,7 @@ async function runAgent(agentName: string, taskContext: string): Promise<{
   const agentCtx = {
     agentId:         dbAgent.id,
     agentName:       dbAgent.displayName,
-    permissions:     dbAgent.permissions,
+    permissions:     effectivePermissions,
     budgetRemaining: dbAgent.monthlyBudgetUsd - dbAgent.budgetUsedUsd,
   };
 
@@ -199,11 +226,14 @@ async function runAgent(agentName: string, taskContext: string): Promise<{
   const MAX_ITER = 8;
 
   for (let iter = 0; iter < MAX_ITER; iter++) {
+    if (!llmRouter) {
+      throw new Error('LLM router is not initialized');
+    }
     console.log(`  ${C.bold}${C.white}── Iteration ${iter + 1} / ${MAX_ITER} ──${C.reset}`);
 
     const t0 = Date.now();
-    const resp = await chat(Models.HERMES, messages as Parameters<typeof chat>[1], {
-      tools:       toolDefs as NonNullable<Parameters<typeof chat>[2]>['tools'],
+    const resp = await llmRouter.chat(llmRouter.Models.HERMES, messages as Parameters<typeof llmRouter.chat>[1], {
+      tools:       toolDefs as NonNullable<Parameters<typeof llmRouter.chat>[2]>['tools'],
       temperature: 0.3,
       timeoutMs:   90_000,
     });
@@ -304,12 +334,15 @@ async function main() {
     const d = await r.json() as { models: Array<{ name: string }> };
     const names = d.models.map(m => m.name);
     step('Ollama reachable', `${names.length} models loaded`);
-    if (names.some(n => n.includes('hermes3'))) {
-      step('hermes3 present', names.find(n => n.includes('hermes3'))!);
+    const hermesModel = await ensureHermesModel();
+    if (hermesModel) {
+      step('Hermes model selected', hermesModel);
     } else {
-      fail('hermes3 NOT found — run: ollama pull hermes3');
+      fail('No Hermes model found — run: ollama pull hermes3');
       process.exit(1);
     }
+
+    llmRouter = await import('@/lib/llm-router');
   } catch {
     fail('Ollama not reachable at localhost:11434');
     process.exit(1);

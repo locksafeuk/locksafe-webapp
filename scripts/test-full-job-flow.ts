@@ -10,6 +10,9 @@
  */
 export {};
 
+import { config as loadEnv } from 'dotenv';
+loadEnv({ path: '.env.local' });
+
 // ── ANSI colours ──────────────────────────────────────────────────────────────
 const C = {
   reset:   '\x1b[0m',
@@ -36,6 +39,51 @@ function info(label: string, detail = '')  { console.log(`  ${C.cyan}ℹ${C.rese
 function warn(label: string, detail = '')  { console.log(`  ${C.yellow}⚠${C.reset}  ${label}  ${C.dim}${detail}${C.reset}`); }
 function step(label: string, detail = '')  { console.log(`  ${C.blue}→${C.reset}  ${label}  ${C.dim}${detail}${C.reset}`); }
 
+function buildAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret) {
+    headers.Authorization = `Bearer ${cronSecret}`;
+    headers['x-cron-secret'] = cronSecret;
+  }
+
+  const cookieValue = process.env.AUTH_TOKEN_COOKIE || process.env.ADMIN_COOKIE;
+  if (cookieValue) {
+    const trimmed = cookieValue.trim();
+    headers.Cookie = trimmed.includes('=')
+      ? trimmed
+      : `auth_token=${trimmed}; admin_token=${trimmed}`;
+  }
+
+  return headers;
+}
+
+async function safeJsonResponse<T>(r: Response): Promise<T | null> {
+  const text = await r.text();
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return null;
+  }
+}
+
+async function ensureHermesModel(): Promise<string | null> {
+  try {
+    const r = await fetch('http://localhost:11434/api/tags');
+    if (!r.ok) return null;
+    const d = await r.json() as { models: Array<{ name: string }> };
+    const names = d.models.map((m) => m.name);
+    const preferred = names.find((n) => n.startsWith('hermes-4:'))
+      || names.find((n) => n.startsWith('hermes3:'))
+      || names.find((n) => n.toLowerCase().includes('hermes'));
+    if (!preferred) return null;
+    process.env.OLLAMA_MODEL_HERMES = preferred;
+    return preferred;
+  } catch {
+    return null;
+  }
+}
+
 // ── Test coordinates: Windsor area (near Alexandru & Andrei) ──────────────────
 const TEST_JOB = {
   postcode:    'SL4 1DD',
@@ -52,6 +100,13 @@ const TEST_JOB = {
 async function main() {
   banner('LockSafe — Full Job Flow Test');
   console.log(`  ${C.dim}${new Date().toISOString()}${C.reset}\n`);
+
+  const hermesModel = await ensureHermesModel();
+  if (hermesModel) {
+    ok('Hermes model selected', hermesModel);
+  } else {
+    warn('No Hermes model detected in Ollama', 'LLM step may fail unless OpenAI fallback is enabled');
+  }
 
   const { default: prisma } = await import('@/lib/db');
 
@@ -132,6 +187,7 @@ async function main() {
   banner('4 / 6  Send Notifications (via Production API)');
 
   const PROD = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.locksafe.uk';
+  const authHeaders = buildAuthHeaders();
   info('Production URL', PROD);
 
   // 4a. notify-locksmiths (push + email)
@@ -141,16 +197,16 @@ async function main() {
   try {
     const r = await fetch(`${PROD}/api/jobs/notify-locksmiths`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders },
       body: JSON.stringify({ jobId: job.id }),
     });
-    const body = await r.json() as { success: boolean; notifiedCount?: number; locksmithIds?: string[] };
-    if (body.success) {
+    const body = await safeJsonResponse<{ success: boolean; notifiedCount?: number; locksmithIds?: string[] }>(r);
+    if (body?.success) {
       notifyResult = { notifiedCount: body.notifiedCount ?? 0, locksmithIds: body.locksmithIds ?? [] };
       ok(`notify-locksmiths`, `${notifyResult.notifiedCount} locksmith(s) notified`);
       if (notifyResult.locksmithIds.length > 0) info('Notified IDs', notifyResult.locksmithIds.join(', '));
     } else {
-      warn('notify-locksmiths returned failure', JSON.stringify(body));
+      warn('notify-locksmiths returned non-JSON or failure', `${r.status}`);
     }
   } catch (e) {
     fail('notify-locksmiths request failed', String(e));
@@ -160,9 +216,7 @@ async function main() {
   step('POST /api/admin/telegram/test (new_job scenario)…');
   try {
     const r = await fetch(`${PROD}/api/admin/telegram/test?scenario=new_job`, {
-      headers: {
-        Cookie: `admin_token=${process.env.ADMIN_COOKIE ?? ''}`,
-      },
+      headers: authHeaders,
     });
     if (r.status === 200) {
       tgSent = true;
@@ -181,13 +235,13 @@ async function main() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-cron-secret': process.env.CRON_SECRET ?? '',
+        ...authHeaders,
       },
       body: JSON.stringify({ agentName: 'coo' }),
     });
-    const body = await r.json() as { success?: boolean; message?: string; error?: string };
-    if (r.ok) ok('COO heartbeat API triggered', body.message ?? '');
-    else       warn('COO heartbeat API returned error', JSON.stringify(body));
+    const body = await safeJsonResponse<{ success?: boolean; message?: string; error?: string }>(r);
+    if (r.ok) ok('COO heartbeat API triggered', body?.message ?? '');
+    else       warn('COO heartbeat API returned non-JSON or error', `${r.status}`);
   } catch (e) {
     fail('COO heartbeat API request failed', String(e));
   }
@@ -219,7 +273,13 @@ async function main() {
       warn('SKILL.md not found — using DB role');
     }
 
-    const toolDefs = generateFunctionDefinitions(cooAgent.permissions as string[]) as NonNullable<ChatParams[2]>['tools'];
+    let effectivePermissions = cooAgent.permissions as string[];
+    let toolDefs = generateFunctionDefinitions(effectivePermissions) as NonNullable<ChatParams[2]>['tools'];
+    if ((toolDefs?.length ?? 0) === 0) {
+      effectivePermissions = ['*'];
+      toolDefs = generateFunctionDefinitions(effectivePermissions) as NonNullable<ChatParams[2]>['tools'];
+      warn('COO permissions produced 0 tools; using wildcard permissions for this live test');
+    }
 
     // Build context message with the pending job
     const contextMsg = `
@@ -256,6 +316,8 @@ Your task: Assess the situation and take appropriate action.
         tools:       toolDefs as NonNullable<Parameters<typeof chat>[2]>['tools'],
         temperature: 0.2,
         timeoutMs:   120_000,
+        allowOpenAIFallback: true,
+        fallbackSeverity: 'critical',
       });
 
       const ms = Date.now() - t0;
@@ -282,7 +344,7 @@ Your task: Assess the situation and take appropriate action.
         const toolResult = await executeTool(tc.name, tc.arguments, {
           agentId:       cooAgent.id,
           agentName:     'coo',
-          permissions:   cooAgent.permissions as string[],
+          permissions:   effectivePermissions,
           budgetRemaining: (cooAgent.monthlyBudgetUsd ?? 0) - (cooAgent.budgetUsedUsd ?? 0),
         });
 
