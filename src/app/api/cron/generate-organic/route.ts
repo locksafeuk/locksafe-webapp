@@ -9,6 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { verifyCronAuth } from "@/lib/cron-auth";
 import { prisma } from "@/lib/db";
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth";
@@ -19,37 +20,14 @@ import {
   type ContentPillarKey,
 } from "@/lib/organic-content";
 
-// Verify cron secret or admin authentication
 async function verifyAccess(request: NextRequest): Promise<boolean> {
-  // Check cron secret first
-  const authHeader = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
-    return true;
-  }
-
-  // Allow Vercel native cron scheduler
-  if (request.headers.get("x-vercel-cron") === "1") {
-    return true;
-  }
-
-  // Check admin authentication via cookies
+  if (verifyCronAuth(request)) return true;
   const cookieStore = await cookies();
   const token = cookieStore.get("admin_token")?.value || cookieStore.get("auth_token")?.value;
-
   if (token) {
     const payload = await verifyToken(token);
-    if (payload && payload.type === "admin") {
-      return true;
-    }
+    if (payload && payload.type === "admin") return true;
   }
-
-  // Allow in development without auth
-  if (!cronSecret && process.env.NODE_ENV === "development") {
-    return true;
-  }
-
   return false;
 }
 
@@ -93,11 +71,11 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // For manual triggers, we can skip the autopilot enabled check
-    // by checking if it's an admin request
+    // Manual triggers require both an admin cookie AND ?force=true to avoid
+    // accidental OpenAI spend from casual admin page visits.
     const cookieStore = await cookies();
     const token = cookieStore.get("admin_token")?.value || cookieStore.get("auth_token")?.value;
-    const isManualTrigger = !!token;
+    const isManualTrigger = !!token && request.nextUrl.searchParams.get("force") === "true";
 
     // Check if autopilot is enabled (only for automated cron, not manual)
     if (!config.isEnabled && !isManualTrigger) {

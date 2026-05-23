@@ -36,6 +36,17 @@ const openai = new Proxy({} as OpenAI, {
   },
 });
 
+async function openAiChat(
+  params: Parameters<OpenAI["chat"]["completions"]["create"]>[0]
+): Promise<OpenAI.Chat.ChatCompletion> {
+  const res = await openai.chat.completions.create(params) as OpenAI.Chat.ChatCompletion;
+  const t = res.usage?.total_tokens ?? 0;
+  const isM = String(params.model).includes("mini");
+  const cost = ((t / 1_000_000) * (isM ? 0.6 : 10)).toFixed(4);
+  console.log(`[OpenAI:organic] ${params.model} — ${t} tokens ~$${cost}`);
+  return res;
+}
+
 // ==========================================
 // CONTENT PILLARS FOR LOCKSAFE UK
 // ==========================================
@@ -358,8 +369,8 @@ Default hashtags for this pillar: ${pillar.hashtags.join(', ')}
 Return ONLY valid JSON, no markdown.`;
 
   try {
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+    const response = await openAiChat({
+      model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
@@ -582,8 +593,8 @@ export async function generateHooks(
         "How do you choose who to trust in an emergency?",
       ];
 
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o',
+  const response = await openAiChat({
+    model: 'gpt-4o-mini',
     messages: [
       {
         role: 'system',
@@ -613,8 +624,8 @@ Keep hooks under 100 characters. Make them punchy and engaging.`,
 // ==========================================
 
 export async function generateImagePrompt(post: OrganicPost): Promise<string> {
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o',
+  const response = await openAiChat({
+    model: 'gpt-4o-mini',
     messages: [
       {
         role: 'system',

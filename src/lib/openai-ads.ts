@@ -55,6 +55,17 @@ const openai = new Proxy({} as OpenAI, {
   },
 });
 
+async function openAiChat(
+  params: Parameters<OpenAI["chat"]["completions"]["create"]>[0]
+): Promise<OpenAI.Chat.ChatCompletion> {
+  const res = await openai.chat.completions.create(params) as OpenAI.Chat.ChatCompletion;
+  const t = res.usage?.total_tokens ?? 0;
+  const isM = String(params.model).includes("mini");
+  const cost = ((t / 1_000_000) * (isM ? 0.6 : 10)).toFixed(4);
+  console.log(`[OpenAI:ads] ${params.model} — ${t} tokens ~$${cost}`);
+  return res;
+}
+
 // Types
 export interface AdCopyRequest {
   productDescription?: string; // Optional - will use business context if not provided
@@ -331,8 +342,8 @@ Return a JSON object with a "variations" array. Each variation MUST have:
 Return ONLY valid JSON, no markdown or explanation.`;
 
   try {
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+    const response = await openAiChat({
+      model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
@@ -503,8 +514,8 @@ The "framework" field MUST be exactly "Neil Patel" or "Ryan Deiss".
 Return ONLY valid JSON.`;
 
   try {
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+    const response = await openAiChat({
+      model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
@@ -553,8 +564,8 @@ ${preBuiltHeadlines.join('\n')}
 
 Generate NEW headlines in the same style.`;
 
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o',
+  const response = await openAiChat({
+    model: 'gpt-4o-mini',
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: `Generate ${params.count || 5} ${params.angle} headlines for LockSafe UK${params.customContext ? `: ${params.customContext}` : ''}. Return JSON with "headlines" array.` },
@@ -637,8 +648,8 @@ Return a JSON object with an "audiences" array. Each audience MUST have:
 Return ONLY valid JSON.`;
 
   try {
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+    const response = await openAiChat({
+      model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
@@ -734,8 +745,8 @@ Consider LockSafe UK's unique positioning (anti-fraud, legal documentation) when
 Return ONLY valid JSON.`;
 
   try {
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+    const response = await openAiChat({
+      model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
@@ -804,8 +815,8 @@ For copy suggestions, include:
 Return ONLY valid JSON.`;
 
   try {
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+    const response = await openAiChat({
+      model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
@@ -882,8 +893,8 @@ Format responses with clear structure using markdown when helpful.`,
   };
 
   try {
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+    const response = await openAiChat({
+      model: 'gpt-4o-mini',
       messages: [systemMessage, ...params.messages],
       temperature: 0.7,
       max_tokens: 1500,
@@ -966,8 +977,8 @@ Return JSON with a "variations" array, each with:
 Return ONLY valid JSON.`;
 
   try {
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+    const response = await openAiChat({
+      model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
@@ -1018,8 +1029,8 @@ export async function generateHooks(params: {
   }
 
   // Generate more with AI
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o',
+  const response = await openAiChat({
+    model: 'gpt-4o-mini',
     messages: [
       {
         role: 'system',
@@ -1078,8 +1089,8 @@ export async function generateHeadlines(params: {
     return POWER_HEADLINES[powerAngle].slice(0, params.count || 5);
   }
 
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o',
+  const response = await openAiChat({
+    model: 'gpt-4o-mini',
     messages: [
       {
         role: 'system',
@@ -1147,7 +1158,7 @@ export async function generateServiceAdCreatives(
 
   const callModel = async () =>
     openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o-mini",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
@@ -1166,8 +1177,8 @@ export async function generateServiceAdCreatives(
 
   if (rejected.length) {
     // One retry with explicit error feedback.
-    const retry = await openai.chat.completions.create({
-      model: "gpt-4o",
+    const retry = await openAiChat({
+      model: "gpt-4o-mini",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
