@@ -118,9 +118,6 @@ const envSchema = z.object({
   NEXT_PUBLIC_MAPBOX_TOKEN: z.string().startsWith("pk.").optional(),
   MAPBOX_SECRET_TOKEN: z.string().startsWith("sk.").optional(),
 
-  // Local LLM (Ollama) — optional override for self-hosted Hermes endpoint
-  OLLAMA_BASE_URL: z.string().url().optional(),
-
   // Node environment
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
 });

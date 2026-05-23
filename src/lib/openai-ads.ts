@@ -46,6 +46,11 @@ type CompatCreateRequest = {
   response_format?: { type?: string };
 };
 
+type CompatChatCompletion = {
+  choices: Array<{ message: { content: string | null } }>;
+  usage?: { total_tokens?: number };
+};
+
 function resolveAlias(model?: string): ModelAlias {
   const m = (model || '').toLowerCase();
   if (m.includes('gpt-4') || m.includes('quality')) return Models.QUALITY;
@@ -57,7 +62,7 @@ function resolveAlias(model?: string): ModelAlias {
 const openai = {
   chat: {
     completions: {
-      create: async (request: CompatCreateRequest) => {
+      create: async (request: CompatCreateRequest): Promise<CompatChatCompletion> => {
         const response = await chat(
           resolveAlias(request.model),
           request.messages as LLMMessage[],
@@ -74,6 +79,9 @@ const openai = {
               message: { content: response.content },
             },
           ],
+          usage: {
+            total_tokens: (response.promptTokens ?? 0) + (response.completionTokens ?? 0),
+          },
         };
       },
     },
@@ -81,9 +89,9 @@ const openai = {
 };
 
 async function openAiChat(
-  params: Parameters<OpenAI["chat"]["completions"]["create"]>[0]
-): Promise<OpenAI.Chat.ChatCompletion> {
-  const res = await openai.chat.completions.create(params) as OpenAI.Chat.ChatCompletion;
+  params: CompatCreateRequest
+): Promise<CompatChatCompletion> {
+  const res = await openai.chat.completions.create(params);
   const t = res.usage?.total_tokens ?? 0;
   const isM = String(params.model).includes("mini");
   const cost = ((t / 1_000_000) * (isM ? 0.6 : 10)).toFixed(4);

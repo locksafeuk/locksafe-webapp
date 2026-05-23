@@ -52,7 +52,7 @@ const MODEL_CONFIG: Record<ModelAlias, ModelConfig> = {
     openAiFallbackModel: "gpt-4o-mini",
   },
   FAST: {
-    localModel: modelFromEnv("FAST", "llama3.2:3b"),
+    localModel: modelFromEnv("FAST", "llama3:70b"),
     openAiFallbackModel: "gpt-4o-mini",
   },
   QUALITY: {
