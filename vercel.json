@@ -15,7 +15,7 @@
     },
     {
       "path": "/api/cron/google-ads-suggestions",
-      "schedule": "0 7 * * *"
+      "schedule": "0 */6 * * *"
     },
     {
       "path": "/api/cron/memory-consolidate",

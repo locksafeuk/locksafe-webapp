@@ -9,7 +9,7 @@
  * Also runs the weekly reflection step when invoked with ?reflect=1 or when
  * the day-of-week is Monday.
  *
- * Schedule: 0 *\/6 * * *  (30 min after the performance sync cron)
+ * Schedule: 0 *\/6 * * * (every 6 hours)
  * Auth: Authorization: Bearer $CRON_SECRET
  */
 
@@ -57,6 +57,6 @@ export async function GET() {
   return NextResponse.json({
     status: "healthy",
     description: "Google Ads suggestion analysis cron. POST to trigger.",
-    schedule: "0 */6 * * * (runs after performance sync)",
+    schedule: "0 */6 * * * (every 6 hours)",
   });
 }

@@ -163,6 +163,7 @@ export async function extractLearningsForClient(
 
   // Aggregate by {text, matchType} across ad groups
   const kwAgg = new Map<string, ProvenKeyword>();
+  const kwImpressions = new Map<string, number>();
   for (const r of kwRows) {
     const text = String(r.adGroupCriterion?.keyword?.text ?? "").toLowerCase().trim();
     if (!text) continue;
@@ -175,9 +176,11 @@ export async function extractLearningsForClient(
     prev.conversions += num(r.metrics?.conversions);
     prev.cost += microsToGbp(r.metrics?.costMicros);
     kwAgg.set(key, prev);
+    kwImpressions.set(key, (kwImpressions.get(key) ?? 0) + num(r.metrics?.impressions));
   }
-  for (const k of kwAgg.values()) {
-    k.ctr = k.clicks > 0 ? k.clicks / Math.max(1, k.clicks) : 0; // placeholder, see below
+  for (const [key, k] of kwAgg.entries()) {
+    const impressions = kwImpressions.get(key) ?? 0;
+    k.ctr = impressions > 0 ? k.clicks / impressions : 0;
     k.costPerConv = k.conversions > 0 ? k.cost / k.conversions : null;
   }
   const allKws = [...kwAgg.values()].filter((k) => k.clicks >= opts.minClicks);
