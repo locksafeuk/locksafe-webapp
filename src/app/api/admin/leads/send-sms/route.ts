@@ -82,6 +82,49 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Bulk-all: send to every new lead with a UK mobile number
+  if (body.mode === "bulk-all") {
+    const allLeads = await prisma.locksmithLead.findMany({
+      where: {
+        status: "new",
+        OR: [
+          { phone: { startsWith: "07" } },
+          { phone: { startsWith: "+447" } },
+          { phone: { startsWith: "00447" } },
+        ],
+      },
+    });
+    // Re-validate with the strict regex before sending
+    const leads = allLeads.filter(l => l.phone && isUKMobile(l.phone));
+    let sent = 0;
+    let failed = 0;
+    const results: { id: string; name: string; success: boolean; error?: string }[] = [];
+    for (const lead of leads) {
+      try {
+        const sendResult = await sendSMS(lead.phone!, buildSms(lead.name, lead.city), {
+          logContext: `admin-leads-bulk-all:${lead.id}`,
+        });
+        if (!sendResult.success) {
+          results.push({ id: lead.id, name: lead.name, success: false, error: sendResult.error || "Failed to send SMS" });
+          failed++;
+          continue;
+        }
+        await prisma.locksmithLead.update({
+          where: { id: lead.id },
+          data: { status: "contacted", contactedAt: new Date(), contactedBy: "sms-bulk-all" },
+        });
+        results.push({ id: lead.id, name: lead.name, success: true });
+        sent++;
+        await new Promise(r => setTimeout(r, 300));
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        results.push({ id: lead.id, name: lead.name, success: false, error: msg });
+        failed++;
+      }
+    }
+    return NextResponse.json({ sent, failed, results, provider });
+  }
+
   // Bulk send: { ids: string[] }
   if (body.ids && Array.isArray(body.ids)) {
     const leads = await prisma.locksmithLead.findMany({

@@ -53,6 +53,8 @@ interface Stats {
   replied: number;
   onboarded: number;
   not_interested: number;
+  newWithEmail: number;
+  newWithMobile: number;
 }
 
 interface Pagination {
@@ -235,15 +237,14 @@ export default function AdminLeadsPage() {
   };
 
   const sendBulkSms = async () => {
-    const eligible = leads.filter(l => isUKMobile(l.phone) && l.status === "new");
-    if (eligible.length === 0) return;
+    if (!stats?.newWithMobile) return;
     setBulkSmsing(true);
     setSmsResult(null);
     try {
       const res = await fetch("/api/admin/leads/send-sms", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: eligible.map(l => l.id) }),
+        body: JSON.stringify({ mode: "bulk-all" }),
       });
       const data = await res.json();
       if (!res.ok) { alert(data.error || "SMS send failed"); return; }
@@ -283,18 +284,17 @@ export default function AdminLeadsPage() {
   };
 
   const sendBulkInvites = async () => {
-    const eligible = leads.filter(l => l.email && l.status === "new");
-    if (eligible.length === 0) return;
+    if (!stats?.newWithEmail) return;
     setBulkInviting(true);
     setInviteResult(null);
     try {
       const res = await fetch("/api/admin/leads/send-invite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: eligible.map(l => l.id) }),
+        body: JSON.stringify({ mode: "bulk-all" }),
       });
       const data = await res.json();
-      setInviteResult({ sent: data.sent, failed: data.failed });
+      setInviteResult({ sent: data.sent ?? 0, failed: data.failed ?? 0 });
       await fetchLeads();
     } finally {
       setBulkInviting(false);
@@ -378,20 +378,20 @@ export default function AdminLeadsPage() {
             <Button
               size="sm"
               onClick={sendBulkInvites}
-              disabled={bulkInviting || leads.filter(l => l.email && l.status === "new").length === 0}
+              disabled={bulkInviting || !stats?.newWithEmail}
               className="bg-blue-600 hover:bg-blue-700 text-white"
             >
               {bulkInviting ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Send className="w-4 h-4 mr-1.5" />}
-              Email Invites ({leads.filter(l => l.email && l.status === "new").length} new)
+              Email Invites ({stats?.newWithEmail ?? 0} new)
             </Button>
             <Button
               size="sm"
               onClick={sendBulkSms}
-              disabled={bulkSmsing || leads.filter(l => isUKMobile(l.phone) && l.status === "new").length === 0}
+              disabled={bulkSmsing || !stats?.newWithMobile}
               className="bg-green-600 hover:bg-green-700 text-white"
             >
               {bulkSmsing ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Smartphone className="w-4 h-4 mr-1.5" />}
-              SMS ({leads.filter(l => isUKMobile(l.phone) && l.status === "new").length} mobile)
+              SMS ({stats?.newWithMobile ?? 0} mobile)
             </Button>
           </div>
         </div>

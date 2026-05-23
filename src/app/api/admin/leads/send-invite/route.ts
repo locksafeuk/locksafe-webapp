@@ -302,7 +302,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const ids: string[] = body.ids ?? (body.id ? [body.id] : []);
-  const mode = body.mode === "sequence" ? "sequence" : "manual";
+  const mode = body.mode === "sequence" ? "sequence" : body.mode === "bulk-all" ? "bulk-all" : "manual";
   const track: OutreachTrack = body.track === "manager" ? "manager" : "independent";
   const style: OutreachSubjectStyle = body.subjectStyle === "direct" ? "direct" : "benefit";
   const touch = Number(body.touch || 1);
@@ -334,7 +334,21 @@ export async function POST(req: NextRequest) {
 
   let targets: LeadForOutreach[] = [];
 
-  if (mode === "manual") {
+  if (mode === "bulk-all") {
+    targets = await prisma.locksmithLead.findMany({
+      where: { status: "new", email: { not: null } },
+      select: {
+        id: true,
+        name: true,
+        city: true,
+        email: true,
+        reviewCount: true,
+        status: true,
+        contactedAt: true,
+        notes: true,
+      },
+    }) as LeadForOutreach[];
+  } else if (mode === "manual") {
     if (ids.length === 0) {
       return NextResponse.json({ error: "No lead IDs provided" }, { status: 400 });
     }
@@ -459,7 +473,7 @@ export async function POST(req: NextRequest) {
           data: {
             status: "contacted",
             contactedAt: new Date(),
-            contactedBy: mode === "sequence" ? `invite-seq-t${touch}` : "invite-email",
+            contactedBy: mode === "sequence" ? `invite-seq-t${touch}` : mode === "bulk-all" ? "invite-bulk-all" : "invite-email",
             notes: nextNotes,
           },
         });
