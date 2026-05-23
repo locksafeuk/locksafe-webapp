@@ -36,6 +36,7 @@ const envSchema = z.object({
 
   // LLM routing (Ollama primary, optional cloud fallback)
   OLLAMA_BASE_URL: z.string().url().optional(),
+  OLLAMA_RUNTIME_ENABLED: z.enum(["true", "false"]).optional(),
   OLLAMA_SECRET: z.string().optional(),
   OLLAMA_STRICT: z.enum(["true", "false"]).optional(),
   OLLAMA_AGENT_STRICT: z.enum(["true", "false"]).optional(),

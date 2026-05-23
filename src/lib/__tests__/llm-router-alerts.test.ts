@@ -79,4 +79,44 @@ describe("LLM router alerts", () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(sendAdminAlertMock).not.toHaveBeenCalled();
   });
+
+  it("uses OpenAI directly when Ollama runtime is disabled for a ts.net Vercel deployment", async () => {
+    process.env = {
+      ...originalEnv,
+      VERCEL: "1",
+      VERCEL_ENV: "production",
+      OLLAMA_BASE_URL: "https://alexandrus-mac-studio.tail88d9cc.ts.net",
+      OPENAI_API_KEY: "sk-test",
+      OPENAI_FALLBACK_ENABLED: "true",
+    };
+    mockAgentDecisionFindFirst.mockResolvedValue(null);
+    fetchMock.mockImplementation(async (input: string | URL | Request) => {
+      const url = typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : input.url;
+
+      if (url === "https://api.openai.com/v1/chat/completions") {
+        return {
+          ok: true,
+          json: async () => ({
+            choices: [{ message: { content: "ok" } }],
+            usage: { prompt_tokens: 1, completion_tokens: 1 },
+          }),
+        } as Response;
+      }
+
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const { chat, Models } = await import("../llm-router");
+
+    const response = await chat(Models.FAST, [{ role: "user", content: "ping" }], { timeoutMs: 1000 });
+
+    expect(response.usedFallback).toBe(true);
+    expect(response.model).toBe("gpt-4o-mini");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://api.openai.com/v1/chat/completions");
+  });
 });

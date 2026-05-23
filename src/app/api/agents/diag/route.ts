@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { chat, Models } from "@/lib/llm-router";
+import { getOllamaRuntimeDecision } from "@/lib/ollama-runtime";
 
 /**
  * GET /api/agents/_diag
@@ -46,24 +47,30 @@ export async function GET(req: NextRequest) {
       envInfo("CRON_SECRET"),
     ],
   };
+  const ollamaRuntime = getOllamaRuntimeDecision();
+  out.ollamaRuntime = ollamaRuntime;
 
   // 1. Raw reachability check — hit /api/tags on the configured Ollama URL
   const ollamaUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
   out.ollamaUrl = ollamaUrl;
-  try {
-    const tagsRes = await fetch(`${ollamaUrl}/api/tags`, {
-      method: "GET",
-      signal: AbortSignal.timeout(10_000),
-    });
-    out.tagsHttp = tagsRes.status;
-    if (tagsRes.ok) {
-      const tags = (await tagsRes.json()) as { models?: Array<{ name: string }> };
-      out.modelsAvailable = tags.models?.map((m) => m.name) ?? [];
-    } else {
-      out.tagsError = await tagsRes.text().catch(() => "<no body>");
+  if (!ollamaRuntime.enabled) {
+    out.tagsSkipped = ollamaRuntime.reason;
+  } else {
+    try {
+      const tagsRes = await fetch(`${ollamaUrl}/api/tags`, {
+        method: "GET",
+        signal: AbortSignal.timeout(10_000),
+      });
+      out.tagsHttp = tagsRes.status;
+      if (tagsRes.ok) {
+        const tags = (await tagsRes.json()) as { models?: Array<{ name: string }> };
+        out.modelsAvailable = tags.models?.map((m) => m.name) ?? [];
+      } else {
+        out.tagsError = await tagsRes.text().catch(() => "<no body>");
+      }
+    } catch (e) {
+      out.tagsError = e instanceof Error ? e.message : String(e);
     }
-  } catch (e) {
-    out.tagsError = e instanceof Error ? e.message : String(e);
   }
 
   // 2. Real chat call via the router (Hermes-first, OpenAI fallback allowed)

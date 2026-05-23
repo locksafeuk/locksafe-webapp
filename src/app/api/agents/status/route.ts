@@ -10,6 +10,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdminFromCookies } from "@/lib/agent-api-auth";
 import { classifyModel } from "@/lib/classify-model";
+import { getOllamaRuntimeDecision } from "@/lib/ollama-runtime";
 
 function getPulseStatus(lastHeartbeat: Date | null): "green" | "amber" | "red" {
   if (!lastHeartbeat) return "red";
@@ -64,7 +65,8 @@ export async function GET() {
     successRate: agent.successRate,
   }));
 
-  const hermesModeEnabled = !!process.env.OLLAMA_BASE_URL;
+  const ollamaRuntime = getOllamaRuntimeDecision();
+  const hermesModeEnabled = ollamaRuntime.enabled;
 
   const localCount   = recentExecutions.filter(e => classifyModel(e.model) === "local").length;
   const openaiCount  = recentExecutions.filter(e => classifyModel(e.model) === "openai").length;
@@ -75,7 +77,8 @@ export async function GET() {
     agents: agentData,
     system: {
       hermesModeEnabled,
-      ollamaUrl: hermesModeEnabled ? process.env.OLLAMA_BASE_URL : null,
+      ollamaUrl: process.env.OLLAMA_BASE_URL ?? null,
+      ollamaRuntimeReason: ollamaRuntime.reason ?? null,
       pendingApprovals,
       todayExecutions,
       totalBudgetUsed: agents.reduce((s, a) => s + a.budgetUsedUsd, 0),

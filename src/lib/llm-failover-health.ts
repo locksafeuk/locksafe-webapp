@@ -1,4 +1,5 @@
 import { chat, Models } from "@/lib/llm-router";
+import { getOllamaRuntimeDecision } from "@/lib/ollama-runtime";
 
 type CheckState = "ok" | "degraded" | "error" | "unconfigured";
 
@@ -7,6 +8,8 @@ export interface LLMFailoverCheckResult {
   timestamp: string;
   config: {
     ollamaBaseUrl: string;
+    ollamaRuntimeEnabled: boolean;
+    ollamaRuntimeReason?: string;
     openaiConfigured: boolean;
     enableOpenAIFallback: boolean;
     ollamaStrict: boolean;
@@ -32,9 +35,10 @@ const ENABLE_OPENAI_FALLBACK =
   (process.env.ENABLE_OPENAI_FALLBACK ?? process.env.OPENAI_FALLBACK_ENABLED ?? "true").toLowerCase() !== "false";
 const OLLAMA_STRICT = (process.env.OLLAMA_STRICT ?? "false").toLowerCase() === "true";
 const OLLAMA_AGENT_STRICT = (process.env.OLLAMA_AGENT_STRICT ?? "false").toLowerCase() === "true";
+const OLLAMA_RUNTIME = getOllamaRuntimeDecision();
 
 function classifyStatus(result: LLMFailoverCheckResult["checks"]): LLMFailoverCheckResult["status"] {
-  const ollamaOk = result.ollama.state === "ok";
+  const ollamaOk = result.ollama.state === "ok" || result.ollama.state === "unconfigured";
   const backupUsable =
     result.openaiBackup.state === "ok" ||
     (result.openaiBackup.state === "unconfigured" && !ENABLE_OPENAI_FALLBACK);
@@ -47,6 +51,13 @@ function classifyStatus(result: LLMFailoverCheckResult["checks"]): LLMFailoverCh
 }
 
 async function checkOllama() {
+  if (!OLLAMA_RUNTIME.enabled) {
+    return {
+      state: "unconfigured" as const,
+      message: OLLAMA_RUNTIME.reason,
+    };
+  }
+
   const t0 = Date.now();
   try {
     const res = await fetch(`${OLLAMA_BASE_URL}/api/tags`, {
@@ -139,7 +150,10 @@ async function checkRouterLive() {
     );
 
     return {
-      state: response.model === "emergency-fallback" || response.usedFallback ? ("degraded" as const) : ("ok" as const),
+      state:
+        !OLLAMA_RUNTIME.enabled || !(response.model === "emergency-fallback" || response.usedFallback)
+          ? ("ok" as const)
+          : ("degraded" as const),
       latencyMs: Date.now() - t0,
       usedFallback: response.usedFallback,
       model: response.model,
@@ -182,6 +196,8 @@ export async function runLLMFailoverHealthCheck(): Promise<LLMFailoverCheckResul
     timestamp: new Date().toISOString(),
     config: {
       ollamaBaseUrl: OLLAMA_BASE_URL,
+      ollamaRuntimeEnabled: OLLAMA_RUNTIME.enabled,
+      ollamaRuntimeReason: OLLAMA_RUNTIME.reason,
       openaiConfigured: Boolean(OPENAI_API_KEY),
       enableOpenAIFallback: ENABLE_OPENAI_FALLBACK,
       ollamaStrict: OLLAMA_STRICT,

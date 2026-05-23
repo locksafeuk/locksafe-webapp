@@ -728,7 +728,9 @@ export default function MissionControlPage() {
                         {
                           label: "Hermes (Tailscale) connected",
                           ok: system?.hermesModeEnabled ?? false,
-                          detail: system?.hermesModeEnabled ? (system.ollamaUrl ?? "configured") : "Set OLLAMA_BASE_URL in Vercel",
+                          detail: system?.hermesModeEnabled
+                            ? (system.ollamaUrl ?? "configured")
+                            : (system?.ollamaRuntimeReason ?? "Set OLLAMA_BASE_URL in Vercel"),
                         },
                         {
                           label: "All agents active",
@@ -834,12 +836,9 @@ export default function MissionControlPage() {
                 <div className="text-sm">
                   <p className="font-semibold text-purple-300">Hermes not connected — agents using OpenAI (paid)</p>
                   <p className="text-muted-foreground text-xs mt-1">
-                    On your Mac Ultra: run{" "}
-                    <code className="bg-muted px-1 rounded text-[11px]">tailscale funnel 11434</code>,
-                    then set{" "}
-                    <code className="bg-muted px-1 rounded text-[11px]">OLLAMA_BASE_URL</code>{" "}
-                    in Vercel to your Tailscale URL (e.g.{" "}
-                    <code className="bg-muted px-1 rounded text-[11px]">https://&lt;hostname&gt;.ts.net</code>).
+                    {system?.ollamaRuntimeReason
+                      ? system.ollamaRuntimeReason
+                      : <>On your Mac Ultra: run <code className="bg-muted px-1 rounded text-[11px]">tailscale funnel 11434</code>, then set <code className="bg-muted px-1 rounded text-[11px]">OLLAMA_BASE_URL</code> in Vercel to your Tailscale URL (e.g. <code className="bg-muted px-1 rounded text-[11px]">https://&lt;hostname&gt;.ts.net</code>).</>}
                   </p>
                 </div>
                 <Wifi className="h-4 w-4 text-purple-400 shrink-0 mt-0.5 ml-auto" />

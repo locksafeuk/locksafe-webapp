@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { getOllamaRuntimeDecision } from "@/lib/ollama-runtime";
 
 /**
  * LLM Router — unified interface for all AI calls
@@ -344,6 +345,21 @@ export async function chat(
   const startMs = Date.now();
   const modelConfig = MODEL_CONFIG[modelAlias];
   const localModel = modelConfig.localModel;
+  const ollamaRuntime = getOllamaRuntimeDecision();
+
+  if (!ollamaRuntime.enabled) {
+    console.log(
+      `[LLM Router] Ollama runtime disabled (${ollamaRuntime.reason ?? "no reason supplied"}) — routing ${localModel} to OpenAI`,
+    );
+
+    if (!(await shouldUseOpenAIFallback(options, { ollamaRuntimeDisabled: true }))) {
+      throw new Error(
+        `[LLM Router] Ollama runtime is disabled in this environment and OpenAI is unavailable.`
+      );
+    }
+
+    return callOpenAI(modelConfig.openAiFallbackModel, messages, options, startMs, true);
+  }
 
   // Local-first for all workloads — skip Ollama if circuit is open.
   if (await ollamaCircuitAllows()) {
@@ -375,7 +391,10 @@ export async function chat(
   return callOpenAI(modelConfig.openAiFallbackModel, messages, options, startMs, true);
 }
 
-async function shouldUseOpenAIFallback(options: LLMOptions): Promise<boolean> {
+async function shouldUseOpenAIFallback(
+  options: LLMOptions,
+  flags: { ollamaRuntimeDisabled?: boolean } = {}
+): Promise<boolean> {
   if (!OPENAI_API_KEY) {
     return false;
   }
@@ -387,6 +406,10 @@ async function shouldUseOpenAIFallback(options: LLMOptions): Promise<boolean> {
   const policy = await getRuntimeLlmPolicy();
   if (!policy.openAiFallbackEnabled && !OPENAI_FALLBACK_ENABLED) {
     return false;
+  }
+
+  if (flags.ollamaRuntimeDisabled) {
+    return true;
   }
 
   if (!options.allowOpenAIFallback) {
