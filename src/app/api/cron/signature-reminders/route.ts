@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifyCronAuth } from "@/lib/cron-auth";
 import { getJobsNeedingReminders, sendSignatureReminder, autoCompleteJob } from "@/lib/notifications";
-
-// Secret to protect the cron endpoint
-const CRON_SECRET = process.env.CRON_SECRET || "dev-secret";
 
 /**
  * GET - Process signature reminders and auto-completions
@@ -14,13 +12,7 @@ const CRON_SECRET = process.env.CRON_SECRET || "dev-secret";
  */
 export async function GET(request: NextRequest) {
   try {
-    // Verify authorization
-    const authHeader = request.headers.get("authorization");
-    const token = authHeader?.replace("Bearer ", "");
-    const isVercelCron = request.headers.get("x-vercel-cron") === "1";
-
-    if (token !== CRON_SECRET && process.env.NODE_ENV === "production" && !isVercelCron) {
-      console.warn("[Cron] Unauthorized cron request");
+    if (!verifyCronAuth(request)) {
       return NextResponse.json(
         { success: false, error: "Unauthorized" },
         { status: 401 }

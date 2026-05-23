@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifyCronAuth } from "@/lib/cron-auth";
 import prisma from "@/lib/db";
 
 // Helper function to check if current time is within schedule
@@ -66,11 +67,7 @@ function isWithinSchedule(
 // This should run every 5-15 minutes via Vercel cron or similar
 export async function GET(request: NextRequest) {
   try {
-    // Verify cron secret for security
-    const authHeader = request.headers.get("authorization");
-    const cronSecret = process.env.CRON_SECRET;
-
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    if (!verifyCronAuth(request)) {
       return NextResponse.json(
         { success: false, error: "Unauthorized" },
         { status: 401 }

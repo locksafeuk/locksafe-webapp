@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifyCronAuth } from "@/lib/cron-auth";
 import { sendAdminAlert } from "@/lib/telegram";
 
 type Track = "independent" | "manager";
@@ -17,14 +18,6 @@ type SequenceResult = {
 
 const UK_SEND_WINDOW_START_HOUR = 7;
 const UK_SEND_WINDOW_END_HOUR = 11;
-
-function hasCronAuth(request: NextRequest): boolean {
-  if (request.headers.get("x-vercel-cron") === "1") return true;
-  const auth = request.headers.get("authorization");
-  const secret = process.env.CRON_SECRET;
-  if (secret && auth === `Bearer ${secret}`) return true;
-  return false;
-}
 
 function pickStyle(date: Date): Style {
   return date.getUTCDate() % 2 === 0 ? "benefit" : "direct";
@@ -102,7 +95,7 @@ async function runTouch(baseUrl: string, authHeader: string, payload: {
 }
 
 export async function GET(request: NextRequest) {
-  if (!hasCronAuth(request)) {
+  if (!verifyCronAuth(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

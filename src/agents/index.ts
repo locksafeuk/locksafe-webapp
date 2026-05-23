@@ -10,6 +10,7 @@
 const AGENTS_ENABLED = process.env.AGENTS_ENABLED === "true";
 
 // Direct imports instead of barrel exports to avoid webpack issues
+import { sendAdminAlert } from "@/lib/telegram";
 import { initializeTools } from "@/agents/tools";
 import { initializeCEOAgent, runCEOHeartbeat, getCEOStatus, generateWeeklySummary, CEO_AGENT_CONFIG } from "@/agents/ceo/agent";
 import { initializeCOOAgent, runCOOHeartbeat, getCOOStatus, COO_AGENT_CONFIG } from "@/agents/coo/agent";
@@ -378,6 +379,11 @@ export async function runAgentHeartbeats(): Promise<{
         `[Heartbeats] Self-heal: auto-resumed ${resumed.count} agent(s) ` +
           `paused for > ${autoResumeMinutes}m`,
       );
+      sendAdminAlert({
+        title: "⚠️ Agents Auto-Resumed",
+        message: `${resumed.count} agent(s) were paused for >${autoResumeMinutes}m and have been automatically set back to active.`,
+        severity: "warning",
+      }).catch(() => {});
     }
   } catch (e) {
     console.warn("[Heartbeats] Self-heal step failed:", e);

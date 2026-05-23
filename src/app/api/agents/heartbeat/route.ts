@@ -12,9 +12,8 @@ import { runAgentHeartbeats, initializeAgentSystem } from "@/agents";
 import { verifyToken } from "@/lib/auth";
 import prisma from "@/lib/db";
 import { sendAdminAlert } from "@/lib/telegram";
+import { verifyCronAuth } from "@/lib/cron-auth";
 
-// Verify cron secret
-const CRON_SECRET = process.env.CRON_SECRET;
 const AGENTS_ENABLED = process.env.AGENTS_ENABLED === "true";
 
 export async function POST(req: NextRequest) {
@@ -30,9 +29,7 @@ export async function POST(req: NextRequest) {
       }, { status: 200 });
     }
     // Verify authorization - allow cron secret OR admin session
-    const authHeader = req.headers.get("authorization");
-    const isVercelCron = req.headers.get("x-vercel-cron") === "1";
-    const hasCronAuth = !CRON_SECRET || authHeader === `Bearer ${CRON_SECRET}` || isVercelCron;
+    const hasCronAuth = verifyCronAuth(req);
 
     // Check admin authentication from request cookies (same approach as /api/admin/auth)
     let hasAdminAuth = false;
@@ -49,7 +46,6 @@ export async function POST(req: NextRequest) {
     console.log("[Heartbeat API] Auth check:", {
       hasCronAuth,
       hasAdminAuth,
-      hasCronSecret: !!CRON_SECRET,
       adminEmail,
       hasToken: !!token,
     });

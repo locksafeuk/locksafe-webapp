@@ -7,9 +7,6 @@ import { requireAdminOrCron, unauthorizedAgentApiResponse } from "@/lib/agent-ap
 const ASSESSMENT_FEE_RATE = 0.15;
 const WORK_QUOTE_RATE = 0.25;
 
-// Secret key for cron authorization (set in environment)
-const CRON_SECRET = process.env.CRON_SECRET || "your-cron-secret-key";
-
 /**
  * Weekly Payout Generation Cron Job
  *

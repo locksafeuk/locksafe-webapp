@@ -2,13 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { runDailyReliabilityChecks } from "@/lib/reliability/daily";
 import { sendAdminAlert } from "@/lib/telegram";
 
-function hasCronAuth(request: NextRequest): boolean {
-  if (request.headers.get("x-vercel-cron") === "1") return true;
-  const auth = request.headers.get("authorization");
-  const secret = process.env.CRON_SECRET;
-  if (secret && auth === `Bearer ${secret}`) return true;
-  return false;
-}
+import { verifyCronAuth } from "@/lib/cron-auth";
 
 function summarizeIssues(report: Awaited<ReturnType<typeof runDailyReliabilityChecks>>): string[] {
   const failed = report.results.filter((r) => r.status === "FAIL");
@@ -32,7 +26,7 @@ function summarizeIssues(report: Awaited<ReturnType<typeof runDailyReliabilityCh
 }
 
 async function handle(request: NextRequest) {
-  if (!hasCronAuth(request)) {
+  if (!verifyCronAuth(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

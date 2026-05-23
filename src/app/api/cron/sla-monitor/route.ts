@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifyCronAuth } from "@/lib/cron-auth";
 import prisma from "@/lib/db";
 import { sendAdminAlert } from "@/lib/telegram";
 import { JobStatus } from "@prisma/client";
-
-const CRON_SECRET = process.env.CRON_SECRET || "dev-secret";
 
 // SLA thresholds
 const SLA = {
@@ -27,11 +26,7 @@ const SLA = {
  * 3. Customer has had a quote for >20 mins and not responded → SMS reminder
  */
 export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get("authorization");
-  const token = authHeader?.replace("Bearer ", "");
-  const isVercelCron = request.headers.get("x-vercel-cron") === "1";
-
-  if (token !== CRON_SECRET && process.env.NODE_ENV === "production" && !isVercelCron) {
+  if (!verifyCronAuth(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

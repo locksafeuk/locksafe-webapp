@@ -15,28 +15,21 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { verifyCronAuth } from "@/lib/cron-auth";
 import { prisma } from "@/lib/db";
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth";
 import { generateImage, enhanceImagePrompt } from "@/lib/image-gen";
 import { sendAdminAlert } from "@/lib/telegram";
 
-// Verify cron secret or admin authentication
 async function verifyAccess(request: NextRequest): Promise<boolean> {
-  const authHeader = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (cronSecret && authHeader === `Bearer ${cronSecret}`) return true;
-  if (request.headers.get("x-vercel-cron") === "1") return true;
-
+  if (verifyCronAuth(request)) return true;
   const cookieStore = await cookies();
   const token = cookieStore.get("admin_token")?.value || cookieStore.get("auth_token")?.value;
   if (token) {
     const payload = await verifyToken(token);
     if (payload && payload.type === "admin") return true;
   }
-
-  if (!cronSecret && process.env.NODE_ENV === "development") return true;
   return false;
 }
 

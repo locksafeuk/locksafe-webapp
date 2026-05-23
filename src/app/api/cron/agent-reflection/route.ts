@@ -15,6 +15,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { verifyCronAuth } from "@/lib/cron-auth";
 import prisma from "@/lib/db";
 import {
   gradeOutcome,
@@ -23,7 +24,6 @@ import {
 } from "@/agents/core/reflection";
 import { applyReflection as applySeedReflection } from "@/agents/core/seed-bank";
 
-const CRON_SECRET = process.env.CRON_SECRET || "your-cron-secret-key";
 const MAX_NARRATIVES = Number(process.env.REFLECTION_MAX_NARRATIVES ?? 50);
 
 interface TopKeyword {
@@ -204,11 +204,7 @@ async function reflectOnPublishedDrafts(counters: Counters) {
 
 async function run(request: NextRequest) {
   const startTime = Date.now();
-  const authHeader = request.headers.get("authorization");
-  const token = authHeader?.replace("Bearer ", "");
-  const vercelCron = request.headers.get("x-vercel-cron");
-
-  if (token !== CRON_SECRET && !vercelCron) {
+  if (!verifyCronAuth(request)) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
 

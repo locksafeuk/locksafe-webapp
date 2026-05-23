@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifyCronAuth } from "@/lib/cron-auth";
 import { syncAllLocksmithTiers } from "@/lib/commission-tiers";
 
-const CRON_SECRET = process.env.CRON_SECRET || "your-cron-secret-key";
 
 /**
  * Sync Commission Tiers Cron — runs daily at 2AM UTC.
@@ -13,11 +13,7 @@ const CRON_SECRET = process.env.CRON_SECRET || "your-cron-secret-key";
  * Schedule: "0 2 * * *"  (2AM UTC daily)
  */
 export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get("authorization");
-  const token = authHeader?.replace("Bearer ", "");
-  const vercelCron = request.headers.get("x-vercel-cron");
-
-  if (token !== CRON_SECRET && !vercelCron) {
+  if (!verifyCronAuth(request)) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
 

@@ -9,6 +9,7 @@
  *   - x-vercel-cron header (Vercel Cron)
  */
 import { NextRequest, NextResponse } from "next/server";
+import { verifyCronAuth } from "@/lib/cron-auth";
 import { prisma } from "@/lib/prisma";
 import { sendAdminAlert } from "@/lib/telegram";
 
@@ -21,12 +22,7 @@ export async function GET(request: NextRequest) {
 }
 
 async function handle(request: NextRequest) {
-  const authHeader = request.headers.get("authorization") || "";
-  const token = authHeader.replace("Bearer ", "");
-  const vercelCron = request.headers.get("x-vercel-cron");
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (!vercelCron && (!cronSecret || token !== cronSecret)) {
+  if (!verifyCronAuth(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifyCronAuth } from "@/lib/cron-auth";
 import { monitorGoogleAdsClickFraud } from "@/lib/google-ads-fraud-monitor";
 
-const CRON_SECRET = process.env.CRON_SECRET || "your-cron-secret-key";
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
-  const authHeader = request.headers.get("authorization");
-  const token = authHeader?.replace("Bearer ", "");
-  const vercelCron = request.headers.get("x-vercel-cron");
-
-  if (token !== CRON_SECRET && !vercelCron) {
+  if (!verifyCronAuth(request)) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
 

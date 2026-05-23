@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifyCronAuth } from "@/lib/cron-auth";
 import { generateMonthlyInvoices } from "@/lib/invoicing";
 
-const CRON_SECRET = process.env.CRON_SECRET || "dev-secret";
 
 /**
  * GET /api/cron/generate-invoices
@@ -12,11 +12,7 @@ const CRON_SECRET = process.env.CRON_SECRET || "dev-secret";
  * Can also be triggered manually with an optional ?period=YYYY-MM query param.
  */
 export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get("authorization");
-  const token = authHeader?.replace("Bearer ", "");
-  const vercelCron = request.headers.get("x-vercel-cron");
-
-  if (token !== CRON_SECRET && !vercelCron) {
+  if (!verifyCronAuth(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

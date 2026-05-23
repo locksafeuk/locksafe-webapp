@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifyCronAuth } from "@/lib/cron-auth";
 import prisma from "@/lib/db";
 import { notifyNearbyLocksmiths } from "@/lib/job-notifications";
 import { notifyNewJob, sendAdminAlert } from "@/lib/telegram";
 import { JobStatus } from "@prisma/client";
 
-const CRON_SECRET = process.env.CRON_SECRET || "dev-secret";
 
 /**
  * GET /api/cron/auto-redispatch
@@ -18,9 +18,7 @@ const CRON_SECRET = process.env.CRON_SECRET || "dev-secret";
  *   Wave 4 — 30 min elapsed, still 0 applications → critical admin alert, flag for manual intervention
  */
 export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get("authorization");
-  const isVercelCron = request.headers.get("x-vercel-cron") === "1";
-  if (authHeader !== `Bearer ${CRON_SECRET}` && !isVercelCron) {
+  if (!verifyCronAuth(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifyCronAuth } from "@/lib/cron-auth";
 import {
   syncAllCampaigns,
   syncAdReviewStatus,
   getSyncStatus,
 } from "@/lib/meta-sync";
-
-// Secret key for cron authorization (set in environment)
-const CRON_SECRET = process.env.CRON_SECRET || "your-cron-secret-key";
 
 /**
  * Meta Performance Sync Cron Job
@@ -45,15 +43,7 @@ export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
   try {
-    // Verify cron authorization
-    const authHeader = request.headers.get("authorization");
-    const token = authHeader?.replace("Bearer ", "");
-
-    // Also check for Vercel cron header
-    const vercelCron = request.headers.get("x-vercel-cron");
-
-    if (token !== CRON_SECRET && !vercelCron) {
-      console.log("[Cron] Unauthorized request to sync-meta-performance");
+    if (!verifyCronAuth(request)) {
       return NextResponse.json(
         { success: false, error: "Unauthorized" },
         { status: 401 }

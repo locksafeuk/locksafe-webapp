@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifyCronAuth } from "@/lib/cron-auth";
 import { cleanupExpiredBlacklistedTokens } from "@/lib/auth";
 
 /**
@@ -15,12 +16,7 @@ import { cleanupExpiredBlacklistedTokens } from "@/lib/auth";
  */
 export async function GET(request: NextRequest) {
   try {
-    // Verify the request is coming from Vercel Cron or has the correct auth header
-    const authHeader = request.headers.get("authorization");
-    const cronSecret = process.env.CRON_SECRET;
-    const isVercelCron = request.headers.get("x-vercel-cron") === "1";
-
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}` && !isVercelCron) {
+    if (!verifyCronAuth(request)) {
       return NextResponse.json(
         { success: false, error: "Unauthorized" },
         { status: 401 }

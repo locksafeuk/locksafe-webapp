@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifyCronAuth } from "@/lib/cron-auth";
 import prisma from "@/lib/db";
 import { sendInsuranceExpiryReminderEmail } from "@/lib/email";
 import { SITE_URL } from "@/lib/config";
@@ -14,13 +15,7 @@ import { SITE_URL } from "@/lib/config";
  */
 export async function GET(request: NextRequest) {
   try {
-    // Verify cron secret in production
-    const { searchParams } = new URL(request.url);
-    const secret = searchParams.get("secret");
-    const cronSecret = process.env.CRON_SECRET;
-
-    const isVercelCron = request.headers.get("x-vercel-cron") === "1";
-    if (cronSecret && secret !== cronSecret && !isVercelCron) {
+    if (!verifyCronAuth(request)) {
       return NextResponse.json(
         { success: false, error: "Unauthorized" },
         { status: 401 }
