@@ -125,6 +125,82 @@ const OPENAI_API_KEY  = process.env.OPENAI_API_KEY;
 const OPENAI_FALLBACK_ENABLED = process.env.OPENAI_FALLBACK_ENABLED === "true";
 const LLM_POLICY_CACHE_TTL_MS = 30_000;
 
+// ─── Circuit breaker ──────────────────────────────────────────────────────────
+// Tracks consecutive Ollama failures. After CB_TRIP_THRESHOLD failures the
+// circuit opens and all calls bypass Ollama for CB_RESET_MS (30 min). After
+// that a lightweight health probe is attempted; on success the circuit closes
+// and Telegram is notified in both directions.
+//
+// Module-level state survives across warm Vercel invocations. A cold start
+// resets counters (one extra probe on restart — acceptable).
+const CB_TRIP_THRESHOLD = 3;
+const CB_RESET_MS       = 30 * 60_000; // 30 min
+
+type CBState = "closed" | "open";
+let cbState: CBState   = "closed";
+let cbFailures         = 0;
+let cbOpenedAt         = 0;
+
+async function probeOllama(): Promise<boolean> {
+  const headers: Record<string, string> = {};
+  if (OLLAMA_SECRET) headers["X-Ollama-Secret"] = OLLAMA_SECRET;
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 5_000);
+    const res = await fetch(`${OLLAMA_BASE_URL}/api/tags`, { headers, signal: ctrl.signal });
+    clearTimeout(t);
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function ollamaCircuitAllows(): Promise<boolean> {
+  if (cbState === "closed") return true;
+
+  // Circuit is open — check if reset window has passed
+  if (Date.now() - cbOpenedAt < CB_RESET_MS) return false;
+
+  // Half-open probe
+  const healthy = await probeOllama();
+  if (healthy) {
+    cbState   = "closed";
+    cbFailures = 0;
+    console.log("[LLM Router] Circuit closed — Ollama recovered");
+    import("@/lib/telegram").then(({ sendAdminAlert }) => {
+      sendAdminAlert({
+        title:    "✅ Ollama Circuit Recovered",
+        message:  "Ollama is reachable again. Agents have switched back to local inference.",
+        severity: "info",
+      }).catch(() => {});
+    }).catch(() => {});
+  } else {
+    cbOpenedAt = Date.now(); // extend reset window
+    console.log("[LLM Router] Circuit still open — Ollama probe failed");
+  }
+  return healthy;
+}
+
+function recordOllamaFailure(model: string, err: string): void {
+  cbFailures++;
+  if (cbState === "closed" && cbFailures >= CB_TRIP_THRESHOLD) {
+    cbState    = "open";
+    cbOpenedAt = Date.now();
+    console.error(`[LLM Router] Circuit OPEN after ${cbFailures} failures (last: ${model})`);
+    import("@/lib/telegram").then(({ sendAdminAlert }) => {
+      sendAdminAlert({
+        title:    "🔴 Ollama Circuit Tripped",
+        message:  `Ollama failed ${CB_TRIP_THRESHOLD}× in a row. Falling back to OpenAI for 30 min.\n\nLast error (${model}): ${err.slice(0, 200)}`,
+        severity: "error",
+      }).catch(() => {});
+    }).catch(() => {});
+  }
+}
+
+function recordOllamaSuccess(): void {
+  if (cbFailures > 0) cbFailures = 0;
+}
+
 let llmPolicyCache: {
   value: { openAiFallbackEnabled: boolean; openAiFallbackMinSeverity: FallbackSeverity };
   expiresAt: number;
@@ -141,17 +217,29 @@ export async function chat(
   const modelConfig = MODEL_CONFIG[modelAlias];
   const localModel = modelConfig.localModel;
 
-  // Local-first for all workloads.
-  try {
-    return await callOllama(localModel, messages, options, startMs);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.warn(`[LLM Router] Local model failed (${localModel}): ${msg}`);
+  // Local-first for all workloads — skip Ollama if circuit is open.
+  if (await ollamaCircuitAllows()) {
+    try {
+      const result = await callOllama(localModel, messages, options, startMs);
+      recordOllamaSuccess();
+      return result;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[LLM Router] Local model failed (${localModel}): ${msg}`);
+      recordOllamaFailure(localModel, msg);
 
+      if (!(await shouldUseOpenAIFallback(options))) {
+        throw new Error(
+          `[LLM Router] Local model failed and OpenAI fallback is disabled. ` +
+          `Enable allowOpenAIFallback with high/critical severity for emergency fallback.`
+        );
+      }
+    }
+  } else {
+    console.log(`[LLM Router] Circuit OPEN — bypassing Ollama (${localModel}), routing to OpenAI`);
     if (!(await shouldUseOpenAIFallback(options))) {
       throw new Error(
-        `[LLM Router] Local model failed and OpenAI fallback is disabled. ` +
-        `Enable allowOpenAIFallback with high/critical severity for emergency fallback.`
+        `[LLM Router] Ollama circuit is open and OpenAI fallback is disabled.`
       );
     }
   }
