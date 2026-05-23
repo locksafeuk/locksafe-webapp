@@ -141,6 +141,16 @@ let cbState: CBState   = "closed";
 let cbFailures         = 0;
 let cbOpenedAt         = 0;
 
+// ─── OpenAI fallback spend cap ────────────────────────────────────────────────
+// In-memory daily tracker. Resets at UTC midnight. Survives warm Vercel
+// invocations; cold starts reset to zero (acceptable — one extra day of leeway).
+const OPENAI_FALLBACK_DAILY_CAP_USD =
+  Number(process.env.OPENAI_FALLBACK_DAILY_CAP_USD ?? 5);
+
+let fallbackSpendToday = 0;   // USD accumulated this UTC day
+let fallbackSpendDay   = -1;  // UTC day index for reset detection
+let alertedHalfCap     = false;
+
 async function probeOllama(): Promise<boolean> {
   const headers: Record<string, string> = {};
   if (OLLAMA_SECRET) headers["X-Ollama-Secret"] = OLLAMA_SECRET;
@@ -249,6 +259,10 @@ export async function chat(
 
 async function shouldUseOpenAIFallback(options: LLMOptions): Promise<boolean> {
   if (!OPENAI_API_KEY) {
+    return false;
+  }
+
+  if (isFallbackCapExceeded()) {
     return false;
   }
 
@@ -410,6 +424,55 @@ async function callOllama(
   }
 }
 
+// ─── Spend cap helpers ────────────────────────────────────────────────────────
+
+function calcOpenAICost(model: string, promptTokens: number, completionTokens: number): number {
+  const rates: Record<string, [number, number]> = {
+    "gpt-4o":      [2.50, 10.00],
+    "gpt-4o-mini": [0.15,  0.60],
+  };
+  const [inRate, outRate] = rates[model] ?? [2.50, 10.00];
+  return (promptTokens / 1_000_000) * inRate + (completionTokens / 1_000_000) * outRate;
+}
+
+function recordFallbackSpend(model: string, promptTokens: number, completionTokens: number): void {
+  const todayDay = Math.floor(Date.now() / 86_400_000);
+  if (todayDay !== fallbackSpendDay) {
+    fallbackSpendToday = 0;
+    fallbackSpendDay   = todayDay;
+    alertedHalfCap     = false;
+  }
+  fallbackSpendToday += calcOpenAICost(model, promptTokens, completionTokens);
+  console.log(`[LLM Router] OpenAI fallback spend today: $${fallbackSpendToday.toFixed(4)} / $${OPENAI_FALLBACK_DAILY_CAP_USD} cap`);
+
+  if (!alertedHalfCap && fallbackSpendToday >= OPENAI_FALLBACK_DAILY_CAP_USD * 0.5) {
+    alertedHalfCap = true;
+    import("@/lib/telegram").then(({ sendAdminAlert }) => {
+      sendAdminAlert({
+        title:    "⚠️ OpenAI Fallback at 50% Daily Cap",
+        message:  `Spent $${fallbackSpendToday.toFixed(2)} of $${OPENAI_FALLBACK_DAILY_CAP_USD} today.\n\nOllama may still be unreachable — check Tailscale + Mac Studio.`,
+        severity: "warning",
+      }).catch(() => {});
+    }).catch(() => {});
+  }
+}
+
+function isFallbackCapExceeded(): boolean {
+  const todayDay = Math.floor(Date.now() / 86_400_000);
+  if (todayDay !== fallbackSpendDay) return false;
+  if (fallbackSpendToday < OPENAI_FALLBACK_DAILY_CAP_USD) return false;
+
+  console.error(`[LLM Router] OpenAI fallback daily cap ($${OPENAI_FALLBACK_DAILY_CAP_USD}) exceeded — blocking.`);
+  import("@/lib/telegram").then(({ sendAdminAlert }) => {
+    sendAdminAlert({
+      title:    "🚨 OpenAI Fallback Cap HIT — Blocked",
+      message:  `Daily cap of $${OPENAI_FALLBACK_DAILY_CAP_USD} reached. All OpenAI fallback is BLOCKED until midnight UTC.\n\nRestore Ollama or raise OPENAI_FALLBACK_DAILY_CAP_USD.`,
+      severity: "error",
+    }).catch(() => {});
+  }).catch(() => {});
+  return true;
+}
+
 // ─── OpenAI client ────────────────────────────────────────────────────────────
 
 async function callOpenAI(
@@ -469,14 +532,18 @@ async function callOpenAI(
     arguments: JSON.parse(tc.function.arguments) as Record<string, unknown>,
   }));
 
+  const promptTokens     = data.usage?.prompt_tokens     ?? 0;
+  const completionTokens = data.usage?.completion_tokens ?? 0;
+  recordFallbackSpend(model, promptTokens, completionTokens);
+
   return {
     content:     choice.content ?? "",
     model,
     usedFallback,
     durationMs:  Date.now() - startMs,
     toolCalls,
-    promptTokens:     data.usage?.prompt_tokens,
-    completionTokens: data.usage?.completion_tokens,
+    promptTokens,
+    completionTokens,
   };
 }
 
