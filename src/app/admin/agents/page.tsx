@@ -63,6 +63,7 @@ interface LlmRuntime {
 interface SystemStatus {
   hermesModeEnabled: boolean;
   ollamaUrl: string | null;
+  ollamaRuntimeReason?: string | null;
   pendingApprovals: number;
   todayExecutions: number;
   totalBudgetUsed: number;
