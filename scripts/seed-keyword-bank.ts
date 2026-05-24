@@ -9,7 +9,7 @@
  */
 
 import prisma from "../src/lib/db";
-import { FALLBACK_BASELINE_SEEDS } from "../src/agents/core/seed-bank";
+import { FALLBACK_BASELINE_SEEDS, seedStudentHmoKeywords } from "../src/agents/core/seed-bank";
 
 async function main() {
   console.log(`Seeding ${FALLBACK_BASELINE_SEEDS.length} baseline keywords…`);
@@ -36,6 +36,12 @@ async function main() {
     inserted++;
   }
   console.log(`Inserted ${inserted}, skipped ${updated} (already present).`);
+
+  // Seed student / HMO experimental keywords (idempotent).
+  console.log("Seeding student/HMO keywords…");
+  await seedStudentHmoKeywords();
+  console.log("Student/HMO seeds done.");
+
   await prisma.$disconnect();
 }
 

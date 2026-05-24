@@ -120,6 +120,12 @@ export interface GeoOpportunity {
    * by NEAR_LONDON_PENALTY; this flag lets the UI show a warning.
    */
   nearLondonPenalty?: boolean;
+  /**
+   * True if the winter seasonal boost (1.2×) was applied because this is a
+   * northern city and today falls in Oct–Feb. Score already includes the uplift;
+   * this flag lets the UI show a ❄️ badge.
+   */
+  winterBoost?: boolean;
 }
 
 export interface ScoreOpportunitiesOptions {
@@ -181,6 +187,55 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Score multiplier applied to near-London cities (0.7 = −30%). */
 const NEAR_LONDON_PENALTY = 0.70;
+
+// =========================================================================
+// Seasonal multiplier — winter boost for northern UK cities
+//
+// Lockouts and emergency call-outs spike Oct–Feb in northern cities because
+// of cold-weather lock freeze, shorter days, and higher crime rates in
+// winter.  The Keyword Planner uses 12-month averages, which under-estimates
+// winter search volume in these geos by roughly 20%.  We apply a 1.2×
+// multiplier Oct–Feb so the scorer prioritises them during the high-season
+// window rather than waiting until the spring cycle.
+//
+// The boost is only applied to cities north of ~52°N where the effect is
+// most pronounced; southern cities don't show the same uplift.
+// =========================================================================
+
+/** Score multiplier applied to northern cities in the winter months Oct–Feb. */
+const WINTER_BOOST = 1.2;
+
+/**
+ * City keys that benefit from the winter boost.
+ * All ≥ ~52°N where cold-season lockout spikes are statistically significant.
+ */
+const NORTHERN_CITY_KEYS = new Set([
+  "hull",
+  "sheffield",
+  "leeds",
+  "nottingham",
+  "manchester",
+  "liverpool",
+  "newcastle",
+  "sunderland",
+  "bradford",
+  "middlesbrough",
+  "stoke",
+  "derby",
+  "leicester",
+  "coventry",
+  "birmingham",
+]);
+
+/** True if today falls in the winter boost window (October through February). */
+function isWinterBoostActive(): boolean {
+  const month = new Date().getMonth(); // 0-indexed: Jan=0, Oct=9, Dec=11
+  return month >= 9 || month <= 1; // Oct(9), Nov(10), Dec(11), Jan(0), Feb(1)
+}
+
+function isNorthernCity(cityKey: string): boolean {
+  return NORTHERN_CITY_KEYS.has(cityKey.toLowerCase());
+}
 
 /**
  * City keys that suffer from London auction bleed.
@@ -285,8 +340,13 @@ export async function scoreOpportunities(
       // Near-London proximity penalty: national chains' broad-match campaigns
       // bleed into SE cities, making actual CPCs 30–60% higher than Planner shows.
       const nearLondon = isNearLondonCity(entry.cityKey);
+      const penalised = nearLondon ? supplyAdjusted * NEAR_LONDON_PENALTY : supplyAdjusted;
+
+      // Seasonal winter boost (Oct–Feb) for northern cities where cold-season
+      // lockouts spike ~20% above the 12-month average the Planner returns.
+      const winterBoostApplied = isWinterBoostActive() && isNorthernCity(entry.cityKey);
       const adjustedScore = Number(
-        (nearLondon ? supplyAdjusted * NEAR_LONDON_PENALTY : supplyAdjusted).toFixed(2),
+        (winterBoostApplied ? penalised * WINTER_BOOST : penalised).toFixed(2),
       );
 
       const opportunity: GeoOpportunity = {
@@ -301,6 +361,7 @@ export async function scoreOpportunities(
         topKeywords: top10,
         locksmithCount: entry.locksmithCount,
         nearLondonPenalty: nearLondon,
+        winterBoost: winterBoostApplied,
         locksmithIds: entry.locksmithIds,
         supplyRatio,
       };

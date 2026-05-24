@@ -88,7 +88,7 @@ async function getCampaignLadderState(googleCampaignId: string): Promise<Set<Lad
       select: { notes: true },
     });
     if (!policy?.notes) return new Set();
-    const notes = policy.notes as Record<string, unknown>;
+    const notes = (typeof policy.notes === "string" ? JSON.parse(policy.notes) : policy.notes) as Record<string, unknown>;
     const ladderState = (notes.ladderState ?? {}) as Record<string, string[]>;
     const rungs = ladderState[googleCampaignId] ?? [];
     return new Set(rungs as LadderRung[]);
@@ -106,7 +106,8 @@ async function markRungApplied(googleCampaignId: string, rung: LadderRung): Prom
       where: { platform: "google" },
       select: { notes: true },
     });
-    const notes = ((policy?.notes ?? {}) as Record<string, unknown>);
+    const rawNotes = policy?.notes;
+    const notes = (typeof rawNotes === "string" ? JSON.parse(rawNotes) : (rawNotes ?? {})) as Record<string, unknown>;
     const ladderState = ((notes.ladderState ?? {}) as Record<string, string[]>);
     const existing = ladderState[googleCampaignId] ?? [];
     if (!existing.includes(rung)) {
