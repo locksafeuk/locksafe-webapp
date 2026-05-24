@@ -15,6 +15,7 @@
 
 import prisma from "@/lib/db";
 import { sendAdminAlert } from "@/lib/telegram";
+import { sendNativePushToMany } from "@/lib/native-push";
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const AUCTION_STEP_MINUTES = 2;
@@ -222,16 +223,58 @@ export async function sendAuctionNotifications(
     where: { id: { in: locksmithIds } },
     select: {
       id: true,
+      name: true,
       telegramChatId: true,
+      nativeDeviceToken: true,
+      nativeTokenType: true,
+      nativeTokenPlatform: true,
+      pushNotifications: true,
     },
   });
 
+  // ── Native push (primary channel — mobile app) ──────────────────────────
+  const pushRecipients = locksmiths.filter(
+    (ls) =>
+      ls.nativeDeviceToken &&
+      ls.nativeTokenType &&
+      ls.nativeTokenPlatform &&
+      ls.pushNotifications !== false,
+  ) as Array<{
+    id: string;
+    name: string;
+    nativeDeviceToken: string;
+    nativeTokenType: string;
+    nativeTokenPlatform: string;
+  }>;
+
+  const pushPayload = {
+    title: `🔑 New Job — Keep ${100 - commissionPercent}%`,
+    body: `${job.problemType} · ${job.propertyType} — ${job.postcode} (${waveLabel})`,
+    badge: 1,
+    data: {
+      type: "job_auction",
+      jobId,
+      jobNumber: job.jobNumber,
+      step: String(step),
+      rate: String(rate),
+      commissionPercent: String(commissionPercent),
+      keepPercent: String(100 - commissionPercent),
+      postcode: job.postcode,
+    },
+  };
+
+  if (pushRecipients.length > 0) {
+    await sendNativePushToMany(pushRecipients, pushPayload).catch((err) =>
+      console.error("[JobAuction] Native push failed:", err),
+    );
+  }
+
+  // ── Telegram inline buttons (supplementary — locksmiths with both channels) ─
   const button = {
     text: `✅ Accept at ${commissionPercent}% commission`,
     callback_data: `accept_auction:${jobId}`,
   };
 
-  // Send Telegram messages
   const telegramPromises = locksmiths
     .filter((ls) => ls.telegramChatId)
     .map((ls) =>

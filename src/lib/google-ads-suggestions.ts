@@ -16,6 +16,7 @@
 
 import prisma from "@/lib/db";
 import { chat, Models } from "@/lib/llm-router";
+import { tryAutoApproveSuggestion } from "@/lib/confidence-gate";
 
 // ─── Evidence thresholds ─────────────────────────────────────────────────────
 // Conservative defaults — err on the side of too few suggestions rather than
@@ -47,10 +48,58 @@ export interface SuggestionEvidence {
   [key: string]: unknown;
 }
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface CityContext {
+  geoId: string;
+  geoLabel: string;
+  medianCpcGbp: number;
+  /** Actual/predicted CPC ratio from the last reflection run. 1.0 = on target. */
+  cpaBias: number;
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function daysBetween(a: Date, b: Date): number {
   return Math.abs(b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24);
+}
+
+/**
+ * Look up the most recent COVERAGE opportunity for a campaign's primary geo.
+ * Returns null if no opportunity row exists yet (e.g. new city, pre-scout).
+ */
+async function getCityContext(geoTargets: string[]): Promise<CityContext | null> {
+  if (!geoTargets.length) return null;
+
+  // Try each geo target in order; return the first one with a COVERAGE row.
+  for (const geoId of geoTargets) {
+    const opp = await prisma.googleAdsOpportunity.findFirst({
+      where: { geoTargetId: geoId, kind: "COVERAGE", medianCpcGbp: { gt: 0 } },
+      orderBy: { computedAt: "desc" },
+      select: { geoTargetId: true, geoLabel: true, medianCpcGbp: true, agentNotes: true },
+    });
+
+    if (!opp) continue;
+
+    // Extract cpaBias from agentNotes JSON written by reflectOnCampaignPerformance()
+    let cpaBias = 1.0;
+    try {
+      const notes = opp.agentNotes ? JSON.parse(opp.agentNotes) : {};
+      if (typeof notes.cpaBias === "number" && notes.cpaBias > 0) {
+        cpaBias = notes.cpaBias;
+      }
+    } catch {
+      // Ignore malformed notes
+    }
+
+    return {
+      geoId: opp.geoTargetId,
+      geoLabel: opp.geoLabel,
+      medianCpcGbp: opp.medianCpcGbp,
+      cpaBias,
+    };
+  }
+  return null;
 }
 
 async function getAdsSpecialistAgentId(): Promise<string | undefined> {
@@ -88,7 +137,7 @@ async function createSuggestion(args: {
   agentId?: string;
 }): Promise<void> {
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
-  await (prisma as any).campaignSuggestion.create({
+  const created = await (prisma as any).campaignSuggestion.create({
     data: {
       type: args.type,
       draftId: args.draftId,
@@ -103,13 +152,20 @@ async function createSuggestion(args: {
       agentId: args.agentId,
       expiresAt,
     },
+    select: { id: true },
   });
+
+  // Attempt confidence-gated auto-approval. Runs asynchronously so it never
+  // blocks suggestion generation. Any failure leaves the suggestion PENDING.
+  tryAutoApproveSuggestion(created.id).catch((err) =>
+    console.error("[google-ads-suggestions] Confidence gate error:", err),
+  );
 }
 
 // ─── Analysis: search terms → ADD_NEGATIVE / ADD_KEYWORD ─────────────────────
 
 async function analyseSearchTermsForCampaign(
-  draft: { id: string; googleCampaignId: string; name: string; negativeKeywords: string[]; dailyBudget: number },
+  draft: { id: string; googleCampaignId: string; name: string; negativeKeywords: string[]; dailyBudget: number; geoTargets: string[] },
   agentId: string | undefined,
 ): Promise<void> {
   const t = DEFAULT_THRESHOLDS;
@@ -132,6 +188,13 @@ async function analyseSearchTermsForCampaign(
   const totalConversions = snapshots.reduce((s, r) => s + r.conversions, 0);
   const totalImpressions = snapshots.reduce((s, r) => s + r.impressions, 0);
   const days = snapshots.length;
+  const avgCpc = totalClicks > 0 ? totalSpend / totalClicks : 0;
+
+  // Fetch city context so the AI understands whether CPC is high or normal for this market.
+  const cityCtx = await getCityContext(draft.geoTargets);
+  const cityLine = cityCtx
+    ? `CITY: ${cityCtx.geoLabel} | CITY MEDIAN CPC: £${cityCtx.medianCpcGbp.toFixed(2)} | CPC BIAS: ${cityCtx.cpaBias.toFixed(2)}× (${cityCtx.cpaBias > 1.1 ? "campaign is running more expensive than city norm" : cityCtx.cpaBias < 0.9 ? "campaign is running cheaper than city norm — good" : "on par with city norm"})`
+    : "CITY: unknown (no opportunity data yet)";
 
   // Use Hermes to analyse the campaign snapshot and suggest keyword actions.
   // Hermes-4 (tool-calling specialist) produces clean structured JSON.
@@ -141,16 +204,18 @@ Analyse this campaign's 30-day performance and suggest up to 3 specific keyword 
 CAMPAIGN: "${draft.name}"
 DAILY BUDGET: £${draft.dailyBudget}
 PERIOD: ${days} days
+${cityLine}
 TOTAL SPEND: £${totalSpend.toFixed(2)}
 TOTAL CLICKS: ${totalClicks}
 TOTAL CONVERSIONS: ${totalConversions}
 TOTAL IMPRESSIONS: ${totalImpressions}
-AVG CPC: £${totalClicks > 0 ? (totalSpend / totalClicks).toFixed(2) : "n/a"}
+AVG CPC: £${avgCpc > 0 ? avgCpc.toFixed(2) : "n/a"}
 AVG CTR: ${totalImpressions > 0 ? ((totalClicks / totalImpressions) * 100).toFixed(2) : "0"}%
 EXISTING NEGATIVES (already blocked): ${draft.negativeKeywords.slice(0, 20).join(", ")}
 
 LockSafe ONLY serves residential/commercial door lockouts and lock changes in the UK.
 Negatives needed for: car/auto locksmith, safe opening, training/courses, DIY/lockpicking, key cutting only, price comparison.
+Use the CITY MEDIAN CPC as the benchmark — a CPC above the city median is only a concern if it's also not converting.
 
 Return a JSON array of suggestions (max 3, only high-confidence ones):
 [{
@@ -210,7 +275,7 @@ Return [] if no high-confidence suggestions. No markdown, raw JSON only.`;
 // ─── Analysis: budget utilisation ────────────────────────────────────────────
 
 async function analyseBudgetForCampaign(
-  draft: { id: string; googleCampaignId: string; name: string; dailyBudget: number },
+  draft: { id: string; googleCampaignId: string; name: string; dailyBudget: number; geoTargets: string[] },
   agentId: string | undefined,
 ): Promise<void> {
   const t = DEFAULT_THRESHOLDS;
@@ -229,10 +294,19 @@ async function analyseBudgetForCampaign(
   const avgRoas = recent.filter((r) => r.spend > 0).reduce((s, r) => s + r.roas, 0) / recent.filter((r) => r.spend > 0).length || 0;
   const utilisationRate = draft.dailyBudget > 0 ? avgDailySpend / draft.dailyBudget : 0;
 
-  // SCALE_WINNER: high utilisation + good ROAS
+  // City-adjusted ROAS threshold: expensive cities (cpaBias > 1) have naturally
+  // lower ROAS because each click costs more — relax the scale threshold.
+  // Cheap cities (cpaBias < 1) should hit higher ROAS — hold them to a stricter bar.
+  const cityCtx = await getCityContext(draft.geoTargets);
+  const cpaBias = cityCtx?.cpaBias ?? 1.0;
+  const cityAdjustedMinRoas = +(t.increaseBudget.minRoas / cpaBias).toFixed(2);
+  // Cap adjustment: never scale a campaign with ROAS < 1.5× regardless of city.
+  const effectiveMinRoas = Math.max(1.5, cityAdjustedMinRoas);
+
+  // SCALE_WINNER: high utilisation + good ROAS (city-adjusted)
   if (
     utilisationRate >= t.increaseBudget.minUtilisationRate &&
-    avgRoas >= t.increaseBudget.minRoas &&
+    avgRoas >= effectiveMinRoas &&
     avgDailyConversions > 0 &&
     days >= t.increaseBudget.minDays
   ) {
@@ -247,7 +321,7 @@ async function analyseBudgetForCampaign(
         evidence: { avgDailySpend, utilisationRate, avgRoas, avgDailyConversions, days },
         suggestedValue: { newDailyBudget: suggestedBudget },
         currentValue: { currentDailyBudget: draft.dailyBudget },
-        reasoning: `Campaign is hitting ${(utilisationRate * 100).toFixed(0)}% of budget daily with a ${avgRoas.toFixed(1)}× ROAS over ${days} days. Increasing from £${draft.dailyBudget} to £${suggestedBudget}/day targets ~25% more clicks at the same efficiency. Capped at £15/day per policy.`,
+        reasoning: `Campaign is hitting ${(utilisationRate * 100).toFixed(0)}% of budget daily with a ${avgRoas.toFixed(1)}× ROAS over ${days} days${cityCtx ? ` (city-adjusted threshold: ${effectiveMinRoas.toFixed(1)}× for ${cityCtx.geoLabel})` : ""}. Increasing from £${draft.dailyBudget} to £${suggestedBudget}/day targets ~25% more clicks at the same efficiency. Capped at £15/day per policy.`,
         confidence: 0.8,
         agentId,
       });
@@ -312,7 +386,7 @@ export async function runFullSuggestionCycle(): Promise<SuggestionCycleResult> {
   // Analyse all PUBLISHED Google Ads campaigns.
   const drafts = await prisma.googleAdsCampaignDraft.findMany({
     where: { status: "PUBLISHED", googleCampaignId: { not: null } },
-    select: { id: true, googleCampaignId: true, name: true, negativeKeywords: true, dailyBudget: true },
+    select: { id: true, googleCampaignId: true, name: true, negativeKeywords: true, dailyBudget: true, geoTargets: true },
   });
 
   const countBefore = await (prisma as any).campaignSuggestion.count({ where: { status: "PENDING" } });

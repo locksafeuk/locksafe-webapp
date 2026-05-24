@@ -42,6 +42,19 @@ export async function syncAllGoogleAdsAccounts(
 
   const range = resolveRange(options);
 
+  // Build a campaign-ID → primary geoTarget lookup once upfront so we can
+  // tag every snapshot with the city's geo constant without per-row joins.
+  const draftGeoMap = new Map<string, string>(); // googleCampaignId → geoTargets[0]
+  const allDrafts = await prisma.googleAdsCampaignDraft.findMany({
+    where: { googleCampaignId: { not: null } },
+    select: { googleCampaignId: true, geoTargets: true },
+  });
+  for (const d of allDrafts) {
+    if (d.googleCampaignId && d.geoTargets.length > 0) {
+      draftGeoMap.set(d.googleCampaignId, d.geoTargets[0]);
+    }
+  }
+
   const accounts = await prisma.googleAdsAccount.findMany({
     where: { isActive: true },
   });
@@ -95,6 +108,9 @@ export async function syncAllGoogleAdsAccounts(
             cpc,
             cpm,
             roas,
+            // City isolation: tag each snapshot with the draft's primary geo so
+            // city-scoped queries don't need a join back to GoogleAdsCampaignDraft.
+            geoId: draftGeoMap.get(r.campaignId) ?? null,
           },
         });
         result.snapshotsWritten++;

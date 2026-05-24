@@ -29,7 +29,13 @@ import type { AgentConfig } from "@/agents/core/types";
 import { getDefaultGoogleAdsClient } from "@/lib/google-ads";
 import { getCoverageUniverse, type CoverageUniverseEntry } from "@/lib/google-ads-geo-universe";
 import { extractDefaultAccountLearnings } from "@/lib/google-ads-learnings";
-import { scoreOpportunities, type GeoOpportunity, LONDON_GEO_IDS } from "@/lib/google-ads-opportunities";
+import {
+  scoreOpportunities,
+  type GeoOpportunity,
+  LONDON_GEO_IDS,
+  reflectOnCampaignPerformance,
+  applyBiasToScore,
+} from "@/lib/google-ads-opportunities";
 import { generateDraftPlanForLocksmith } from "@/lib/google-ads-onboarding";
 import { UK_GEO_IDS, type UKGeoKey } from "@/lib/google-ads-locations";
 import {
@@ -195,6 +201,21 @@ export async function runOpportunityScoutHeartbeat(
   }
   const { client } = defaultClient;
 
+  // 0. Reflection — compare predicted vs actual CPC for each live campaign.
+  //    Must run BEFORE scoring so the cpaBias adjustments feed into this run's scores.
+  const reflectionResult = await reflectOnCampaignPerformance({ minDays: 14, lookback: 30 }).catch(
+    (err) => {
+      failures.push(`reflection:${err instanceof Error ? err.message : String(err)}`);
+      return null;
+    },
+  );
+  if (reflectionResult) {
+    console.log(
+      `[OpportunityScout] Reflection: ${reflectionResult.reflections.length} cities updated, ` +
+      `${reflectionResult.skipped} skipped, ${reflectionResult.errors.length} errors.`,
+    );
+  }
+
   // 1. Universe
   const universe = await getCoverageUniverse();
 
@@ -222,6 +243,23 @@ export async function runOpportunityScoutHeartbeat(
     onGeoFailed: (_id, label, err) =>
       failures.push(`coverage:${label}:${err.message.slice(0, 80)}`),
   });
+
+  // 4b. Apply cpaBias adjustments from the reflection step.
+  //     For each opportunity, look up the latest cpaBias from agentNotes and
+  //     adjust the score so cities that ran more expensive than predicted rank lower.
+  if (reflectionResult && reflectionResult.reflections.length > 0) {
+    const biasMap = new Map(
+      reflectionResult.reflections.map((r) => [r.geoTargetId, r.cpaBias]),
+    );
+    for (const opp of coverageResult.opportunities) {
+      const bias = biasMap.get(opp.geoId);
+      if (bias) {
+        opp.score = applyBiasToScore(opp.score, bias);
+      }
+    }
+    // Re-sort after bias adjustment
+    coverageResult.opportunities.sort((a, b) => b.score - a.score);
+  }
 
   // 5. Persist coverage opportunities
   await persistOpportunities("COVERAGE", coverageResult.opportunities);

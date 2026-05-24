@@ -1,6 +1,14 @@
+/**
+ * Admin credential verification — insurance + DBS.
+ *
+ * Most documents are auto-verified by the vision model on upload.
+ * This route handles the remaining "pending_review" cases where AI
+ * confidence was 0.60–0.84, and the override actions (force-verify, reject).
+ */
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { isAdminAuthenticated } from "@/lib/auth";
+import { isFullyCredentialed } from "@/lib/credential-verifier";
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,7 +22,8 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { locksmithId, action, newExpiryDate } = body;
+    // action: "verify" | "reject" | "update_expiry" | "verify_dbs" | "reject_dbs"
+    const { locksmithId, action, newExpiryDate, dbsNewExpiryDate } = body;
 
     if (!locksmithId) {
       return NextResponse.json(
@@ -29,6 +38,12 @@ export async function POST(request: NextRequest) {
       select: {
         insuranceExpiryDate: true,
         insuranceDocumentUrl: true,
+        insuranceStatus: true,
+        dbsStatus: true,
+        insuranceVerificationNotes: true,
+        insuranceAiConfidence: true,
+        dbsVerificationNotes: true,
+        dbsAiConfidence: true,
       },
     });
 
@@ -134,6 +149,7 @@ export async function POST(request: NextRequest) {
           insuranceStatus: "pending",
           insuranceVerifiedAt: null,
           insuranceVerifiedById: null,
+          isVerified: false,
         },
       });
 
@@ -143,6 +159,67 @@ export async function POST(request: NextRequest) {
         locksmith: {
           id: updated.id,
           insuranceStatus: updated.insuranceStatus,
+        },
+      });
+    }
+
+    // ── DBS actions ──────────────────────────────────────────────────────────
+
+    if (action === "verify_dbs") {
+      const expiryInput = dbsNewExpiryDate ? new Date(dbsNewExpiryDate) : null;
+      const now = new Date();
+      const thirtyDaysFromNow = new Date();
+      thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+
+      let newDbsStatus = "verified";
+      if (expiryInput) {
+        if (expiryInput < now) newDbsStatus = "expired";
+        else if (expiryInput <= thirtyDaysFromNow) newDbsStatus = "expiring_soon";
+      }
+
+      const insuranceStatus = locksmith?.insuranceStatus ?? "pending";
+      const shouldBeVerified = isFullyCredentialed(insuranceStatus, newDbsStatus);
+
+      const updated = await prisma.locksmith.update({
+        where: { id: locksmithId },
+        data: {
+          dbsStatus: newDbsStatus,
+          dbsVerifiedAt: new Date(),
+          dbsVerifiedById: admin.id,
+          ...(expiryInput ? { dbsExpiryDate: expiryInput } : {}),
+          ...(shouldBeVerified ? { isVerified: true } : {}),
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: "DBS certificate verified",
+        locksmith: {
+          id: updated.id,
+          dbsStatus: updated.dbsStatus,
+          dbsVerifiedAt: updated.dbsVerifiedAt,
+          isVerified: updated.isVerified,
+        },
+      });
+    }
+
+    if (action === "reject_dbs") {
+      const updated = await prisma.locksmith.update({
+        where: { id: locksmithId },
+        data: {
+          dbsStatus: "pending",
+          dbsVerifiedAt: null,
+          dbsVerifiedById: null,
+          isVerified: false,
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: "DBS verification removed",
+        locksmith: {
+          id: updated.id,
+          dbsStatus: updated.dbsStatus,
         },
       });
     }

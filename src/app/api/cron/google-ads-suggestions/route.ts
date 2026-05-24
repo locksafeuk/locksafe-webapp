@@ -16,6 +16,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyCronAuth } from "@/lib/cron-auth";
 import { runFullSuggestionCycle, reflectOnApprovalPatterns } from "@/lib/google-ads-suggestions";
+import { runCampaignLadder } from "@/lib/campaign-ladder";
 
 
 export async function POST(request: NextRequest) {
@@ -30,8 +31,13 @@ export async function POST(request: NextRequest) {
   const isMonday = new Date().getDay() === 1;
 
   try {
+    // 1. Standard keyword/budget suggestion cycle (existing)
     const cycleResult = await runFullSuggestionCycle();
 
+    // 2. ROAS ladder — evaluate campaign progression, emit rung suggestions
+    const ladderResult = await runCampaignLadder();
+
+    // 3. Weekly reflection (Mondays or ?reflect=1)
     let reflectionResult = null;
     if (forceReflect || isMonday) {
       reflectionResult = await reflectOnApprovalPatterns();
@@ -42,6 +48,12 @@ export async function POST(request: NextRequest) {
       timestamp: new Date().toISOString(),
       duration: Date.now() - start,
       cycle: cycleResult,
+      ladder: {
+        campaignsEvaluated: ladderResult.campaignsEvaluated,
+        suggestionsCreated: ladderResult.suggestionsCreated,
+        decisions: ladderResult.decisions,
+        errors: ladderResult.errors.length > 0 ? ladderResult.errors : undefined,
+      },
       reflection: reflectionResult,
     });
   } catch (err) {

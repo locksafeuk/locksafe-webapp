@@ -16,6 +16,15 @@
  */
 
 import prisma from "@/lib/db";
+import { LONDON_GEO_IDS } from "@/lib/google-ads-opportunities";
+
+/** London geo check — used by the onboarding trigger below. */
+function isLondonGeo(geoId: string): boolean {
+  return LONDON_GEO_IDS.has(geoId);
+}
+
+/** CPC threshold above which we flag-only rather than auto-draft. */
+const ONBOARDING_MAX_AUTO_CPC_GBP = 1.50;
 
 // =========================================================================
 // UK city → Google Ads GeoTargetConstant ID lookup table
@@ -26,30 +35,55 @@ export const UK_GEO_IDS = {
   // Country fallback
   uk: "2826",
 
-  // England – Greater London
+  // England – Greater London (all 33 boroughs + City of London)
+  // Must stay in sync with LONDON_GEO_IDS in google-ads-opportunities.ts.
+  // Legacy 100644xx IDs in this range collide with English villages — use
+  // the 904xxxx / 919xxxx IDs for new boroughs.
   london: "1006450",
   "greater london": "9041107",
+  // Inner North
   westminster: "1006453",
+  "city of westminster": "1006453",
   camden: "1006459",
   islington: "1006456",
-  // East London boroughs — verified against Google Ads GeoTargetConstant ref.
-  // (The legacy 100644xx IDs in this range collide with random English villages
-  // — e.g. 1006460 → Addlestone, 1006463 → Aldbourne — so do NOT reuse them.)
   hackney: "9198373",
+  "city of london": "9041110",
+  // Inner East
   "tower hamlets": "9198785",
-  "waltham forest": "9198805",
   newham: "9198858",
+  "waltham forest": "9198805",
   redbridge: "9208638",
+  "barking and dagenham": "9046056",
+  "barking & dagenham": "9046056",
+  havering: "9046054",
+  // Inner South
   southwark: "1006465",
   lambeth: "1006466",
   wandsworth: "1006467",
-  kensington: "1006468",
-  hammersmith: "1006469",
   greenwich: "1006470",
   lewisham: "1006471",
+  // South West / West
+  kensington: "1006468",
+  "kensington and chelsea": "1006468",
+  hammersmith: "1006469",
+  "hammersmith and fulham": "1006469",
+  ealing: "9046053",
+  hillingdon: "9046051",
+  hounslow: "9046052",
+  richmond: "9198371",
+  "richmond upon thames": "9198371",
+  kingston: "9046055",
+  "kingston upon thames": "9046055",
+  // South
   croydon: "1006472",
+  merton: "9198370",
+  sutton: "9198369",
   bromley: "1006473",
   bexley: "1006474",
+  // North
+  barnet: "9046050",
+  haringey: "9198374",
+  enfield: "9198372",
 
   // England – South East
   brighton: "1006598",
@@ -539,6 +573,112 @@ export async function triggerPostOnboardingGeoSync(locksmith: {
   };
 
   try {
+    // 0. Resolve THIS locksmith's geo and apply London / high-CPC gates.
+    //    If the new locksmith is in London, we still sync geo for existing
+    //    campaigns (so they don't lose coverage), but we fire an admin alert
+    //    instead of an auto-draft signal, and we mark the result clearly.
+    const newLocksmithGeo = resolveLocksmithGeo(locksmith);
+    const isLondon = newLocksmithGeo ? isLondonGeo(newLocksmithGeo.geoId) : false;
+
+    // CPC gate: look up the latest GoogleAdsOpportunity for this geo.
+    let isHighCpc = false;
+    if (newLocksmithGeo && !isLondon) {
+      const latestOpp = await prisma.googleAdsOpportunity
+        .findFirst({
+          where: { geoTargetId: newLocksmithGeo.geoId, kind: "COVERAGE" },
+          orderBy: { computedAt: "desc" },
+          select: { medianCpcGbp: true },
+        })
+        .catch(() => null);
+      if (latestOpp && latestOpp.medianCpcGbp > ONBOARDING_MAX_AUTO_CPC_GBP) {
+        isHighCpc = true;
+      }
+    }
+
+    // 0.5. RECRUIT × onboarding alert.
+    //      If this locksmith's city was recently flagged as a RECRUIT opportunity
+    //      (zero-coverage, high demand), they just filled that gap — this is a
+    //      high-value moment worth an immediate priority alert regardless of
+    //      London/CPC status. Fire before any early-return block so it always runs.
+    if (newLocksmithGeo) {
+      try {
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const recruitOpp = await prisma.googleAdsOpportunity.findFirst({
+          where: {
+            geoTargetId: newLocksmithGeo.geoId,
+            kind: "RECRUIT",
+            status: { not: "DISMISSED" },
+            computedAt: { gte: thirtyDaysAgo },
+          },
+          orderBy: { computedAt: "desc" },
+          select: {
+            id: true,
+            score: true,
+            geoLabel: true,
+            totalMonthlySearches: true,
+            medianCpcGbp: true,
+            competitionTier: true,
+          },
+        });
+
+        if (recruitOpp) {
+          const { sendAdminAlert } = await import("./telegram");
+          await sendAdminAlert({
+            title: `🎯 Coverage gap filled — ${recruitOpp.geoLabel}!`,
+            message:
+              `**${locksmith.name}** just onboarded in **${recruitOpp.geoLabel}** — ` +
+              `previously a zero-coverage RECRUIT target.\n\n` +
+              `📊 Opportunity score: ${Math.round(recruitOpp.score * 100)}/100\n` +
+              `🔍 Est. monthly searches: ${recruitOpp.totalMonthlySearches.toLocaleString()}\n` +
+              `💰 Median CPC: £${recruitOpp.medianCpcGbp.toFixed(2)}\n` +
+              `🏆 Competition: ${recruitOpp.competitionTier}\n\n` +
+              `👉 Draft a Google Ads campaign: /admin/google-ads/opportunities`,
+            severity: "warning",
+          }).catch(() => {});
+
+          // Mark the RECRUIT opportunity as actioned so it doesn't re-alert.
+          await prisma.googleAdsOpportunity
+            .update({
+              where: { id: recruitOpp.id },
+              data: { status: "REVIEWED", agentNotes: `First locksmith onboarded: ${locksmith.name} (${new Date().toISOString()})` },
+            })
+            .catch(() => {});
+        }
+      } catch {
+        // Non-fatal — never block onboarding for a RECRUIT alert
+      }
+    }
+
+    // For London or high-CPC cities: send admin alert, skip auto-draft trigger.
+    if (isLondon || isHighCpc) {
+      const cityLabel = newLocksmithGeo?.label ?? "Unknown";
+      const reason = isLondon
+        ? "London borough — national chain competition (£5–15/click). Manual campaign decision required."
+        : `High CPC city (${cityLabel}) — median CPC exceeds £${ONBOARDING_MAX_AUTO_CPC_GBP}. Manual review before drafting.`;
+
+      console.log(`[PostOnboardingGeoSync] Flagging ${locksmith.name} (${cityLabel}): ${reason}`);
+
+      try {
+        const { sendAdminAlert } = await import("./telegram");
+        await sendAdminAlert({
+          title: `🚫 New locksmith in ${cityLabel} — manual campaign review needed`,
+          message:
+            `**${locksmith.name}** onboarded in **${cityLabel}**.\n\n` +
+            `⚠️ ${reason}\n\n` +
+            `Action: Review manually at /admin/integrations/google-ads/drafts and decide whether to create a campaign for this area.`,
+          severity: "warning",
+        });
+      } catch {
+        // Non-fatal
+      }
+
+      // Still sync geo targets on existing campaigns (coverage should reflect reality)
+      // but do NOT trigger any auto-draft.
+      result.success = true;
+      result.coverageSummary = newLocksmithGeo ? [cityLabel] : [];
+      return result;
+    }
+
     // 1. Resolve the full coverage set across all active locksmiths
     const { geoTargets, coverageSummary, activeLocksmithCount } =
       await getActiveCoverageGeoTargets();

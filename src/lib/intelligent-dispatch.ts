@@ -7,22 +7,89 @@
  * - Availability status
  * - Current workload
  * - Response time history
- * - Specialty matching
+ * - Specialty semantic match (nomic-embed-text via Ollama)
+ *
+ * Semantic matching: the job description is embedded once per dispatch call,
+ * then compared against each locksmith's pre-embedded services profile via
+ * cosine similarity. Results are cached in-memory with a 1-hour TTL so
+ * repeated dispatches don't re-embed the same locksmith profiles.
+ *
+ * Fallback: if the embed model is unavailable (Ollama down or model not yet
+ * pulled), specialty score defaults to 0.5 (neutral) and dispatch continues
+ * normally — no crash, no degraded user experience.
  */
 
 import prisma from "@/lib/db";
 import { JobStatus } from "@prisma/client";
+import { callOllamaEmbed, cosineSimilarity } from "@/lib/llm-router";
 
 // Configuration
 const MAX_DISTANCE_MILES = 15; // Maximum distance to consider
 const MIN_RATING = 3.5; // Minimum rating to consider
 const WEIGHTS = {
-  distance: 0.35, // 35% weight for proximity
-  rating: 0.25, // 25% weight for rating
-  availability: 0.15, // 15% weight for immediate availability
-  responseTime: 0.15, // 15% weight for historical response time
-  workload: 0.1, // 10% weight for current workload
+  distance:     0.30, // 30% — proximity
+  rating:       0.20, // 20% — rating
+  availability: 0.15, // 15% — currently available
+  responseTime: 0.15, // 15% — historical response speed
+  workload:     0.10, // 10% — active job count
+  specialty:    0.10, // 10% — semantic specialization match (embed)
 };
+
+// ─── Locksmith embed cache ────────────────────────────────────────────────────
+// Module-level: persists across warm Next.js edge invocations.
+// Key: locksmithId  Value: { vector, cachedAt }
+const EMBED_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+interface CachedEmbedding {
+  vector: number[];
+  cachedAt: number;
+}
+const locksmithEmbedCache = new Map<string, CachedEmbedding>();
+
+/**
+ * Convert a locksmith's services[] array into a descriptive text string
+ * suitable for embedding. Handles both slug-style ("emergency_lockout") and
+ * human-readable ("Emergency lockout") formats.
+ */
+function locksmithProfileText(services: string[], companyName: string | null): string {
+  const readable = services
+    .map((s) => s.replace(/_/g, " ").replace(/-/g, " "))
+    .join(", ");
+  const prefix = companyName ? `${companyName} — ` : "";
+  return `${prefix}locksmith specialising in: ${readable || "general locksmith services"}`;
+}
+
+/**
+ * Build a job query text for embedding.
+ */
+function jobQueryText(problemType: string, description: string | null): string {
+  const base = problemType.replace(/_/g, " ").replace(/-/g, " ");
+  return description ? `${base}: ${description}` : base;
+}
+
+/**
+ * Get or compute the embedding for a locksmith. Cached 1 hour.
+ * Returns null if embed model is unavailable.
+ */
+async function getLocksmithEmbedding(
+  locksmithId: string,
+  services: string[],
+  companyName: string | null,
+): Promise<number[] | null> {
+  const cached = locksmithEmbedCache.get(locksmithId);
+  if (cached && Date.now() - cached.cachedAt < EMBED_CACHE_TTL_MS) {
+    return cached.vector;
+  }
+
+  try {
+    const text = locksmithProfileText(services, companyName);
+    const vector = await callOllamaEmbed(text);
+    locksmithEmbedCache.set(locksmithId, { vector, cachedAt: Date.now() });
+    return vector;
+  } catch {
+    return null; // embed model unavailable — caller falls back to neutral score
+  }
+}
 
 export interface DispatchCandidate {
   locksmithId: string;
@@ -37,6 +104,7 @@ export interface DispatchCandidate {
   currentWorkload: number;
   avgResponseMinutes: number;
   matchScore: number;
+  specialtyScore: number | null; // null = embed unavailable
   estimatedEtaMinutes: number;
   reasons: string[];
   defaultAssessmentFee: number | null;
@@ -89,7 +157,9 @@ function estimateEta(distanceMiles: number): number {
 }
 
 /**
- * Calculate match score for a locksmith
+ * Calculate match score for a locksmith.
+ * specialtySimilarity: cosine similarity 0–1 from embed model, or null if unavailable.
+ * When null, specialty weight is redistributed to distance + rating.
  */
 function calculateMatchScore(
   distanceMiles: number,
@@ -97,6 +167,7 @@ function calculateMatchScore(
   isAvailable: boolean,
   avgResponseMinutes: number,
   currentWorkload: number,
+  specialtySimilarity: number | null,
 ): { score: number; reasons: string[] } {
   const reasons: string[] = [];
 
@@ -106,7 +177,7 @@ function calculateMatchScore(
   else if (distanceMiles < 5) reasons.push("Close proximity");
 
   // Rating score (normalized to 0-1)
-  const ratingScore = (rating - MIN_RATING) / (5 - MIN_RATING);
+  const ratingScore = Math.max(0, (rating - MIN_RATING) / (5 - MIN_RATING));
   if (rating >= 4.5) reasons.push("Top-rated locksmith");
   else if (rating >= 4.0) reasons.push("Highly rated");
 
@@ -117,21 +188,38 @@ function calculateMatchScore(
   // Response time score (faster = better, max 1.0)
   const responseScore =
     avgResponseMinutes > 0
-      ? Math.max(0, 1 - avgResponseMinutes / 30) // 30 min = 0 score
-      : 0.5; // No data = middle score
-  if (avgResponseMinutes < 5) reasons.push("Fast responder");
+      ? Math.max(0, 1 - avgResponseMinutes / 30)
+      : 0.5;
+  if (avgResponseMinutes > 0 && avgResponseMinutes < 5) reasons.push("Fast responder");
 
   // Workload score (fewer active jobs = better)
-  const workloadScore = Math.max(0, 1 - currentWorkload / 5); // 5+ jobs = 0 score
+  const workloadScore = Math.max(0, 1 - currentWorkload / 5);
   if (currentWorkload === 0) reasons.push("No active jobs");
 
-  // Calculate weighted total
+  // Specialty score — semantic similarity via embed model
+  // If unavailable, fall back to 0.5 and redistribute that weight
+  const embedAvailable = specialtySimilarity !== null;
+  const specialtyScore = specialtySimilarity ?? 0.5;
+  if (embedAvailable && specialtySimilarity! >= 0.75) reasons.push("Specialist match");
+  else if (embedAvailable && specialtySimilarity! >= 0.55) reasons.push("Good speciality fit");
+
+  // Weights — redistribute specialty weight if embed unavailable
+  const weights = embedAvailable
+    ? WEIGHTS
+    : {
+        ...WEIGHTS,
+        distance:  WEIGHTS.distance  + WEIGHTS.specialty * 0.6,
+        rating:    WEIGHTS.rating    + WEIGHTS.specialty * 0.4,
+        specialty: 0,
+      };
+
   const score =
-    distanceScore * WEIGHTS.distance +
-    ratingScore * WEIGHTS.rating +
-    availabilityScore * WEIGHTS.availability +
-    responseScore * WEIGHTS.responseTime +
-    workloadScore * WEIGHTS.workload;
+    distanceScore   * weights.distance +
+    ratingScore      * weights.rating +
+    availabilityScore * weights.availability +
+    responseScore    * weights.responseTime +
+    workloadScore    * weights.workload +
+    specialtyScore   * weights.specialty;
 
   return { score, reasons };
 }
@@ -172,6 +260,19 @@ export async function findBestLocksmiths(
         autoDispatchRecommended: false,
         reason: "Job location not set",
       };
+    }
+
+    // ── Embed the job query once (non-blocking, graceful fallback) ────────────
+    let jobEmbedding: number[] | null = null;
+    try {
+      const queryText = jobQueryText(
+        job.problemType,
+        job.description ?? null,
+      );
+      jobEmbedding = await callOllamaEmbed(queryText);
+    } catch {
+      // Embed model unavailable — specialty scoring disabled for this dispatch
+      console.warn("[Dispatch] Embed model unavailable — semantic matching disabled");
     }
 
     // Get all verified, active locksmiths with location
@@ -248,6 +349,19 @@ export async function findBestLocksmiths(
       // Current workload = number of active jobs
       const currentWorkload = locksmith.jobs.length;
 
+      // ── Semantic specialty score ─────────────────────────────────────────
+      let specialtySimilarity: number | null = null;
+      if (jobEmbedding && locksmith.services && locksmith.services.length > 0) {
+        const lsEmbedding = await getLocksmithEmbedding(
+          locksmith.id,
+          locksmith.services,
+          locksmith.companyName,
+        );
+        if (lsEmbedding) {
+          specialtySimilarity = cosineSimilarity(jobEmbedding, lsEmbedding);
+        }
+      }
+
       // Calculate match score
       const { score, reasons } = calculateMatchScore(
         distance,
@@ -255,6 +369,7 @@ export async function findBestLocksmiths(
         locksmith.isAvailable,
         avgResponseMinutes,
         currentWorkload,
+        specialtySimilarity,
       );
 
       candidates.push({
@@ -270,6 +385,7 @@ export async function findBestLocksmiths(
         currentWorkload,
         avgResponseMinutes: Math.round(avgResponseMinutes),
         matchScore: Math.round(score * 100),
+        specialtyScore: specialtySimilarity !== null ? Math.round(specialtySimilarity * 100) : null,
         estimatedEtaMinutes: estimateEta(distance),
         reasons,
         defaultAssessmentFee: locksmith.defaultAssessmentFee,

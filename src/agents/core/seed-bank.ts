@@ -19,16 +19,21 @@
 import prisma from "@/lib/db";
 import type { ReflectionOutcome } from "@/agents/core/reflection";
 
-/** Fallback seeds used only when the KeywordSeed table is empty. */
+/**
+ * Fallback seeds used only when the KeywordSeed table is empty.
+ * IMPORTANT: Do NOT include terms that are in BASELINE_NEGATIVE_KEYWORDS
+ * (e.g. "auto locksmith" = car locksmith — we explicitly block those).
+ * Planner seeds must only be positive service intent terms.
+ */
 export const FALLBACK_BASELINE_SEEDS = [
   "locksmith",
   "emergency locksmith",
   "24 hour locksmith",
   "locked out",
-  "auto locksmith",
   "lock change",
   "door lock repair",
   "lock replacement",
+  "upvc locksmith",
 ] as const;
 
 export interface GetTopSeedsOptions {

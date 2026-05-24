@@ -4,13 +4,23 @@ import { getOllamaRuntimeDecision } from "@/lib/ollama-runtime";
 /**
  * LLM Router — unified interface for all AI calls
  *
- * Local-first routes (2026 stack, all overridable via env):
- *   AGENT     → llama4:scout      (Mixture-of-Experts, native tool use)
- *   CONTENT   → qwen3:32b         (thinking mode, long-context content gen)
- *   FAST      → llama3.2:3b       (cheap classification + extraction)
- *   QUALITY   → qwen3:72b         (highest-quality long-form generation)
- *   HERMES    → hermes-4:70b      (Nous Research tool-calling specialist)
- *   REASONING → qwen3:32b         (deliberation / reflection / outcome grading)
+ * Local-first routes (May 2026 stack, all overridable via env):
+ *   FAST      → qwen2.5:3b         (~2GB, always hot, ~200ms — health checks, classification)
+ *   AGENT     → qwen3:30b-a3b      (~19GB MoE, 3B active — orchestration, default no-think)
+ *   HERMES    → qwen3:30b-a3b      (same model, /no_think forced — fast reliable JSON/tool calls)
+ *   REASONING → qwen3:30b-a3b      (same model, /think forced — ROAS ladder, city scoring)
+ *   CONTENT   → qwen3:32b          (~20GB dense — ad copy, long-form creative, every token counts)
+ *   QUALITY   → qwen3:32b          (same model as CONTENT — final review & compliance)
+ *
+ * Why qwen3:30b-a3b for the middle tiers?
+ *   MoE = 30B total / 3B active per token → dense-8B inference speed, 30B-class reasoning.
+ *   Outcompetes QwQ-32B (dedicated reasoning model) on MMLU-Pro at ~110 tok/s with MLX backend.
+ *   Thinking mode is toggled per-call via LLMOptions.thinkingMode — HERMES always gets
+ *   /no_think (eliminates 3–6s of unnecessary reasoning on JSON extraction), REASONING always
+ *   gets /think for deliberate multi-factor ROAS / city-scoring decisions.
+ *
+ * Ollama 0.19 (March 2026): update Mac Studio → MLX backend auto-enabled → ~93% decode speedup.
+ *   Run: ollama update  (or re-run Desktop/ollama-model-setup.sh)
  *
  * Env overrides (rollback without code changes):
  *   OLLAMA_MODEL_AGENT, OLLAMA_MODEL_CONTENT, OLLAMA_MODEL_FAST,
@@ -24,10 +34,25 @@ export const Models = {
   CONTENT:     "CONTENT",
   FAST:        "FAST",
   QUALITY:     "QUALITY",
-  /** Hermes 4 (NousResearch) — 70B, function-calling specialist */
+  /** Structured JSON / tool-calling — /no_think forced, same model as AGENT */
   HERMES:      "HERMES",
-  /** Qwen3 thinking model — deliberation / reflection / outcome grading */
+  /** Deep deliberation — /think forced. ROAS ladder, city scoring, CEO strategy */
   REASONING:   "REASONING",
+  /**
+   * Vision-language model — accepts image inputs alongside text.
+   * Use for: locksmith credential verification (Gas Safe, DBS, insurance),
+   * job completion photo review, signature validation, OCR on scanned docs.
+   * Model: qwen2.5-vl:7b (~5GB, loads on demand during onboarding/job completion)
+   */
+  VISION:      "VISION",
+  /**
+   * Embedding model — produces vector representations, not text.
+   * Use via callOllamaEmbed() not chat(). Always hot (270MB).
+   * Use for: agent memory semantic search, smart dispatch matching,
+   * customer history lookup, knowledge base retrieval.
+   * Model: nomic-embed-text (rivals OpenAI text-embedding-3-small at zero cost)
+   */
+  EMBED:       "EMBED",
 } as const;
 
 export type ModelAlias = typeof Models[keyof typeof Models];
@@ -46,29 +71,50 @@ function modelFromEnv(tier: string, defaultModel: string): string {
 }
 
 const MODEL_CONFIG: Record<ModelAlias, ModelConfig> = {
-  AGENT: {
-    localModel: modelFromEnv("AGENT", "llama4:scout"),
-    openAiFallbackModel: "gpt-4o-mini",
-  },
-  CONTENT: {
-    localModel: modelFromEnv("CONTENT", "qwen3:32b"),
-    openAiFallbackModel: "gpt-4o-mini",
-  },
+  // ── Text generation tiers ────────────────────────────────────────────────
   FAST: {
-    localModel: modelFromEnv("FAST", "llama3:70b"),
+    localModel: modelFromEnv("FAST", "qwen2.5:3b"),
     openAiFallbackModel: "gpt-4o-mini",
   },
-  QUALITY: {
-    localModel: modelFromEnv("QUALITY", "qwen3:72b"),
-    openAiFallbackModel: "gpt-4o",
+  AGENT: {
+    // qwen3:30b-a3b — MoE: 30B total / 3B active, ~110 tok/s on MLX, /no_think by default
+    localModel: modelFromEnv("AGENT", "qwen3:30b-a3b"),
+    openAiFallbackModel: "gpt-4o-mini",
   },
   HERMES: {
-    localModel: modelFromEnv("HERMES", "hermes-4:70b"),
+    // Same model as AGENT. /no_think is injected automatically for all HERMES calls
+    // (fast structured JSON extraction — thinking adds 3–6s with zero quality benefit here)
+    localModel: modelFromEnv("HERMES", "qwen3:30b-a3b"),
     openAiFallbackModel: "gpt-4o-mini",
   },
   REASONING: {
-    localModel: modelFromEnv("REASONING", "qwen3:32b"),
+    // Same model as AGENT. /think is injected automatically for all REASONING calls
+    // (ROAS ladder decisions, city scoring, bias-adjusted ranking — deep deliberation needed)
+    localModel: modelFromEnv("REASONING", "qwen3:30b-a3b"),
+    openAiFallbackModel: "gpt-4o-mini",
+  },
+  CONTENT: {
+    // Dense 32B — every parameter contributes to each token; superior for creative/persuasive copy
+    localModel: modelFromEnv("CONTENT", "qwen3:32b"),
+    openAiFallbackModel: "gpt-4o-mini",
+  },
+  QUALITY: {
+    localModel: modelFromEnv("QUALITY", "qwen3:32b"),
     openAiFallbackModel: "gpt-4o",
+  },
+
+  // ── Specialist tiers (use dedicated helpers, not chat()) ─────────────────
+  VISION: {
+    // Use callOllamaVision(imageBase64, prompt) — not chat().
+    // Loads on demand (5GB); swaps out between onboarding/job-completion calls.
+    localModel: modelFromEnv("VISION", "qwen2.5vl:7b"),
+    openAiFallbackModel: "gpt-4o",         // GPT-4o has vision support
+  },
+  EMBED: {
+    // Use callOllamaEmbed(text) — not chat(). Returns number[] (vector).
+    // Always hot (270MB). No OpenAI fallback needed — embed locally or skip.
+    localModel: modelFromEnv("EMBED", "nomic-embed-text"),
+    openAiFallbackModel: "text-embedding-3-small",
   },
 };
 
@@ -105,6 +151,22 @@ export interface LLMOptions {
   timeoutMs?: number;
   allowOpenAIFallback?: boolean;
   fallbackSeverity?: FallbackSeverity;
+  /**
+   * Controls qwen3/qwen3.5 thinking mode on a per-call basis.
+   *
+   *   "think"    → prepends /think  to the first user message — deep chain-of-thought reasoning.
+   *                Use for ROAS ladder decisions, city scoring, complex multi-factor analysis.
+   *   "no_think" → prepends /no_think — skips reasoning tokens entirely.
+   *                Use for JSON extraction, tool-call parsing, fast classification.
+   *   undefined  → no directive injected; model uses its own default (usually thinking on for qwen3).
+   *
+   * Tier defaults (applied automatically via TIER_THINKING_DEFAULTS below):
+   *   HERMES    → "no_think"  (always — eliminates wasted reasoning on structured output)
+   *   REASONING → "think"     (always — deliberate analysis is the whole point)
+   *   AGENT     → "no_think"  (default — fast decisions; override per-call for complex orchestration)
+   *   FAST/CONTENT/QUALITY → no directive (FAST is too small for thinking; CONTENT benefits from dense flow)
+   */
+  thinkingMode?: "think" | "no_think";
 }
 
 export interface LLMResponse {
@@ -141,7 +203,7 @@ const LLM_POLICY_CACHE_TTL_MS = 30_000;
 //
 // Module-level state survives across warm Vercel invocations. A cold start
 // resets counters (one extra probe on restart — acceptable).
-const CB_TRIP_THRESHOLD = 3;
+const CB_TRIP_THRESHOLD = 5;
 const CB_RESET_MS       = 30 * 60_000; // 30 min
 const ROUTER_ALERT_COOLDOWN_MS = CB_RESET_MS;
 const ROUTER_DAILY_ALERT_COOLDOWN_MS = 24 * 60 * 60_000;
@@ -419,6 +481,41 @@ let llmPolicyCache: {
   expiresAt: number;
 } | null = null;
 
+// ─── Thinking mode tier defaults ──────────────────────────────────────────────
+// Applied when thinkingMode is not explicitly set in LLMOptions.
+// HERMES always gets no_think (fast JSON). REASONING always gets think (deep analysis).
+// AGENT defaults to no_think — call sites can override with thinkingMode: "think"
+// for complex multi-step orchestration.
+const TIER_THINKING_DEFAULTS: Partial<Record<ModelAlias, "think" | "no_think">> = {
+  HERMES:    "no_think",
+  REASONING: "think",
+  AGENT:     "no_think",
+};
+
+/**
+ * Injects /think or /no_think directive into the first user message for qwen3-family models.
+ * No-op for models that don't support the directive (qwen2.5, etc.) — the prefix is simply
+ * treated as message text by non-qwen3 models and is harmless.
+ */
+function applyThinkingMode(
+  messages: LLMMessage[],
+  mode: "think" | "no_think",
+  model: string
+): LLMMessage[] {
+  // Only qwen3 family supports /think and /no_think directives
+  if (!model.startsWith("qwen3")) return messages;
+  const directive = mode === "think" ? "/think" : "/no_think";
+  // Inject into the first user message; leave system messages untouched
+  const result = [...messages];
+  const firstUserIdx = result.findIndex((m) => m.role === "user");
+  if (firstUserIdx === -1) return result;
+  result[firstUserIdx] = {
+    ...result[firstUserIdx],
+    content: `${directive}\n${result[firstUserIdx].content}`,
+  };
+  return result;
+}
+
 // ─── Core router ─────────────────────────────────────────────────────────────
 
 export async function chat(
@@ -445,6 +542,15 @@ export async function chat(
     return callOpenAI(modelConfig.openAiFallbackModel, messages, options, startMs, true);
   }
 
+  // Apply per-tier thinking mode defaults, then honour explicit caller override.
+  // Order: caller option > tier default > nothing (model default).
+  const effectiveThinkingMode =
+    options.thinkingMode ?? TIER_THINKING_DEFAULTS[modelAlias];
+  const resolvedMessages =
+    effectiveThinkingMode
+      ? applyThinkingMode(messages, effectiveThinkingMode, localModel)
+      : messages;
+
   // Local-first for all workloads — skip Ollama if circuit is open.
   // Wrap the circuit check: a DB error during the shared-marker lookup must never
   // block Ollama routing (fail-open so local inference keeps working when Mongo is down).
@@ -456,7 +562,7 @@ export async function chat(
   }
   if (circuitAllows) {
     try {
-      const result = await callOllama(localModel, messages, options, startMs);
+      const result = await callOllama(localModel, resolvedMessages, options, startMs);
       recordOllamaSuccess();
       return result;
     } catch (err) {
@@ -691,6 +797,132 @@ async function callOllama(
   } finally {
     clearTimeout(timer);
   }
+}
+
+// ─── Vision helper ────────────────────────────────────────────────────────────
+
+/**
+ * Run the VISION model against a base64-encoded image + text prompt.
+ *
+ * Use for: locksmith credential verification (Gas Safe, DBS, insurance certs),
+ * job completion photo review, signature validation, OCR on scanned documents.
+ *
+ * @param imageBase64  Pure base64 string (no data URI prefix — Ollama handles the mime type)
+ * @param prompt       Instruction for the model, e.g. "Extract the certificate number, expiry date,
+ *                     and registered name from this Gas Safe certificate. Return JSON."
+ * @param mimeType     Image MIME type — defaults to "image/jpeg"
+ * @param timeoutMs    Default 60s — vision inference is slower than text
+ */
+export async function callOllamaVision(
+  imageBase64: string,
+  prompt: string,
+  mimeType: "image/jpeg" | "image/png" | "image/webp" = "image/jpeg",
+  timeoutMs = 60_000,
+): Promise<{ content: string; durationMs: number }> {
+  const startMs = Date.now();
+  const model = MODEL_CONFIG.VISION.localModel;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (OLLAMA_SECRET) headers["X-Ollama-Secret"] = OLLAMA_SECRET;
+
+  try {
+    const res = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+      method: "POST",
+      headers,
+      signal: controller.signal,
+      body: JSON.stringify({
+        model,
+        stream: false,
+        messages: [
+          {
+            role: "user",
+            content: prompt,
+            images: [imageBase64],       // Ollama vision API — array of base64 strings
+          },
+        ],
+        options: { temperature: 0.1 },  // Low temp for factual extraction
+      }),
+    });
+
+    if (!res.ok) throw new Error(`Ollama vision returned HTTP ${res.status}: ${await res.text()}`);
+
+    const data = await res.json() as { message: { content: string } };
+    return { content: data.message.content ?? "", durationMs: Date.now() - startMs };
+  } catch (err) {
+    // Vision is not in the main circuit breaker — log and re-throw so callers decide
+    console.warn(`[LLM Router] Vision call failed (${model}): ${err instanceof Error ? err.message : String(err)}`);
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ─── Embed helper ─────────────────────────────────────────────────────────────
+
+/**
+ * Produce a text embedding vector via the EMBED model (nomic-embed-text).
+ *
+ * Use for: agent memory semantic search, smart dispatch matching,
+ * customer history lookup, similar job pattern recognition,
+ * knowledge base retrieval.
+ *
+ * Returns a plain number[] (the embedding vector). Store in MongoDB as a
+ * regular array field — for similarity search use cosine distance at query time,
+ * or push to a dedicated vector store if the dataset grows large.
+ *
+ * @param text      The text to embed (single string or short paragraph)
+ * @param timeoutMs Default 10s — embedding is fast (~50ms on Mac Studio)
+ */
+export async function callOllamaEmbed(
+  text: string,
+  timeoutMs = 10_000,
+): Promise<number[]> {
+  const model = MODEL_CONFIG.EMBED.localModel;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (OLLAMA_SECRET) headers["X-Ollama-Secret"] = OLLAMA_SECRET;
+
+  try {
+    const res = await fetch(`${OLLAMA_BASE_URL}/api/embed`, {
+      method: "POST",
+      headers,
+      signal: controller.signal,
+      body: JSON.stringify({ model, input: text }),
+    });
+
+    if (!res.ok) throw new Error(`Ollama embed returned HTTP ${res.status}: ${await res.text()}`);
+
+    const data = await res.json() as { embeddings: number[][] };
+    return data.embeddings[0] ?? [];
+  } catch (err) {
+    console.warn(`[LLM Router] Embed call failed (${model}): ${err instanceof Error ? err.message : String(err)}`);
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Cosine similarity between two embedding vectors.
+ * Use to rank candidates from callOllamaEmbed() at query time.
+ * Score range: -1 (opposite) → 0 (unrelated) → 1 (identical).
+ */
+export function cosineSimilarity(a: number[], b: number[]): number {
+  if (a.length !== b.length || a.length === 0) return 0;
+  let dot = 0, magA = 0, magB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot  += a[i] * b[i];
+    magA += a[i] * a[i];
+    magB += b[i] * b[i];
+  }
+  const denom = Math.sqrt(magA) * Math.sqrt(magB);
+  return denom === 0 ? 0 : dot / denom;
 }
 
 // ─── Spend cap helpers ────────────────────────────────────────────────────────

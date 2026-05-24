@@ -56,6 +56,7 @@ const DEFAULT_POLICY = {
   minCampaignDailyBudget: 2,
   autoApproveMaxBudget: 10,
   maxWeeklyAutoApproveSpend: 50,
+  autoApproveMinConfidence: 0.85,
   pauseRoasThreshold: 0.5,
   pauseGraceDays: 3,
   minImpressionsForPause: 500,

@@ -284,10 +284,22 @@ model Locksmith {
 
   // Insurance expiry tracking
   insuranceExpiryDate   DateTime? // When insurance certificate expires
-  insuranceVerifiedAt   DateTime? // When admin verified the insurance
-  insuranceVerifiedById String? // Admin ID who verified
-  insuranceStatus       String    @default("pending") // pending, verified, expired, expiring_soon
+  insuranceVerifiedAt   DateTime? // When admin/AI verified the insurance
+  insuranceVerifiedById String? // Admin ID who verified (null = AI auto-verified)
+  insuranceStatus       String    @default("pending") // pending, pending_review, verified, expired, expiring_soon, unreadable
   insuranceReminderSent Boolean   @default(false) // Track if expiry reminder was sent
+  insuranceVerificationNotes String? // AI notes when confidence < threshold
+  insuranceAiConfidence Float?    // AI confidence score 0–1 from vision check
+
+  // DBS (Disclosure and Barring Service) check
+  // certificationDocumentUrl (see above) is the DBS certificate URL
+  dbsStatus            String    @default("pending") // pending, pending_review, verified, expired, expiring_soon, unreadable
+  dbsExpiryDate        DateTime? // DBS certificate expiry (typically 3 years)
+  dbsVerifiedAt        DateTime? // When admin/AI verified the DBS
+  dbsVerifiedById      String?   // Admin ID who verified (null = AI auto-verified)
+  dbsReminderSent      Boolean   @default(false)
+  dbsVerificationNotes String?   // AI notes when confidence < threshold
+  dbsAiConfidence      Float?    // AI confidence score 0–1 from vision check
 
   // Password reset
   resetToken       String?
@@ -1253,6 +1265,7 @@ model MarketingPolicy {
   // it without admin input. Anything above bumps to manual review.
   autoApproveMaxBudget      Float @default(10) // GBP/day
   maxWeeklyAutoApproveSpend Float @default(50) // GBP rolling 7d agent-initiated
+  autoApproveMinConfidence  Float @default(0.85) // AI confidence threshold for auto-approval (0–1)
 
   // Optimisation guards
   pauseRoasThreshold     Float @default(0.5) // pause campaigns under this ROAS after grace
@@ -1593,12 +1606,18 @@ model AdPerformanceSnapshot {
   roas        Float
   frequency   Float? // Average times shown per person
 
+  // City isolation — Google geo target constant for the campaign's primary geo.
+  // Populated during sync from GoogleAdsCampaignDraft.geoTargets[0].
+  // Allows city-scoped queries without joining back to the draft table.
+  geoId String? // e.g. "1006886" (Birmingham), "1006886" (Manchester), etc.
+
   createdAt DateTime @default(now())
 
   @@index([adId, date])
   @@index([campaignId, date])
   @@index([googleCampaignId, date])
   @@index([platform, date])
+  @@index([geoId, platform, date])
 }
 
 // UTM Templates
