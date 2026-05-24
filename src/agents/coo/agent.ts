@@ -232,6 +232,8 @@ export async function runCOOHeartbeat(): Promise<void> {
           title: "⚙️ COO Operations Alert",
           message: ctx.alerts.join("\n"),
           severity: ctx.unassignedEmergencyCount > 0 ? "error" : "warning",
+          dedupeKey: "coo:operations-alert",
+          cooldownMsOverride: 30 * 60 * 1000, // 30-min cooldown — repeated ops alerts are noise
         });
       }
       return ctx;

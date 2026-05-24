@@ -90,6 +90,22 @@ export const getDashboardStatsTool: AgentTool = {
       where: { createdAt: { gte: dateFilter } },
     });
 
+    // All-time job count — used by CTO/COO to distinguish "new platform with no
+    // history" (expected) from "had jobs, now zero" (real incident).
+    const allTimeJobCount = await prisma.job.count();
+    const allTimeCompletedCount = await prisma.job.count({
+      where: { status: JobStatus.COMPLETED },
+    });
+
+    // Oldest job tells us roughly how long the platform has been operating.
+    const oldestJob = await prisma.job.findFirst({
+      orderBy: { createdAt: "asc" },
+      select: { createdAt: true },
+    });
+    const platformAgeInDays = oldestJob
+      ? Math.round((Date.now() - oldestJob.createdAt.getTime()) / (86400 * 1000))
+      : 0;
+
     return {
       success: true,
       data: {
@@ -108,6 +124,12 @@ export const getDashboardStatsTool: AgentTool = {
           completionRate: currentJobs.length > 0
             ? ((currentJobs.filter(j => j.status === JobStatus.COMPLETED).length / currentJobs.length) * 100).toFixed(1)
             : "0",
+          // Context for alert thresholds — pre-launch platforms should not trigger
+          // P1 completion-rate alerts.
+          allTimeTotal: allTimeJobCount,
+          allTimeCompleted: allTimeCompletedCount,
+          platformAgeInDays,
+          isPreLaunch: allTimeJobCount < 20,
         },
         locksmiths: {
           total: totalLocksmiths,

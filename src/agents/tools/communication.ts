@@ -16,11 +16,14 @@ import {
 } from "@/agents/core/orchestrator";
 
 function getAgentAlertCooldownMs(priority: string, isGuardian: boolean): number {
+  // Guardian (COO, CTO) critical alerts: 30-minute cooldown floor so a persistent
+  // condition (e.g. stuck test job, low-traffic period) doesn't page every heartbeat.
+  // Non-guardian critical (CEO/CMO): keep at 0 — those fire once per incident.
   const defaults = {
     low: isGuardian ? 30 : 240,
     medium: isGuardian ? 20 : 180,
-    high: isGuardian ? 10 : 180,
-    critical: 0,
+    high: isGuardian ? 15 : 180,
+    critical: isGuardian ? 30 : 0,
   };
 
   const fromEnv = {
