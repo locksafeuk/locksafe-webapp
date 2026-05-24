@@ -724,7 +724,21 @@ export async function triggerPostOnboardingGeoSync(locksmith: {
       }
     }
 
-    // 4. Notify CMO agent about the expansion (non-fatal)
+    // 4. Auto-create a per-locksmith campaign draft (fire-and-forget, non-fatal)
+    //    London + high-CPC locksmiths were already returned early above,
+    //    so reaching here means this locksmith is in a cheap/eligible market.
+    try {
+      const { autoCreateOnboardingCampaignDraft } = await import(
+        "@/lib/google-ads-auto-draft"
+      );
+      autoCreateOnboardingCampaignDraft(locksmith.id).catch((err) =>
+        console.error("[PostOnboardingGeoSync] Auto-draft failed:", err),
+      );
+    } catch {
+      // Non-fatal: never let draft creation block onboarding
+    }
+
+    // 5. Notify CMO agent about the expansion (non-fatal)
     try {
       const { delegateTask } = await import("@/agents/core/orchestrator");
       await delegateTask("system", "cmo", {
@@ -741,7 +755,7 @@ export async function triggerPostOnboardingGeoSync(locksmith: {
       // Non-fatal: never let orchestrator failure block onboarding
     }
 
-    // 5. Admin Telegram alert (non-fatal)
+    // 6. Admin Telegram alert (non-fatal)
     try {
       const { sendAdminAlert } = await import("./telegram");
       await sendAdminAlert({
