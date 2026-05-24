@@ -202,6 +202,146 @@ async function reflectOnPublishedDrafts(counters: Counters) {
   }
 }
 
+/**
+ * Sweep 3: CampaignSuggestion outcomes — 7 / 14 / 28 days post-approval.
+ *
+ * For every APPROVED suggestion that was actioned 7–35 days ago, we look at
+ * the campaign's ROAS in the period AFTER approval and grade it WIN/LOSS/
+ * INCONCLUSIVE.  The outcome is:
+ *  1. Persisted as an AgentReflection row (subjectType="suggestion").
+ *  2. Fed back to the seed bank so keywords that drove winning suggestions
+ *     gain score and keywords that drove losing ones decay.
+ *
+ * "After approval" ROAS is computed from AdPerformanceSnapshot rows with
+ * date > approvedAt.  We need at least 5 days of post-approval data; if
+ * fewer exist the suggestion is skipped (INCONCLUSIVE later this week).
+ */
+async function reflectOnApprovedSuggestions(counters: Counters) {
+  // Windows: 7, 14, 28 days post-approval. Max age 35d (avoids re-grading very old rows).
+  const now = Date.now();
+  const minAge = 7 * 24 * 60 * 60 * 1000;
+  const maxAge = 35 * 24 * 60 * 60 * 1000;
+
+  const suggestions = await prisma.campaignSuggestion.findMany({
+    where: {
+      status: "APPROVED",
+      approvedAt: {
+        gte: new Date(now - maxAge),
+        lte: new Date(now - minAge),
+      },
+    },
+    select: {
+      id: true,
+      type: true,
+      campaignName: true,
+      googleCampaignId: true,
+      approvedAt: true,
+      confidence: true,
+    },
+    orderBy: { approvedAt: "asc" },
+    take: 100,
+  });
+
+  for (const sug of suggestions) {
+    // Skip if already reflected at any window.
+    const existing = await prisma.agentReflection.findFirst({
+      where: { subjectType: "suggestion", subjectId: sug.id },
+    });
+    if (existing) {
+      counters.skipped++;
+      continue;
+    }
+
+    if (!sug.googleCampaignId || !sug.approvedAt) {
+      counters.skipped++;
+      continue;
+    }
+
+    // Pull post-approval snapshots for this campaign.
+    const snapshots = await prisma.adPerformanceSnapshot.findMany({
+      where: {
+        platform: "google",
+        googleCampaignId: sug.googleCampaignId,
+        date: { gte: sug.approvedAt },
+      },
+      select: { spend: true, revenue: true, conversions: true },
+    });
+
+    const totalSpend = snapshots.reduce((a, s) => a + s.spend, 0);
+    const totalRevenue = snapshots.reduce((a, s) => a + s.revenue, 0);
+    const totalConversions = snapshots.reduce((a, s) => a + s.conversions, 0);
+    const actualRoas = totalSpend > 0 ? totalRevenue / totalSpend : null;
+
+    // Need at least 5 days of data and £10 spend before grading.
+    const graded = gradeOutcome({
+      metric: "roas",
+      expected: 2.0, // production target ROAS
+      actual: actualRoas,
+      sampleSize: Math.round(totalSpend),
+      minSampleSize: 10,
+    });
+
+    const windowDays = Math.round((now - sug.approvedAt.getTime()) / 86_400_000);
+    const enableLLM =
+      (graded.outcome === "WIN" || graded.outcome === "LOSS") &&
+      counters.narrated < MAX_NARRATIVES;
+
+    try {
+      await recordReflection({
+        agentName: "ads-specialist",
+        subjectType: "suggestion",
+        subjectId: sug.id,
+        subjectLabel: `${sug.type} — ${sug.campaignName}`,
+        windowDays,
+        metric: "roas" as ReflectionMetric,
+        expectedValue: 2.0,
+        actualValue: actualRoas,
+        graded,
+        enableLLM,
+        facts: {
+          suggestionType: sug.type,
+          confidence: sug.confidence,
+          approvedAt: sug.approvedAt,
+          postApprovalDays: snapshots.length,
+          spend: totalSpend,
+          revenue: totalRevenue,
+          conversions: totalConversions,
+          roas: actualRoas,
+        },
+      });
+
+      counters.graded++;
+      if (enableLLM) counters.narrated++;
+
+      // Propagate to seed bank: find the draft for this campaign, then the
+      // opportunity that linked to it, and grade its top keywords.
+      const draft = await prisma.googleAdsCampaignDraft.findFirst({
+        where: { googleCampaignId: sug.googleCampaignId },
+        select: { id: true },
+        orderBy: { createdAt: "desc" },
+      });
+      const opportunity = draft
+        ? await prisma.googleAdsOpportunity.findFirst({
+            where: { draftId: draft.id },
+            orderBy: { computedAt: "desc" },
+            select: { topKeywords: true, id: true },
+          })
+        : null;
+
+      if (opportunity) {
+        const topKws = (opportunity.topKeywords as unknown as Array<{ text: string }>) ?? [];
+        for (const kw of topKws.slice(0, 5)) {
+          if (!kw?.text) continue;
+          await applySeedReflection({ keyword: kw.text, outcome: graded.outcome });
+        }
+      }
+    } catch (err) {
+      console.error("[reflection] failed for suggestion", sug.id, err);
+      counters.errors++;
+    }
+  }
+}
+
 async function run(request: NextRequest) {
   const startTime = Date.now();
   if (!verifyCronAuth(request)) {
@@ -213,6 +353,7 @@ async function run(request: NextRequest) {
   try {
     await reflectOnDraftedOpportunities(counters);
     await reflectOnPublishedDrafts(counters);
+    await reflectOnApprovedSuggestions(counters);
 
     return NextResponse.json({
       success: true,
