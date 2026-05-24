@@ -518,8 +518,15 @@ async function shouldUseOpenAIFallback(
     return false;
   }
 
+  const severity = options.fallbackSeverity ?? "low";
+  const isEmergencySeverity =
+    SEVERITY_RANK[severity] >= SEVERITY_RANK.high;
+
   const policy = await getRuntimeLlmPolicy();
-  if (!policy.openAiFallbackEnabled && !OPENAI_FALLBACK_ENABLED) {
+  // Emergency path: high/critical callers can fail over even if the global
+  // toggle is currently disarmed, as long as an OpenAI key is available.
+  // This keeps guardian/heartbeat flows alive during local model incidents.
+  if (!policy.openAiFallbackEnabled && !OPENAI_FALLBACK_ENABLED && !isEmergencySeverity) {
     return false;
   }
 
@@ -527,12 +534,18 @@ async function shouldUseOpenAIFallback(
     return false;
   }
 
-  const severity = options.fallbackSeverity ?? "low";
-  if (SEVERITY_RANK[severity] < SEVERITY_RANK[policy.openAiFallbackMinSeverity]) {
+  if (
+    SEVERITY_RANK[severity] < SEVERITY_RANK[policy.openAiFallbackMinSeverity] &&
+    !isEmergencySeverity
+  ) {
     return false;
   }
 
   if (policy.openAiFallbackEnabled) {
+    return true;
+  }
+
+  if (isEmergencySeverity) {
     return true;
   }
 
