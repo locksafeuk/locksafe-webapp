@@ -16,6 +16,7 @@
  */
 
 import prisma from "@/lib/db";
+import { formatBaseLocationLabel } from "@/lib/location-display";
 import { LONDON_GEO_IDS } from "@/lib/google-ads-opportunities";
 
 /** London geo check — used by the onboarding trigger below. */
@@ -743,8 +744,8 @@ export async function triggerPostOnboardingGeoSync(locksmith: {
       const { delegateTask } = await import("@/agents/core/orchestrator");
       await delegateTask("system", "cmo", {
         title: "New locksmith onboarded — Google Ads geo targets updated",
-        description:
-          `${locksmith.name} (${locksmith.baseAddress ?? "location TBC"}) completed onboarding. ` +
+          description:
+            `${locksmith.name} (${formatBaseLocationLabel(locksmith.baseAddress)}) completed onboarding. ` +
           `Google Ads campaigns now target: ${coverageSummary.join(", ")}. ` +
           `Total active locksmiths: ${activeLocksmithCount}. ` +
           `Review budgets and ad copy for new coverage areas if needed.`,

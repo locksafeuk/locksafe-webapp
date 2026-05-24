@@ -15,6 +15,7 @@
 import { verifyApiKey } from "@/lib/agent-auth";
 import prisma from "@/lib/db";
 import { findNearbyLocksmiths } from "@/lib/intelligent-dispatch";
+import { extractUkPostcode, formatBaseLocationLabel } from "@/lib/location-display";
 import { type NextRequest, NextResponse } from "next/server";
 
 // Geocoding function (simplified - in production use a proper geocoding API)
@@ -171,7 +172,8 @@ export async function GET(request: NextRequest) {
       totalEarnings: ls.totalEarnings,
       isVerified: ls.isVerified,
       isAvailable: ls.isAvailable,
-      baseAddress: ls.baseAddress,
+      baseAddress: formatBaseLocationLabel(ls.baseAddress),
+      basePostcode: extractUkPostcode(ls.baseAddress),
       coverageRadius: ls.coverageRadius,
       stripeConnected: ls.stripeConnectOnboarded,
       activeJobCount: ls._count.jobs,

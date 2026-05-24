@@ -24,12 +24,7 @@ export function formatBaseLocationLabel(
 ): string {
   const postcode = normalizeUkPostcode(fallbackPostcode) ?? extractUkPostcode(baseAddress);
   if (postcode) return postcode;
-
-  if (baseAddress && !isCoordinatePair(baseAddress)) {
-    return baseAddress;
-  }
-
-  return "Location set";
+  return "Postcode missing";
 }
 
 export async function reverseGeocodePostcodeFromCoords(
