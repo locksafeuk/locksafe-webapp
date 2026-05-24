@@ -28,7 +28,7 @@ export async function GET() {
   todayStart.setHours(0, 0, 0, 0);
   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60_000);
 
-  const [agents, pendingApprovals, todayExecutions, recentExecutions] = await Promise.all([
+  const [agents, pendingApprovals, todayExecutions, latestExecution, modelBreakdown] = await Promise.all([
     prisma.agent.findMany({
       include: {
         _count: {
@@ -41,10 +41,15 @@ export async function GET() {
     }),
     prisma.agentApproval.count({ where: { status: "pending" } }),
     prisma.agentExecution.count({ where: { startedAt: { gte: todayStart } } }),
-    prisma.agentExecution.findMany({
+    prisma.agentExecution.findFirst({
       where: { startedAt: { gte: oneDayAgo }, model: { not: null } },
       select: { model: true, startedAt: true },
       orderBy: { startedAt: "desc" },
+    }),
+    prisma.agentExecution.groupBy({
+      by: ["model"],
+      where: { startedAt: { gte: oneDayAgo }, model: { not: null } },
+      _count: { _all: true },
     }),
   ]);
 
@@ -68,10 +73,24 @@ export async function GET() {
   const ollamaRuntime = getOllamaRuntimeDecision();
   const hermesModeEnabled = ollamaRuntime.enabled;
 
-  const localCount   = recentExecutions.filter(e => classifyModel(e.model) === "local").length;
-  const openaiCount  = recentExecutions.filter(e => classifyModel(e.model) === "openai").length;
-  const unknownCount = recentExecutions.filter(e => classifyModel(e.model) === "unknown").length;
-  const total        = recentExecutions.length;
+  let localCount = 0;
+  let openaiCount = 0;
+  let unknownCount = 0;
+  let total = 0;
+
+  for (const row of modelBreakdown) {
+    const count = row._count._all;
+    total += count;
+
+    const kind = classifyModel(row.model);
+    if (kind === "local") {
+      localCount += count;
+    } else if (kind === "openai") {
+      openaiCount += count;
+    } else {
+      unknownCount += count;
+    }
+  }
 
   return NextResponse.json({
     agents: agentData,
@@ -91,8 +110,8 @@ export async function GET() {
         openaiCount,
         unknownCount,
         localPct: total > 0 ? Math.round((localCount / total) * 100) : null,
-        lastModel: recentExecutions[0]?.model ?? null,
-        lastSeenAt: recentExecutions[0]?.startedAt?.toISOString() ?? null,
+        lastModel: latestExecution?.model ?? null,
+        lastSeenAt: latestExecution?.startedAt?.toISOString() ?? null,
       },
     },
     timestamp: new Date().toISOString(),

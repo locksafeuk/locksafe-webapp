@@ -259,8 +259,11 @@ export default function MissionControlPage() {
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      await Promise.all([fetchStatus(true), fetchActivity(true), fetchLlmPolicy()]);
+      await Promise.all([fetchStatus(true), fetchActivity(true)]);
       setLoading(false);
+
+      // Policy is non-critical for first paint; fetch it after the dashboard is interactive.
+      void fetchLlmPolicy();
     };
     load();
   }, [fetchStatus, fetchActivity, fetchLlmPolicy]);

@@ -2121,6 +2121,9 @@ model AgentExecution {
   approvedAt       DateTime?
 
   createdAt DateTime @default(now())
+
+  @@index([startedAt(sort: Desc)])
+  @@index([agentId, startedAt(sort: Desc)])
 }
 
 // Agent memory (short + long term)
