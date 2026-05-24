@@ -115,11 +115,13 @@ const ACCENT_CLASSES: Record<string, { bar: string; iconBg: string; iconText: st
 function Tile({ icon: Icon, label, href, value, sub, accent, sev, sevLabel }: TileProps) {
   const a = ACCENT_CLASSES[accent] ?? ACCENT_CLASSES.sky;
   const borderColor = sev === "alert" ? "border-red-200" : sev === "warn" ? "border-amber-200" : "border-slate-100";
+  const pendingBorderClass =
+    sev === "alert" ? "pending-border-red" : sev === "warn" ? "pending-border-amber" : "";
   return (
     <Link
       href={href}
-      className={`group relative bg-white border ${borderColor} ${a.hoverBorder} rounded-xl overflow-hidden
-                  hover:shadow-xl hover:-translate-y-1 transition-all duration-200 flex flex-col`}
+      className={`group relative bg-white border ${borderColor} ${a.hoverBorder} ${pendingBorderClass} rounded-xl overflow-hidden
+                  hover:shadow-xl hover:-translate-y-1 transition-all duration-200 flex flex-col min-h-[132px]`}
     >
       {/* Coloured top strip — taller + pulsing for warn/alert */}
       <div className={`w-full ${a.bar} ${
@@ -162,7 +164,7 @@ function Row({ label, dot, children }: { label: string; dot: string; children: R
         <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">{label}</span>
         <div className="flex-1 h-px bg-slate-100" />
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-2.5">
+      <div className="grid grid-cols-2 gap-2.5">
         {children}
       </div>
     </div>
@@ -218,6 +220,7 @@ export default function AdminPage() {
   const pendPayout  = ops?.finance.pendingPayouts ?? 0;
   const schedPosts  = ops?.marketing.scheduledPosts ?? 0;
   const activeAds   = ops?.marketing.activeAdCampaigns ?? 0;
+  const visibleSigJobs = sigJobs.slice(0, 4);
 
   const agentSev = (): Severity => {
     if (!ops?.agents.lastHeartbeat) return "off";
@@ -237,7 +240,7 @@ export default function AdminPage() {
 
   return (
     <AdminSidebar>
-      <div className="p-4 lg:p-6 space-y-5 max-w-[1600px]">
+      <div className="p-4 lg:p-5 xl:p-6 space-y-4 w-full max-w-none">
 
         {/* ── Page header ──────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between">
@@ -294,11 +297,11 @@ export default function AdminPage() {
           )}
         </div>
 
-        {/* ── Priority rows — 2-column layout on xl+ ───────────────────────── */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        {/* ── Priority rows — calibrated 3-column desktop / 2-column tablet ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-[1.08fr_1.05fr_0.92fr] gap-4 items-start">
 
-          {/* LEFT column — action-critical first */}
-          <div className="space-y-5">
+          {/* COL 1 — critical operations */}
+          <div className="space-y-4">
 
             {/* 1 — CRITICAL */}
             <Row label="Critical" dot="bg-red-500">
@@ -332,7 +335,42 @@ export default function AdminPage() {
                 sevLabel={pendAppr > 0 ? `${pendAppr} pending` : "All clear"} />
             </Row>
 
-            {/* 2 — AI & AUTOMATION */}
+            {/* 2 — OPERATIONS */}
+            <Row label="Operations" dot="bg-sky-500">
+              <Tile icon={Map}          label="Live Ops Map"
+                href="/admin/ops"
+                sub="Dispatch & coverage"
+                accent="sky"
+                sev="ok"
+                sevLabel="Live" />
+              <Tile icon={Users}        label="Locksmiths"
+                href="/admin/locksmiths"
+                value={ops?.people.totalLocksmiths ?? "—"}
+                sub={`${pendVerif} to verify`}
+                accent="emerald"
+                sev={pendVerif > 0 ? "warn" : "ok"}
+                sevLabel={pendVerif > 0 ? `${pendVerif} pending` : "All verified"} />
+              <Tile icon={PoundSterling} label="Payouts"
+                href="/admin/payouts"
+                value={pendPayout}
+                sub="Pending payouts"
+                accent="green"
+                sev={pendPayout > 0 ? "warn" : "ok"}
+                sevLabel={pendPayout > 0 ? `${pendPayout} queued` : "Settled"} />
+              <Tile icon={Shield}       label="Security"
+                href="/admin/security"
+                sub="Fraud radar"
+                accent="red"
+                sev="ok"
+                sevLabel="Monitoring" />
+            </Row>
+
+          </div>
+
+          {/* COL 2 — AI + people/finance */}
+          <div className="space-y-4">
+
+            {/* 3 — AI & AUTOMATION */}
             <Row label="AI & Automation" dot="bg-violet-500">
               <Tile icon={Bot}          label="AI Agents"
                 href="/admin/agents"
@@ -357,7 +395,7 @@ export default function AdminPage() {
                 sevLabel={liveVoice > 0 ? `${liveVoice} live` : "Idle"} />
             </Row>
 
-            {/* 3 — PEOPLE & FINANCE */}
+            {/* 4 — PEOPLE & FINANCE */}
             <Row label="People & Finance" dot="bg-emerald-500">
               <Tile icon={UserCircle}   label="Customers"
                 href="/admin/customers"
@@ -387,38 +425,8 @@ export default function AdminPage() {
 
           </div>
 
-          {/* RIGHT column — operations & growth */}
-          <div className="space-y-5">
-
-            {/* 4 — OPERATIONS */}
-            <Row label="Operations" dot="bg-sky-500">
-              <Tile icon={Map}          label="Live Ops Map"
-                href="/admin/ops"
-                sub="Dispatch & coverage"
-                accent="sky"
-                sev="ok"
-                sevLabel="Live" />
-              <Tile icon={Users}        label="Locksmiths"
-                href="/admin/locksmiths"
-                value={ops?.people.totalLocksmiths ?? "—"}
-                sub={`${pendVerif} to verify`}
-                accent="emerald"
-                sev={pendVerif > 0 ? "warn" : "ok"}
-                sevLabel={pendVerif > 0 ? `${pendVerif} pending` : "All verified"} />
-              <Tile icon={PoundSterling} label="Payouts"
-                href="/admin/payouts"
-                value={pendPayout}
-                sub="Pending payouts"
-                accent="green"
-                sev={pendPayout > 0 ? "warn" : "ok"}
-                sevLabel={pendPayout > 0 ? `${pendPayout} queued` : "Settled"} />
-              <Tile icon={Shield}       label="Security"
-                href="/admin/security"
-                sub="Fraud radar"
-                accent="red"
-                sev="ok"
-                sevLabel="Monitoring" />
-            </Row>
+          {/* COL 3 — growth + system + signature queue */}
+          <div className="space-y-4">
 
             {/* 5 — MARKETING */}
             <Row label="Marketing" dot="bg-pink-500">
@@ -467,102 +475,69 @@ export default function AdminPage() {
                 sevLabel="Connected" />
             </Row>
 
-          </div>
-
-        </div>
-
-        {/* ── Jobs Awaiting Signature ───────────────────────────────────────── */}
-        <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-slate-100">
-          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
-                <PenTool className="w-4 h-4 text-amber-600" />
+            {/* 7 — SIGNATURE QUEUE */}
+            <div className={`bg-white rounded-xl shadow-sm overflow-hidden border ${awaitSig > 0 ? "border-amber-200 pending-border-amber" : "border-slate-100"}`}>
+              <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-7 h-7 bg-amber-100 rounded-lg flex items-center justify-center shrink-0">
+                    <PenTool className="w-3.5 h-3.5 text-amber-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <h2 className="text-xs font-bold text-slate-900 truncate">Jobs Awaiting Signature</h2>
+                    <p className="text-[10px] text-slate-500">{awaitSig} pending confirmation</p>
+                  </div>
+                </div>
+                <Link href="/admin/jobs?status=PENDING_CUSTOMER_CONFIRMATION"
+                  className="text-[11px] font-semibold text-orange-600 hover:text-orange-700 inline-flex items-center gap-0.5 shrink-0">
+                  View all <ChevronRight className="w-3 h-3" />
+                </Link>
               </div>
-              <div>
-                <h2 className="text-sm font-bold text-slate-900">Jobs Awaiting Signature</h2>
-                <p className="text-[11px] text-slate-500">
-                  {sigJobs.length} job{sigJobs.length !== 1 ? "s" : ""} pending confirmation
-                </p>
-              </div>
-            </div>
-            <Link href="/admin/jobs?status=PENDING_CUSTOMER_CONFIRMATION"
-              className="text-xs font-semibold text-orange-600 hover:text-orange-700 flex items-center gap-0.5">
-              View all <ChevronRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
 
-          {sigLoading ? (
-            <div className="p-8 text-center">
-              <Loader2 className="w-7 h-7 animate-spin text-orange-400 mx-auto mb-2" />
-              <p className="text-xs text-slate-500">Loading jobs…</p>
-            </div>
-          ) : sigJobs.length === 0 ? (
-            <div className="p-8 text-center">
-              <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
-              <p className="text-sm font-semibold text-slate-600">All caught up!</p>
-              <p className="text-xs text-slate-400">No jobs awaiting customer signature.</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {sigJobs.map((job) => {
-                const dl = getDeadline(job.confirmationDeadline);
-                const overdue = dl.text === "Overdue";
-                return (
-                  <div key={job.id} className={`px-5 py-4 hover:bg-slate-50 transition-colors ${overdue ? "bg-red-50" : ""}`}>
-                    <div className="flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-2 mb-1">
-                          <Link href={`/admin/jobs?id=${job.id}`}
-                            className="font-mono text-xs font-bold text-orange-600 hover:underline">
-                            {job.jobNumber}
-                          </Link>
-                          {overdue && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-red-100 text-red-700 text-[10px] font-bold rounded-full">
-                              <AlertTriangle className="w-2.5 h-2.5" /> Overdue
-                            </span>
-                          )}
-                          {job.confirmationRemindersSent > 0 && (
-                            <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded-full">
-                              {job.confirmationRemindersSent} reminder{job.confirmationRemindersSent !== 1 ? "s" : ""}
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-xs text-slate-600">{problemLabels[job.problemType] || job.problemType}</div>
-                        <div className="flex items-center gap-1 text-[10px] text-slate-400 mt-0.5">
-                          <MapPin className="w-2.5 h-2.5" />
-                          <span className="truncate">{job.address}, {job.postcode}</span>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-2 shrink-0">
-                        <div>
-                          <div className="text-[9px] text-slate-400 uppercase tracking-wider mb-0.5">Customer</div>
-                          <div className="text-xs font-semibold text-slate-900 truncate">{job.customer.name}</div>
-                          <div className="text-[10px] text-slate-400">{job.customer.phone}</div>
-                        </div>
-                        <div>
-                          <div className="text-[9px] text-slate-400 uppercase tracking-wider mb-0.5">Locksmith</div>
-                          <div className="text-xs font-semibold text-slate-900 truncate">{job.locksmith?.name || "—"}</div>
-                          {job.locksmith?.companyName && (
-                            <div className="text-[10px] text-slate-400 truncate">{job.locksmith.companyName}</div>
-                          )}
-                        </div>
-                        <div>
-                          <div className="text-[9px] text-slate-400 uppercase tracking-wider mb-0.5">Quote</div>
-                          <div className="text-xs font-bold text-slate-900">
-                            {job.quote ? `£${job.quote.total.toFixed(2)}` : "—"}
+              {sigLoading ? (
+                <div className="p-5 text-center">
+                  <Loader2 className="w-6 h-6 animate-spin text-orange-400 mx-auto mb-2" />
+                  <p className="text-[11px] text-slate-500">Loading jobs…</p>
+                </div>
+              ) : awaitSig === 0 ? (
+                <div className="p-5 text-center">
+                  <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-1.5" />
+                  <p className="text-xs font-semibold text-slate-600">All caught up</p>
+                  <p className="text-[10px] text-slate-400">No jobs awaiting customer signature.</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {visibleSigJobs.map((job) => {
+                    const dl = getDeadline(job.confirmationDeadline);
+                    const overdue = dl.text === "Overdue";
+                    const rowPulseClass = overdue ? "pending-border-red border-red-200 bg-red-50/70" : "pending-border-amber border-amber-200 bg-amber-50/40";
+
+                    return (
+                      <div key={job.id} className="px-3 py-2.5">
+                        <div className={`rounded-lg border ${rowPulseClass} px-2.5 py-2 transition-colors`}>
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <Link href={`/admin/jobs?id=${job.id}`} className="font-mono text-[11px] font-bold text-orange-600 hover:underline truncate">
+                              {job.jobNumber}
+                            </Link>
+                            <span className={`text-[10px] font-semibold ${dl.color}`}>{dl.text}</span>
+                          </div>
+                          <div className="text-[11px] text-slate-700 truncate mb-1">{problemLabels[job.problemType] || job.problemType}</div>
+                          <div className="text-[10px] text-slate-500 truncate mb-1.5">{job.address}, {job.postcode}</div>
+                          <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] text-slate-600">
+                            <span className="truncate"><span className="font-semibold text-slate-700">Customer:</span> {job.customer.name}</span>
+                            <span className="truncate"><span className="font-semibold text-slate-700">Quote:</span> {job.quote ? `£${job.quote.total.toFixed(2)}` : "—"}</span>
+                            <span className="truncate"><span className="font-semibold text-slate-700">Locksmith:</span> {job.locksmith?.name || "—"}</span>
+                            <span className="truncate"><span className="font-semibold text-slate-700">Reminders:</span> {job.confirmationRemindersSent}</span>
                           </div>
                         </div>
-                        <div>
-                          <div className="text-[9px] text-slate-400 uppercase tracking-wider mb-0.5">Deadline</div>
-                          <div className={`text-xs font-semibold ${dl.color}`}>{dl.text}</div>
-                        </div>
                       </div>
-                    </div>
-                  </div>
-                );
-              })}
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          )}
+
+          </div>
+
         </div>
 
       </div>

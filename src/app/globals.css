@@ -207,3 +207,40 @@ body > div:not([class]):not([id])[style*="fixed"][style*="bottom"] {
   background-image: radial-gradient(circle, rgba(255, 255, 255, 0.07) 1px, transparent 1px);
   background-size: 28px 28px;
 }
+
+@keyframes pendingBorderAmber {
+  0%, 100% {
+    border-color: rgb(252 211 77 / 0.9);
+    box-shadow: 0 0 0 0 rgb(245 158 11 / 0.25), 0 0 0 0 rgb(245 158 11 / 0.12);
+  }
+  50% {
+    border-color: rgb(245 158 11 / 1);
+    box-shadow: 0 0 0 2px rgb(245 158 11 / 0.32), 0 0 18px 4px rgb(245 158 11 / 0.22);
+  }
+}
+
+@keyframes pendingBorderRed {
+  0%, 100% {
+    border-color: rgb(252 165 165 / 0.95);
+    box-shadow: 0 0 0 0 rgb(239 68 68 / 0.28), 0 0 0 0 rgb(239 68 68 / 0.14);
+  }
+  50% {
+    border-color: rgb(220 38 38 / 1);
+    box-shadow: 0 0 0 2px rgb(239 68 68 / 0.35), 0 0 18px 4px rgb(239 68 68 / 0.25);
+  }
+}
+
+.pending-border-amber {
+  animation: pendingBorderAmber 1.1s ease-in-out infinite;
+}
+
+.pending-border-red {
+  animation: pendingBorderRed 0.95s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pending-border-amber,
+  .pending-border-red {
+    animation: none;
+  }
+}

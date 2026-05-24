@@ -4,10 +4,12 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
+import { WhatsAppButton } from "@/components/WhatsAppButton";
 import {
   Search,
   Phone,
   Mail,
+  MessageCircle,
   CheckCircle2,
   XCircle,
   AlertCircle,
@@ -264,6 +266,21 @@ export default function AdminCustomersPage() {
       .slice(0, 2);
   };
 
+  const toSmsHref = (phone: string | null | undefined, customerName?: string) => {
+    if (!phone) return null;
+    const normalized = phone.replace(/[\s()-]/g, "");
+    if (!normalized) return null;
+    const body = `Hi ${customerName || "there"}, this is LockSafe regarding your service request.`;
+    return `sms:${normalized}?body=${encodeURIComponent(body)}`;
+  };
+
+  const toMailtoHref = (email: string | null | undefined, customerName?: string) => {
+    if (!email) return null;
+    const subject = `LockSafe follow-up`;
+    const body = `Hi ${customerName || "there"},\n\n`;
+    return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
+
   return (
     <AdminSidebar>
       <div className="p-4 lg:p-8">
@@ -437,6 +454,49 @@ export default function AdminCustomersPage() {
                               <Phone className="w-3.5 h-3.5 text-slate-400" />
                               {customer.phone}
                             </div>
+                            <div className="flex items-center gap-1.5 pt-1" onClick={(e) => e.stopPropagation()}>
+                              <WhatsAppButton
+                                phone={customer.phone}
+                                message={`Hi ${customer.name}, this is LockSafe regarding your request — `}
+                                iconOnly
+                                size="sm"
+                                context={{ targetType: "customer", targetId: customer.id }}
+                              />
+                              {toSmsHref(customer.phone, customer.name) ? (
+                                <a
+                                  href={toSmsHref(customer.phone, customer.name) || "#"}
+                                  className="inline-flex items-center justify-center h-8 w-8 rounded-md bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+                                  title="Send SMS"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <MessageCircle className="w-4 h-4" />
+                                </a>
+                              ) : (
+                                <span
+                                  className="inline-flex items-center justify-center h-8 w-8 rounded-md bg-slate-100 text-slate-400 cursor-not-allowed"
+                                  title="No phone on file"
+                                >
+                                  <MessageCircle className="w-4 h-4" />
+                                </span>
+                              )}
+                              {toMailtoHref(customer.email, customer.name) ? (
+                                <a
+                                  href={toMailtoHref(customer.email, customer.name) || "#"}
+                                  className="inline-flex items-center justify-center h-8 w-8 rounded-md bg-orange-100 text-orange-700 hover:bg-orange-200 transition-colors"
+                                  title="Send Email"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <Mail className="w-4 h-4" />
+                                </a>
+                              ) : (
+                                <span
+                                  className="inline-flex items-center justify-center h-8 w-8 rounded-md bg-slate-100 text-slate-400 cursor-not-allowed"
+                                  title="No email on file"
+                                >
+                                  <Mail className="w-4 h-4" />
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </td>
                         <td className="px-4 py-4">
@@ -567,6 +627,50 @@ export default function AdminCustomersPage() {
                         )}
                       </div>
                       <div className="text-slate-500">{formatDate(customer.createdAt)}</div>
+                    </div>
+
+                    <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      <WhatsAppButton
+                        phone={customer.phone}
+                        message={`Hi ${customer.name}, this is LockSafe regarding your request — `}
+                        iconOnly
+                        size="sm"
+                        context={{ targetType: "customer", targetId: customer.id }}
+                      />
+                      {toSmsHref(customer.phone, customer.name) ? (
+                        <a
+                          href={toSmsHref(customer.phone, customer.name) || "#"}
+                          className="inline-flex items-center justify-center h-8 w-8 rounded-md bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+                          title="Send SMS"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                        </a>
+                      ) : (
+                        <span
+                          className="inline-flex items-center justify-center h-8 w-8 rounded-md bg-slate-100 text-slate-400 cursor-not-allowed"
+                          title="No phone on file"
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                        </span>
+                      )}
+                      {toMailtoHref(customer.email, customer.name) ? (
+                        <a
+                          href={toMailtoHref(customer.email, customer.name) || "#"}
+                          className="inline-flex items-center justify-center h-8 w-8 rounded-md bg-orange-100 text-orange-700 hover:bg-orange-200 transition-colors"
+                          title="Send Email"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Mail className="w-4 h-4" />
+                        </a>
+                      ) : (
+                        <span
+                          className="inline-flex items-center justify-center h-8 w-8 rounded-md bg-slate-100 text-slate-400 cursor-not-allowed"
+                          title="No email on file"
+                        >
+                          <Mail className="w-4 h-4" />
+                        </span>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -811,6 +915,42 @@ export default function AdminCustomersPage() {
 
                   {/* Modal Footer */}
                   <div className="p-6 border-t bg-slate-50 flex flex-wrap gap-3">
+                    <WhatsAppButton
+                      phone={selectedCustomer.phone}
+                      message={`Hi ${selectedCustomer.name}, this is LockSafe regarding your service request — `}
+                      size="sm"
+                      context={{ targetType: "customer", targetId: selectedCustomer.id }}
+                    />
+                    {toSmsHref(selectedCustomer.phone, selectedCustomer.name) ? (
+                      <a
+                        href={toSmsHref(selectedCustomer.phone, selectedCustomer.name) || "#"}
+                        className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-blue-100 text-blue-700 hover:bg-blue-200 text-sm font-medium transition-colors"
+                        title="Send SMS"
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                        Contact (SMS)
+                      </a>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-slate-100 text-slate-400 text-sm font-medium cursor-not-allowed" title="No phone on file">
+                        <MessageCircle className="w-4 h-4" />
+                        Contact (SMS)
+                      </span>
+                    )}
+                    {toMailtoHref(selectedCustomer.email, selectedCustomer.name) ? (
+                      <a
+                        href={toMailtoHref(selectedCustomer.email, selectedCustomer.name) || "#"}
+                        className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-orange-100 text-orange-700 hover:bg-orange-200 text-sm font-medium transition-colors"
+                        title="Send Email"
+                      >
+                        <Mail className="w-4 h-4" />
+                        Send Email
+                      </a>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-slate-100 text-slate-400 text-sm font-medium cursor-not-allowed" title="No email on file">
+                        <Mail className="w-4 h-4" />
+                        Send Email
+                      </span>
+                    )}
                     {selectedCustomer.jobs.length > 0 && (
                       <Link href={`/admin/jobs?customerId=${selectedCustomer.id}`}>
                         <Button variant="outline">
