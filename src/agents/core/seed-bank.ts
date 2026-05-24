@@ -36,6 +36,42 @@ export const FALLBACK_BASELINE_SEEDS = [
   "upvc locksmith",
 ] as const;
 
+/**
+ * Student and HMO keyword seeds.
+ *
+ * High value in cities with large student populations (Hull, Sheffield, Leeds,
+ * Nottingham) and rental/HMO stock. The Keyword Planner naturally returns low
+ * volume for these in other cities so they won't pollute non-student geos.
+ *
+ * "hmo locksmith" and "landlord locksmith" target the letting agent / property
+ * manager segment — repeat customers who need lock changes between tenancies.
+ */
+export const STUDENT_HMO_SEEDS = [
+  "student locksmith",
+  "hmo locksmith",
+  "student accommodation locksmith",
+  "landlord locksmith",
+  "tenant lockout",
+  "lock change between tenants",
+] as const;
+
+/**
+ * Idempotent seeder — inserts student/HMO keyword seeds as "experimental"
+ * category so they get scored but stay in their own bucket for reflection.
+ * Safe to call multiple times (addSeed is idempotent).
+ */
+export async function seedStudentHmoKeywords(): Promise<void> {
+  for (const kw of STUDENT_HMO_SEEDS) {
+    await addSeed(kw, {
+      category: "experimental",
+      source: "student-hmo-init",
+      notes:
+        "High-value in student / HMO cities (Hull, Sheffield, Leeds, Nottingham). " +
+        "Low planner volume in non-student cities — safe as global seed.",
+    });
+  }
+}
+
 export interface GetTopSeedsOptions {
   limit?: number;
   minScore?: number;

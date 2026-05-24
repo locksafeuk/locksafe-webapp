@@ -23,6 +23,7 @@
  * Called by: POST /api/cron/google-ads-suggestions (after runFullSuggestionCycle)
  */
 
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/db";
 import { chat, Models } from "@/lib/llm-router";
 import { applyReflection } from "@/agents/core/seed-bank";
@@ -141,9 +142,9 @@ async function createLadderSuggestion(params: {
   googleCampaignId: string;
   campaignName: string;
   type: string;
-  evidence: Record<string, unknown>;
-  suggestedValue: Record<string, unknown>;
-  currentValue?: Record<string, unknown>;
+  evidence: Prisma.InputJsonValue;
+  suggestedValue: Prisma.InputJsonValue;
+  currentValue?: Prisma.InputJsonValue;
   reasoning: string;
   confidence: number;
 }): Promise<boolean> {
@@ -259,7 +260,7 @@ Write a 2-3 sentence plain-English explanation of WHY this action is being propo
       [{ role: "user", content: prompt }],
       { timeoutMs: 45_000, temperature: 0 },
     );
-    return response.trim();
+    return response.content.trim();
   } catch {
     // Fallback to a template-based summary if LLM is unavailable
     return `Campaign "${metrics.campaignName}" has run for ${metrics.ageDays} days with ROAS of ${metrics.roas.toFixed(2)}x (£${metrics.spend.toFixed(2)} spent, £${metrics.revenue.toFixed(2)} revenue, ${metrics.conversions} conversions). ${action}.`;

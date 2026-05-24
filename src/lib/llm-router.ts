@@ -1059,6 +1059,8 @@ export function estimateLLMCost(modelAlias: ModelAlias, tokens = 1000): number {
     QUALITY:   0.0001,
     HERMES:    0.00001, // near-zero — local Hermes 4 70B
     REASONING: 0.0001,  // local qwen3 thinking, OpenAI fallback billed elsewhere
+    VISION:    0,
+    EMBED:     0,
   };
   return (costPer1k[modelAlias] * tokens) / 1000;
 }
