@@ -6,6 +6,10 @@
   "regions": ["lhr1"],
   "crons": [
     {
+      "path": "/api/cron/onboarding-nudge",
+      "schedule": "0 9 * * *"
+    },
+    {
       "path": "/api/cron/google-ads-opportunity-scout",
       "schedule": "0 4 * * 1"
     },

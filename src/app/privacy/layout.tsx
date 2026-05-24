@@ -100,7 +100,7 @@ const privacyFaqStructuredData = {
       name: "How long does LockSafe keep my data?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Account data is kept until you delete your account. Job records and payment records are kept for 7 years as required by UK financial regulations. Marketing preferences are kept until you withdraw consent.",
+        text: "Account data is kept until you delete your account. Incomplete locksmith onboarding accounts may be automatically removed after 30 days from signup with advance warning. Job records and payment records are kept for 7 years as required by UK financial regulations. Marketing preferences are kept until you withdraw consent.",
       },
     },
     {
@@ -108,7 +108,7 @@ const privacyFaqStructuredData = {
       name: "How can I delete my LockSafe data?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "You can request deletion of your personal data by emailing privacy@locksafe.uk. We will process your request within 30 days. Note that some data must be retained for legal compliance (e.g., 7 years for financial records).",
+        text: "You can request deletion of your personal data by emailing privacy@locksafe.uk. We will process your request within 30 days. Note that some data must be retained for legal compliance (e.g., 7 years for financial records). Incomplete locksmith onboarding accounts may also be automatically removed after advance warning if onboarding remains incomplete after 30 days.",
       },
     },
   ],

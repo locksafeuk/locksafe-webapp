@@ -81,7 +81,7 @@ const SEV: Record<Severity, { dot: string; badge: string; pulse: boolean }> = {
 function Badge({ sev, label }: { sev: Severity; label: string }) {
   const s = SEV[sev];
   return (
-    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold ${s.badge}`}>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${s.badge}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${s.dot} ${s.pulse ? "animate-pulse" : ""}`} />
       {label}
     </span>
@@ -141,14 +141,14 @@ function Tile({ icon: Icon, label, href, value, sub, accent, sev, sevLabel }: Ti
 
         {/* Number */}
         {value !== undefined && (
-          <div className="text-[22px] font-bold text-slate-900 leading-none">{value}</div>
+          <div className="text-[24px] font-bold text-slate-900 leading-none">{value}</div>
         )}
 
         {/* Label */}
-        <div className="text-[11px] font-semibold text-slate-600 leading-tight">{label}</div>
+        <div className="text-[13px] font-semibold text-slate-600 leading-tight">{label}</div>
 
         {/* Sub */}
-        {sub && <div className="text-[10px] text-slate-400 leading-tight truncate mt-auto">{sub}</div>}
+        {sub && <div className="text-[12px] text-slate-400 leading-tight truncate mt-auto">{sub}</div>}
       </div>
     </Link>
   );
@@ -161,7 +161,7 @@ function Row({ label, dot, children }: { label: string; dot: string; children: R
     <div>
       <div className="flex items-center gap-2 mb-2">
         <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
-        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">{label}</span>
+        <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-slate-400">{label}</span>
         <div className="flex-1 h-px bg-slate-100" />
       </div>
       <div className="grid grid-cols-2 gap-2.5">
@@ -245,10 +245,10 @@ export default function AdminPage() {
         {/* ── Page header ──────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">Operations</h1>
-            <p className="text-xs text-slate-400 mt-0.5">{greeting()} — live overview</p>
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Operations</h1>
+            <p className="text-sm text-slate-400 mt-0.5">{greeting()} — live overview</p>
           </div>
-          <div className="text-[11px] text-slate-400 tabular-nums">
+          <div className="text-[13px] text-slate-400 tabular-nums">
             {ops ? (
               <span className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -284,10 +284,10 @@ export default function AdminPage() {
                 <div key={label} className="px-5 py-3.5 hover:bg-slate-900 transition-colors">
                   <div className="flex items-center gap-1.5 mb-1">
                     <Icon className={`w-3 h-3 ${color}`} />
-                    <span className="text-[9px] font-semibold uppercase tracking-widest text-slate-500">{label}</span>
+                    <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-500">{label}</span>
                   </div>
-                  <div className={`text-xl font-bold ${color} leading-none`}>{value}</div>
-                  <div className="text-[10px] text-slate-600 mt-1 flex items-center gap-1">
+                  <div className={`text-2xl font-bold ${color} leading-none`}>{value}</div>
+                  <div className="text-[12px] text-slate-600 mt-1 flex items-center gap-1">
                     <TrendingUp className="w-2.5 h-2.5" />
                     {sub}
                   </div>
@@ -483,12 +483,12 @@ export default function AdminPage() {
                     <PenTool className="w-3.5 h-3.5 text-amber-600" />
                   </div>
                   <div className="min-w-0">
-                    <h2 className="text-xs font-bold text-slate-900 truncate">Jobs Awaiting Signature</h2>
-                    <p className="text-[10px] text-slate-500">{awaitSig} pending confirmation</p>
+                    <h2 className="text-sm font-bold text-slate-900 truncate">Jobs Awaiting Signature</h2>
+                    <p className="text-[12px] text-slate-500">{awaitSig} pending confirmation</p>
                   </div>
                 </div>
                 <Link href="/admin/jobs?status=PENDING_CUSTOMER_CONFIRMATION"
-                  className="text-[11px] font-semibold text-orange-600 hover:text-orange-700 inline-flex items-center gap-0.5 shrink-0">
+                  className="text-[13px] font-semibold text-orange-600 hover:text-orange-700 inline-flex items-center gap-0.5 shrink-0">
                   View all <ChevronRight className="w-3 h-3" />
                 </Link>
               </div>
@@ -496,13 +496,13 @@ export default function AdminPage() {
               {sigLoading ? (
                 <div className="p-5 text-center">
                   <Loader2 className="w-6 h-6 animate-spin text-orange-400 mx-auto mb-2" />
-                  <p className="text-[11px] text-slate-500">Loading jobs…</p>
+                  <p className="text-[13px] text-slate-500">Loading jobs…</p>
                 </div>
               ) : awaitSig === 0 ? (
                 <div className="p-5 text-center">
                   <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-1.5" />
-                  <p className="text-xs font-semibold text-slate-600">All caught up</p>
-                  <p className="text-[10px] text-slate-400">No jobs awaiting customer signature.</p>
+                  <p className="text-sm font-semibold text-slate-600">All caught up</p>
+                  <p className="text-[12px] text-slate-400">No jobs awaiting customer signature.</p>
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100">
@@ -515,14 +515,14 @@ export default function AdminPage() {
                       <div key={job.id} className="px-3 py-2.5">
                         <div className={`rounded-lg border ${rowPulseClass} px-2.5 py-2 transition-colors`}>
                           <div className="flex items-center justify-between gap-2 mb-1">
-                            <Link href={`/admin/jobs?id=${job.id}`} className="font-mono text-[11px] font-bold text-orange-600 hover:underline truncate">
+                            <Link href={`/admin/jobs?id=${job.id}`} className="font-mono text-[13px] font-bold text-orange-600 hover:underline truncate">
                               {job.jobNumber}
                             </Link>
-                            <span className={`text-[10px] font-semibold ${dl.color}`}>{dl.text}</span>
+                            <span className={`text-[12px] font-semibold ${dl.color}`}>{dl.text}</span>
                           </div>
-                          <div className="text-[11px] text-slate-700 truncate mb-1">{problemLabels[job.problemType] || job.problemType}</div>
-                          <div className="text-[10px] text-slate-500 truncate mb-1.5">{job.address}, {job.postcode}</div>
-                          <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] text-slate-600">
+                          <div className="text-[13px] text-slate-700 truncate mb-1">{problemLabels[job.problemType] || job.problemType}</div>
+                          <div className="text-[12px] text-slate-500 truncate mb-1.5">{job.address}, {job.postcode}</div>
+                          <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[12px] text-slate-600">
                             <span className="truncate"><span className="font-semibold text-slate-700">Customer:</span> {job.customer.name}</span>
                             <span className="truncate"><span className="font-semibold text-slate-700">Quote:</span> {job.quote ? `£${job.quote.total.toFixed(2)}` : "—"}</span>
                             <span className="truncate"><span className="font-semibold text-slate-700">Locksmith:</span> {job.locksmith?.name || "—"}</span>

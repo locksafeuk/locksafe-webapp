@@ -528,6 +528,10 @@ export default function PrivacyPage() {
                             <td className="px-5 py-4 text-slate-600">Until you delete your account</td>
                           </tr>
                           <tr className="bg-white">
+                            <td className="px-5 py-4 text-slate-700">Incomplete Locksmith Onboarding Accounts</td>
+                            <td className="px-5 py-4 text-slate-600">Automatically removed after 30 days if onboarding is not completed, with a warning notice sent in advance (normally on day 27)</td>
+                          </tr>
+                          <tr className="bg-white">
                             <td className="px-5 py-4 text-slate-700">Job Records</td>
                             <td className="px-5 py-4 text-slate-600">7 years (legal and tax compliance)</td>
                           </tr>
@@ -546,6 +550,12 @@ export default function PrivacyPage() {
                         </tbody>
                       </table>
                     </div>
+                  </div>
+
+                  <div className="not-prose bg-amber-50 border border-amber-200 rounded-xl p-4 my-6">
+                    <p className="text-amber-800 text-sm">
+                      For locksmith onboarding, we may send automated reminders (including a second-stage reminder only when no qualifying interaction is detected) before any automatic removal of incomplete accounts. Where deletion occurs, we keep only the minimum audit metadata required for compliance and abuse prevention.
+                    </p>
                   </div>
                 </section>
 

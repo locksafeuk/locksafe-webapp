@@ -46,7 +46,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { WhatsAppButton } from "@/components/WhatsAppButton";
-import { formatBaseLocationLabel } from "@/lib/location-display";
+import { extractUkPostcode, formatBaseLocationLabel, isCoordinatePair } from "@/lib/location-display";
 
 // Dynamically import AdminCoverageMap to avoid SSR issues with Leaflet
 const AdminCoverageMap = dynamic(
@@ -142,9 +142,13 @@ export default function AdminLocksmithsPage() {
   // Welcome emails state
   const [sendingWelcomeEmails, setSendingWelcomeEmails] = useState(false);
   const [sendingStripeReminders, setSendingStripeReminders] = useState(false);
+  const [sendingBaseLocationReminders, setSendingBaseLocationReminders] = useState(false);
   const [reminderLog, setReminderLog] = useState<{ sentAt: string; adminEmail: string }[]>([]);
   const [loadingReminderLog, setLoadingReminderLog] = useState(false);
   const [sendingStripeReminder, setSendingStripeReminder] = useState(false);
+  const [baseLocationReminderLog, setBaseLocationReminderLog] = useState<{ sentAt: string; adminEmail: string }[]>([]);
+  const [loadingBaseLocationReminderLog, setLoadingBaseLocationReminderLog] = useState(false);
+  const [sendingBaseLocationReminder, setSendingBaseLocationReminder] = useState(false);
   const locksmithIdFromUrlRef = useRef<string | null>(null);
 
   // Profile editing state
@@ -454,6 +458,101 @@ export default function AdminLocksmithsPage() {
       setSendingStripeReminders(false);
     }
   };
+
+  const locksmithNeedsBaseLocationReminder = useCallback((locksmith: Locksmith) => {
+    const hasCoords = locksmith.baseLat != null && locksmith.baseLng != null;
+    const address = locksmith.baseAddress?.trim() || "";
+    const postcodeFromAddress = extractUkPostcode(address);
+    const postcodeFromReverseLookup = postcodeMap[locksmith.id] || null;
+    const postcodeFromCoverageArea = locksmith.coverageAreas.find((area) => Boolean(extractUkPostcode(area))) || null;
+    const hasPostcode = Boolean(postcodeFromAddress || postcodeFromReverseLookup || postcodeFromCoverageArea);
+
+    return !hasCoords || !address || isCoordinatePair(address) || !hasPostcode;
+  }, [postcodeMap]);
+
+  const fetchBaseLocationReminderLog = useCallback(async (locksmithId: string) => {
+    setLoadingBaseLocationReminderLog(true);
+    try {
+      const res = await fetch(`/api/admin/locksmiths/base-location-reminder-log?locksmithId=${locksmithId}`);
+      const data = await res.json();
+      if (data.success) {
+        setBaseLocationReminderLog(data.log);
+      } else {
+        setBaseLocationReminderLog([]);
+      }
+    } catch {
+      setBaseLocationReminderLog([]);
+    } finally {
+      setLoadingBaseLocationReminderLog(false);
+    }
+  }, []);
+
+  const handleSendBaseLocationReminders = async () => {
+    const eligibleCount = locksmiths.filter((ls) => locksmithNeedsBaseLocationReminder(ls)).length;
+    if (eligibleCount === 0) {
+      alert("All locksmiths currently have a valid postcode-based base location.");
+      return;
+    }
+
+    if (!confirm(`Send base location reminders to ${eligibleCount} locksmith${eligibleCount === 1 ? "" : "s"} with missing or invalid postcode location details?`)) {
+      return;
+    }
+
+    setSendingBaseLocationReminders(true);
+    try {
+      const response = await fetch("/api/admin/locksmiths/send-base-location-reminders", {
+        method: "POST",
+      });
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        alert(`✅ Successfully sent base location reminders to ${data.totalSent} locksmiths!\n\nEligible: ${data.totalEligible}\nSent: ${data.totalSent}\nFailed: ${data.failed}${data.failed > 0 ? `\n\nFailed emails: ${data.failedEmails.join(", ")}` : ""}`);
+      } else {
+        alert(`❌ ${data.error || "Failed to send base location reminders"}`);
+      }
+    } catch (error) {
+      console.error("Error sending base location reminders:", error);
+      alert("❌ An error occurred while sending base location reminders");
+    } finally {
+      setSendingBaseLocationReminders(false);
+    }
+  };
+
+  const handleSendBaseLocationReminder = async (locksmithId: string) => {
+    if (!confirm("Send a base location reminder to this locksmith?")) {
+      return;
+    }
+
+    setSendingBaseLocationReminder(true);
+    try {
+      const response = await fetch("/api/admin/locksmiths/send-base-location-reminder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ locksmithId }),
+      });
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        alert("Base location reminder sent!");
+        fetchBaseLocationReminderLog(locksmithId);
+      } else {
+        alert(data.error || "Failed to send reminder");
+      }
+    } catch (error) {
+      console.error("Error sending base location reminder:", error);
+      alert("Error sending reminder");
+    } finally {
+      setSendingBaseLocationReminder(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedLocksmith && locksmithNeedsBaseLocationReminder(selectedLocksmith)) {
+      fetchBaseLocationReminderLog(selectedLocksmith.id);
+    } else {
+      setBaseLocationReminderLog([]);
+    }
+  }, [selectedLocksmith, locksmithNeedsBaseLocationReminder, fetchBaseLocationReminderLog]);
 
   const handleSendStripeReminder = async (locksmithId: string) => {
     if (!confirm("Send Stripe onboarding reminder to this locksmith?")) {
@@ -833,8 +932,15 @@ export default function AdminLocksmithsPage() {
   });
   const isMapView = viewMode === "map";
   const selectedBaseLocationLabel = selectedLocksmith
-    ? formatBaseLocationLabel(selectedLocksmith.baseAddress)
+    ? formatBaseLocationLabel(
+      selectedLocksmith.baseAddress,
+      postcodeMap[selectedLocksmith.id] || selectedLocksmith.coverageAreas.find((area) => Boolean(extractUkPostcode(area))),
+    )
     : null;
+  const selectedNeedsBaseLocationReminder = selectedLocksmith
+    ? locksmithNeedsBaseLocationReminder(selectedLocksmith)
+    : false;
+  const baseLocationReminderEligibleCount = locksmiths.filter((ls) => locksmithNeedsBaseLocationReminder(ls)).length;
   const totalLocksmithsCount = locksmiths.length;
   const verifiedCount = locksmiths.filter((ls) => ls.isVerified).length;
   const availableCount = locksmiths.filter((ls) => ls.isAvailable).length;
@@ -1011,6 +1117,26 @@ export default function AdminLocksmithsPage() {
                     <CreditCard className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline">Send Stripe Reminders</span>
                     <span className="sm:hidden">Stripe</span>
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={handleSendBaseLocationReminders}
+                disabled={sendingBaseLocationReminders || baseLocationReminderEligibleCount === 0}
+                className={isMapView ? "px-2 py-1.5 flex items-center gap-1 text-[10px] lg:text-[11px] font-medium bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" : "px-2.5 lg:px-3 py-1.5 flex items-center gap-1.5 text-[11px] lg:text-xs font-medium bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"}
+                title="Send base location reminders to locksmiths missing postcode-based base location"
+              >
+                {sendingBaseLocationReminders ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span className="hidden sm:inline">Sending...</span>
+                  </>
+                ) : (
+                  <>
+                    <MapPin className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Send Base Location Reminders</span>
+                    <span className="sm:hidden">Location</span>
                   </>
                 )}
               </button>
@@ -1312,16 +1438,21 @@ export default function AdminLocksmithsPage() {
                       <div className="font-bold text-slate-900">£{ls.totalEarnings.toLocaleString()}</div>
                     </td>
                     <td className="px-4 py-4">
-                      {postcodeMap[ls.id] && (
-                        <div className="text-xs font-medium text-slate-600 mb-1">{postcodeMap[ls.id]}</div>
+                      {!locksmithNeedsBaseLocationReminder(ls) && (
+                        <div className="text-xs font-medium text-slate-600 mb-1">
+                          {formatBaseLocationLabel(
+                            ls.baseAddress,
+                            postcodeMap[ls.id] || ls.coverageAreas.find((area) => Boolean(extractUkPostcode(area))),
+                          )}
+                        </div>
                       )}
-                      {ls.baseLat && ls.baseLng ? (
+                      {!locksmithNeedsBaseLocationReminder(ls) && ls.baseLat && ls.baseLng ? (
                         <div className="flex items-center gap-1 text-sm">
                           <MapPin className="w-3.5 h-3.5 text-orange-500" />
                           <span className="text-slate-700">{ls.coverageRadius} mi</span>
                         </div>
                       ) : (
-                        <span className="text-xs text-amber-600">Not set</span>
+                        <span className="text-xs text-amber-600">Needs postcode location</span>
                       )}
                     </td>
                     <td className="px-4 py-4">
@@ -1562,6 +1693,60 @@ export default function AdminLocksmithsPage() {
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                               {reminderLog.map((log, idx) => (
+                                <tr key={`${log.sentAt}-${idx}`}>
+                                  <td className="px-3 py-2">{new Date(log.sentAt).toLocaleString()}</td>
+                                  <td className="px-3 py-2">{log.adminEmail}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {selectedNeedsBaseLocationReminder && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <h3 className="text-sm font-semibold text-slate-900">Base location reminder</h3>
+                        <p className="mt-1 text-sm text-slate-600">
+                          Send a follow-up email asking this locksmith to set a valid postcode-based base location in their account settings.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleSendBaseLocationReminder(selectedLocksmith.id)}
+                        disabled={sendingBaseLocationReminder}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-700 disabled:opacity-50"
+                      >
+                        {sendingBaseLocationReminder ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Send className="w-4 h-4" />
+                        )}
+                        {sendingBaseLocationReminder ? "Sending..." : "Send Base Location Reminder"}
+                      </button>
+                    </div>
+
+                    <div className="mt-4">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Reminder Log</div>
+                      {loadingBaseLocationReminderLog ? (
+                        <div className="mt-2 text-sm text-slate-500">Loading...</div>
+                      ) : baseLocationReminderLog.length === 0 ? (
+                        <div className="mt-2 text-sm text-slate-500">No reminders sent yet.</div>
+                      ) : (
+                        <div className="mt-2 overflow-hidden rounded-lg border border-slate-200 bg-white">
+                          <table className="w-full text-sm">
+                            <thead className="bg-slate-50 text-slate-600">
+                              <tr>
+                                <th className="px-3 py-2 text-left font-medium">Date/Time</th>
+                                <th className="px-3 py-2 text-left font-medium">Sent By</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {baseLocationReminderLog.map((log, idx) => (
                                 <tr key={`${log.sentAt}-${idx}`}>
                                   <td className="px-3 py-2">{new Date(log.sentAt).toLocaleString()}</td>
                                   <td className="px-3 py-2">{log.adminEmail}</td>

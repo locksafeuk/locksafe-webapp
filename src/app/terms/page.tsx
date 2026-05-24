@@ -456,6 +456,13 @@ export default function TermsPage() {
                     <li>Obtain a digital customer signature upon completion of work</li>
                   </ul>
 
+                  <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 not-prose my-6">
+                    <p className="text-orange-900 text-sm font-semibold mb-1">Onboarding completion timeline</p>
+                    <p className="text-orange-800 text-sm">
+                      To keep locksmith records accurate and secure, incomplete onboarding accounts may receive automated reminder emails after 24 hours and a second-stage reminder after 3 days if there is no account interaction. If onboarding remains incomplete, a final warning is sent before the account is automatically removed on day 30 from signup.
+                    </p>
+                  </div>
+
                   <div className="bg-red-50 border border-red-200 rounded-xl p-4 not-prose my-6">
                     <p className="text-red-800 text-sm">
                       Failure to follow documentation procedures may result in delayed payouts or account

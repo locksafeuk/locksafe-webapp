@@ -72,6 +72,12 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      await prisma.locksmith.update({
+        where: { id: locksmith.id },
+        data: { onboardingLastInteractionAt: new Date() },
+        select: { id: true },
+      });
+
       // Sanitize string fields before generating token
       const sanitizedLocksmithName = locksmith.name?.trim() || "";
       const sanitizedLocksmithEmail = locksmith.email?.trim().toLowerCase() || "";

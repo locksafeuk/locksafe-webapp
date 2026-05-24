@@ -179,7 +179,7 @@ const sections: Section[] = [
       },
       {
         question: "How do I delete my account?",
-        answer: "You can request account deletion by contacting our support team. In accordance with GDPR, we will process your request within 30 days. Note that some records may be retained for legal compliance purposes.",
+        answer: "You can request account deletion by contacting our support team. In accordance with GDPR, we will process your request within 30 days. Note that some records may be retained for legal compliance purposes. For locksmith accounts that remain incomplete during onboarding, we may automatically remove the account after 30 days from signup, with a warning notice sent in advance.",
       },
     ],
   },
