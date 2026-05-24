@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { verifyToken } from "@/lib/auth";
+import { classifyModel } from "@/lib/classify-model";
 
 async function verifyAdmin() {
   const cookieStore = await cookies();
@@ -34,18 +35,25 @@ export async function GET(request: NextRequest) {
     },
   });
 
-  const activity = executions.map((ex) => ({
+  const activity = executions.map((ex) => {
+    // Local Ollama/Hermes usage should not appear as paid credits in Mission Control.
+    // We report external spend here, so local-model executions are normalized to $0.
+    const modelKind = classifyModel(ex.model ?? null);
+    const normalizedCostUsd = modelKind === "local" ? 0 : ex.costUsd;
+
+    return {
     id: ex.id,
     agentName: ex.agent.name,
     agentDisplayName: ex.agent.displayName,
     actionType: ex.actionType,
     actionName: ex.actionName,
     status: ex.status,
-    costUsd: ex.costUsd,
+    costUsd: normalizedCostUsd,
     durationMs: ex.durationMs,
     model: ex.model,
     startedAt: ex.startedAt.toISOString(),
-  }));
+    };
+  });
 
   return NextResponse.json({ activity });
 }
