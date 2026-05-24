@@ -51,6 +51,9 @@ npm run verify:agents-runtime
 2. Confirm OLLAMA_BASE_URL is set and reachable from deployment runtime.
 3. Confirm OLLAMA_RUNTIME_ENABLED is not false.
 4. Confirm OpenAI fallback policy is not armed unless incident response requires it.
+5. Check circuit safety flags:
+  - AUTO_DISARM_OPENAI_FALLBACK_ON_CIRCUIT should stay true.
+  - ALLOW_OPENAI_FALLBACK_DURING_CIRCUIT should stay false.
 5. Re-run:
 
 ```bash

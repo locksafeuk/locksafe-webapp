@@ -126,6 +126,10 @@ const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
 const OLLAMA_SECRET   = process.env.OLLAMA_SECRET;
 const OPENAI_API_KEY  = process.env.OPENAI_API_KEY;
 const OPENAI_FALLBACK_ENABLED = process.env.OPENAI_FALLBACK_ENABLED === "true";
+const AUTO_DISARM_OPENAI_FALLBACK_ON_CIRCUIT =
+  (process.env.AUTO_DISARM_OPENAI_FALLBACK_ON_CIRCUIT ?? "true").toLowerCase() !== "false";
+const ALLOW_OPENAI_FALLBACK_DURING_CIRCUIT =
+  (process.env.ALLOW_OPENAI_FALLBACK_DURING_CIRCUIT ?? "false").toLowerCase() === "true";
 const LLM_POLICY_CACHE_TTL_MS = 30_000;
 
 // ─── Circuit breaker ──────────────────────────────────────────────────────────
@@ -144,6 +148,8 @@ const ROUTER_CIRCUIT_TRIPPED_DEDUPE_KEY = "llm-router:ollama-circuit-tripped";
 const ROUTER_CIRCUIT_RECOVERED_DEDUPE_KEY = "llm-router:ollama-circuit-recovered";
 const ROUTER_FALLBACK_HALF_CAP_DEDUPE_KEY = "llm-router:openai-fallback-half-cap";
 const ROUTER_FALLBACK_CAP_HIT_DEDUPE_KEY = "llm-router:openai-fallback-cap-hit";
+const ROUTER_FALLBACK_LOCKED_DEDUPE_KEY = "llm-router:openai-fallback-locked";
+const ROUTER_FALLBACK_AUTODISARM_DEDUPE_KEY = "llm-router:openai-fallback-auto-disarm";
 const ROUTER_CIRCUIT_OPEN_ACTION = "llm-router:circuit-open";
 const ROUTER_CIRCUIT_RECOVERED_ACTION = "llm-router:circuit-recovered";
 const ROUTER_CIRCUIT_SHARED_AGENT = "system-alerts";
@@ -153,6 +159,7 @@ type CBState = "closed" | "open";
 let cbState: CBState   = "closed";
 let cbFailures         = 0;
 let cbOpenedAt         = 0;
+let fallbackLockUntil  = 0;
 
 async function notifyRouterAdminAlert(data: {
   title: string;
@@ -232,6 +239,39 @@ async function recordSharedCircuitMarker(
   }
 }
 
+async function autoDisarmOpenAIFallbackPolicy(): Promise<boolean> {
+  if (!AUTO_DISARM_OPENAI_FALLBACK_ON_CIRCUIT) {
+    return false;
+  }
+
+  try {
+    const { prisma } = await import("@/lib/db");
+    const result = await prisma.marketingPolicy.updateMany({
+      where: {
+        platform: "global",
+        openAiFallbackEnabled: true,
+      },
+      data: {
+        openAiFallbackEnabled: false,
+      },
+    });
+
+    llmPolicyCache = null;
+    try {
+      const { invalidateOperationalPolicyCache } = await import("@/agents/core/operational-policy");
+      invalidateOperationalPolicyCache();
+    } catch {
+      // Cache invalidation is best effort.
+    }
+
+    return result.count > 0;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[LLM Router] Failed to auto-disarm OpenAI fallback policy: ${message}`);
+    return false;
+  }
+}
+
 // ─── OpenAI fallback spend cap ────────────────────────────────────────────────
 // In-memory daily tracker. Resets at UTC midnight. Survives warm Vercel
 // invocations; cold starts reset to zero (acceptable — one extra day of leeway).
@@ -277,7 +317,6 @@ async function ollamaCircuitAllows(): Promise<boolean> {
 
   if (!shouldProbe) {
     cbState = "closed";
-    cbFailures = 0;
     return true;
   }
 
@@ -286,6 +325,7 @@ async function ollamaCircuitAllows(): Promise<boolean> {
     cbState   = "closed";
     cbFailures = 0;
     cbOpenedAt = 0;
+    fallbackLockUntil = 0;
     console.log("[LLM Router] Circuit closed — Ollama recovered");
     await recordSharedCircuitMarker(ROUTER_CIRCUIT_RECOVERED_ACTION, "probe");
     await notifyRouterAdminAlert({
@@ -308,6 +348,7 @@ async function recordOllamaFailure(model: string, err: string): Promise<void> {
   if (cbState === "closed" && cbFailures >= CB_TRIP_THRESHOLD) {
     cbState    = "open";
     cbOpenedAt = Date.now();
+    fallbackLockUntil = Date.now() + CB_RESET_MS;
     console.error(`[LLM Router] Circuit OPEN after ${cbFailures} failures (last: ${model})`);
     const sharedMarker = await loadSharedCircuitMarker();
     if (sharedMarker?.action === ROUTER_CIRCUIT_OPEN_ACTION) {
@@ -316,18 +357,29 @@ async function recordOllamaFailure(model: string, err: string): Promise<void> {
     }
 
     await recordSharedCircuitMarker(ROUTER_CIRCUIT_OPEN_ACTION, model, err);
+    const policyDisarmed = await autoDisarmOpenAIFallbackPolicy();
     await notifyRouterAdminAlert({
       title:    "🔴 Ollama Circuit Tripped",
-      message:  `Ollama failed ${CB_TRIP_THRESHOLD}× in a row. Falling back to OpenAI for 30 min.\n\nLast error (${model}): ${err.slice(0, 200)}`,
+      message:  `Ollama failed ${CB_TRIP_THRESHOLD}× in a row. OpenAI fallback is temporarily LOCKED for ${Math.round(CB_RESET_MS / 60_000)} minutes to protect spend.\n\n${policyDisarmed ? "Global policy fallback toggle was auto-disabled." : "Global policy toggle unchanged (or already disabled)."}\n\nLast error (${model}): ${err.slice(0, 200)}`,
       severity: "error",
       dedupeKey: ROUTER_CIRCUIT_TRIPPED_DEDUPE_KEY,
       cooldownMsOverride: ROUTER_ALERT_COOLDOWN_MS,
     });
+    if (policyDisarmed) {
+      await notifyRouterAdminAlert({
+        title: "🛑 OpenAI Fallback Auto-Disarmed",
+        message: "Disabled marketingPolicy.openAiFallbackEnabled while Ollama circuit is open. Re-enable manually only after Ollama is stable.",
+        severity: "warning",
+        dedupeKey: ROUTER_FALLBACK_AUTODISARM_DEDUPE_KEY,
+        cooldownMsOverride: ROUTER_ALERT_COOLDOWN_MS,
+      });
+    }
   }
 }
 
 function recordOllamaSuccess(): void {
   if (cbFailures > 0) cbFailures = 0;
+  if (fallbackLockUntil > 0) fallbackLockUntil = 0;
 }
 
 let llmPolicyCache: {
@@ -403,6 +455,17 @@ async function shouldUseOpenAIFallback(
   options: LLMOptions,
   flags: { ollamaRuntimeDisabled?: boolean } = {}
 ): Promise<boolean> {
+  if (!ALLOW_OPENAI_FALLBACK_DURING_CIRCUIT && Date.now() < fallbackLockUntil) {
+    await notifyRouterAdminAlert({
+      title: "🛑 OpenAI Fallback Locked",
+      message: "OpenAI fallback is temporarily locked because Ollama circuit is open. Restoring local inference takes priority over paid fallback.",
+      severity: "warning",
+      dedupeKey: ROUTER_FALLBACK_LOCKED_DEDUPE_KEY,
+      cooldownMsOverride: ROUTER_ALERT_COOLDOWN_MS,
+    });
+    return false;
+  }
+
   if (!OPENAI_API_KEY) {
     return false;
   }

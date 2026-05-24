@@ -2,6 +2,7 @@ const sendAdminAlertMock = jest.fn().mockResolvedValue(true);
 const mockAgentDecisionFindFirst = jest.fn();
 const mockAgentDecisionCreate = jest.fn().mockResolvedValue({ id: "decision-1" });
 const mockMarketingPolicyFindUnique = jest.fn().mockResolvedValue(null);
+const mockMarketingPolicyUpdateMany = jest.fn().mockResolvedValue({ count: 0 });
 
 jest.mock("@/lib/db", () => ({
   prisma: {
@@ -11,6 +12,7 @@ jest.mock("@/lib/db", () => ({
     },
     marketingPolicy: {
       findUnique: (...args: unknown[]) => mockMarketingPolicyFindUnique(...args),
+      updateMany: (...args: unknown[]) => mockMarketingPolicyUpdateMany(...args),
     },
   },
 }));
@@ -34,6 +36,7 @@ describe("LLM router alerts", () => {
     mockAgentDecisionFindFirst.mockReset();
     mockAgentDecisionCreate.mockClear();
     mockMarketingPolicyFindUnique.mockClear();
+    mockMarketingPolicyUpdateMany.mockClear();
     fetchMock.mockReset();
     fetchMock.mockRejectedValue(new Error("fetch failed"));
     global.fetch = fetchMock as typeof fetch;
@@ -144,5 +147,65 @@ describe("LLM router alerts", () => {
     ).rejects.toThrow(/fallback is not allowed by policy/i);
 
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("locks OpenAI fallback when Ollama circuit trips repeatedly", async () => {
+    process.env = {
+      ...originalEnv,
+      OLLAMA_BASE_URL: "http://127.0.0.1:11434",
+      OPENAI_API_KEY: "sk-test",
+      OPENAI_FALLBACK_ENABLED: "true",
+      AUTO_DISARM_OPENAI_FALLBACK_ON_CIRCUIT: "true",
+      ALLOW_OPENAI_FALLBACK_DURING_CIRCUIT: "false",
+    };
+
+    mockAgentDecisionFindFirst.mockResolvedValue(null);
+    mockMarketingPolicyUpdateMany.mockResolvedValue({ count: 1 });
+    fetchMock.mockImplementation(async (input: string | URL | Request) => {
+      const url = typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : input.url;
+
+      if (url.includes("/api/chat")) {
+        throw new Error("ollama down");
+      }
+
+      if (url === "https://api.openai.com/v1/chat/completions") {
+        return {
+          ok: true,
+          json: async () => ({
+            choices: [{ message: { content: "openai-ok" } }],
+            usage: { prompt_tokens: 1, completion_tokens: 1 },
+          }),
+        } as Response;
+      }
+
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const { chat, Models } = await import("../llm-router");
+
+    await chat(Models.FAST, [{ role: "user", content: "ping1" }], {
+      timeoutMs: 1000,
+      allowOpenAIFallback: true,
+      fallbackSeverity: "critical",
+    });
+    await chat(Models.FAST, [{ role: "user", content: "ping2" }], {
+      timeoutMs: 1000,
+      allowOpenAIFallback: true,
+      fallbackSeverity: "critical",
+    });
+
+    await expect(
+      chat(Models.FAST, [{ role: "user", content: "ping3" }], {
+        timeoutMs: 1000,
+        allowOpenAIFallback: true,
+        fallbackSeverity: "critical",
+      }),
+    ).rejects.toThrow(/OpenAI fallback is disabled|fallback is not allowed/i);
+
+    expect(mockMarketingPolicyUpdateMany).toHaveBeenCalledTimes(1);
   });
 });
