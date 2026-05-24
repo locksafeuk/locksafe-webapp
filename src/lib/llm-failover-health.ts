@@ -146,7 +146,7 @@ async function checkRouterLive() {
     const response = await chat(
       Models.FAST,
       [{ role: "user", content: "Return exactly: ok" }],
-      { maxTokens: 12, temperature: 0, timeoutMs: 12000 }
+      { maxTokens: 12, temperature: 0, timeoutMs: 90000 }
     );
 
     return {

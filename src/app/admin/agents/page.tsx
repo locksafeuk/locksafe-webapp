@@ -170,7 +170,12 @@ export default function MissionControlPage() {
   });
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [lastRefreshError, setLastRefreshError] = useState<string | null>(null);
+  const [lastRefreshFailureAt, setLastRefreshFailureAt] = useState<Date | null>(null);
+  const [statusRefreshOk, setStatusRefreshOk] = useState(true);
+  const [activityRefreshOk, setActivityRefreshOk] = useState(true);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [testing, setTesting] = useState(false);
   const [togglingFallback, setTogglingFallback] = useState(false);
   const [savingPolicy, setSavingPolicy] = useState(false);
@@ -178,27 +183,59 @@ export default function MissionControlPage() {
   const [showTestPanel, setShowTestPanel] = useState(false);
   const activityRef = useRef<HTMLDivElement>(null);
 
-  const fetchStatus = useCallback(async () => {
+  const fetchStatus = useCallback(async (silent = false) => {
     try {
       const res = await fetch("/api/agents/status");
-      if (res.ok) {
-        const data = await res.json();
-        setAgents(data.agents ?? []);
-        setSystem(data.system ?? null);
-        setLastRefresh(new Date());
+      if (!res.ok) {
+        throw new Error(`status request failed (${res.status})`);
       }
-    } catch { /* silent */ }
-  }, []);
+      const data = await res.json();
+      setAgents(data.agents ?? []);
+      setSystem(data.system ?? null);
+      setLastRefresh(new Date());
+      setStatusRefreshOk(true);
+      if (activityRefreshOk) setLastRefreshError(null);
+      return true;
+    } catch (error) {
+      setStatusRefreshOk(false);
+      setLastRefreshError(error instanceof Error ? error.message : "Could not load status");
+      setLastRefreshFailureAt(new Date());
+      if (!silent) {
+        toast({
+          title: "Refresh failed",
+          description: error instanceof Error ? error.message : "Could not load status",
+          variant: "error",
+        });
+      }
+      return false;
+    }
+  }, [toast]);
 
-  const fetchActivity = useCallback(async () => {
+  const fetchActivity = useCallback(async (silent = false) => {
     try {
       const res = await fetch("/api/agents/activity?limit=30");
-      if (res.ok) {
-        const data = await res.json();
-        setActivity(data.activity ?? []);
+      if (!res.ok) {
+        throw new Error(`activity request failed (${res.status})`);
       }
-    } catch { /* silent */ }
-  }, []);
+      const data = await res.json();
+      setActivity(data.activity ?? []);
+      setActivityRefreshOk(true);
+      if (statusRefreshOk) setLastRefreshError(null);
+      return true;
+    } catch (error) {
+      setActivityRefreshOk(false);
+      setLastRefreshError(error instanceof Error ? error.message : "Could not load activity");
+      setLastRefreshFailureAt(new Date());
+      if (!silent) {
+        toast({
+          title: "Refresh failed",
+          description: error instanceof Error ? error.message : "Could not load activity",
+          variant: "error",
+        });
+      }
+      return false;
+    }
+  }, [toast]);
 
   const fetchLlmPolicy = useCallback(async () => {
     try {
@@ -222,7 +259,7 @@ export default function MissionControlPage() {
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      await Promise.all([fetchStatus(), fetchActivity(), fetchLlmPolicy()]);
+      await Promise.all([fetchStatus(true), fetchActivity(true), fetchLlmPolicy()]);
       setLoading(false);
     };
     load();
@@ -230,10 +267,25 @@ export default function MissionControlPage() {
 
   useEffect(() => {
     if (!autoRefresh) return;
-    const s = setInterval(fetchStatus, 15000);
-    const a = setInterval(fetchActivity, 10000);
+    const s = setInterval(() => { void fetchStatus(true); }, 15000);
+    const a = setInterval(() => { void fetchActivity(true); }, 10000);
     return () => { clearInterval(s); clearInterval(a); };
   }, [autoRefresh, fetchStatus, fetchActivity]);
+
+  const refreshDashboard = async () => {
+    setRefreshing(true);
+    const [statusOk, activityOk] = await Promise.all([
+      fetchStatus(false),
+      fetchActivity(false),
+    ]);
+    setRefreshing(false);
+
+    if (statusOk && activityOk) {
+      setLastRefreshError(null);
+      setLastRefreshFailureAt(null);
+      toast({ title: "Dashboard refreshed" });
+    }
+  };
 
   const toggleAgent = async (agentId: string, currentStatus: string) => {
     const newStatus = currentStatus === "active" ? "paused" : "active";
@@ -396,6 +448,17 @@ export default function MissionControlPage() {
               </h1>
               <p className="text-sm text-muted-foreground mt-0.5">
                 {lastRefresh ? `Last updated ${formatTimeAgo(lastRefresh.toISOString())}` : "LockSafe AI Agent Operating System"}
+                {(!statusRefreshOk || !activityRefreshOk) && (
+                  <span className="inline-flex items-center gap-1 text-red-500 ml-2" title={lastRefreshError ?? "Refresh issue detected"}>
+                    <AlertTriangle className="h-3 w-3" />
+                    Refresh issue
+                    {lastRefreshFailureAt && (
+                      <span className="text-xs text-muted-foreground">
+                        since {formatTimeAgo(lastRefreshFailureAt.toISOString())}
+                      </span>
+                    )}
+                  </span>
+                )}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -404,8 +467,8 @@ export default function MissionControlPage() {
                 <CircleDot className={`h-3.5 w-3.5 mr-1.5 ${autoRefresh ? "animate-pulse text-green-500" : ""}`} />
                 {autoRefresh ? "Live" : "Paused"}
               </Button>
-              <Button variant="outline" size="sm" onClick={() => Promise.all([fetchStatus(), fetchActivity()])}>
-                <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+              <Button variant="outline" size="sm" onClick={refreshDashboard} disabled={refreshing}>
+                <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${refreshing ? "animate-spin" : ""}`} />
                 Refresh
               </Button>
               <Button
@@ -496,11 +559,28 @@ export default function MissionControlPage() {
                     );
                     return <p className="text-[10px] text-muted-foreground">No executions in 24h</p>;
                   })()}
-                  <p className={`text-[10px] truncate ${llmPolicy.openAiFallbackEnabled ? "text-amber-500" : "text-green-500"}`}>
-                    {llmPolicy.openAiFallbackEnabled
-                      ? `OpenAI fallback armed (${llmPolicy.openAiFallbackMinSeverity}+)`
-                      : "OpenAI fallback disabled"}
-                  </p>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); toggleEmergencyFallback(); }}
+                    disabled={togglingFallback}
+                    className="flex items-center gap-1.5 mt-0.5 cursor-pointer disabled:opacity-60"
+                    title={llmPolicy.openAiFallbackEnabled ? "Click to disable OpenAI fallback" : "Click to enable OpenAI fallback"}
+                  >
+                    <span className={`relative inline-flex h-3.5 w-6 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ${
+                      llmPolicy.openAiFallbackEnabled ? "bg-amber-500" : "bg-muted-foreground/40"
+                    }`}>
+                      <span className={`pointer-events-none block h-2.5 w-2.5 rounded-full bg-white shadow transition-transform duration-200 ${
+                        llmPolicy.openAiFallbackEnabled ? "translate-x-2.5" : "translate-x-0"
+                      }`} />
+                    </span>
+                    <span className={`text-[10px] ${llmPolicy.openAiFallbackEnabled ? "text-amber-500" : "text-muted-foreground"}`}>
+                      {togglingFallback
+                        ? "Saving…"
+                        : llmPolicy.openAiFallbackEnabled
+                          ? `OpenAI fallback armed (${llmPolicy.openAiFallbackMinSeverity}+)`
+                          : "OpenAI fallback off"}
+                    </span>
+                  </button>
                 </div>
               </CardContent>
             </Card>

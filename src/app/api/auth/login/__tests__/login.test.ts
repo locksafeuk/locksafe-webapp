@@ -13,6 +13,7 @@ import { NextRequest } from "next/server";
 
 const mockAdminFindUnique = jest.fn();
 const mockLocksmithFindUnique = jest.fn();
+const mockLocksmithUpdate = jest.fn();
 const mockCustomerFindUnique = jest.fn();
 const mockEnforceAuthRateLimit = jest.fn();
 
@@ -20,7 +21,10 @@ jest.mock("@/lib/db", () => ({
   __esModule: true,
   default: {
     admin: { findUnique: (...a: unknown[]) => mockAdminFindUnique(...a) },
-    locksmith: { findUnique: (...a: unknown[]) => mockLocksmithFindUnique(...a) },
+    locksmith: {
+      findUnique: (...a: unknown[]) => mockLocksmithFindUnique(...a),
+      update: (...a: unknown[]) => mockLocksmithUpdate(...a),
+    },
     customer: { findUnique: (...a: unknown[]) => mockCustomerFindUnique(...a) },
   },
 }));
@@ -60,6 +64,7 @@ beforeAll(async () => {
 beforeEach(() => {
   mockAdminFindUnique.mockReset().mockResolvedValue(null);
   mockLocksmithFindUnique.mockReset().mockResolvedValue(null);
+  mockLocksmithUpdate.mockReset().mockResolvedValue({ id: "ls" });
   mockCustomerFindUnique.mockReset().mockResolvedValue(null);
   mockVerifyPassword.mockReset().mockReturnValue(false);
   mockEnforceAuthRateLimit.mockReset().mockReturnValue(null);
