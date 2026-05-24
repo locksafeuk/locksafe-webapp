@@ -1,3 +1,5 @@
+export {};
+
 type JsonRecord = Record<string, unknown>;
 
 type CheckResult = {
