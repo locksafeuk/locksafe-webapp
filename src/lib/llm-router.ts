@@ -159,6 +159,11 @@ const ROUTER_CIRCUIT_SHARED_PLATFORM = "global";
 type CBState = "closed" | "open";
 let cbState: CBState   = "closed";
 let cbFailures         = 0;
+// First timestamp when the current outage entered open-circuit state.
+// This is stable across probe retries and represents outage start.
+let cbFirstOpenedAt    = 0;
+// Sliding timestamp for circuit reset window maintenance.
+// This may be extended when probe checks keep failing.
 let cbOpenedAt         = 0;
 let fallbackGraceUntil = 0;
 
@@ -315,6 +320,9 @@ async function ollamaCircuitAllows(): Promise<boolean> {
   if (sharedOpen) {
     cbState = "open";
     cbOpenedAt = sharedMarker.createdAt.getTime();
+    if (cbFirstOpenedAt === 0) {
+      cbFirstOpenedAt = cbOpenedAt;
+    }
     fallbackGraceUntil = cbOpenedAt + OPENAI_FALLBACK_GRACE_MS;
     if (now >= fallbackGraceUntil) {
       // Even for shared circuit markers, force local retry after grace.
@@ -336,6 +344,7 @@ async function ollamaCircuitAllows(): Promise<boolean> {
   if (healthy) {
     cbState   = "closed";
     cbFailures = 0;
+    cbFirstOpenedAt = 0;
     cbOpenedAt = 0;
     fallbackGraceUntil = 0;
     console.log("[LLM Router] Circuit closed — Ollama recovered");
@@ -350,7 +359,10 @@ async function ollamaCircuitAllows(): Promise<boolean> {
   } else {
     cbState = "open";
     cbOpenedAt = now; // extend reset window
-    console.log("[LLM Router] Circuit still open — Ollama probe failed");
+    const outageMinutes = cbFirstOpenedAt > 0
+      ? Math.max(0, Math.round((now - cbFirstOpenedAt) / 60_000))
+      : 0;
+    console.log(`[LLM Router] Circuit still open — Ollama probe failed (outage ~${outageMinutes}m)`);
   }
   return healthy;
 }
@@ -360,11 +372,17 @@ async function recordOllamaFailure(model: string, err: string): Promise<void> {
   if (cbState === "closed" && cbFailures >= CB_TRIP_THRESHOLD) {
     cbState    = "open";
     cbOpenedAt = Date.now();
+    if (cbFirstOpenedAt === 0) {
+      cbFirstOpenedAt = cbOpenedAt;
+    }
     fallbackGraceUntil = cbOpenedAt + OPENAI_FALLBACK_GRACE_MS;
     console.error(`[LLM Router] Circuit OPEN after ${cbFailures} failures (last: ${model})`);
     const sharedMarker = await loadSharedCircuitMarker();
     if (sharedMarker?.action === ROUTER_CIRCUIT_OPEN_ACTION) {
       cbOpenedAt = sharedMarker.createdAt.getTime();
+      if (cbFirstOpenedAt === 0 || cbOpenedAt < cbFirstOpenedAt) {
+        cbFirstOpenedAt = cbOpenedAt;
+      }
       fallbackGraceUntil = cbOpenedAt + OPENAI_FALLBACK_GRACE_MS;
       return;
     }
