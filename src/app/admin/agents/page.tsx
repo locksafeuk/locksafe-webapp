@@ -319,8 +319,20 @@ export default function MissionControlPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ force: true }),
       });
-      const data = await res.json();
-      setTestResults(data.results ?? []);
+      // Safe parse: fall back to raw text so the user sees the actual error
+      // if the server returns a non-JSON response (e.g. during hot-reload).
+      let data: Record<string, unknown> = {};
+      const rawText = await res.text();
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        const preview = rawText.slice(0, 200).replace(/\s+/g, " ");
+        setTestResults([{ agentName: "Server", success: false, actionsExecuted: 0, costUsd: 0,
+          errors: [`HTTP ${res.status}: ${preview || "empty response"}`] }]);
+        setTesting(false);
+        return;
+      }
+      setTestResults((data.results as typeof testResults) ?? []);
       await Promise.all([fetchStatus(), fetchActivity()]);
     } catch (err) {
       setTestResults([{ agentName: "System", success: false, actionsExecuted: 0, costUsd: 0,
