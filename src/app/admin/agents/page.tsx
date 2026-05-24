@@ -792,7 +792,15 @@ export default function MissionControlPage() {
                       </div>
                     ) : (
                       activity.map((item) => {
-                        const isHermes = !!(item.model?.toLowerCase().match(/hermes|llama|qwen|mistral/));
+                        const modelName = item.model?.toLowerCase() ?? "";
+                        const isLocalModel = /hermes|llama|qwen|mistral|gemma|deepseek|phi/.test(modelName);
+                        const isOpenAiModel = /gpt|o1|o3|o4|openai/.test(modelName);
+                        const modelBadge = isLocalModel ? "Hermes" : isOpenAiModel ? "OpenAI" : "Unknown";
+                        const modelBadgeClass = isLocalModel
+                          ? "bg-purple-500/20 text-purple-400"
+                          : isOpenAiModel
+                            ? "bg-orange-500/20 text-orange-400"
+                            : "bg-muted text-muted-foreground";
                         return (
                           <div key={item.id} className="px-3 py-2.5 hover:bg-muted/30 transition-colors">
                             <div className="flex items-start gap-2">
@@ -812,8 +820,8 @@ export default function MissionControlPage() {
                                     <span className="text-[10px] text-muted-foreground font-mono">${item.costUsd.toFixed(4)}</span>
                                   )}
                                   {item.model && (
-                                    <span className={`text-[9px] px-1 rounded ${isHermes ? "bg-purple-500/20 text-purple-400" : "bg-orange-500/20 text-orange-400"}`}>
-                                      {isHermes ? "Hermes" : "OpenAI"}
+                                    <span className={`text-[9px] px-1 rounded ${modelBadgeClass}`}>
+                                      {modelBadge}
                                     </span>
                                   )}
                                 </div>

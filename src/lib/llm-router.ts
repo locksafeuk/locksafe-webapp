@@ -181,7 +181,7 @@ function toCircuitPayload(details: Record<string, unknown>): Prisma.InputJsonVal
 async function loadSharedCircuitMarker(): Promise<SharedCircuitMarker | null> {
   try {
     const { prisma } = await import("@/lib/db");
-    return prisma.agentDecision.findFirst({
+    return await prisma.agentDecision.findFirst({
       where: {
         agent: ROUTER_CIRCUIT_SHARED_AGENT,
         platform: ROUTER_CIRCUIT_SHARED_PLATFORM,
@@ -191,7 +191,7 @@ async function loadSharedCircuitMarker(): Promise<SharedCircuitMarker | null> {
       },
       orderBy: { createdAt: "desc" },
       select: { action: true, createdAt: true },
-    }) as Promise<SharedCircuitMarker | null>;
+    }) as SharedCircuitMarker | null;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.warn(`[LLM Router] Failed to load shared circuit marker, using local state: ${message}`);
@@ -354,7 +354,7 @@ export async function chat(
 
     if (!(await shouldUseOpenAIFallback(options, { ollamaRuntimeDisabled: true }))) {
       throw new Error(
-        `[LLM Router] Ollama runtime is disabled in this environment and OpenAI is unavailable.`
+        `[LLM Router] Ollama runtime is disabled in this environment and OpenAI fallback is not allowed by policy.`
       );
     }
 
@@ -362,7 +362,15 @@ export async function chat(
   }
 
   // Local-first for all workloads — skip Ollama if circuit is open.
-  if (await ollamaCircuitAllows()) {
+  // Wrap the circuit check: a DB error during the shared-marker lookup must never
+  // block Ollama routing (fail-open so local inference keeps working when Mongo is down).
+  let circuitAllows = true;
+  try {
+    circuitAllows = await ollamaCircuitAllows();
+  } catch (err) {
+    console.warn("[LLM Router] Circuit check threw unexpectedly — defaulting to allow:", err instanceof Error ? err.message : String(err));
+  }
+  if (circuitAllows) {
     try {
       const result = await callOllama(localModel, messages, options, startMs);
       recordOllamaSuccess();
@@ -408,10 +416,6 @@ async function shouldUseOpenAIFallback(
     return false;
   }
 
-  if (flags.ollamaRuntimeDisabled) {
-    return true;
-  }
-
   if (!options.allowOpenAIFallback) {
     return false;
   }
@@ -423,6 +427,10 @@ async function shouldUseOpenAIFallback(
 
   if (policy.openAiFallbackEnabled) {
     return true;
+  }
+
+  if (flags.ollamaRuntimeDisabled) {
+    return OPENAI_FALLBACK_ENABLED;
   }
 
   return OPENAI_FALLBACK_ENABLED;

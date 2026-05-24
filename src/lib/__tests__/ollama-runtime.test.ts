@@ -1,20 +1,32 @@
 import { getOllamaRuntimeDecision, isOllamaRuntimeEnabled } from "../ollama-runtime";
 
 describe("ollama runtime decision", () => {
-  it("disables Ollama in Vercel when the endpoint is a ts.net host", () => {
+  it("keeps Ollama enabled in Vercel when endpoint is ts.net unless explicitly disabled", () => {
     const decision = getOllamaRuntimeDecision({
       VERCEL: "1",
       VERCEL_ENV: "production",
       OLLAMA_BASE_URL: "https://alexandrus-mac-studio.tail88d9cc.ts.net",
     } as unknown as NodeJS.ProcessEnv);
 
-    expect(decision.enabled).toBe(false);
-    expect(decision.reason).toMatch(/Tailscale ts.net/i);
+    expect(decision.enabled).toBe(true);
+    expect(decision.reason).toBeUndefined();
     expect(isOllamaRuntimeEnabled({
       VERCEL: "1",
       VERCEL_ENV: "production",
       OLLAMA_BASE_URL: "https://alexandrus-mac-studio.tail88d9cc.ts.net",
-    } as unknown as NodeJS.ProcessEnv)).toBe(false);
+    } as unknown as NodeJS.ProcessEnv)).toBe(true);
+  });
+
+  it("honors explicit runtime disable override", () => {
+    const decision = getOllamaRuntimeDecision({
+      VERCEL: "1",
+      VERCEL_ENV: "production",
+      OLLAMA_BASE_URL: "https://alexandrus-mac-studio.tail88d9cc.ts.net",
+      OLLAMA_RUNTIME_ENABLED: "false",
+    } as unknown as NodeJS.ProcessEnv);
+
+    expect(decision.enabled).toBe(false);
+    expect(decision.reason).toMatch(/OLLAMA_RUNTIME_ENABLED=false/i);
   });
 
   it("keeps Ollama enabled for local runtimes", () => {

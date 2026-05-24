@@ -80,12 +80,13 @@ describe("LLM router alerts", () => {
     expect(sendAdminAlertMock).not.toHaveBeenCalled();
   });
 
-  it("uses OpenAI directly when Ollama runtime is disabled for a ts.net Vercel deployment", async () => {
+  it("uses OpenAI when runtime is explicitly disabled and fallback is armed", async () => {
     process.env = {
       ...originalEnv,
       VERCEL: "1",
       VERCEL_ENV: "production",
       OLLAMA_BASE_URL: "https://alexandrus-mac-studio.tail88d9cc.ts.net",
+      OLLAMA_RUNTIME_ENABLED: "false",
       OPENAI_API_KEY: "sk-test",
       OPENAI_FALLBACK_ENABLED: "true",
     };
@@ -112,11 +113,36 @@ describe("LLM router alerts", () => {
 
     const { chat, Models } = await import("../llm-router");
 
-    const response = await chat(Models.FAST, [{ role: "user", content: "ping" }], { timeoutMs: 1000 });
+    const response = await chat(Models.FAST, [{ role: "user", content: "ping" }], {
+      timeoutMs: 1000,
+      allowOpenAIFallback: true,
+      fallbackSeverity: "critical",
+    });
 
     expect(response.usedFallback).toBe(true);
     expect(response.model).toBe("gpt-4o-mini");
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0]?.[0]).toBe("https://api.openai.com/v1/chat/completions");
+  });
+
+  it("blocks OpenAI when runtime is disabled but fallback is not armed", async () => {
+    process.env = {
+      ...originalEnv,
+      VERCEL: "1",
+      VERCEL_ENV: "production",
+      OLLAMA_BASE_URL: "https://alexandrus-mac-studio.tail88d9cc.ts.net",
+      OLLAMA_RUNTIME_ENABLED: "false",
+      OPENAI_API_KEY: "sk-test",
+      OPENAI_FALLBACK_ENABLED: "false",
+    };
+    mockAgentDecisionFindFirst.mockResolvedValue(null);
+
+    const { chat, Models } = await import("../llm-router");
+
+    await expect(
+      chat(Models.FAST, [{ role: "user", content: "ping" }], { timeoutMs: 1000 }),
+    ).rejects.toThrow(/fallback is not allowed by policy/i);
+
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
