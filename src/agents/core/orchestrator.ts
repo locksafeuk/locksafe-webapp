@@ -148,6 +148,21 @@ async function executeToolWithRetry(
   return lastResult;
 }
 
+function estimateOpenAIFallbackCost(
+  model: string | undefined,
+  promptTokens: number,
+  completionTokens: number,
+): number {
+  // Match llm-router OpenAI pricing so dashboard cost reflects real fallback spend.
+  const rates: Record<string, [number, number]> = {
+    'gpt-4o-mini': [0.15, 0.60],
+    'gpt-4o': [2.50, 10.00],
+  };
+  const key = (model || '').toLowerCase();
+  const [inRate, outRate] = rates[key] ?? [2.50, 10.00];
+  return (promptTokens / 1_000_000) * inRate + (completionTokens / 1_000_000) * outRate;
+}
+
 async function escalateHeartbeatIncident(params: {
   incidentKey: string;
   sourceAgentName: string;
@@ -538,8 +553,15 @@ export async function executeHeartbeat(agentId: string): Promise<HeartbeatResult
       });
       lastLlmModel = response.model;
       lastLlmUsedFallback = response.usedFallback;
-      totalPromptTokens     += response.promptTokens     ?? 0;
-      totalCompletionTokens += response.completionTokens ?? 0;
+      const responsePromptTokens = response.promptTokens ?? 0;
+      const responseCompletionTokens = response.completionTokens ?? 0;
+      totalPromptTokens     += responsePromptTokens;
+      totalCompletionTokens += responseCompletionTokens;
+
+      const llmCost = response.usedFallback
+        ? estimateOpenAIFallbackCost(response.model, responsePromptTokens, responseCompletionTokens)
+        : 0;
+      totalCost += llmCost;
 
       // Persist the reasoning step so we can audit Hermes activity from the DB.
       try {
@@ -556,8 +578,8 @@ export async function executeHeartbeat(agentId: string): Promise<HeartbeatResult
               usedFallback: response.usedFallback,
             }),
             status:      'success',
-            tokensUsed:  (response.promptTokens ?? 0) + (response.completionTokens ?? 0),
-            costUsd:     0,
+            tokensUsed:  responsePromptTokens + responseCompletionTokens,
+            costUsd:     llmCost,
             model:       response.model,
             startedAt:   new Date(llmStart),
             completedAt: new Date(),
@@ -603,8 +625,6 @@ export async function executeHeartbeat(agentId: string): Promise<HeartbeatResult
         }
 
         actionsExecuted++;
-        // Nominal cost tracking ($0 for local Ollama, but tracked for auditing)
-        totalCost += 0.001;
 
         // Persist the tool call so we have a verifiable audit trail.
         try {
@@ -622,7 +642,7 @@ export async function executeHeartbeat(agentId: string): Promise<HeartbeatResult
               ).slice(0, 4000),
               status:      resultPayload.success ? 'success' : 'failed',
               tokensUsed:  0,
-              costUsd:     0.001,
+              costUsd:     0,
               model:       response.model,
               startedAt:   new Date(toolStart),
               completedAt: new Date(),
