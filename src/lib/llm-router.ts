@@ -126,10 +126,11 @@ const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
 const OLLAMA_SECRET   = process.env.OLLAMA_SECRET;
 const OPENAI_API_KEY  = process.env.OPENAI_API_KEY;
 const OPENAI_FALLBACK_ENABLED = process.env.OPENAI_FALLBACK_ENABLED === "true";
+const OPENAI_FALLBACK_GRACE_MS = Number(process.env.OPENAI_FALLBACK_GRACE_MS ?? 5 * 60_000);
 const AUTO_DISARM_OPENAI_FALLBACK_ON_CIRCUIT =
   (process.env.AUTO_DISARM_OPENAI_FALLBACK_ON_CIRCUIT ?? "true").toLowerCase() !== "false";
 const ALLOW_OPENAI_FALLBACK_DURING_CIRCUIT =
-  (process.env.ALLOW_OPENAI_FALLBACK_DURING_CIRCUIT ?? "false").toLowerCase() === "true";
+  (process.env.ALLOW_OPENAI_FALLBACK_DURING_CIRCUIT ?? "true").toLowerCase() === "true";
 const LLM_POLICY_CACHE_TTL_MS = 30_000;
 
 // ─── Circuit breaker ──────────────────────────────────────────────────────────
@@ -159,7 +160,7 @@ type CBState = "closed" | "open";
 let cbState: CBState   = "closed";
 let cbFailures         = 0;
 let cbOpenedAt         = 0;
-let fallbackLockUntil  = 0;
+let fallbackGraceUntil = 0;
 
 async function notifyRouterAdminAlert(data: {
   title: string;
@@ -298,7 +299,13 @@ async function probeOllama(): Promise<boolean> {
 
 async function ollamaCircuitAllows(): Promise<boolean> {
   const now = Date.now();
-  if (cbState === "open" && now - cbOpenedAt < CB_RESET_MS) return false;
+  if (cbState === "open" && now - cbOpenedAt < CB_RESET_MS) {
+    if (now >= fallbackGraceUntil) {
+      // Golden rule: after grace window, force calls back to Ollama.
+      return true;
+    }
+    return false;
+  }
 
   const sharedMarker = await loadSharedCircuitMarker();
   const sharedOpen =
@@ -308,6 +315,11 @@ async function ollamaCircuitAllows(): Promise<boolean> {
   if (sharedOpen) {
     cbState = "open";
     cbOpenedAt = sharedMarker.createdAt.getTime();
+    fallbackGraceUntil = cbOpenedAt + OPENAI_FALLBACK_GRACE_MS;
+    if (now >= fallbackGraceUntil) {
+      // Even for shared circuit markers, force local retry after grace.
+      return true;
+    }
     return false;
   }
 
@@ -325,7 +337,7 @@ async function ollamaCircuitAllows(): Promise<boolean> {
     cbState   = "closed";
     cbFailures = 0;
     cbOpenedAt = 0;
-    fallbackLockUntil = 0;
+    fallbackGraceUntil = 0;
     console.log("[LLM Router] Circuit closed — Ollama recovered");
     await recordSharedCircuitMarker(ROUTER_CIRCUIT_RECOVERED_ACTION, "probe");
     await notifyRouterAdminAlert({
@@ -348,19 +360,21 @@ async function recordOllamaFailure(model: string, err: string): Promise<void> {
   if (cbState === "closed" && cbFailures >= CB_TRIP_THRESHOLD) {
     cbState    = "open";
     cbOpenedAt = Date.now();
-    fallbackLockUntil = Date.now() + CB_RESET_MS;
+    fallbackGraceUntil = cbOpenedAt + OPENAI_FALLBACK_GRACE_MS;
     console.error(`[LLM Router] Circuit OPEN after ${cbFailures} failures (last: ${model})`);
     const sharedMarker = await loadSharedCircuitMarker();
     if (sharedMarker?.action === ROUTER_CIRCUIT_OPEN_ACTION) {
       cbOpenedAt = sharedMarker.createdAt.getTime();
+      fallbackGraceUntil = cbOpenedAt + OPENAI_FALLBACK_GRACE_MS;
       return;
     }
 
     await recordSharedCircuitMarker(ROUTER_CIRCUIT_OPEN_ACTION, model, err);
     const policyDisarmed = await autoDisarmOpenAIFallbackPolicy();
+    const graceMinutes = Math.max(0, Math.round(OPENAI_FALLBACK_GRACE_MS / 60_000));
     await notifyRouterAdminAlert({
       title:    "🔴 Ollama Circuit Tripped",
-      message:  `Ollama failed ${CB_TRIP_THRESHOLD}× in a row. OpenAI fallback is temporarily LOCKED for ${Math.round(CB_RESET_MS / 60_000)} minutes to protect spend.\n\n${policyDisarmed ? "Global policy fallback toggle was auto-disabled." : "Global policy toggle unchanged (or already disabled)."}\n\nLast error (${model}): ${err.slice(0, 200)}`,
+      message:  `Ollama failed ${CB_TRIP_THRESHOLD}× in a row. OpenAI fallback is allowed only for ${graceMinutes} minute(s), then automatically blocked and traffic is forced back to Ollama retries.\n\n${policyDisarmed ? "Global policy fallback toggle was auto-disabled." : "Global policy toggle unchanged (or already disabled)."}\n\nLast error (${model}): ${err.slice(0, 200)}`,
       severity: "error",
       dedupeKey: ROUTER_CIRCUIT_TRIPPED_DEDUPE_KEY,
       cooldownMsOverride: ROUTER_ALERT_COOLDOWN_MS,
@@ -379,7 +393,7 @@ async function recordOllamaFailure(model: string, err: string): Promise<void> {
 
 function recordOllamaSuccess(): void {
   if (cbFailures > 0) cbFailures = 0;
-  if (fallbackLockUntil > 0) fallbackLockUntil = 0;
+  if (fallbackGraceUntil > 0) fallbackGraceUntil = 0;
 }
 
 let llmPolicyCache: {
@@ -455,7 +469,19 @@ async function shouldUseOpenAIFallback(
   options: LLMOptions,
   flags: { ollamaRuntimeDisabled?: boolean } = {}
 ): Promise<boolean> {
-  if (!ALLOW_OPENAI_FALLBACK_DURING_CIRCUIT && Date.now() < fallbackLockUntil) {
+  const inCircuitGrace = cbState === "open" && Date.now() < fallbackGraceUntil;
+  if (cbState === "open" && Date.now() >= fallbackGraceUntil) {
+    await notifyRouterAdminAlert({
+      title: "🛑 OpenAI Fallback Grace Expired",
+      message: "OpenAI fallback grace window ended. Router is forcing retries back to Ollama as a hard rule.",
+      severity: "warning",
+      dedupeKey: ROUTER_FALLBACK_LOCKED_DEDUPE_KEY,
+      cooldownMsOverride: ROUTER_ALERT_COOLDOWN_MS,
+    });
+    return false;
+  }
+
+  if (!ALLOW_OPENAI_FALLBACK_DURING_CIRCUIT && inCircuitGrace) {
     await notifyRouterAdminAlert({
       title: "🛑 OpenAI Fallback Locked",
       message: "OpenAI fallback is temporarily locked because Ollama circuit is open. Restoring local inference takes priority over paid fallback.",

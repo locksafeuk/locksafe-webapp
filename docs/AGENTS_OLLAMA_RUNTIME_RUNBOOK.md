@@ -51,10 +51,13 @@ npm run verify:agents-runtime
 2. Confirm OLLAMA_BASE_URL is set and reachable from deployment runtime.
 3. Confirm OLLAMA_RUNTIME_ENABLED is not false.
 4. Confirm OpenAI fallback policy is not armed unless incident response requires it.
-5. Check circuit safety flags:
+5. Verify grace protocol knobs:
+  - OPENAI_FALLBACK_GRACE_MS defaults to 300000 (5 minutes).
+  - ALLOW_OPENAI_FALLBACK_DURING_CIRCUIT should normally remain true so only short emergency fallback is permitted.
+6. Verify circuit safety flags:
   - AUTO_DISARM_OPENAI_FALLBACK_ON_CIRCUIT should stay true.
-  - ALLOW_OPENAI_FALLBACK_DURING_CIRCUIT should stay false.
-5. Re-run:
+7. Important: auto-disarm is one-way by design. After Ollama stabilizes, re-enable fallback manually only if you intentionally want cloud backup again.
+8. Re-run:
 
 ```bash
 npm run verify:agents-runtime

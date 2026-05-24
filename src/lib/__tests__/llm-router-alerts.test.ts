@@ -67,7 +67,7 @@ describe("LLM router alerts", () => {
   });
 
   it("bypasses Ollama when a fresh shared circuit-open marker exists", async () => {
-    const recentOpen = new Date(Date.now() - 5 * 60_000);
+    const recentOpen = new Date(Date.now() - 60_000);
     mockAgentDecisionFindFirst.mockResolvedValue({
       action: "llm-router:circuit-open",
       createdAt: recentOpen,
@@ -207,5 +207,79 @@ describe("LLM router alerts", () => {
     ).rejects.toThrow(/OpenAI fallback is disabled|fallback is not allowed/i);
 
     expect(mockMarketingPolicyUpdateMany).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows short fallback grace then forces retries back to Ollama", async () => {
+    const nowSpy = jest.spyOn(Date, "now");
+    let now = 1_700_000_000_000;
+    nowSpy.mockImplementation(() => now);
+    try {
+      process.env = {
+        ...originalEnv,
+        OLLAMA_BASE_URL: "http://127.0.0.1:11434",
+        OPENAI_API_KEY: "sk-test",
+        OPENAI_FALLBACK_ENABLED: "true",
+        AUTO_DISARM_OPENAI_FALLBACK_ON_CIRCUIT: "false",
+        ALLOW_OPENAI_FALLBACK_DURING_CIRCUIT: "true",
+        OPENAI_FALLBACK_GRACE_MS: "1",
+      };
+
+      mockAgentDecisionFindFirst.mockResolvedValue(null);
+      fetchMock.mockImplementation(async (input: string | URL | Request) => {
+        const url = typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
+
+        if (url.includes("/api/chat")) {
+          throw new Error("ollama down");
+        }
+
+        if (url === "https://api.openai.com/v1/chat/completions") {
+          return {
+            ok: true,
+            json: async () => ({
+              choices: [{ message: { content: "openai-ok" } }],
+              usage: { prompt_tokens: 1, completion_tokens: 1 },
+            }),
+          } as Response;
+        }
+
+        throw new Error(`unexpected fetch: ${url}`);
+      });
+
+      const { chat, Models } = await import("../llm-router");
+
+      await chat(Models.FAST, [{ role: "user", content: "ping1" }], {
+        timeoutMs: 1000,
+        allowOpenAIFallback: true,
+        fallbackSeverity: "critical",
+      });
+
+      await chat(Models.FAST, [{ role: "user", content: "ping2" }], {
+        timeoutMs: 1000,
+        allowOpenAIFallback: true,
+        fallbackSeverity: "critical",
+      });
+
+      await chat(Models.FAST, [{ role: "user", content: "ping3" }], {
+        timeoutMs: 1000,
+        allowOpenAIFallback: true,
+        fallbackSeverity: "critical",
+      });
+
+      now += 10;
+
+      await expect(
+        chat(Models.FAST, [{ role: "user", content: "ping4" }], {
+          timeoutMs: 1000,
+          allowOpenAIFallback: true,
+          fallbackSeverity: "critical",
+        }),
+      ).rejects.toThrow(/OpenAI fallback is disabled|fallback is not allowed/i);
+    } finally {
+      nowSpy.mockRestore();
+    }
   });
 });
