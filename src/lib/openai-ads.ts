@@ -53,10 +53,14 @@ type CompatChatCompletion = {
 
 function resolveAlias(model?: string): ModelAlias {
   const m = (model || '').toLowerCase();
-  if (m.includes('gpt-4') || m.includes('quality')) return Models.QUALITY;
-  if (m.includes('hermes') || m.includes('agent')) return Models.HERMES;
-  if (m.includes('fast') || m.includes('mini')) return Models.FAST;
-  return Models.CONTENT;
+  // IMPORTANT: 'mini' must come BEFORE 'gpt-4' — 'gpt-4o-mini' contains both substrings.
+  // We want gpt-4o-mini → CONTENT (qwen3:32b, fallback gpt-4o-mini @ $0.60/M).
+  // Without this guard it would hit the 'gpt-4' branch → QUALITY (fallback gpt-4o @ $10/M).
+  if (m.includes('mini'))                              return Models.CONTENT;  // gpt-4o-mini → qwen3:32b / fallback gpt-4o-mini
+  if (m.includes('gpt-4') || m.includes('quality'))   return Models.QUALITY;  // gpt-4o     → qwen3:32b / fallback gpt-4o
+  if (m.includes('hermes') || m.includes('agent'))    return Models.HERMES;   // hermes     → qwen3:30b-a3b no_think
+  if (m.includes('fast'))                              return Models.FAST;     // fast       → qwen2.5:3b (always hot)
+  return Models.CONTENT;                                                        // default    → qwen3:32b
 }
 
 const openai = {

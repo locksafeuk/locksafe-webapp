@@ -9,7 +9,7 @@
  * Plus a keyword set with match types (EXACT / PHRASE / BROAD) and
  * a negative-keyword list (free-text, lowercased).
  *
- * Uses Models.QUALITY (qwen2.5:72b local-first) with explicit OpenAI fallback
+ * Uses Models.QUALITY (qwen3:32b local-first) with explicit OpenAI fallback
  * only for high-severity failures.
  */
 

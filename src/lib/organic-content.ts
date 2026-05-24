@@ -40,9 +40,12 @@ type CompatChatCompletion = {
 
 function resolveAlias(model?: string): ModelAlias {
   const m = (model || '').toLowerCase();
-  if (m.includes('gpt-4') || m.includes('quality')) return Models.QUALITY;
-  if (m.includes('hermes') || m.includes('agent')) return Models.HERMES;
-  if (m.includes('fast') || m.includes('mini')) return Models.FAST;
+  // 'mini' must come before 'gpt-4': 'gpt-4o-mini' contains both substrings.
+  // CONTENT fallback = gpt-4o-mini ($0.60/M); QUALITY fallback = gpt-4o ($10/M).
+  if (m.includes('mini'))                              return Models.CONTENT;  // gpt-4o-mini → qwen3:32b / fallback gpt-4o-mini
+  if (m.includes('gpt-4') || m.includes('quality'))   return Models.QUALITY;  // gpt-4o     → qwen3:32b / fallback gpt-4o
+  if (m.includes('hermes') || m.includes('agent'))    return Models.HERMES;
+  if (m.includes('fast'))                              return Models.FAST;
   return Models.CONTENT;
 }
 
