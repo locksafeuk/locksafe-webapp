@@ -1,0 +1,22 @@
+# Keep local-only artifacts out of Vercel source uploads.
+# This reduces upload/deploy pressure for local `vercel --prod` runs.
+
+.git
+.github
+.vscode
+.next
+node_modules
+coverage
+reports
+data
+.info
+.same
+
+# Local env files should be configured in Vercel Project Settings.
+.env.local
+.env.test.local
+.env.development.local
+
+# Editor/system noise
+.DS_Store
+*.log

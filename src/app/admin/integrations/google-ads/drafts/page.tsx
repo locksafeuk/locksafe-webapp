@@ -60,6 +60,7 @@ export default function GoogleAdsDraftsListPage() {
     name: string;
     companyName: string | null;
     baseAddress: string | null;
+    basePostcode?: string | null;
     rating: number;
     totalJobs: number;
   }>>([]);
@@ -284,7 +285,7 @@ export default function GoogleAdsDraftsListPage() {
               {eligible.map((l) => (
                 <option key={l.id} value={l.id}>
                   {(l.companyName || l.name)}
-                  {l.baseAddress ? ` · ${l.baseAddress.split(",").slice(-2, -1)[0]?.trim() || l.baseAddress}` : ""}
+                  {` · ${l.basePostcode || "postcode missing"}`}
                   {l.totalJobs > 0 ? ` · ${l.totalJobs} jobs · ${l.rating.toFixed(1)}★` : ""}
                 </option>
               ))}

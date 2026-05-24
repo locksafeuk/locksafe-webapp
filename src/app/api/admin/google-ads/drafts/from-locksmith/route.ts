@@ -20,6 +20,7 @@ import prisma from "@/lib/db";
 import { verifyToken } from "@/lib/auth";
 import { generateDraftPlanForLocksmith } from "@/lib/google-ads-onboarding";
 import { extractDefaultAccountLearnings } from "@/lib/google-ads-learnings";
+import { extractUkPostcode } from "@/lib/location-display";
 
 async function verifyAdmin() {
   const cookieStore = await cookies();
@@ -57,7 +58,12 @@ export async function GET() {
     take: 200,
   });
 
-  return NextResponse.json({ locksmiths });
+  return NextResponse.json({
+    locksmiths: locksmiths.map((locksmith) => ({
+      ...locksmith,
+      basePostcode: extractUkPostcode(locksmith.baseAddress),
+    })),
+  });
 }
 
 export async function POST(request: NextRequest) {
