@@ -323,7 +323,7 @@ async function ollamaCircuitAllows(): Promise<boolean> {
     if (cbFirstOpenedAt === 0) {
       cbFirstOpenedAt = cbOpenedAt;
     }
-    fallbackGraceUntil = cbOpenedAt + OPENAI_FALLBACK_GRACE_MS;
+    fallbackGraceUntil = cbFirstOpenedAt + OPENAI_FALLBACK_GRACE_MS;
     if (now >= fallbackGraceUntil) {
       // Even for shared circuit markers, force local retry after grace.
       return true;
@@ -375,7 +375,7 @@ async function recordOllamaFailure(model: string, err: string): Promise<void> {
     if (cbFirstOpenedAt === 0) {
       cbFirstOpenedAt = cbOpenedAt;
     }
-    fallbackGraceUntil = cbOpenedAt + OPENAI_FALLBACK_GRACE_MS;
+    fallbackGraceUntil = cbFirstOpenedAt + OPENAI_FALLBACK_GRACE_MS;
     console.error(`[LLM Router] Circuit OPEN after ${cbFailures} failures (last: ${model})`);
     const sharedMarker = await loadSharedCircuitMarker();
     if (sharedMarker?.action === ROUTER_CIRCUIT_OPEN_ACTION) {
@@ -383,7 +383,7 @@ async function recordOllamaFailure(model: string, err: string): Promise<void> {
       if (cbFirstOpenedAt === 0 || cbOpenedAt < cbFirstOpenedAt) {
         cbFirstOpenedAt = cbOpenedAt;
       }
-      fallbackGraceUntil = cbOpenedAt + OPENAI_FALLBACK_GRACE_MS;
+      fallbackGraceUntil = cbFirstOpenedAt + OPENAI_FALLBACK_GRACE_MS;
       return;
     }
 
