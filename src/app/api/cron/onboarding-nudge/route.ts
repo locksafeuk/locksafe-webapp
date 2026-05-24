@@ -17,6 +17,8 @@ const FIRST_REMINDER_HOURS = 24;
 const SECOND_REMINDER_AFTER_DAYS = 3;
 const PRE_DELETE_DAYS = 27;
 const AUTO_DELETE_DAYS = 30;
+const AUTO_DELETE_ENABLED = process.env.ONBOARDING_AUTO_DELETE_ENABLED !== "false";
+const DRY_RUN = process.env.ONBOARDING_LIFECYCLE_DRY_RUN === "true";
 
 type Candidate = {
   id: string;
@@ -124,6 +126,17 @@ async function sendStage2Email(candidate: Candidate, checklist: string[], tracke
   });
 }
 
+async function writeLifecycleLog(locksmithId: string, tag: string) {
+  if (DRY_RUN) return;
+  await prisma.stripeReminderLog.create({
+    data: {
+      locksmithId,
+      adminEmail: tag,
+      sentAt: new Date(),
+    },
+  });
+}
+
 async function sendPreDeleteWarningEmail(candidate: Candidate, checklist: string[], deleteOnDate: Date, trackedStripeUrl: string) {
   const items = checklist.map((item) => `<li style=\"margin-bottom:8px;\">${item}</li>`).join("");
 
@@ -218,6 +231,7 @@ export async function GET(request: NextRequest) {
   let deleted = 0;
   let skippedStage2ByInteraction = 0;
   let failed = 0;
+  let deleteSkippedByConfig = 0;
   const failures: string[] = [];
   const stage1WindowCutoff = new Date(Date.now() - FIRST_REMINDER_HOURS * 3_600_000);
 
@@ -237,12 +251,14 @@ export async function GET(request: NextRequest) {
       if (ageDays >= AUTO_DELETE_DAYS) {
         if (!preDeleteSentAt) {
           const trackedUrl = await ensureTrackedStripeOnboardingUrl(candidate, baseUrl, returnUrl, refreshUrl);
-          const warnResult = await sendPreDeleteWarningEmail(
-            candidate,
-            checklist,
-            new Date(candidate.createdAt.getTime() + AUTO_DELETE_DAYS * 86_400_000),
-            trackedUrl,
-          );
+          const warnResult = DRY_RUN
+            ? { success: true }
+            : await sendPreDeleteWarningEmail(
+              candidate,
+              checklist,
+              new Date(candidate.createdAt.getTime() + AUTO_DELETE_DAYS * 86_400_000),
+              trackedUrl,
+            );
 
           if (!warnResult.success) {
             failed++;
@@ -250,13 +266,7 @@ export async function GET(request: NextRequest) {
             continue;
           }
 
-          await prisma.stripeReminderLog.create({
-            data: {
-              locksmithId: candidate.id,
-              adminEmail: PRE_DELETE_TAG,
-              sentAt: new Date(),
-            },
-          });
+          await writeLifecycleLog(candidate.id, PRE_DELETE_TAG);
           preDeleteWarned++;
           continue;
         }
@@ -271,6 +281,11 @@ export async function GET(request: NextRequest) {
 
         if (!latest || latest.onboardingCompleted) continue;
 
+        if (!AUTO_DELETE_ENABLED || DRY_RUN) {
+          deleteSkippedByConfig++;
+          continue;
+        }
+
         await deleteLocksmithCascade(candidate.id);
         deleted++;
         continue;
@@ -280,12 +295,14 @@ export async function GET(request: NextRequest) {
         if (preDeleteSentAt) continue;
 
         const trackedUrl = await ensureTrackedStripeOnboardingUrl(candidate, baseUrl, returnUrl, refreshUrl);
-        const warnResult = await sendPreDeleteWarningEmail(
-          candidate,
-          checklist,
-          new Date(candidate.createdAt.getTime() + AUTO_DELETE_DAYS * 86_400_000),
-          trackedUrl,
-        );
+        const warnResult = DRY_RUN
+          ? { success: true }
+          : await sendPreDeleteWarningEmail(
+            candidate,
+            checklist,
+            new Date(candidate.createdAt.getTime() + AUTO_DELETE_DAYS * 86_400_000),
+            trackedUrl,
+          );
 
         if (!warnResult.success) {
           failed++;
@@ -293,23 +310,19 @@ export async function GET(request: NextRequest) {
           continue;
         }
 
-        await prisma.stripeReminderLog.create({
-          data: {
-            locksmithId: candidate.id,
-            adminEmail: PRE_DELETE_TAG,
-            sentAt: new Date(),
-          },
-        });
+        await writeLifecycleLog(candidate.id, PRE_DELETE_TAG);
         preDeleteWarned++;
         continue;
       }
 
       if (!stage1SentAt && candidate.createdAt <= stage1WindowCutoff) {
         const trackedUrl = await ensureTrackedStripeOnboardingUrl(candidate, baseUrl, returnUrl, refreshUrl);
-        const emailResult = await sendStripeOnboardingReminderEmail(candidate.email, {
-          locksmithName: candidate.name,
-          stripeOnboardingUrl: trackedUrl,
-        });
+        const emailResult = DRY_RUN
+          ? { success: true }
+          : await sendStripeOnboardingReminderEmail(candidate.email, {
+            locksmithName: candidate.name,
+            stripeOnboardingUrl: trackedUrl,
+          });
 
         if (!emailResult.success) {
           failed++;
@@ -317,13 +330,7 @@ export async function GET(request: NextRequest) {
           continue;
         }
 
-        await prisma.stripeReminderLog.create({
-          data: {
-            locksmithId: candidate.id,
-            adminEmail: STAGE1_TAG,
-            sentAt: new Date(),
-          },
-        });
+        await writeLifecycleLog(candidate.id, STAGE1_TAG);
         stage1Sent++;
         continue;
       }
@@ -338,7 +345,9 @@ export async function GET(request: NextRequest) {
         }
 
         const trackedUrl = await ensureTrackedStripeOnboardingUrl(candidate, baseUrl, returnUrl, refreshUrl);
-        const stage2Result = await sendStage2Email(candidate, checklist, trackedUrl);
+        const stage2Result = DRY_RUN
+          ? { success: true }
+          : await sendStage2Email(candidate, checklist, trackedUrl);
 
         if (!stage2Result.success) {
           failed++;
@@ -346,13 +355,7 @@ export async function GET(request: NextRequest) {
           continue;
         }
 
-        await prisma.stripeReminderLog.create({
-          data: {
-            locksmithId: candidate.id,
-            adminEmail: STAGE2_TAG,
-            sentAt: new Date(),
-          },
-        });
+        await writeLifecycleLog(candidate.id, STAGE2_TAG);
         stage2Sent++;
       }
     } catch (e) {
@@ -373,6 +376,9 @@ export async function GET(request: NextRequest) {
           `Deleted: ${deleted}\n` +
           `Stage2 skipped (interaction): ${skippedStage2ByInteraction}\n` +
           `Failed: ${failed}\n` +
+          `Delete skipped by config: ${deleteSkippedByConfig}\n` +
+          `Dry run: ${DRY_RUN ? "yes" : "no"}\n` +
+          `Auto-delete enabled: ${AUTO_DELETE_ENABLED ? "yes" : "no"}\n` +
           (failures.length > 0
             ? `Failures: ${failures.slice(0, 10).join(", ")}`
             : ""),
@@ -391,6 +397,9 @@ export async function GET(request: NextRequest) {
     preDeleteWarned,
     deleted,
     skippedStage2ByInteraction,
+    deleteSkippedByConfig,
+    dryRun: DRY_RUN,
+    autoDeleteEnabled: AUTO_DELETE_ENABLED,
     failed,
     failures,
   });
