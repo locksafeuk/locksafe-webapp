@@ -157,6 +157,55 @@ export function useTrackingEvents(config: TrackingConfig = defaultConfig) {
         });
       }
 
+      // ── Google Ads direct conversion tracking ─────────────────────────────
+      // Fires gtag() conversion events directly (in addition to GTM) so the
+      // CMO agent has real conversion data without requiring manual GTM tag
+      // configuration. Requires NEXT_PUBLIC_GOOGLE_ADS_ID in env vars.
+      //
+      // To activate: add these to Vercel environment variables:
+      //   NEXT_PUBLIC_GOOGLE_ADS_ID              = AW-XXXXXXXXXX
+      //   NEXT_PUBLIC_GOOGLE_LEAD_CONVERSION_LABEL    = xxxxxxxxxxxx
+      //   NEXT_PUBLIC_GOOGLE_PURCHASE_CONVERSION_LABEL = xxxxxxxxxxxx
+      //   NEXT_PUBLIC_GOOGLE_SIGNUP_CONVERSION_LABEL  = xxxxxxxxxxxx (optional)
+      // Get labels from: Google Ads → Goals → Conversions → Create conversion action
+      const gAdsId = process.env.NEXT_PUBLIC_GOOGLE_ADS_ID;
+      if (gAdsId && typeof window !== "undefined" && typeof window.gtag === "function") {
+        const leadLabel     = process.env.NEXT_PUBLIC_GOOGLE_LEAD_CONVERSION_LABEL;
+        const purchaseLabel = process.env.NEXT_PUBLIC_GOOGLE_PURCHASE_CONVERSION_LABEL;
+        const signupLabel   = process.env.NEXT_PUBLIC_GOOGLE_SIGNUP_CONVERSION_LABEL;
+
+        const fireConversion = (label: string, convValue?: number) => {
+          window.gtag!("event", "conversion", {
+            send_to:        `${gAdsId}/${label}`,
+            value:          convValue ?? value,
+            currency:       data.currency || "GBP",
+            transaction_id: eventId,
+          });
+        };
+
+        switch (eventType) {
+          // Lead — someone submits the quote/request form
+          case "lead":
+          case "postcode_entered":
+            if (leadLabel) fireConversion(leadLabel, value || 50);
+            break;
+          // Purchase / job completed — locksmith finishes the job
+          case "purchase":
+          case "job_completed":
+          case "assessment_paid":
+            if (purchaseLabel) fireConversion(purchaseLabel, value);
+            break;
+          // Signup conversions
+          case "customer_signup":
+          case "locksmith_signup":
+          case "locksmith_applied":
+            if (signupLabel) fireConversion(signupLabel, value || 0);
+            break;
+          default:
+            break;
+        }
+      }
+
       // META PIXEL (browser-side) — only if marketing consent granted.
       if (config.enableMeta && marketingConsent) {
         switch (eventType) {
