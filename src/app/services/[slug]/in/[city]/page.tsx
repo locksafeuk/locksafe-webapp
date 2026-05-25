@@ -8,7 +8,6 @@ import {
 } from "@/lib/services-catalog";
 import {
   getCityBySlug,
-  getAllCitySlugs,
   getNearbyCities,
 } from "@/lib/uk-cities-data";
 import {
@@ -27,12 +26,22 @@ interface Props {
   params: Promise<{ slug: string; city: string }>;
 }
 
+// Revalidate ISR pages every 24 hours
+export const revalidate = 86400;
+
+// Pre-build top 15 cities only; remaining 64 cities are generated on first
+// request and cached (ISR). Keeps build time ~3 min instead of 5–8 min.
+const TOP_CITIES = [
+  "london", "manchester", "birmingham", "liverpool", "leeds",
+  "sheffield", "bristol", "edinburgh", "glasgow", "nottingham",
+  "oxford", "reading", "brighton", "southampton", "cambridge",
+];
+
 export async function generateStaticParams() {
   const serviceSlugs = getAllServiceSlugs();
-  const citySlugs = getAllCitySlugs();
   const out: { slug: string; city: string }[] = [];
   for (const slug of serviceSlugs) {
-    for (const city of citySlugs) {
+    for (const city of TOP_CITIES) {
       out.push({ slug, city });
     }
   }

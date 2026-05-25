@@ -1072,7 +1072,7 @@ model GoogleAdsCampaignDraft {
   // DRAFT | PENDING_APPROVAL | APPROVED | REJECTED | PUBLISHING | PUBLISHED | PAUSED | FAILED
 
   // Post-publish IDs (resource names from Google Ads API)
-  googleCampaignId String? @unique // numeric ID
+  googleCampaignId String? // numeric ID — uniqueness enforced only at publish time
   googleAdGroupId  String?
   googleAdId       String?
   googleBudgetId   String?

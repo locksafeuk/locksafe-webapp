@@ -24,9 +24,19 @@ interface Props {
   params: Promise<{ city: string; area: string }>;
 }
 
+// ISR: build on first request, cache 24 h. Pre-building all 773 city×area
+// combinations at deploy added ~2 min to every build.
+export const revalidate = 86400;
+
+const TOP_CITIES_FOR_AREAS = [
+  "london", "manchester", "birmingham", "liverpool", "leeds",
+  "sheffield", "bristol", "edinburgh", "glasgow", "nottingham",
+];
+
 export async function generateStaticParams() {
   const out: { city: string; area: string }[] = [];
   for (const cityData of Object.values(ukCitiesData)) {
+    if (!TOP_CITIES_FOR_AREAS.includes(cityData.slug)) continue;
     for (const area of cityData.areas) {
       out.push({ city: cityData.slug, area: slugify(area) });
     }

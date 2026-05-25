@@ -32,16 +32,29 @@ interface Props {
 }
 
 /**
- * Cap the matrix to top-priority intents × all cities. Full cross-product
- * of (12 intents × 23 cities = 276) is fine for SSG; tighten here if it
- * grows beyond a sensible build budget.
+ * Pre-build the top 15 highest-traffic UK cities at deploy time.
+ * All other city combinations are generated on first request and cached
+ * via ISR (revalidate = 86400). This keeps the build under ~3 min while
+ * still giving Google fast access to every page.
+ *
+ * Previous approach (all 79 cities × all intents = 948 pages) was the
+ * main cause of 5–8 min build times.
  */
+
+// Revalidate ISR pages every 24 hours
+export const revalidate = 86400;
+
+const TOP_CITIES = [
+  "london", "manchester", "birmingham", "liverpool", "leeds",
+  "sheffield", "bristol", "edinburgh", "glasgow", "nottingham",
+  "oxford", "reading", "brighton", "southampton", "cambridge",
+];
+
 export async function generateStaticParams() {
   const intentSlugs = await loadAllIntentLandingSlugs();
-  const citySlugs = getAllCitySlugs();
   const out: { slug: string; city: string }[] = [];
   for (const slug of intentSlugs) {
-    for (const city of citySlugs) {
+    for (const city of TOP_CITIES) {
       out.push({ slug, city });
     }
   }

@@ -20,13 +20,17 @@ interface Props {
   params: Promise<{ keywordSlug: string }>;
 }
 
-// SSG-only: any URL not produced by `generateKeywordPageParams` returns 404
-// instead of triggering an on-demand DB lookup. This prevents the catch-all
-// route from accidentally serving content for unrelated paths.
-export const dynamicParams = false;
+// ISR: generate on first request, cache for 24 h, revalidate in background.
+// dynamicParams = true allows on-demand generation for any valid keyword slug;
+// the page-level notFound() call still gates invalid paths.
+export const revalidate = 86400;
+export const dynamicParams = true;
 
 export async function generateStaticParams() {
-  return generateKeywordPageParams();
+  // Return empty — all keyword pages are built on first request and cached.
+  // Previously this queried MongoDB and pre-built templates × 79 cities at
+  // every deploy, adding hundreds of pages to the build.
+  return [];
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {

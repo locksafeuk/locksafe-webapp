@@ -34,7 +34,7 @@ export async function executeSuggestion(
 ): Promise<ExecuteResult> {
   const suggestion = await (prisma as any).campaignSuggestion.findUnique({
     where: { id: suggestionId },
-    include: { draft: { select: { accountId: true, googleCampaignId: true, googleAdGroupId: true, dailyBudget: true, googleBudgetId: true } } },
+    include: { draft: { select: { id: true, accountId: true, googleCampaignId: true, googleAdGroupId: true, dailyBudget: true, googleBudgetId: true } } },
   });
 
   if (!suggestion) return { success: false, message: "Suggestion not found." };
@@ -102,7 +102,7 @@ export async function executeSuggestion(
 
       // Also persist the negative into the draft record so future re-publishes include it.
       await prisma.googleAdsCampaignDraft.update({
-        where: { googleCampaignId: draft.googleCampaignId },
+        where: { id: draft.id },
         data: { negativeKeywords: { push: keyword } },
       });
 
@@ -149,7 +149,7 @@ export async function executeSuggestion(
       ]);
 
       await prisma.googleAdsCampaignDraft.update({
-        where: { googleCampaignId: draft.googleCampaignId },
+        where: { id: draft.id },
         data: { dailyBudget: capped },
       });
       mutationApplied = `Budget updated to £${capped}/day (requested £${newBudget}, policy cap £${maxAllowed}).`;
@@ -174,7 +174,7 @@ export async function executeSuggestion(
       ]);
 
       await prisma.googleAdsCampaignDraft.update({
-        where: { googleCampaignId: draft.googleCampaignId },
+        where: { id: draft.id },
         data: { dailyBudget: capped },
       });
       mutationApplied = `Budget decreased to £${capped}/day.`;
