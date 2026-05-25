@@ -1,3 +1,15 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
 // Stripe onboarding reminder log for auditing admin sends
 model StripeReminderLog {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId
@@ -30,18 +42,6 @@ model WhatsAppClickLog {
 
   @@index([targetId, clickedAt])
   @@index([actorId, clickedAt])
-}
-//
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-generator client {
-  provider = "prisma-client-js"
-}
-
-datasource db {
-  provider = "mongodb"
-  url      = env("DATABASE_URL")
 }
 
 // Admin user model
@@ -339,6 +339,12 @@ model Locksmith {
 
   auctionsAccepted JobAuction[]
 
+  // Per-postcode-district coverage rows used by the ad-campaign gate
+  // (campaigns can only run in districts where some locksmith covers + has
+  // capacity). Distinct from the legacy `coverageAreas: String[]` and the
+  // radius-based dispatch — this is structured for ad-targeting decisions.
+  coverages LocksmithCoverage[]
+
   // Stripe onboarding reminder log relation
   stripeReminderLogs StripeReminderLog[]
   baseLocationReminderLogs BaseLocationReminderLog[]
@@ -351,6 +357,82 @@ model Locksmith {
   @@index([baseLat, baseLng])
   @@index([telegramChatId])
   @@index([whatsappChatId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LocksmithCoverage — structured per-postcode-district coverage with capacity.
+//
+// WHY THIS EXISTS:
+//   The ad-campaign creation flow needs a single, fast answer to "does any
+//   onboarded locksmith cover postcode district X with free capacity right
+//   now?" — to gate non-London campaigns against operational reality.
+//   Existing radius-based dispatch can answer "is a locksmith near GPS
+//   coordinates X?" but that's the wrong shape for ad-targeting decisions
+//   which are made per postcode district (RG1, SK4, MK9, …) hours or days
+//   before any specific job.
+//
+// HOW IT'S POPULATED:
+//   - Backfill script reads Locksmith.baseLat/baseLng + coverageRadius and
+//     computes which UK postcode districts fall within radius. These rows
+//     are tagged source="radius_backfill" with a confidence < 1.0 so admins
+//     can review and override.
+//   - Legacy Locksmith.coverageAreas[] entries import as source="manual".
+//   - Admin UI at /admin/locksmiths/coverage lets ops set capacity per row
+//     and toggle isPaused (vacations, sickness, training).
+//
+// HOW CAPACITY IS CHECKED:
+//   currentLoad is NOT stored — it's computed live as
+//   `Job.count({ locksmithId, createdAt >= now-7d, postcode startsWith district })`
+//   to avoid drift. weeklyCapacity - currentLoad = free slots.
+// ─────────────────────────────────────────────────────────────────────────────
+model LocksmithCoverage {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  locksmithId String    @db.ObjectId
+  locksmith   Locksmith @relation(fields: [locksmithId], references: [id], onDelete: Cascade)
+
+  // UK postcode district (the outward-code, e.g. "RG1", "SK4", "MK9", "WD3").
+  // Always uppercase, no internal spaces. Matches the natural granularity of
+  // Google Ads location targeting and our hyper-local keyword universe.
+  postcodeDistrict String
+
+  // Denormalised city/region/county for admin grouping. Not used in matching
+  // — postcodeDistrict is the source of truth — but lets the coverage UI
+  // group rows like "Manchester (M1, M2, M3...)" without an extra lookup.
+  city   String?
+  region String?
+
+  // How many jobs/week this locksmith can take in this district. Defaults to
+  // 5 (a modest starting point); admins should adjust based on each
+  // locksmith's stated capacity and the district's typical job volume.
+  weeklyCapacity Int @default(5)
+
+  // Manual override flag — used for vacations, sickness, training, capacity
+  // reductions, voluntary pauses. When true the campaign gate treats this
+  // coverage row as absent regardless of weeklyCapacity.
+  isPaused        Boolean   @default(false)
+  pauseReason     String?
+  pausedUntil     DateTime?
+
+  // Provenance for trustworthiness. Manual entries from the admin UI are
+  // worth more than radius-based inferences.
+  source          String  @default("manual") // "manual" | "radius_backfill" | "legacy_array_import"
+  confidenceScore Float   @default(1.0)      // 0.0–1.0; backfilled rows start at 0.7
+
+  // When ops last confirmed this row is still accurate. Lets us nag for
+  // re-confirmation after N days (planned: cron job that pings locksmiths
+  // every 60 days to confirm their stated districts).
+  lastConfirmedAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // One row per (locksmith, district). The unique constraint prevents
+  // accidental duplicates from backfill re-runs.
+  @@unique([locksmithId, postcodeDistrict])
+  // Hot path: "which locksmiths cover district X right now?"
+  @@index([postcodeDistrict, isPaused])
+  @@index([locksmithId])
 }
 
 // Locksmith application for a job (when locksmith applies with assessment fee)
@@ -389,6 +471,28 @@ model Job {
   retellCallId       String? // Retell AI call ID for voice-initiated jobs
   phoneCollectedData Json? // Data collected during phone call
   continueToken      String? // Token for continuing phone-initiated request (uniqueness enforced at application level)
+
+  // Marketing attribution — populated at booking time from the
+  // UserSession the visitor arrived in. These let us:
+  //   1. Compute per-campaign cost-per-booked-job (rip-off-defence cron)
+  //   2. Upload conversions to Google Ads via the Conversions API using
+  //      the original gclid — so Google bids on real outcomes, not vanity
+  //      clicks. This is the single biggest defence against being ripped
+  //      off by Google's auction.
+  utmSource     String?  // "google" | "facebook" | "meta" | "direct" | …
+  utmMedium     String?  // "cpc" | "organic" | "email" | …
+  utmCampaign   String?  // The campaign name in our ad tool
+  utmContent    String?  // Ad/creative identifier
+  utmTerm       String?  // Keyword (if exposed by the platform)
+  gclid         String?  // Google Click ID — required by Google's Conversions API
+  fbclid        String?  // Facebook Click ID — for Meta Conversions API
+  landingPage   String?  // First page the visitor landed on
+  // Conversion upload bookkeeping — when COMPLETED+paid, the upload-cron
+  // sends the conversion event back to Google. These columns mark whether
+  // that succeeded, when, and the upload error if any.
+  conversionUploadedAt    DateTime?
+  conversionUploadStatus  String?    // "pending" | "uploaded" | "failed" | "skipped_no_gclid"
+  conversionUploadError   String?
 
   // Emergency workflow tracking
   isEmergency          Boolean   @default(false) // Whether this is an emergency request
@@ -852,6 +956,14 @@ model UserSession {
   utmSource    String?
   utmMedium    String?
   utmCampaign  String?
+  // Added for the Conversions-API attribution path. Without gclid we
+  // cannot upload completed-job conversions back to Google Ads, which
+  // means Google's auction never learns to bid on real outcomes — and
+  // we get ripped off by vanity-click optimisation.
+  utmContent   String?
+  utmTerm      String?
+  gclid        String?
+  fbclid       String?
   landingPage  String
 
   // Tracking
@@ -2812,11 +2924,315 @@ model KeywordSeed {
   isActive        Boolean @default(true)
   notes           String?
 
+  // ── Keyword stability / aging ──────────────────────────────────────────
+  // Tracks how consistently a keyword appears in Planner scans with positive
+  // profit. A keyword that appeared once at £12/click could be a seasonal
+  // spike or broad-match noise. One that has appeared 6 consecutive scans
+  // with stable profit is a durable opportunity.
+  //
+  // stabilityWeight: 0.25 (first scan) → 1.0 after 4+ consecutive survival scans.
+  // Applied as a multiplier to profitPerClick in the scorer so new/volatile
+  // keywords are discounted until they prove consistent.
+
+    // First time this keyword was returned by a Keyword Planner scan (not when it was added as a seed).
+  firstScannedAt           DateTime?
+    // Most recent Planner scan where this keyword appeared.
+  lastScannedAt            DateTime?
+    // Total number of Planner scans in which this keyword appeared.
+  scanCount                Int       @default(0)
+    // Consecutive scans where keyword appeared with profitPerClick > 0.
+  // Resets to 0 on first unprofitable scan.
+  consecutiveSurvivalCount Int       @default(0)
+    // Rolling last-8 profitPerClick readings from Planner scans (GBP per click).
+  // Used to compute volatilityScore. Stored as Float[] (oldest first).
+  profitHistory            Float[]
+    // Standard deviation of profitHistory.
+  // 0 = perfectly stable; high = volatile / spike-driven.
+  // Applied as a discount: effectiveProfitPerClick × (1 / (1 + volatilityScore)).
+  volatilityScore          Float     @default(0)
+    // Combined stability weight: min(1, consecutiveSurvivalCount / 4) × volatilityDiscount.
+  // New seeds start at 0.25. Stable seeds reach 1.0 after 4+ profitable scans.
+  // Volatile seeds stay below 1.0 regardless of survival count.
+  stabilityWeight          Float     @default(0.25)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([isActive, score])
   @@index([category])
+}
+
+// =========================================================================
+// Geo-local keyword performance — ISOLATED from the global KeywordSeed score.
+//
+// Problem: a keyword that converts at 18% in Sheffield cannot be assumed to
+// convert at 18% in a rural Lincolnshire market town. Global seed scores
+// propagate learning across all geos, so weak regions poison strong ones.
+//
+// This table stores per-(keyword × geo) scan history and a local score that
+// is ONLY updated from that geo's scan results. The scorer uses the local
+// score when available; falls back to the global KeywordSeed score otherwise.
+//
+// One row per unique (keyword, geoId) pair. No FK to KeywordSeed — the
+// keyword is stored as a plain string for resilience (seeds can be deleted).
+// =========================================================================
+model KeywordGeoScore {
+  id      String @id @default(auto()) @map("_id") @db.ObjectId
+  keyword String
+  geoId   String
+
+  // Local performance (isolated to this geo only)
+  localScore    Float   @default(1.0) // Wilson-ish: (localWins+1)/(localWins+localLosses+2)
+  localWinCount Int     @default(0)
+  localLossCount Int    @default(0)
+
+  // Local scan history
+  scanCount       Int     @default(0)
+  profitHistory   Float[] // rolling last-6 profitPerClick readings for this geo
+  volatilityScore Float   @default(0)
+  stabilityWeight Float   @default(0.25)
+
+  // Last profitable scan profit (used to weight the geo score vs global score)
+  lastProfitPerClick Float?
+
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime?
+
+  @@unique([keyword, geoId])
+  @@index([geoId, localScore])
+  @@index([keyword])
+}
+
+// =========================================================================
+// Geo-level operational efficiency metrics.
+//
+// The profit model scores: searches × (convRate × jobValue - CPC).
+// But this is MATHEMATICAL profit, not OPERATIONAL profit.
+//
+// A geo with a 25% spam lead rate, 20% missed call rate, and 15% dispatch
+// failure rate has an effective operational efficiency of:
+//   (1 - 0.25) × (1 - 0.20) × (1 - 0.15) ≈ 0.51
+// meaning only 51p in every modelled £1 of profit is actually realised.
+//
+// All fields are nullable — null means "no data yet, assume 1.0."
+// The operationalEfficiencyFactor is pre-computed when fields are populated
+// and applied as a multiplier to expectedMonthlyProfitGbp in the scorer.
+//
+// Populated by: job outcome sync from LockSafe platform, call-tracking
+// analytics, fraud/spam detection, dispatch log analysis.
+// =========================================================================
+model GeoOperationalMetrics {
+  id    String @id @default(auto()) @map("_id") @db.ObjectId
+  geoId String
+  label String
+
+  // ── Lead quality ─────────────────────────────────────────────────────────
+    // Fraction of inbound leads that are spam, fake, or test entries (0–1).
+  spamLeadRate Float?
+    // Fraction of leads that are duplicates of a lead seen in the last 30 days (0–1).
+  duplicateLeadRate Float?
+
+  // ── Dispatch / operations ─────────────────────────────────────────────────
+    // Fraction of dispatched leads where a locksmith was successfully assigned (0–1).
+  dispatchSuccessRate Float?
+    // Fraction of booked jobs cancelled before completion (0–1).
+  cancellationRate Float?
+
+  // ── Revenue quality ───────────────────────────────────────────────────────
+    // Fraction of calls that go unanswered (affects conversion from click to lead) (0–1).
+  missedCallRate Float?
+    // Fraction of completed jobs that result in a refund or dispute (0–1).
+  refundProbability Float?
+
+  // ── Derived ───────────────────────────────────────────────────────────────
+    // Operational efficiency factor — pre-computed product of all non-null metrics.
+  // = (1 - spamLeadRate) × dispatchSuccessRate × (1 - cancellationRate)
+  // × (1 - missedCallRate) × (1 - refundProbability) × (1 - duplicateLeadRate)
+  // Null until at least one metric is populated. Applied as a discount to
+  // expectedMonthlyProfitGbp. A fully-efficient geo scores 1.0.
+  operationalEfficiencyFactor Float?
+
+    // Number of leads/jobs used to compute the above metrics.
+  sampleSize Int?
+    // Date range these metrics cover (ISO string, e.g. "2026-01-01/2026-04-30").
+  samplePeriod String?
+
+  lastComputedAt DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([geoId])
+}
+
+// ==========================================
+// COMPETITOR INTELLIGENCE
+// ==========================================
+
+  // A competitor domain we actively monitor via SEMrush + SpyFu.
+  // Admins can add/remove domains; the competitor-intel agent reads this list.
+model CompetitorDomain {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  domain String @unique  // e.g. "lockforce.co.uk"
+  label  String          // e.g. "Lockforce (national franchise)"
+
+    // Is monitoring active? Admins can pause individual domains.
+  isActive Boolean @default(true)
+
+    // Approximate monthly PPC spend (£) — SEMrush estimate, updated each scan.
+  estimatedMonthlySpendGbp Float?
+
+    // Last time the agent successfully scanned this domain.
+  lastScannedAt DateTime?
+
+    // ISO country code for the primary market (default "GB").
+  countryCode String @default("GB")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  keywords   CompetitorKeyword[]
+  adCopies   CompetitorAdCopy[]
+  geoSignals CompetitorGeoSignal[]
+
+  @@index([isActive])
+}
+
+  // A single paid keyword attributed to a competitor domain.
+  // "dualSource" = keyword confirmed by BOTH SEMrush AND SpyFu →
+  // higher confidence it's a live, intentional bid (not sampling noise).
+  // Graduated keywords (passedQualityGate=true) are written to the seed bank
+  // with category="competitor". They only stay in the seed bank while they
+  // remain active — if a competitor drops the keyword, we mark it inactive
+  // and the seed bank score decays naturally.
+model CompetitorKeyword {
+  id         String @id @default(auto()) @map("_id") @db.ObjectId
+  domainId   String @db.ObjectId
+  domain     CompetitorDomain @relation(fields: [domainId], references: [id])
+
+  keyword    String
+    // ISO country code this keyword was fetched for (usually "GB").
+  countryCode String @default("GB")
+
+    // Average CPC (£) as estimated by SEMrush.
+  cpcGbp     Float?
+    // Estimated monthly clicks.
+  monthlyClicks Int?
+    // Average position (1–4 for ads).
+  avgPosition  Float?
+
+    // SEMrush competition index 0–100.
+  competitionIndex Int?
+
+    // Seen in SEMrush data.
+  seenInSemrush Boolean @default(false)
+    // Seen in SpyFu data.
+  seenInSpyFu   Boolean @default(false)
+
+    // True when both SEMrush AND SpyFu reported this keyword in the same scan.
+  // Dual-source keywords are treated as high-confidence seeds.
+  dualSource Boolean @default(false)
+
+    // Passed the locksmith relevance filter AND profitPerClick > 0 check.
+  passedQualityGate Boolean @default(false)
+
+    // Whether the competitor is currently actively bidding (vs. historical).
+  isActive Boolean @default(true)
+
+    // When we first saw this competitor bidding on this keyword.
+  firstSeenAt DateTime @default(now())
+    // When we last confirmed the competitor is still bidding.
+  lastConfirmedAt DateTime?
+    // When the competitor stopped bidding (if detected).
+  droppedAt DateTime?
+
+  @@unique([domainId, keyword, countryCode])
+  @@index([domainId, isActive])
+  @@index([keyword, isActive])
+  @@index([dualSource, passedQualityGate])
+}
+
+  // A competitor ad copy snapshot (headline + descriptions).
+  // Used to identify messaging angles and USPs we're not covering.
+  // Multiple copies per domain — stored as rolling history so we can see
+  // when competitors change messaging (e.g. moving from price to trust).
+model CompetitorAdCopy {
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  domainId String @db.ObjectId
+  domain   CompetitorDomain @relation(fields: [domainId], references: [id])
+
+    // The keyword(s) this ad appeared for.
+  triggerKeyword String
+
+  headline1    String?
+  headline2    String?
+  headline3    String?
+  description1 String?
+  description2 String?
+
+    // Estimated CTR for this ad (SEMrush estimate).
+  estimatedCtr Float?
+
+    // Display URL path components.
+  displayPath1 String?
+  displayPath2 String?
+
+    // SEMrush / SpyFu source.
+  source String @default("semrush")
+
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime?
+
+    // Still appearing in current scans.
+  isActive Boolean @default(true)
+
+  @@index([domainId, triggerKeyword])
+  @@index([domainId, isActive])
+}
+
+  // Per-competitor per-city presence signal.
+  // Tracks whether a competitor is ENTERING or EXITING a geo, which is a
+  // leading indicator of market opportunity:
+  // - Competitor EXITS a geo → reduced auction pressure → better ROI for us
+  // - Competitor ENTERS a geo → increased pressure → review our bids
+  // "presenceScore" = 0 (absent) → 1 (strong presence). Computed from
+  // estimated impression share and number of active keywords in that geo.
+model CompetitorGeoSignal {
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  domainId String @db.ObjectId
+  domain   CompetitorDomain @relation(fields: [domainId], references: [id])
+
+    // Google Ads geo target constant ID (same IDs used in coverage universe).
+  // E.g. "1006502" = Sheffield.
+  geoId   String
+  geoName String
+
+    // 0–1 score representing how strongly this competitor is present in this geo.
+  // Based on: estimated keywords × avg position × impression share proxy.
+  presenceScore Float @default(0)
+
+    // Estimated monthly ad spend in this geo (£). SEMrush estimate.
+  estimatedSpendGbp Float?
+
+    // Number of active paid keywords attributed to this geo.
+  activeKeywordCount Int @default(0)
+
+    // Trend vs. previous scan:
+  // "ENTERING"  — presenceScore grew > 0.15 since last scan
+  // "EXITING"   — presenceScore fell > 0.15 since last scan
+  // "STABLE"    — no significant change
+  // "NEW"       — first time we've seen this competitor in this geo
+  trend String @default("STABLE")
+
+    // Previous presenceScore (for trend computation).
+  previousPresenceScore Float?
+
+  firstSeenAt DateTime @default(now())
+  lastUpdatedAt DateTime?
+
+  @@unique([domainId, geoId])
+  @@index([geoId, presenceScore])
+  @@index([domainId, trend])
+  @@index([trend])
 }
 
 // ==========================================

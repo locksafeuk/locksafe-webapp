@@ -78,7 +78,9 @@ export function useUserTracking(options: UseUserTrackingOptions = {}) {
       setVisitCount(count);
       setIsFirstVisit(count === 1);
 
-      // Get URL params
+      // Get URL params — capture every attribution value Google or Meta
+      // sets on landing. gclid/fbclid are what the Conversions API
+      // uploaders need; utm_content/utm_term refine campaign tracking.
       const params = new URLSearchParams(window.location.search);
 
       try {
@@ -92,6 +94,10 @@ export function useUserTracking(options: UseUserTrackingOptions = {}) {
             utmSource: params.get("utm_source"),
             utmMedium: params.get("utm_medium"),
             utmCampaign: params.get("utm_campaign"),
+            utmContent: params.get("utm_content"),
+            utmTerm: params.get("utm_term"),
+            gclid: params.get("gclid"),
+            fbclid: params.get("fbclid"),
             landingPage: pathname,
           }),
         });

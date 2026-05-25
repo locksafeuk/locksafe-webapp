@@ -52,7 +52,29 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
-    const { problemType, propertyType, postcode, address, description, name, phone, customerId, photos, requestGps, scheduledFor, organisationId, propertyId } = body;
+    const {
+      problemType, propertyType, postcode, address, description,
+      name, phone, customerId, photos, requestGps, scheduledFor,
+      organisationId, propertyId,
+      // Marketing attribution — the booking client should pass the
+      // visitor's anonymous fingerprint so we can look up their landing
+      // session and stamp the originating UTM / gclid onto this Job.
+      // Without this, completed-job conversions can never be uploaded
+      // back to Google Ads and the auction stays optimised for vanity
+      // clicks instead of real jobs.
+      visitorId,
+      // Optional direct overrides — accept them too in case the client
+      // passes UTM straight rather than via session lookup (e.g. landing
+      // pages with their own attribution capture).
+      utmSource: bodyUtmSource,
+      utmMedium: bodyUtmMedium,
+      utmCampaign: bodyUtmCampaign,
+      utmContent: bodyUtmContent,
+      utmTerm: bodyUtmTerm,
+      gclid: bodyGclid,
+      fbclid: bodyFbclid,
+      landingPage: bodyLandingPage,
+    } = body;
 
     let customerIdToUse = customerId;
 
@@ -103,6 +125,40 @@ export async function POST(request: NextRequest) {
       ? { fee: contractedRate, multiplier: 1, reasons: ["Contracted rate"], isSurge: false }
       : await calculateSurgeFee(postcode);
 
+    // Resolve marketing attribution — prefer explicit body fields, otherwise
+    // look up the visitor's most recent session for UTM + gclid. This is
+    // the prerequisite for the Google Ads Conversions API uploader to be
+    // able to credit the originating click when the job completes+pays.
+    let attribution: {
+      utmSource?:   string | null;
+      utmMedium?:   string | null;
+      utmCampaign?: string | null;
+      utmContent?:  string | null;
+      utmTerm?:     string | null;
+      gclid?:       string | null;
+      fbclid?:      string | null;
+      landingPage?: string | null;
+    } = {};
+    if (bodyUtmSource || bodyUtmCampaign || bodyGclid || bodyFbclid) {
+      attribution = {
+        utmSource:   bodyUtmSource ?? null,
+        utmMedium:   bodyUtmMedium ?? null,
+        utmCampaign: bodyUtmCampaign ?? null,
+        utmContent:  bodyUtmContent ?? null,
+        utmTerm:     bodyUtmTerm ?? null,
+        gclid:       bodyGclid ?? null,
+        fbclid:      bodyFbclid ?? null,
+        landingPage: bodyLandingPage ?? null,
+      };
+    } else if (visitorId) {
+      try {
+        const { getAttributionForVisitor } = await import("@/lib/marketing/tracker");
+        attribution = (await getAttributionForVisitor(visitorId)) ?? {};
+      } catch (err) {
+        console.warn("[jobs] attribution lookup failed:", err instanceof Error ? err.message : err);
+      }
+    }
+
     // Create job
     const job = await prisma.job.create({
       data: {
@@ -126,6 +182,13 @@ export async function POST(request: NextRequest) {
         longitude,
         // GPS tracking for anti-fraud protection
         requestGps: requestGps || null,
+        // Marketing attribution — captured from session or request body
+        // and persisted so the Conversions API uploader can credit the
+        // right Google Ads click when this Job becomes paid+complete.
+        // Cast through `as any` until `npx prisma generate` picks up the
+        // new fields on the Job model.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...((attribution as any) ?? {}),
         // Create photo records if provided
         photos: photos && photos.length > 0 ? {
           create: photos.map((url: string) => ({

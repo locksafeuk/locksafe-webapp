@@ -14,6 +14,11 @@ import { createMetaClient, OBJECTIVE_MAP, OPTIMIZATION_GOALS, PIXEL_EVENT_MAP } 
 import { generateAdCopy, suggestAudiences } from '@/lib/openai-ads';
 import { generateAdTrackingUrl } from '@/lib/pixel-events';
 import { getServiceBySlug } from '@/lib/services-catalog';
+import {
+  extractDistrict,
+  extractDistrictsFromText,
+  getCoverageForDistricts,
+} from '@/lib/locksmith-coverage';
 
 // Verify admin session
 async function verifyAdmin() {
@@ -171,6 +176,59 @@ export async function POST(request: NextRequest) {
         { error: 'Dynamic Product Ads require a service slug. Select one in Step 1.' },
         { status: 400 },
       );
+    }
+
+    // ── Coverage gate ────────────────────────────────────────────────────────
+    // For anti-shark outside-London expansion, NEVER allow a campaign to launch
+    // into a postcode district / city where we have no onboarded locksmith
+    // with free capacity. Running ads we can't fulfil torches Google Ads
+    // quality score AND the trust positioning the whole strategy depends on.
+    //
+    // Bypass with `skipCoverageGate: true` in the request body (admins only,
+    // e.g. for brand-awareness campaigns or pre-onboarding warmups). Default
+    // is to enforce.
+    //
+    // We extract every UK postcode district mentioned anywhere in the
+    // targeting object — postcodes, postcode_districts, cities (if they
+    // look like a district code), free-text strings. If none parse, we
+    // assume the campaign is national/Meta-managed and skip the gate.
+    if (body.skipCoverageGate !== true) {
+      const targetingText = JSON.stringify(targeting ?? {});
+      const explicitDistricts: string[] = [
+        ...(Array.isArray(targeting?.postcode_districts) ? targeting.postcode_districts : []),
+        ...(Array.isArray(targeting?.postcodes) ? targeting.postcodes : []),
+        ...(Array.isArray(targeting?.cities) ? targeting.cities : []),
+      ]
+        .map((s: unknown) => (typeof s === 'string' ? extractDistrict(s) : ''))
+        .filter(Boolean);
+      const inferredDistricts = extractDistrictsFromText(targetingText);
+      const allDistricts = [...new Set([...explicitDistricts, ...inferredDistricts])];
+
+      if (allDistricts.length > 0) {
+        const verdicts = await getCoverageForDistricts(allDistricts);
+        const uncovered = allDistricts.filter((d) => !verdicts.get(d)?.covered);
+        if (uncovered.length > 0) {
+          // Surface ACTIONABLE diagnostics — admins see exactly why each
+          // district is rejected (no locksmith / all paused / at capacity)
+          // so they can fix the operational gap before retrying.
+          const details = uncovered.map((d) => {
+            const v = verdicts.get(d);
+            return { district: d, reason: v?.reason ?? 'no_coverage_row' };
+          });
+          return NextResponse.json(
+            {
+              error:
+                'Campaign rejected by coverage gate. Onboard a locksmith for ' +
+                'these districts (or unpause / add capacity) before launching.',
+              uncoveredDistricts: details,
+              hint:
+                'Visit /admin/locksmiths/coverage to add coverage or capacity. ' +
+                'Bypass with skipCoverageGate: true (brand-awareness only).',
+            },
+            { status: 422 },
+          );
+        }
+      }
     }
 
     // Get or create Meta account connection. Prefer the real account row that

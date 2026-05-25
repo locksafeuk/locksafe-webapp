@@ -308,6 +308,22 @@ export async function POST(request: NextRequest) {
                 firstName: customerName,
               });
               console.log(`[Webhook] Fired Purchase conversion for job ${job.jobNumber}: £${amount}`);
+
+              // ALSO fire the Google Ads server-side conversion. This is the
+              // anti-rip-off vaccine: Google's bidding will now learn to
+              // chase real, paid jobs rather than vanity clicks. Wrapped in
+              // try/catch — never let a Google API hiccup break the
+              // payment-confirmation flow.
+              try {
+                const { uploadJobConversionIfEligible } = await import("@/lib/google-ads-conversions");
+                const r = await uploadJobConversionIfEligible(job.id);
+                console.log(`[Webhook] Google Ads conversion upload for job ${job.jobNumber}: ${r.status}${r.error ? ` (${r.error})` : ""}`);
+              } catch (err) {
+                console.error(
+                  `[Webhook] Google Ads conversion upload threw for job ${job.jobNumber}:`,
+                  err instanceof Error ? err.message : err,
+                );
+              }
             }
           }
         }

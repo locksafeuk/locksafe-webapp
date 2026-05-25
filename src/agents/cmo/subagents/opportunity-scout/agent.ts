@@ -44,6 +44,23 @@ import {
   markSeedsUsed,
   FALLBACK_BASELINE_SEEDS,
 } from "@/agents/core/seed-bank";
+import { BASELINE_NEGATIVE_KEYWORDS } from "@/lib/google-ads-keywords";
+import {
+  getDualSourceCompetitorSeeds,
+  getCompetitorGeoFactor,
+} from "@/agents/cmo/subagents/competitor-intel/agent";
+
+// =========================================================================
+// Known UK locksmith competitor domains
+// (Pre-seeded list; auction insights will augment this at runtime)
+// =========================================================================
+const KNOWN_COMPETITOR_SITES = [
+  "https://www.checkatrade.com/search/Locksmith",
+  "https://www.rated.co.uk/tradespeople/locksmiths",
+  "https://www.trustatrader.com/locksmiths",
+  "https://www.locksmiths.co.uk",
+  "https://www.lockforce.co.uk",
+] as const;
 
 // =========================================================================
 // Agent config
@@ -126,8 +143,9 @@ export interface OpportunityScoutOptions {
   /** Auto-draft the top N covered opportunities per run. Default 5. */
   autoDraftTopN?: number;
   /**
-   * Maximum median CPC (GBP) allowed for auto-draft. Defaults to 1.50 —
-   * tighter than the £1.80 production max bid to leave room for auction variance.
+   * Maximum median CPC (GBP) allowed for auto-draft. Defaults to 3.00 —
+   * allows LOW and most MEDIUM competition cities. HIGH competition cities
+   * (£4–8 CPC) must be drafted manually to avoid wasting budget.
    */
   maxAutoDraftCpcGbp?: number;
   /**
@@ -144,6 +162,10 @@ export interface OpportunityScoutResult {
   recruitScored: number;
   autoDraftsCreated: number;
   failures: string[];
+  /** Competitor domains discovered via Auction Insights (empty if no active campaigns). */
+  competitorDomains: string[];
+  /** True when the Keyword Planner returned 0 bids and fallback CPCs were used. */
+  usingFallbackCpc: boolean;
   topOpportunities: Array<{
     label: string;
     score: number;
@@ -180,6 +202,8 @@ export async function runOpportunityScoutHeartbeat(
       recruitScored: 0,
       autoDraftsCreated: 0,
       failures,
+      competitorDomains: [],
+      usingFallbackCpc: false,
       topOpportunities: [],
       topRecruitTargets: [],
     };
@@ -195,6 +219,8 @@ export async function runOpportunityScoutHeartbeat(
       recruitScored: 0,
       autoDraftsCreated: 0,
       failures,
+      competitorDomains: [],
+      usingFallbackCpc: false,
       topOpportunities: [],
       topRecruitTargets: [],
     };
@@ -216,62 +242,263 @@ export async function runOpportunityScoutHeartbeat(
     );
   }
 
+  // 0.5 Auction Co-occurrence Discovery — pull Auction Insights from active
+  //     campaigns. This shows which domains appeared in the SAME AUCTION SLOTS
+  //     as us (overlap rate, position above rate, IS). It does NOT reveal their
+  //     keywords, ad copy, bid strategy, landing page performance, or negatives.
+  //     We use the discovered domains as inputs for the Keyword Planner site-seed
+  //     API to surface keyword topics we might be missing — NOT as paid-search
+  //     reverse-engineering. The resulting keywords go through profitability
+  //     filtering before they can influence the seed bank.
+  const today = new Date();
+  const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const insightRange = {
+    since: thirtyDaysAgo.toISOString().slice(0, 10),
+    until: today.toISOString().slice(0, 10),
+  };
+  const auctionInsights = await client.getAuctionInsights(insightRange).catch((err) => {
+    failures.push(`auction-insights:${err instanceof Error ? err.message : String(err)}`);
+    return [];
+  });
+
+  // Top competitor domains by overlap rate (excluding our own domain)
+  const competitorDomains = auctionInsights
+    .filter((i) => !i.domain.includes("locksafe"))
+    .slice(0, 5)
+    .map((i) => i.domain);
+
+  // ── Competitor term sourcing (upgraded from site-seed proxy) ─────────────
+  // V1 used generateKeywordIdeasFromSite() as a rough proxy — it extracts
+  // keyword *topics* from competitor page content, not their actual paid keywords.
+  //
+  // V2 reads directly from the CompetitorKeyword table populated by the
+  // competitor-intel agent (weekly SEMrush + SpyFu scan).
+  //
+  // Only DUAL-SOURCE keywords (confirmed by both SEMrush AND SpyFu) are used
+  // as seeds here. These have already passed the quality gate in the
+  // competitor-intel agent, so they're safe to use as Planner seeds.
+  //
+  // FALLBACK: if the competitor-intel agent has never run (table empty), we
+  // retain the old Keyword Planner site-seed approach for the first run.
+  const negativeSet = new Set(BASELINE_NEGATIVE_KEYWORDS.map((k: string) => k.toLowerCase()));
+  let competitorTermsThisRun: string[] = [];
+
+  try {
+    const dbCompetitorSeeds = await getDualSourceCompetitorSeeds(20);
+    if (dbCompetitorSeeds.length > 0) {
+      competitorTermsThisRun = dbCompetitorSeeds;
+      console.log(
+        `[OpportunityScout] Using ${dbCompetitorSeeds.length} dual-source competitor seeds ` +
+        `from competitor-intel DB (SEMrush + SpyFu confirmed).`,
+      );
+    } else {
+      // Fallback: site-seed via Keyword Planner (first-run / DB empty)
+      console.log(
+        `[OpportunityScout] Competitor-intel DB empty — falling back to Keyword Planner site-seed.`,
+      );
+      const LONDON_GEO_ID = "1006450";
+      const fallbackSites = [
+        ...competitorDomains.map((d: string) => `https://${d}`),
+        ...KNOWN_COMPETITOR_SITES,
+      ].slice(0, 2);
+
+      for (const siteUrl of fallbackSites) {
+        try {
+          const competitorIdeas = await client.generateKeywordIdeasFromSite({
+            siteUrl,
+            geoTargetIds: [LONDON_GEO_ID],
+          });
+          const locksmithTerms = competitorIdeas
+            .filter((k) => {
+              const text = k.text.toLowerCase();
+              return (
+                k.avgMonthlySearches >= 50 &&
+                k.text.length < 50 &&
+                /lock|locked|lockout|locksmith|upvc|deadlock|burglary|door/i.test(k.text) &&
+                !negativeSet.has(text) &&
+                !Array.from(negativeSet).some((neg) => text.includes(neg))
+              );
+            })
+            .slice(0, 10);
+          competitorTermsThisRun.push(...locksmithTerms.map((k) => k.text));
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.warn(`[OpportunityScout] Fallback site probe failed for ${siteUrl}: ${msg}`);
+        }
+      }
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`[OpportunityScout] Competitor seed fetch failed: ${msg}`);
+  }
+
+  // 0.8 Pull impression share and hourly performance from live campaigns.
+  //     These feed the profit scorer with real competitive gap data.
+  const [geoImpressionShareMap, hourlyPerf] = await Promise.all([
+    client.getCampaignImpressionShareByGeo(insightRange).catch(() => new Map<string, number>()),
+    client.getHourlyPerformance(insightRange).catch(() => []),
+  ]);
+
+  // Detect after-hours gap: hours 20–06 where our IS is significantly lower
+  // than peak hours. This signals competitors are day-parting aggressively —
+  // meaning a 24/7 platform has a structural advantage in those windows.
+  const peakHours = hourlyPerf.filter((h) => h.hour >= 9 && h.hour <= 18);
+  const afterHours = hourlyPerf.filter((h) => h.hour >= 20 || h.hour <= 6);
+  const peakAvgIS = peakHours.length
+    ? peakHours.reduce((a, h) => a + h.searchImpressionShare, 0) / peakHours.length
+    : 0;
+  const afterHourAvgIS = afterHours.length
+    ? afterHours.reduce((a, h) => a + h.searchImpressionShare, 0) / afterHours.length
+    : 0;
+  // If after-hours IS is >30% lower than peak-hours IS, flag this globally.
+  // We apply the after-hours bonus to all covered geos since we operate 24/7.
+  const globalAfterHoursGap = peakAvgIS > 0 && afterHourAvgIS < peakAvgIS * 0.70;
+
+  // Build per-geo after-hours gap map (currently global — per-geo requires
+  // geo-segmented hourly data which needs a more complex GAQL query).
+  const geoAfterHoursGapMap = new Map<string, boolean>();
+  if (globalAfterHoursGap) {
+    // Apply to all geos where we have impression share data (active campaigns).
+    for (const geoId of geoImpressionShareMap.keys()) {
+      geoAfterHoursGapMap.set(geoId, true);
+    }
+  }
+
+  // Build per-geo conv rate map from reflection results.
+  // Only use geos where we have ≥50 clicks of data (enough to trust conv rate).
+  const geoConvRateMap = new Map<string, number>();
+  if (reflectionResult) {
+    for (const r of reflectionResult.reflections) {
+      if (r.actualConvRate !== null) {
+        geoConvRateMap.set(r.geoTargetId, r.actualConvRate);
+      }
+    }
+  }
+
   // 1. Universe
   const universe = await getCoverageUniverse();
 
-  // 2 + 3. Build seed list — adaptive KeywordSeed bank (ranked by win/loss
-  // score) merged with the top-converting historical keywords for this
-  // account. Falls back to BASELINE_SEEDS if the bank is empty.
+  // 2 + 3. Build seed list.
+  //
+  // Seeds come from three sources, in order of trust:
+  //   1. Bank seeds (baseline + learned + experimental categories).
+  //      "learned" seeds are only added after they proved profitPerClick > 0 in
+  //      a previous run — see the seed discovery loop below.
+  //   2. Proven converters from live campaigns (actual conversions recorded).
+  //      Highest trust. Keywords with clicks but zero conversions are excluded —
+  //      those are typically broad-match junk, spam clicks, or irrelevant searches.
+  //   3. Competitor terms from site-seed Planner call — temporary, this run only.
+  //      These haven't been scored for profitability yet, so they are NOT written
+  //      to the seed bank. They expand the Planner query but don't influence the
+  //      long-term learning loop until they survive profitability scoring.
   const learnings = await extractDefaultAccountLearnings({ windowDays: 90 }).catch(
     () => null,
   );
   const provenSeeds = (learnings?.topConvertingKeywords ?? [])
+    .filter((k) => k.conversions > 0)   // must have actual conversions
     .slice(0, 10)
     .map((k) => k.text)
     .filter((t) => t && t.length < 40);
-  const bankSeeds = await getTopSeeds({ limit: 12 }).catch(() => BASELINE_SEEDS);
-  const seedKeywords = dedupe([...bankSeeds, ...provenSeeds]).slice(0, 20);
+  const bankSeeds = await getTopSeeds({
+    limit: 15,
+    includeCategories: ["baseline", "learned", "competitor", "experimental"],
+  }).catch(() => BASELINE_SEEDS);
+  // Combine: bank seeds first (most trusted), then proven converters, then
+  // competitor-site terms (unverified, for query diversity only this run).
+  const seedKeywords = dedupe([
+    ...bankSeeds,
+    ...provenSeeds,
+    ...competitorTermsThisRun,
+  ]).slice(0, 25);
 
   // Mark these seeds as used (drives the usageCount/lastUsedAt counters).
   markSeedsUsed(seedKeywords).catch(() => undefined);
 
-  // 4. Score coverage universe
+  // 4. Score coverage universe — profit-potential model.
+  // Passes real campaign data (conv rates, impression share, after-hours gaps)
+  // so the scorer can override baseline priors with observed performance.
   const coverageResult = await scoreOpportunities(client, universe.entries, {
     seedKeywords,
-    maxGeos: opts.maxCoverageGeos ?? 25,
+    maxGeos: opts.maxCoverageGeos ?? 35,
     perGeoDelayMs: 250,
+    geoConvRateMap,
+    geoImpressionShareMap,
+    geoAfterHoursGapMap,
     onGeoFailed: (_id, label, err) =>
       failures.push(`coverage:${label}:${err.message.slice(0, 80)}`),
   });
 
-  // 4b. Apply cpaBias adjustments from the reflection step.
-  //     For each opportunity, look up the latest cpaBias from agentNotes and
-  //     adjust the score so cities that ran more expensive than predicted rank lower.
+  // 4b. Apply competitor geo factors from CompetitorGeoSignal table.
+  //     Geos where competitors are EXITING get a boost (reduced auction pressure).
+  //     Geos where competitors are ENTERING get a caution reduction.
+  //     This is non-blocking — if the competitor-intel DB has no data, factor=1.0.
+  for (const opp of coverageResult.opportunities) {
+    try {
+      const { factor, entryCount, exitCount } = await getCompetitorGeoFactor(opp.geoId);
+      if (factor !== 1.0) {
+        opp.expectedMonthlyProfitGbp = opp.expectedMonthlyProfitGbp * factor;
+        opp.score = opp.expectedMonthlyProfitGbp;
+        if (exitCount > 0) {
+          console.log(
+            `[OpportunityScout] ${opp.label}: ${exitCount} competitor(s) exiting → +${((factor - 1) * 100).toFixed(0)}% boost`,
+          );
+        }
+        if (entryCount > 0) {
+          console.log(
+            `[OpportunityScout] ${opp.label}: ${entryCount} competitor(s) entering → -${((1 - factor) * 100).toFixed(0)}% caution`,
+          );
+        }
+      }
+    } catch {
+      // Non-fatal — competitor geo data is an enhancement, not required
+    }
+  }
+
+  // 4c. Apply combined CPA + conv-rate bias from reflection data.
+  //     cpaBias > 1 (expensive) decays score; convRateBias > 1 (better conv) boosts.
+  //     A city that costs 2× more but converts 2× as well stays neutral.
   if (reflectionResult && reflectionResult.reflections.length > 0) {
-    const biasMap = new Map(
-      reflectionResult.reflections.map((r) => [r.geoTargetId, r.cpaBias]),
+    // Explicit tuple type — without it TS widens the .map() return to
+    // (string | object)[][] and the Map becomes Map<unknown, unknown>, which
+    // breaks the `bias.cpaBias` access below.
+    const biasMap = new Map<string, { cpaBias: number; convRateBias: number | null }>(
+      reflectionResult.reflections.map((r) => [
+        r.geoTargetId,
+        { cpaBias: r.cpaBias, convRateBias: r.convRateBias },
+      ] as const),
     );
     for (const opp of coverageResult.opportunities) {
       const bias = biasMap.get(opp.geoId);
       if (bias) {
-        opp.score = applyBiasToScore(opp.score, bias);
+        opp.expectedMonthlyProfitGbp = applyBiasToScore(
+          opp.expectedMonthlyProfitGbp,
+          bias.cpaBias,
+          bias.convRateBias,
+        );
+        opp.score = opp.expectedMonthlyProfitGbp; // keep in sync
       }
     }
-    // Re-sort after bias adjustment
-    coverageResult.opportunities.sort((a, b) => b.score - a.score);
+    // Re-sort by adjusted profit score (competitor geo + bias adjustments applied).
+    coverageResult.opportunities.sort((a, b) => b.expectedMonthlyProfitGbp - a.expectedMonthlyProfitGbp);
   }
 
   // 5. Persist coverage opportunities
-  await persistOpportunities("COVERAGE", coverageResult.opportunities);
+  await persistOpportunities("COVERAGE", coverageResult.opportunities, competitorDomains);
 
-  // 5b. Discover new seeds — every keyword that surfaced in a top opportunity
-  // gets pushed into the seed bank as `category="learned"`. Idempotent.
+  // 5b. Discover new seeds — ONLY from keywords that are in the top opportunities
+  // AND have a positive profitPerClick (i.e., the keyword is actually profitable
+  // at the estimated CPC). Do NOT add keywords with negative profit — those are
+  // either too expensive at baseline or low-intent terms.
+  // This prevents spam/junk searches from poisoning the seed bank.
   for (const opp of coverageResult.opportunities.slice(0, 10)) {
     for (const kw of (opp.topKeywords ?? []).slice(0, 5)) {
       if (!kw?.text) continue;
+      // Guard: only add keywords where expected profit per click is positive.
+      if (kw.profitPerClick !== undefined && kw.profitPerClick <= 0) continue;
       await addSeed(kw.text, {
         category: "learned",
         source: `opportunity-scout:${opp.geoId}`,
+        notes: `profitPerClick £${kw.profitPerClick?.toFixed(2)} · ${kw.monthlySearches}/mo`,
       }).catch(() => undefined);
     }
   }
@@ -298,14 +525,14 @@ export async function runOpportunityScoutHeartbeat(
       onGeoFailed: (_id, label, err) =>
         failures.push(`recruit:${label}:${err.message.slice(0, 80)}`),
     });
-    await persistOpportunities("RECRUIT", recruitResult.opportunities);
+    await persistOpportunities("RECRUIT", recruitResult.opportunities, competitorDomains);
   }
 
   // 7. Auto-draft top-N covered opportunities (cheap cities only)
   if (!opts.skipAutoDraft) {
     const autoDraftN = opts.autoDraftTopN ?? 5;
     const minJobs = opts.minLocksmithJobsForAutoDraft ?? 5;
-    const maxCpc = opts.maxAutoDraftCpcGbp ?? 1.50;
+    const maxCpc = opts.maxAutoDraftCpcGbp ?? 3.00;
     const skipHigh = opts.skipHighCompetition !== false; // default true
     const topCovered = coverageResult.opportunities.slice(0, autoDraftN);
 
@@ -327,6 +554,10 @@ export async function runOpportunityScoutHeartbeat(
     }
   }
 
+  // Whether ALL keywords for this run used fallback CPCs (test token detection).
+  const usingFallbackCpc = coverageResult.opportunities.length > 0 &&
+    coverageResult.opportunities.every((o) => o.usingFallbackCpc);
+
   return {
     startedAt,
     finishedAt: new Date().toISOString(),
@@ -334,6 +565,8 @@ export async function runOpportunityScoutHeartbeat(
     recruitScored: recruitResult.opportunities.length,
     autoDraftsCreated,
     failures,
+    competitorDomains,
+    usingFallbackCpc,
     topOpportunities: coverageResult.opportunities.slice(0, 5).map((o) => ({
       label: o.label,
       score: o.score,
@@ -357,12 +590,46 @@ export async function runOpportunityScoutHeartbeat(
 async function persistOpportunities(
   kind: "COVERAGE" | "RECRUIT",
   opportunities: GeoOpportunity[],
+  competitorDomains?: string[],
 ): Promise<void> {
   if (!opportunities.length) return;
   // One row per (kind, geoTargetId, computedAt). We keep prior rows for trend
   // analysis; status NEW so the admin can act on the fresh batch.
   const now = new Date();
   for (const o of opportunities) {
+    // Carry forward any existing agentNotes (e.g. cpaBias from reflection)
+    const existingOpp = await prisma.googleAdsOpportunity.findFirst({
+      where: { geoTargetId: o.geoId, kind },
+      orderBy: { computedAt: "desc" },
+      select: { agentNotes: true },
+    });
+    let existingNotes: Record<string, unknown> = {};
+    try {
+      if (existingOpp?.agentNotes) existingNotes = JSON.parse(existingOpp.agentNotes);
+    } catch { /* ok */ }
+
+    const agentNotes = JSON.stringify({
+      ...existingNotes,
+      // CPC / fallback flags
+      usingFallbackCpc: o.usingFallbackCpc ?? false,
+      // Profit model outputs — displayed in Opportunity Scout UI
+      expectedMonthlyProfitGbp: o.expectedMonthlyProfitGbp,
+      estimatedConvRate: o.estimatedConvRate,
+      estimatedCpaGbp: o.estimatedCpaGbp,
+      emergencyIntentFraction: o.emergencyIntentFraction,
+      // Operational confidence
+      operationalEfficiencyFactor: o.operationalEfficiencyFactor ?? 1.0,
+      modelConfidenceVerified: o.modelConfidenceVerified ?? false,
+      // Competitive signals
+      ourImpressionShare: o.ourImpressionShare ?? null,
+      afterHoursGap: o.afterHoursGap ?? false,
+      competitorDomains: competitorDomains ?? [],
+      // Geo modifiers
+      nearLondonPenalty: o.nearLondonPenalty ?? false,
+      winterBoost: o.winterBoost ?? false,
+      computedAt: now.toISOString(),
+    });
+
     await prisma.googleAdsOpportunity.create({
       data: {
         kind,
@@ -378,6 +645,7 @@ async function persistOpportunities(
         locksmithCount: o.locksmithCount,
         locksmithIds: o.locksmithIds,
         supplyRatio: o.supplyRatio,
+        agentNotes,
         status: "NEW",
       },
     });

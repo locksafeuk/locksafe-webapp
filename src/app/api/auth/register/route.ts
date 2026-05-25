@@ -108,10 +108,41 @@ export async function POST(request: NextRequest) {
       phone,
     }).catch(err => console.error("Failed to send Telegram notification:", err));
 
-    // If there's a pending request, create the job
+    // If there's a pending request, create the job.
+    // Stamp marketing attribution from the pending payload so the
+    // Conversions API uploader can credit the originating Google/Meta
+    // click when this Job eventually completes + pays. The same fields
+    // are captured by the booking form via getClientAttribution(). If
+    // they're missing (e.g. direct traffic), the Job is created without
+    // attribution and the upload step will mark `skipped_no_gclid`.
     let createdJob = null;
     if (pendingRequest) {
       const jobNumber = await generateJobNumber(pendingRequest.postcode);
+
+      // Server-side attribution recovery: even when the client didn't
+      // pass UTM in the pendingRequest body, the visitorId lets us
+      // look up the landing session and pull the original click data.
+      let attribution: Record<string, string | null> = {};
+      const pr = pendingRequest as Record<string, unknown>;
+      const directKeys = ["utmSource", "utmMedium", "utmCampaign", "utmContent",
+                          "utmTerm", "gclid", "fbclid", "landingPage"] as const;
+      for (const k of directKeys) {
+        const v = pr[k];
+        if (typeof v === "string" && v.trim() !== "") attribution[k] = v;
+      }
+      if (Object.keys(attribution).length === 0 && typeof pr.visitorId === "string") {
+        try {
+          const { getAttributionForVisitor } = await import("@/lib/marketing/tracker");
+          const recovered = await getAttributionForVisitor(pr.visitorId);
+          if (recovered) {
+            attribution = Object.fromEntries(
+              Object.entries(recovered).filter(([, v]) => v !== null && v !== undefined),
+            ) as Record<string, string>;
+          }
+        } catch (err) {
+          console.warn("[register] visitor attribution lookup failed:", err instanceof Error ? err.message : err);
+        }
+      }
 
       createdJob = await prisma.job.create({
         data: {
@@ -122,6 +153,10 @@ export async function POST(request: NextRequest) {
           postcode: pendingRequest.postcode,
           address: pendingRequest.address,
           description: pendingRequest.description || null,
+          // Cast through `as any` until `npx prisma generate` picks up
+          // the new Job UTM fields. Same pattern used elsewhere.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ...(attribution as any),
         },
       });
     }

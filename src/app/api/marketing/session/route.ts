@@ -40,12 +40,16 @@ export async function POST(request: NextRequest) {
       body = {};
     }
 
-    const visitorId = typeof body.visitorId === "string" ? body.visitorId : "";
-    const userAgent = typeof body.userAgent === "string" ? body.userAgent : undefined;
-    const referrer = typeof body.referrer === "string" ? body.referrer : undefined;
-    const utmSource = typeof body.utmSource === "string" ? body.utmSource : undefined;
-    const utmMedium = typeof body.utmMedium === "string" ? body.utmMedium : undefined;
+    const visitorId   = typeof body.visitorId   === "string" ? body.visitorId   : "";
+    const userAgent   = typeof body.userAgent   === "string" ? body.userAgent   : undefined;
+    const referrer    = typeof body.referrer    === "string" ? body.referrer    : undefined;
+    const utmSource   = typeof body.utmSource   === "string" ? body.utmSource   : undefined;
+    const utmMedium   = typeof body.utmMedium   === "string" ? body.utmMedium   : undefined;
     const utmCampaign = typeof body.utmCampaign === "string" ? body.utmCampaign : undefined;
+    const utmContent  = typeof body.utmContent  === "string" ? body.utmContent  : undefined;
+    const utmTerm     = typeof body.utmTerm     === "string" ? body.utmTerm     : undefined;
+    const gclid       = typeof body.gclid       === "string" ? body.gclid       : undefined;
+    const fbclid      = typeof body.fbclid      === "string" ? body.fbclid      : undefined;
     const landingPage = typeof body.landingPage === "string" ? body.landingPage : "/";
 
     if (!visitorId) {
@@ -57,10 +61,14 @@ export async function POST(request: NextRequest) {
 
     const session = await getOrCreateSession(visitorId, {
       userAgent: userAgent || request.headers.get("user-agent") || "",
-      referrer: referrer || request.headers.get("referer") || undefined,
+      referrer:  referrer  || request.headers.get("referer")    || undefined,
       utmSource,
       utmMedium,
       utmCampaign,
+      utmContent,
+      utmTerm,
+      gclid,
+      fbclid,
       landingPage,
     });
 

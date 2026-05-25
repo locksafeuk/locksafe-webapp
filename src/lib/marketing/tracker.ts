@@ -17,7 +17,11 @@ export function getBrowser(userAgent: string): string {
   return "Unknown";
 }
 
-// Create or get user session
+// Create or get user session.
+// Captures the full attribution payload — utm_*, gclid (Google), fbclid
+// (Meta). These are persisted so the booking flow can stamp them onto Job
+// and the Conversions API uploader can credit Google/Meta with the right
+// click when the job completes.
 export async function getOrCreateSession(
   visitorId: string,
   data: {
@@ -26,6 +30,10 @@ export async function getOrCreateSession(
     utmSource?: string;
     utmMedium?: string;
     utmCampaign?: string;
+    utmContent?: string;
+    utmTerm?: string;
+    gclid?: string;
+    fbclid?: string;
     landingPage: string;
   }
 ) {
@@ -45,10 +53,19 @@ export async function getOrCreateSession(
   });
 
   if (session) {
-    // Update last active
+    // Update last active AND merge in any attribution fields the new
+    // request brought (e.g. if the visitor first landed without a
+    // gclid and then arrived later via a Google ad in the same session,
+    // we want the gclid captured the second time).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updateData: any = { lastActiveAt: new Date() };
+    if (data.gclid       && !session.gclid)       updateData.gclid       = data.gclid;
+    if (data.fbclid      && !session.fbclid)      updateData.fbclid      = data.fbclid;
+    if (data.utmContent  && !session.utmContent)  updateData.utmContent  = data.utmContent;
+    if (data.utmTerm     && !session.utmTerm)     updateData.utmTerm     = data.utmTerm;
     session = await prisma.userSession.update({
       where: { id: session.id },
-      data: { lastActiveAt: new Date() },
+      data: updateData,
     });
     return session;
   }
@@ -63,15 +80,59 @@ export async function getOrCreateSession(
       utmSource: data.utmSource || null,
       utmMedium: data.utmMedium || null,
       utmCampaign: data.utmCampaign || null,
+      utmContent: data.utmContent || null,
+      utmTerm: data.utmTerm || null,
+      gclid: data.gclid || null,
+      fbclid: data.fbclid || null,
       landingPage: data.landingPage,
       segment: [],
       modalsShown: [],
       modalsDismissed: [],
       modalsConverted: [],
-    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any,
   });
 
   return session;
+}
+
+/**
+ * Look up the latest attribution payload for a visitor — used by the
+ * job-create flow to stamp UTM + gclid onto the Job at booking time.
+ *
+ * Returns null when no recent session exists (e.g. phone-initiated job
+ * with no preceding web visit).
+ */
+export async function getAttributionForVisitor(
+  visitorId: string | null | undefined,
+): Promise<{
+  utmSource?:   string | null;
+  utmMedium?:   string | null;
+  utmCampaign?: string | null;
+  utmContent?:  string | null;
+  utmTerm?:     string | null;
+  gclid?:       string | null;
+  fbclid?:      string | null;
+  landingPage?: string | null;
+} | null> {
+  if (!visitorId) return null;
+  const session = await prisma.userSession.findFirst({
+    where:   { visitorId },
+    orderBy: { lastActiveAt: "desc" },
+  });
+  if (!session) return null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const s = session as any;
+  return {
+    utmSource:   s.utmSource,
+    utmMedium:   s.utmMedium,
+    utmCampaign: s.utmCampaign,
+    utmContent:  s.utmContent,
+    utmTerm:     s.utmTerm,
+    gclid:       s.gclid,
+    fbclid:      s.fbclid,
+    landingPage: s.landingPage,
+  };
 }
 
 // Track page view
