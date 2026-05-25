@@ -93,6 +93,15 @@ async function sendApns(
     return { success: false, error: "APNs not configured (missing APNS_KEY_ID / APNS_TEAM_ID / APNS_PRIVATE_KEY)" };
   }
 
+  // Job alerts use the JOB_ALERT category so iOS shows "View Job" and "Dismiss"
+  // action buttons directly on the lock screen — this keeps the notification
+  // visible until the locksmith actively interacts with it.
+  const isJobAlert = payload.data?.type
+    ? ["NEW_JOB_AVAILABLE", "NEW_JOB_ASSIGNED", "schedule_start", "schedule_end"].includes(
+        String(payload.data.type)
+      )
+    : false;
+
   const apnsPayload = {
     aps: {
       alert: {
@@ -100,12 +109,24 @@ async function sendApns(
         body: payload.body,
       },
       badge: payload.badge ?? 1,
-      sound: IOS_ALERT_SOUND,
-      "interruption-level": "time-sensitive",
+      sound: {
+        name: IOS_ALERT_SOUND,
+        volume: 1.0,      // max volume (0.0–1.0)
+        critical: 0,      // 0 = regular alert sound (critical=1 needs Apple entitlement)
+      },
+      "interruption-level": "time-sensitive", // bypasses Focus mode, stays on screen
       "relevance-score": 1,
+      // Category links to the "View Job" / "Dismiss" actions registered on the client
+      ...(isJobAlert ? { category: "JOB_ALERT" } : {}),
     },
+    // Forward all data fields so the app can deep-link on tap
     ...(payload.data || {}),
   };
+
+  // Job alerts expire after 30 min — a job alert arriving hours late is useless.
+  // Other notifications (schedule, payments) get 6 hours.
+  const expirationOffset = isJobAlert ? 1800 : 21600;
+  const apnsExpiration = Math.floor(Date.now() / 1000) + expirationOffset;
 
   try {
     const response = await undiciFetch(
@@ -117,7 +138,8 @@ async function sendApns(
           authorization: `bearer ${jwt}`,
           "apns-topic": APNS_BUNDLE_ID,
           "apns-push-type": "alert",
-          "apns-priority": "10",
+          "apns-priority": "10",           // 10 = deliver immediately
+          "apns-expiration": String(apnsExpiration),
           "content-type": "application/json",
         },
         body: JSON.stringify(apnsPayload),
@@ -225,19 +247,30 @@ async function sendFcm(
       },
       android: {
         priority: "high",
-        ttl: "86400s",
+        // Job alerts: 30 min TTL — stale job alerts are worse than no alert.
+        // Other alerts (payments, schedule): 6 hours.
+        ttl: (payload.data?.type === "NEW_JOB_AVAILABLE" || payload.data?.type === "NEW_JOB_ASSIGNED")
+          ? "1800s"
+          : "21600s",
         direct_boot_ok: true,
         notification: {
-          sound: ANDROID_ALERT_SOUND,
-          channel_id: ANDROID_CHANNEL_ID,
+          channel_id: ANDROID_CHANNEL_ID,     // locksafe_jobs_critical (MAX importance)
+          sound: ANDROID_ALERT_SOUND,          // locksafe_alert (no .wav extension for Android)
           notification_priority: "PRIORITY_MAX",
-          visibility: "PUBLIC",
+          visibility: "PUBLIC",               // show content on lock screen
+          // sticky: keep in notification shade until the locksmith taps it
           sticky: true,
+          // Let the channel handle sound/vibration — don't override with defaults
           default_sound: false,
-          priority: "PRIORITY_MAX",
-          event_time: String(Date.now()),
-          default_vibrate_timings: true,
-          default_light_settings: true,
+          default_vibrate_timings: false,
+          default_light_settings: false,
+          // Match the vibration pattern set on the channel (0, 700, 250, 700, 250, 700 ms)
+          vibrate_timings_seconds: ["0s", "0.7s", "0.25s", "0.7s", "0.25s", "0.7s"],
+          light_settings: {
+            color: { red: 0.976, green: 0.451, blue: 0.086, alpha: 1 }, // #f97316
+            light_on_duration: "0.5s",
+            light_off_duration: "0.5s",
+          },
         },
       },
       data: Object.fromEntries(

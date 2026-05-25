@@ -99,23 +99,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const locksmith = await prisma.locksmith.update({
+    // If the locksmith is manually going OFFLINE while a schedule is active,
+    // flag it so the cron doesn't auto-re-enable them mid-shift.
+    // The override is cleared automatically when the shift ends.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const current = await (prisma.locksmith as any).findUnique({
+      where: { id: locksmithId },
+      select: { scheduleEnabled: true },
+    }) as { scheduleEnabled: boolean } | null;
+    const setOverride = !isAvailable && (current?.scheduleEnabled ?? false);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const locksmith = await (prisma.locksmith as any).update({
       where: { id: locksmithId },
       data: {
         isAvailable,
         lastAvailabilityChange: new Date(),
+        ...(setOverride ? { scheduleOverridden: true } : {}),
+        // If manually coming back ONLINE, clear any prior override
+        ...(!isAvailable ? {} : { scheduleOverridden: false }),
       },
       select: {
         id: true,
         name: true,
         isAvailable: true,
+        scheduleOverridden: true,
         lastAvailabilityChange: true,
       },
-    });
+    }) as { id: string; name: string; isAvailable: boolean; scheduleOverridden: boolean; lastAvailabilityChange: Date | null };
 
     return NextResponse.json({
       success: true,
       isAvailable: locksmith.isAvailable,
+      scheduleOverridden: locksmith.scheduleOverridden,
       lastChanged: locksmith.lastAvailabilityChange,
       message: locksmith.isAvailable
         ? "You are now available and will receive job notifications"

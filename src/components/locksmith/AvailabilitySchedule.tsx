@@ -2,151 +2,134 @@
 
 import { useState, useEffect } from "react";
 import {
-  Clock,
   Calendar,
+  Clock,
   Loader2,
   Check,
   AlertCircle,
-  Sun,
-  Moon,
+  ToggleLeft,
+  ToggleRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+
+type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+
+interface DaySchedule {
+  enabled: boolean;
+  start: string;
+  end: string;
+}
+
+type WeeklySchedule = Record<DayKey, DaySchedule>;
+
+const DAYS: { key: DayKey; label: string; short: string }[] = [
+  { key: "mon", label: "Monday",    short: "Mon" },
+  { key: "tue", label: "Tuesday",   short: "Tue" },
+  { key: "wed", label: "Wednesday", short: "Wed" },
+  { key: "thu", label: "Thursday",  short: "Thu" },
+  { key: "fri", label: "Friday",    short: "Fri" },
+  { key: "sat", label: "Saturday",  short: "Sat" },
+  { key: "sun", label: "Sunday",    short: "Sun" },
+];
+
+// 30-minute slots 00:00 – 23:30
+const TIME_OPTIONS: string[] = [];
+for (let h = 0; h < 24; h++) {
+  for (const m of [0, 30]) {
+    TIME_OPTIONS.push(`${String(h).padStart(2, "0")}:${m === 0 ? "00" : "30"}`);
+  }
+}
+
+const DEFAULT_WEEKLY: WeeklySchedule = {
+  mon: { enabled: true,  start: "08:00", end: "18:00" },
+  tue: { enabled: true,  start: "08:00", end: "18:00" },
+  wed: { enabled: true,  start: "08:00", end: "18:00" },
+  thu: { enabled: true,  start: "08:00", end: "18:00" },
+  fri: { enabled: true,  start: "08:00", end: "18:00" },
+  sat: { enabled: false, start: "09:00", end: "14:00" },
+  sun: { enabled: false, start: "09:00", end: "14:00" },
+};
 
 interface AvailabilityScheduleProps {
   locksmithId: string;
   onUpdate?: () => void;
 }
 
-const DAYS_OF_WEEK = [
-  { id: "monday", label: "Mon", fullLabel: "Monday" },
-  { id: "tuesday", label: "Tue", fullLabel: "Tuesday" },
-  { id: "wednesday", label: "Wed", fullLabel: "Wednesday" },
-  { id: "thursday", label: "Thu", fullLabel: "Thursday" },
-  { id: "friday", label: "Fri", fullLabel: "Friday" },
-  { id: "saturday", label: "Sat", fullLabel: "Saturday" },
-  { id: "sunday", label: "Sun", fullLabel: "Sunday" },
-];
+export function AvailabilitySchedule({ locksmithId, onUpdate }: AvailabilityScheduleProps) {
+  const [loading, setLoading]     = useState(true);
+  const [saving, setSaving]       = useState(false);
+  const [success, setSuccess]     = useState(false);
+  const [error, setError]         = useState<string | null>(null);
+  const [enabled, setEnabled]     = useState(false);
+  const [overridden, setOverridden] = useState(false);
+  const [weekly, setWeekly]       = useState<WeeklySchedule>(DEFAULT_WEEKLY);
 
-const TIME_OPTIONS = [
-  "00:00", "01:00", "02:00", "03:00", "04:00", "05:00",
-  "06:00", "07:00", "08:00", "09:00", "10:00", "11:00",
-  "12:00", "13:00", "14:00", "15:00", "16:00", "17:00",
-  "18:00", "19:00", "20:00", "21:00", "22:00", "23:00",
-];
-
-export function AvailabilitySchedule({
-  locksmithId,
-  onUpdate,
-}: AvailabilityScheduleProps) {
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Schedule state
-  const [enabled, setEnabled] = useState(false);
-  const [startTime, setStartTime] = useState("08:00");
-  const [endTime, setEndTime] = useState("20:00");
-  const [selectedDays, setSelectedDays] = useState<string[]>([
-    "monday",
-    "tuesday",
-    "wednesday",
-    "thursday",
-    "friday",
-  ]);
-
-  // Fetch current schedule
   useEffect(() => {
-    const fetchSchedule = async () => {
+    (async () => {
       try {
-        const response = await fetch(
-          `/api/locksmith/availability/schedule?locksmithId=${locksmithId}`
-        );
-        const data = await response.json();
-
-        if (data.success && data.schedule) {
-          setEnabled(data.schedule.enabled || false);
-          setStartTime(data.schedule.startTime || "08:00");
-          setEndTime(data.schedule.endTime || "20:00");
-          setSelectedDays(
-            data.schedule.days?.length > 0
-              ? data.schedule.days
-              : ["monday", "tuesday", "wednesday", "thursday", "friday"]
-          );
+        const res  = await fetch(`/api/locksmith/availability/schedule?locksmithId=${locksmithId}`);
+        const data = await res.json();
+        if (data.success) {
+          setEnabled(data.schedule?.enabled ?? false);
+          setOverridden(data.schedule?.overridden ?? false);
+          if (data.schedule?.weekly) setWeekly(data.schedule.weekly);
         }
-      } catch (err) {
-        console.error("Error fetching schedule:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchSchedule();
+      } catch { /* silently fall through to defaults */ }
+      finally { setLoading(false); }
+    })();
   }, [locksmithId]);
 
-  const toggleDay = (dayId: string) => {
-    setSelectedDays((prev) =>
-      prev.includes(dayId)
-        ? prev.filter((d) => d !== dayId)
-        : [...prev, dayId]
-    );
+  const updateDay = (key: DayKey, field: keyof DaySchedule, value: boolean | string) => {
+    setWeekly(prev => ({ ...prev, [key]: { ...prev[key], [field]: value } }));
+  };
+
+  const applyPreset = (preset: "weekdays" | "all") => {
+    setWeekly(prev => {
+      const next = { ...prev } as WeeklySchedule;
+      for (const day of DAYS) {
+        const isWork = preset === "all" || !["sat", "sun"].includes(day.key);
+        next[day.key] = { ...next[day.key], enabled: isWork };
+      }
+      return next;
+    });
   };
 
   const handleSave = async () => {
-    setIsSaving(true);
+    setSaving(true);
     setError(null);
-
     try {
-      const response = await fetch("/api/locksmith/availability/schedule", {
+      const res  = await fetch("/api/locksmith/availability/schedule", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          locksmithId,
-          enabled,
-          timezone: "Europe/London",
-          startTime,
-          endTime,
-          days: selectedDays,
-        }),
+        body: JSON.stringify({ locksmithId, enabled, weekly }),
       });
-
-      const data = await response.json();
-
+      const data = await res.json();
       if (data.success) {
-        setShowSuccess(true);
-        setTimeout(() => setShowSuccess(false), 3000);
+        setSuccess(true);
+        setOverridden(false);
+        setTimeout(() => setSuccess(false), 3000);
         onUpdate?.();
       } else {
-        setError(data.error || "Failed to save schedule");
+        setError(data.error ?? "Failed to save schedule");
       }
-    } catch (err) {
-      setError("Failed to save schedule. Please try again.");
+    } catch {
+      setError("Network error — please try again.");
     } finally {
-      setIsSaving(false);
+      setSaving(false);
     }
   };
 
-  const selectWeekdays = () => {
-    setSelectedDays(["monday", "tuesday", "wednesday", "thursday", "friday"]);
-  };
-
-  const selectAllDays = () => {
-    setSelectedDays(DAYS_OF_WEEK.map((d) => d.id));
-  };
-
-  if (isLoading) {
+  if (loading) {
     return (
-      <div className="bg-white rounded-2xl p-6 shadow-sm">
-        <div className="flex items-center justify-center py-8">
-          <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
-        </div>
+      <div className="bg-white rounded-2xl p-6 shadow-sm flex items-center justify-center py-10">
+        <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
       </div>
     );
   }
 
   return (
     <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-      {/* Header */}
+      {/* ── Header ── */}
       <div className="p-4 sm:p-6 border-b border-slate-100">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
@@ -155,188 +138,141 @@ export function AvailabilitySchedule({
             </div>
             <div>
               <h3 className="font-bold text-slate-900 text-base sm:text-lg">
-                Scheduled Availability
+                Availability Schedule
               </h3>
               <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
-                Automatically set your availability based on working hours
+                Set working hours per day — goes on/off automatically
               </p>
             </div>
           </div>
 
-          {/* Enable/Disable Toggle */}
+          {/* Master enable toggle */}
           <button
-            onClick={() => setEnabled(!enabled)}
-            className={`relative inline-flex h-7 w-14 items-center rounded-full transition-all duration-300 flex-shrink-0 ${
-              enabled
-                ? "bg-indigo-500"
-                : "bg-slate-300"
-            }`}
+            onClick={() => setEnabled(v => !v)}
+            aria-label={enabled ? "Disable schedule" : "Enable schedule"}
+            className="flex-shrink-0"
           >
-            <span
-              className={`inline-flex items-center justify-center h-5 w-5 transform rounded-full bg-white shadow-md transition-all duration-300 ${
-                enabled ? "translate-x-8" : "translate-x-1"
-              }`}
-            >
-              {enabled ? (
-                <Check className="h-3 w-3 text-indigo-500" />
-              ) : (
-                <Clock className="h-3 w-3 text-slate-400" />
-              )}
-            </span>
+            {enabled
+              ? <ToggleRight className="w-9 h-9 text-indigo-500" />
+              : <ToggleLeft  className="w-9 h-9 text-slate-300" />}
           </button>
         </div>
+
+        {/* Override notice */}
+        {enabled && overridden && (
+          <div className="mt-3 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-xs text-amber-700">
+            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <span>You manually went offline during a scheduled shift. You'll be auto-enabled again at your next shift start.</span>
+          </div>
+        )}
       </div>
 
-      {/* Content */}
-      <div
-        className={`transition-all duration-300 ${
-          enabled ? "max-h-[600px] opacity-100" : "max-h-0 opacity-0 overflow-hidden"
-        }`}
-      >
-        <div className="p-4 sm:p-6 space-y-6">
-          {/* Working Hours */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-3">
-              Working Hours
-            </label>
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
-                  <Sun className="w-5 h-5 text-amber-600" />
-                </div>
-                <select
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                  className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl border border-slate-200 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all text-sm"
-                >
-                  {TIME_OPTIONS.map((time) => (
-                    <option key={time} value={time}>
-                      {time}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <span className="text-slate-400 hidden sm:block">to</span>
-
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
-                  <Moon className="w-5 h-5 text-indigo-600" />
-                </div>
-                <select
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                  className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl border border-slate-200 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all text-sm"
-                >
-                  {TIME_OPTIONS.map((time) => (
-                    <option key={time} value={time}>
-                      {time}
-                    </option>
-                  ))}
-                </select>
-              </div>
+      {/* ── Per-day schedule ── */}
+      <div className={`transition-all duration-300 ${enabled ? "max-h-[800px] opacity-100" : "max-h-0 opacity-0 overflow-hidden"}`}>
+        <div className="p-4 sm:p-6 space-y-3">
+          {/* Presets */}
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Working Hours</span>
+            <div className="flex gap-3">
+              <button onClick={() => applyPreset("weekdays")} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">
+                Mon–Fri only
+              </button>
+              <span className="text-slate-200">|</span>
+              <button onClick={() => applyPreset("all")} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">
+                All 7 days
+              </button>
             </div>
           </div>
 
-          {/* Working Days */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <label className="text-sm font-medium text-slate-700">
-                Working Days
-              </label>
-              <div className="flex gap-2">
+          {/* Day rows */}
+          {DAYS.map(day => {
+            const cfg = weekly[day.key];
+            return (
+              <div
+                key={day.key}
+                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors ${
+                  cfg.enabled ? "bg-indigo-50 border border-indigo-100" : "bg-slate-50 border border-slate-100"
+                }`}
+              >
+                {/* Day toggle */}
                 <button
-                  onClick={selectWeekdays}
-                  className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
-                >
-                  Weekdays
-                </button>
-                <span className="text-slate-300">|</span>
-                <button
-                  onClick={selectAllDays}
-                  className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
-                >
-                  All Days
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-7 gap-1 sm:gap-2">
-              {DAYS_OF_WEEK.map((day) => (
-                <button
-                  key={day.id}
-                  onClick={() => toggleDay(day.id)}
-                  className={`py-2 sm:py-3 rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 ${
-                    selectedDays.includes(day.id)
-                      ? "bg-indigo-500 text-white shadow-md"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  onClick={() => updateDay(day.key, "enabled", !cfg.enabled)}
+                  className={`w-5 h-5 rounded-md flex-shrink-0 flex items-center justify-center border-2 transition-colors ${
+                    cfg.enabled ? "bg-indigo-500 border-indigo-500" : "border-slate-300 bg-white"
                   }`}
+                  aria-label={`Toggle ${day.label}`}
                 >
-                  <span className="sm:hidden">{day.label.charAt(0)}</span>
-                  <span className="hidden sm:inline">{day.label}</span>
+                  {cfg.enabled && <Check className="w-3 h-3 text-white" />}
                 </button>
-              ))}
-            </div>
-          </div>
 
-          {/* Info Box */}
-          <div className="bg-indigo-50 rounded-xl p-4">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-indigo-600 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-indigo-700">
-                <p className="font-medium mb-1">How it works</p>
-                <p className="text-indigo-600/80">
-                  Your availability will automatically turn ON at{" "}
-                  <strong>{startTime}</strong> and OFF at{" "}
-                  <strong>{endTime}</strong> on selected days. You can still
-                  manually override at any time.
-                </p>
+                {/* Day label */}
+                <span className={`w-10 text-sm font-semibold flex-shrink-0 ${cfg.enabled ? "text-indigo-700" : "text-slate-400"}`}>
+                  {day.short}
+                </span>
+
+                {/* Time pickers */}
+                {cfg.enabled ? (
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <Clock className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                    <select
+                      value={cfg.start}
+                      onChange={e => updateDay(day.key, "start", e.target.value)}
+                      className="flex-1 min-w-0 text-sm px-2 py-1 rounded-lg border border-indigo-200 bg-white focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400/30 outline-none"
+                    >
+                      {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                    <span className="text-slate-400 text-xs flex-shrink-0">to</span>
+                    <select
+                      value={cfg.end}
+                      onChange={e => updateDay(day.key, "end", e.target.value)}
+                      className="flex-1 min-w-0 text-sm px-2 py-1 rounded-lg border border-indigo-200 bg-white focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400/30 outline-none"
+                    >
+                      {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                ) : (
+                  <span className="text-xs text-slate-400 italic">Off</span>
+                )}
               </div>
-            </div>
+            );
+          })}
+
+          {/* Info box */}
+          <div className="mt-2 bg-indigo-50 rounded-xl p-3 flex items-start gap-2 text-xs text-indigo-700">
+            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <span>
+              The schedule checks every 15 minutes. If you manually go offline during a shift, you'll stay
+              offline until your next scheduled start time. Times are UK time (GMT/BST).
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="p-4 sm:p-6 border-t border-slate-100 bg-slate-50">
-        <div className="flex items-center justify-between gap-4">
-          {/* Status Message */}
-          <div className="flex-1 min-w-0">
-            {showSuccess && (
-              <div className="flex items-center gap-2 text-emerald-600 text-sm">
-                <Check className="w-4 h-4" />
-                <span>Schedule saved successfully!</span>
-              </div>
-            )}
-            {error && (
-              <div className="flex items-center gap-2 text-red-600 text-sm">
-                <AlertCircle className="w-4 h-4" />
-                <span className="truncate">{error}</span>
-              </div>
-            )}
-            {!showSuccess && !error && !enabled && (
-              <p className="text-slate-500 text-sm">
-                Enable to set automatic working hours
-              </p>
-            )}
-          </div>
-
-          {/* Save Button */}
-          <Button
-            onClick={handleSave}
-            disabled={isSaving}
-            className="bg-indigo-500 hover:bg-indigo-600 text-white px-6"
-          >
-            {isSaving ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              "Save Schedule"
-            )}
-          </Button>
+      {/* ── Footer ── */}
+      <div className="p-4 sm:p-6 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          {success && (
+            <p className="flex items-center gap-1.5 text-emerald-600 text-sm">
+              <Check className="w-4 h-4" /> Schedule saved!
+            </p>
+          )}
+          {error && (
+            <p className="flex items-center gap-1.5 text-red-600 text-sm">
+              <AlertCircle className="w-4 h-4" />
+              <span className="truncate">{error}</span>
+            </p>
+          )}
+          {!success && !error && !enabled && (
+            <p className="text-slate-400 text-sm">Toggle on to activate automatic hours</p>
+          )}
         </div>
+        <Button
+          onClick={handleSave}
+          disabled={saving}
+          className="bg-indigo-500 hover:bg-indigo-600 text-white px-6 flex-shrink-0"
+        >
+          {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</> : "Save Schedule"}
+        </Button>
       </div>
     </div>
   );

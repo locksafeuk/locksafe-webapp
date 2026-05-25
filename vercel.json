@@ -36,6 +36,10 @@
     {
       "path": "/api/cron/publish-organic",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/availability-schedule",
+      "schedule": "*/15 * * * *"
     }
   ],
   "functions": {

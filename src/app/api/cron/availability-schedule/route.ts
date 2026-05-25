@@ -1,150 +1,149 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyCronAuth } from "@/lib/cron-auth";
 import prisma from "@/lib/db";
+import { sendNativePush } from "@/lib/native-push";
 
-// Helper function to check if current time is within schedule
-function isWithinSchedule(
-  scheduleStartTime: string,
-  scheduleEndTime: string,
-  scheduleDays: string[],
-  timezone: string
-): boolean {
-  try {
-    // Get current time in the locksmith's timezone
-    const now = new Date();
-    const options: Intl.DateTimeFormatOptions = {
-      timeZone: timezone,
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-      weekday: "long",
-    };
+type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+interface DaySchedule { enabled: boolean; start: string; end: string }
+type WeeklySchedule = Record<DayKey, DaySchedule>;
 
-    const formatter = new Intl.DateTimeFormat("en-US", options);
-    const parts = formatter.formatToParts(now);
+/**
+ * Returns whether the current moment in Europe/London falls inside the
+ * locksmith's scheduled window for today.
+ */
+function getScheduleState(weekly: WeeklySchedule): { inWindow: boolean } {
+  const formatter = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    weekday: "short", // Mon, Tue, Wed …
+  });
+  const parts = formatter.formatToParts(new Date());
 
-    let currentHour = "00";
-    let currentMinute = "00";
-    let currentDay = "monday";
-
-    for (const part of parts) {
-      if (part.type === "hour") currentHour = part.value;
-      if (part.type === "minute") currentMinute = part.value;
-      if (part.type === "weekday") currentDay = part.value.toLowerCase();
-    }
-
-    const currentTime = `${currentHour}:${currentMinute}`;
-
-    // Check if current day is in schedule
-    if (!scheduleDays.map(d => d.toLowerCase()).includes(currentDay)) {
-      return false;
-    }
-
-    // Parse times for comparison
-    const [startHour, startMin] = scheduleStartTime.split(":").map(Number);
-    const [endHour, endMin] = scheduleEndTime.split(":").map(Number);
-    const [currHour, currMin] = [parseInt(currentHour), parseInt(currentMinute)];
-
-    const startMinutes = startHour * 60 + startMin;
-    const endMinutes = endHour * 60 + endMin;
-    const currentMinutes = currHour * 60 + currMin;
-
-    // Handle overnight schedules (e.g., 22:00 - 06:00)
-    if (endMinutes < startMinutes) {
-      // Overnight schedule
-      return currentMinutes >= startMinutes || currentMinutes < endMinutes;
-    }
-
-    // Normal schedule (e.g., 08:00 - 20:00)
-    return currentMinutes >= startMinutes && currentMinutes < endMinutes;
-  } catch (error) {
-    console.error("Error checking schedule:", error);
-    return false;
+  let hour = "00", minute = "00", weekdayShort = "Mon";
+  for (const p of parts) {
+    if (p.type === "hour")    hour = p.value;
+    if (p.type === "minute")  minute = p.value;
+    if (p.type === "weekday") weekdayShort = p.value;
   }
+
+  // en-GB short weekday → our 3-letter lowercase key
+  const dayKey = weekdayShort.toLowerCase().slice(0, 3) as DayKey;
+  const day = weekly[dayKey];
+  if (!day?.enabled) return { inWindow: false };
+
+  const toMins = (t: string) => {
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + m;
+  };
+  const start = toMins(day.start);
+  const end   = toMins(day.end);
+  const cur   = toMins(`${hour}:${minute}`);
+
+  // Support overnight windows (e.g. 22:00–06:00)
+  const inWindow = end < start ? cur >= start || cur < end : cur >= start && cur < end;
+  return { inWindow };
 }
 
-// GET - Cron job to update availability based on schedules
-// This should run every 5-15 minutes via Vercel cron or similar
+// GET — runs every 15 min via Vercel cron
 export async function GET(request: NextRequest) {
-  try {
-    if (!verifyCronAuth(request)) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
+  if (!verifyCronAuth(request)) {
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  }
 
-    // Get all locksmiths with schedule enabled
-    const locksmiths = await prisma.locksmith.findMany({
-      where: {
-        scheduleEnabled: true,
-        scheduleStartTime: { not: null },
-        scheduleEndTime: { not: null },
-        scheduleDays: { isEmpty: false },
-      },
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const locksmiths = await (prisma.locksmith as any).findMany({
+      where: { scheduleEnabled: true, isActive: true },
       select: {
         id: true,
-        name: true,
         isAvailable: true,
-        scheduleEnabled: true,
-        scheduleTimezone: true,
-        scheduleStartTime: true,
-        scheduleEndTime: true,
-        scheduleDays: true,
+        scheduleOverridden: true,
+        scheduleWeekly: true,
+        nativeDeviceToken: true,
+        nativeTokenType: true,
+        nativeTokenPlatform: true,
       },
-    });
+    }) as Array<{
+      id: string;
+      isAvailable: boolean;
+      scheduleOverridden: boolean;
+      scheduleWeekly: WeeklySchedule | null;
+      nativeDeviceToken: string | null;
+      nativeTokenType: string | null;
+      nativeTokenPlatform: string | null;
+    }>;
 
-    let updatedCount = 0;
-    const updates: Array<{ id: string; name: string; newStatus: boolean }> = [];
+    const results = { enabled: 0, disabled: 0, skipped: 0, errors: 0 };
 
-    for (const locksmith of locksmiths) {
-      if (!locksmith.scheduleStartTime || !locksmith.scheduleEndTime) continue;
+    for (const ls of locksmiths) {
+      try {
+        if (!ls.scheduleWeekly) { results.skipped++; continue; }
 
-      const shouldBeAvailable = isWithinSchedule(
-        locksmith.scheduleStartTime,
-        locksmith.scheduleEndTime,
-        locksmith.scheduleDays,
-        locksmith.scheduleTimezone
-      );
+        const { inWindow } = getScheduleState(ls.scheduleWeekly);
 
-      // Only update if status needs to change
-      if (locksmith.isAvailable !== shouldBeAvailable) {
-        await prisma.locksmith.update({
-          where: { id: locksmith.id },
-          data: {
-            isAvailable: shouldBeAvailable,
-            lastAvailabilityChange: new Date(),
-          },
-        });
+        if (inWindow) {
+          // Only enable if not manually overridden mid-shift
+          if (!ls.isAvailable && !ls.scheduleOverridden) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (prisma.locksmith as any).update({
+              where: { id: ls.id },
+              data: { isAvailable: true, lastAvailabilityChange: new Date() },
+            });
+            results.enabled++;
 
-        updates.push({
-          id: locksmith.id,
-          name: locksmith.name,
-          newStatus: shouldBeAvailable,
-        });
-        updatedCount++;
+            if (ls.nativeDeviceToken && ls.nativeTokenPlatform) {
+              await sendNativePush(
+                ls.nativeDeviceToken,
+                ls.nativeTokenType ?? "apns",
+                ls.nativeTokenPlatform,
+                { title: "Your shift has started 🟢", body: "You're now available and will receive job notifications.", data: { type: "schedule_start" } },
+              ).catch(() => {/* best-effort */});
+            }
+          } else {
+            results.skipped++;
+          }
+        } else {
+          // Outside window
+          if (ls.isAvailable) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (prisma.locksmith as any).update({
+              where: { id: ls.id },
+              data: { isAvailable: false, scheduleOverridden: false, lastAvailabilityChange: new Date() },
+            });
+            results.disabled++;
 
-        console.log(
-          `[Availability Schedule] ${locksmith.name}: ${locksmith.isAvailable ? "Available" : "Unavailable"} -> ${shouldBeAvailable ? "Available" : "Unavailable"}`
-        );
+            if (ls.nativeDeviceToken && ls.nativeTokenPlatform) {
+              await sendNativePush(
+                ls.nativeDeviceToken,
+                ls.nativeTokenType ?? "apns",
+                ls.nativeTokenPlatform,
+                { title: "Your shift has ended 🔴", body: "You've been set as unavailable — your scheduled hours have finished.", data: { type: "schedule_end" } },
+              ).catch(() => {/* best-effort */});
+            }
+          } else if (ls.scheduleOverridden) {
+            // Shift ended while already offline — clear stale override flag
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (prisma.locksmith as any).update({
+              where: { id: ls.id },
+              data: { scheduleOverridden: false },
+            });
+            results.skipped++;
+          } else {
+            results.skipped++;
+          }
+        }
+      } catch (err) {
+        console.error(`[availability-schedule] locksmith ${ls.id}:`, err);
+        results.errors++;
       }
     }
 
-    return NextResponse.json({
-      success: true,
-      message: `Processed ${locksmiths.length} locksmiths with schedules`,
-      updated: updatedCount,
-      updates: updates.map(u => ({
-        name: u.name,
-        status: u.newStatus ? "now available" : "now unavailable",
-      })),
-      timestamp: new Date().toISOString(),
-    });
+    console.log(`[availability-schedule] ${JSON.stringify(results)}`);
+    return NextResponse.json({ success: true, results });
   } catch (error) {
-    console.error("Error processing availability schedules:", error);
-    return NextResponse.json(
-      { success: false, error: "Failed to process schedules" },
-      { status: 500 }
-    );
+    console.error("[availability-schedule] fatal:", error);
+    return NextResponse.json({ success: false, error: "Cron failed" }, { status: 500 });
   }
 }
