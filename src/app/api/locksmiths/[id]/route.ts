@@ -292,12 +292,7 @@ export async function PATCH(
         ? extractedPostcode
         : await reverseGeocodePostcodeFromCoords(lat, lng);
 
-      const cleanedBaseAddress = rawBaseAddress.trim();
-      filteredData.baseAddress = reversePostcode
-        ? reversePostcode
-        : cleanedBaseAddress && !isCoordinatePair(cleanedBaseAddress)
-          ? cleanedBaseAddress
-          : null;
+      filteredData.baseAddress = reversePostcode ?? null;
     }
 
     if (Object.keys(filteredData).length > 0) {

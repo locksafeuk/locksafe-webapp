@@ -51,6 +51,8 @@ export async function GET() {
       name: true,
       companyName: true,
       baseAddress: true,
+      baseLat: true,
+      baseLng: true,
       rating: true,
       totalJobs: true,
     },
@@ -59,10 +61,14 @@ export async function GET() {
   });
 
   return NextResponse.json({
-    locksmiths: locksmiths.map((locksmith) => ({
-      ...locksmith,
-      basePostcode: extractUkPostcode(locksmith.baseAddress),
-    })),
+    locksmiths: locksmiths.map((locksmith) => {
+      const postcode = extractUkPostcode(locksmith.baseAddress);
+      return {
+        ...locksmith,
+        baseAddress: postcode,
+        basePostcode: postcode,
+      };
+    }),
   });
 }
 
@@ -148,67 +154,76 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // 3. Pull learnings unless caller opted out
-  const learnings = body.skipLearnings
-    ? null
-    : await extractDefaultAccountLearnings().catch((err) => {
-        console.warn("[from-locksmith] learnings extract failed:", err);
-        return null;
+  try {
+    // 3. Pull learnings unless caller opted out
+    const learnings = body.skipLearnings
+      ? null
+      : await extractDefaultAccountLearnings().catch((err) => {
+          console.warn("[from-locksmith] learnings extract failed:", err);
+          return null;
+        });
+
+    // 4. Build the plan
+    const { plan, geoTargets, cityLabel, usedLearnings } =
+      await generateDraftPlanForLocksmith(locksmith, {
+        dailyBudget: body.dailyBudget,
+        finalUrl: body.finalUrl,
+        learnings,
       });
 
-  // 4. Build the plan
-  const { plan, geoTargets, cityLabel, usedLearnings } =
-    await generateDraftPlanForLocksmith(locksmith, {
-      dailyBudget: body.dailyBudget,
-      finalUrl: body.finalUrl,
-      learnings,
+    // 5. Persist as PENDING_APPROVAL draft
+    const draft = await prisma.googleAdsCampaignDraft.create({
+      data: {
+        accountId: account.id,
+        status: "PENDING_APPROVAL",
+        name: plan.campaignName,
+        dailyBudget: plan.recommendedDailyBudget,
+        biddingStrategy: "MANUAL_CPC", // safer default for per-locksmith pilots
+        channel: "SEARCH",
+        geoTargets,
+        languageTargets: ["1000"],
+        headlines: plan.headlines,
+        descriptions: plan.descriptions,
+        finalUrl: plan.finalUrl,
+        keywords: plan.keywords as unknown as object[],
+        negativeKeywords: plan.negativeKeywords,
+        aiGenerated: true,
+        aiPrompt: `from-locksmith:${locksmith.id} ${locksmith.companyName || locksmith.name}`,
+        aiReasoning: plan.reasoning,
+        createdBy: "admin",
+        createdByAdminId: typeof admin.id === "string" ? admin.id : undefined,
+      },
     });
 
-  // 5. Persist as PENDING_APPROVAL draft
-  const draft = await prisma.googleAdsCampaignDraft.create({
-    data: {
-      accountId: account.id,
-      status: "PENDING_APPROVAL",
-      name: plan.campaignName,
-      dailyBudget: plan.recommendedDailyBudget,
-      biddingStrategy: "MANUAL_CPC", // safer default for per-locksmith pilots
-      channel: "SEARCH",
-      geoTargets,
-      languageTargets: ["1000"],
-      headlines: plan.headlines,
-      descriptions: plan.descriptions,
-      finalUrl: plan.finalUrl,
-      keywords: plan.keywords as unknown as object[],
-      negativeKeywords: plan.negativeKeywords,
-      aiGenerated: true,
-      aiPrompt: `from-locksmith:${locksmith.id} ${locksmith.companyName || locksmith.name}`,
-      aiReasoning: plan.reasoning,
-      createdBy: "admin",
-      createdByAdminId: typeof admin.id === "string" ? admin.id : undefined,
-    },
-  });
-
-  return NextResponse.json(
-    {
-      draftId: draft.id,
-      status: draft.status,
-      geoTargets,
-      cityLabel,
-      usedLearnings,
-      keywordCount: plan.keywords.length,
-      negativeKeywordCount: plan.negativeKeywords.length,
-      learningsSummary: learnings
-        ? {
-            windowDays: learnings.windowDays,
-            totals: learnings.totals,
-            topConvertingKeywords: learnings.topConvertingKeywords.length,
-            searchTermCandidates: learnings.searchTermCandidates.length,
-            searchTermNegativeCandidates: learnings.searchTermNegativeCandidates.length,
-            bestPerformingAds: learnings.bestPerformingAds.length,
-          }
-        : null,
-      message: `Draft created for ${locksmith.companyName || locksmith.name}${cityLabel ? ` (${cityLabel})` : ""}. Review at /admin/integrations/google-ads/drafts/${draft.id}.`,
-    },
-    { status: 201 },
-  );
+    return NextResponse.json(
+      {
+        draftId: draft.id,
+        status: draft.status,
+        geoTargets,
+        cityLabel,
+        usedLearnings,
+        keywordCount: plan.keywords.length,
+        negativeKeywordCount: plan.negativeKeywords.length,
+        learningsSummary: learnings
+          ? {
+              windowDays: learnings.windowDays,
+              totals: learnings.totals,
+              topConvertingKeywords: learnings.topConvertingKeywords.length,
+              searchTermCandidates: learnings.searchTermCandidates.length,
+              searchTermNegativeCandidates: learnings.searchTermNegativeCandidates.length,
+              bestPerformingAds: learnings.bestPerformingAds.length,
+            }
+          : null,
+        message: `Draft created for ${locksmith.companyName || locksmith.name}${cityLabel ? ` (${cityLabel})` : ""}. Review at /admin/integrations/google-ads/drafts/${draft.id}.`,
+      },
+      { status: 201 },
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[from-locksmith] draft generation failed:", message, err);
+    return NextResponse.json(
+      { error: `Draft generation failed: ${message}` },
+      { status: 500 },
+    );
+  }
 }

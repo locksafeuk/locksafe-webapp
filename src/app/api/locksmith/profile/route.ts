@@ -360,12 +360,7 @@ export async function PATCH(request: NextRequest) {
         ? extractedPostcode
         : await reverseGeocodePostcodeFromCoords(baseLat, baseLng);
 
-      const cleanedBaseAddress = rawBaseAddress.trim();
-      filteredUpdates.baseAddress = reversePostcode
-        ? reversePostcode
-        : cleanedBaseAddress && !isCoordinatePair(cleanedBaseAddress)
-          ? cleanedBaseAddress
-          : null;
+      filteredUpdates.baseAddress = reversePostcode ?? null;
     }
 
     const locksmith = await prisma.locksmith.update({
