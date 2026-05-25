@@ -126,10 +126,14 @@ export const getDashboardStatsTool: AgentTool = {
             : "0",
           // Context for alert thresholds — pre-launch platforms should not trigger
           // P1 completion-rate alerts.
+          // A platform is pre-launch only if it is BOTH new (< 30 days) AND has
+          // very few jobs (< 20). A platform that has been live for 30+ days is
+          // never pre-launch regardless of job count — it is an early-stage live
+          // platform and should be measured against live benchmarks.
           allTimeTotal: allTimeJobCount,
           allTimeCompleted: allTimeCompletedCount,
           platformAgeInDays,
-          isPreLaunch: allTimeJobCount < 20,
+          isPreLaunch: allTimeJobCount < 20 && platformAgeInDays < 30,
         },
         locksmiths: {
           total: totalLocksmiths,
