@@ -28,6 +28,14 @@
     {
       "path": "/api/cron/auto-draft-existing-locksmiths",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/generate-organic",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/publish-organic",
+      "schedule": "*/15 * * * *"
     }
   ],
   "functions": {
