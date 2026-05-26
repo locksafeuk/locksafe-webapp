@@ -53,26 +53,30 @@ async function main(): Promise<void> {
     failures: [],
   };
 
-  // Fetch locksmiths with a profile photo that has never been verified
-  const locksmiths = await prisma.locksmith.findMany({
-    where: {
-      profileImage: { not: null },
-      profilePhotoVerifiedAt: null,
-      profilePhotoVerified: false,
-    },
+  // Fetch all locksmiths with a profile photo. We filter in-memory because
+  // MongoDB documents predating the schema change have the new fields
+  // missing entirely (and Prisma's `: null` does not match missing fields).
+  const all = await prisma.locksmith.findMany({
+    where: { profileImage: { not: null } },
     select: {
       id: true,
       name: true,
       profileImage: true,
+      profilePhotoVerified: true,
+      profilePhotoVerifiedAt: true,
     },
-    ...(LIMIT ? { take: LIMIT } : {}),
   });
 
-  console.log(`Found ${locksmiths.length} locksmith(s) needing photo verification.\n`);
+  // Skip ones already verified
+  const todo = all
+    .filter((ls: any) => ls.profilePhotoVerified !== true && !ls.profilePhotoVerifiedAt)
+    .slice(0, LIMIT ?? all.length);
 
-  for (const ls of locksmiths) {
+  console.log(`Found ${todo.length} locksmith(s) needing photo verification.\n`);
+
+  for (const ls of todo) {
     summary.considered++;
-    const tag = `[${summary.considered}/${locksmiths.length}] ${ls.name} (${ls.id})`;
+    const tag = `[${summary.considered}/${todo.length}] ${ls.name} (${ls.id})`;
 
     if (!ls.profileImage) {
       summary.skipped++;
