@@ -89,10 +89,21 @@ export function proxy(request: NextRequest) {
   }
 
   // Handle locksmith-[city] URLs -> /locksmith-city/[city]
+  //
+  // History: this rewrite was added when the city shorthand was the only
+  // /locksmith-* pattern. After commit caecd5a renamed
+  // /locksmith/[district] to /locksmith-in/[district], URLs like
+  // /locksmith-in/rg1 began falling through this rewrite (the original
+  // `-in-` includes() check matched `-in-`, with dashes on both sides,
+  // but the new URL pattern is `-in/`). The fall-through rewrote
+  // /locksmith-in/rg1 to /locksmith-city/in/rg1, where it matched
+  // /locksmith-city/[city]/[area] with city="in" and rendered a 404.
+  // The explicit /locksmith-in prefix exclusion below prevents that.
   if (
     pathname.startsWith('/locksmith-') &&
     !pathname.startsWith('/locksmith-city') &&
     !pathname.startsWith('/locksmith-area') &&
+    !pathname.startsWith('/locksmith-in') &&
     !pathname.includes('-in-') &&
     !LITERAL_LOCKSMITH_ROUTES.has(pathname)
   ) {
