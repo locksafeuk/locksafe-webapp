@@ -15,34 +15,26 @@ import {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const prisma = _prisma as any;
 
-// ── Statically generate every published district at build time ─────────────
-// Pages that don't yet exist 404 — the route is gated on real coverage.
+// ── Force dynamic rendering ─────────────────────────────────────────────────
+// We deliberately do NOT use generateStaticParams here. Reasons:
+//   1. The DistrictLandingPage table didn't exist on Vercel's build cache
+//      at the time of the initial deploys, which caused the route to be
+//      excluded from the route manifest entirely (verified via Vercel's
+//      route-matching showing /locksmith-in/* fell through to
+//      /locksmith-city/[city]/[area]).
+//   2. Build-time Prisma calls are fragile across deploy environments
+//      (DATABASE_URL not always set, generated client may be stale).
+//   3. The DistrictLandingPage row count is small (~80 max in the
+//      foreseeable future) so per-request rendering with edge caching
+//      via revalidate is performant enough.
 //
-// dynamicParams = true is critical: it lets Next.js render on-demand
-// (ISR) for districts that DIDN'T exist at build time. Without this,
-// any DistrictLandingPage row created after the deploy (e.g. by the
-// orchestrator's ensureOrSkip during a recompose) would 404 until
-// the next full Vercel build. With it, new districts come live as
-// soon as the DB row is written.
-//
-// Inside the page itself we still call notFound() when the DB row
-// is missing or coverage is paused — so the route stays gated on
-// real coverage even though the static-params list might be stale.
+// `dynamic = "force-dynamic"` skips all build-time path enumeration —
+// the route registers cleanly and renders on demand. `revalidate = 3600`
+// then caches each rendered page at the edge for 1 hour. notFound()
+// inside the page handler gates pages without real coverage.
 
-export const dynamicParams = true;
-// Revalidate ISR cache every hour so admin edits to a landing page
-// (contentSource = "manual_override") show up within 60 minutes
-// without needing a full deploy.
+export const dynamic = "force-dynamic";
 export const revalidate = 3600;
-
-export async function generateStaticParams(): Promise<{ district: string }[]> {
-  const pages = await prisma.districtLandingPage.findMany({
-    where:  { isPublished: true },
-    select: { slug: true },
-  });
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (pages as Array<{ slug: string }>).map((p) => ({ district: p.slug }));
-}
 
 interface Props {
   params: Promise<{ district: string }>;

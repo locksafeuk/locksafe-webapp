@@ -15,10 +15,13 @@ const prisma = _prisma as any;
 
 const PHONE_E164 = "+442045771989";
 
-// ── ISR — revalidate hourly so new districts surface within 60 minutes ─────
-// Without this, the hub would be statically built at deploy time and
-// new DistrictLandingPage rows wouldn't appear until the next deploy.
-// 3600s strikes a balance between freshness and edge-cache effectiveness.
+// ── Force dynamic rendering ─────────────────────────────────────────────────
+// Build-time Prisma calls were unreliable on Vercel's initial deploys
+// of this feature (DistrictLandingPage table didn't exist at build
+// time of the parent commits), causing the route to be excluded from
+// the manifest. force-dynamic guarantees the route registers; the
+// 1-hour edge cache via revalidate keeps it cheap.
+export const dynamic = "force-dynamic";
 export const revalidate = 3600;
 
 // ── Metadata ────────────────────────────────────────────────────────────────
