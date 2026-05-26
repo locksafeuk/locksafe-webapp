@@ -99,34 +99,10 @@ export function LocksmithOnboardingModal({
           name: file.name,
         });
 
-          // Trigger AI face verification (non-blocking for UX — runs in background)
-          setIsFaceVerifying(true);
-          fetch("/api/locksmith/verify-profile-photo", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              locksmithId,
-              photoUrl: data.url,
-              locksmithName,
-            }),
-          })
-            .then((r) => r.json())
-            .then((result) => {
-              if (result.success) {
-                setFaceVerified(result.isRealFace);
-                if (!result.isRealFace) {
-                  setFaceRejectionReason(
-                    result.rejectionReason ??
-                      "Please upload a clear headshot photo of yourself."
-                  );
-                }
-              }
-            })
-            .catch(() => {
-              // Verification service unavailable — allow photo through silently
-              setFaceVerified(true);
-            })
-            .finally(() => setIsFaceVerifying(false));
+        // NOTE: AI face verification is intentionally NOT triggered during
+        // signup — it would slow onboarding by 60-240s per photo. The check
+        // is run asynchronously after Stripe Connect verification completes
+        // (see src/app/api/webhooks/stripe/route.ts `account.updated`).
       } else {
         alert("Failed to upload photo. Please try again.");
       }

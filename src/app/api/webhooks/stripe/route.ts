@@ -15,6 +15,7 @@ import {
 } from "@/lib/email";
 import { handleDisputeCreated, handleDisputeUpdated, handleDisputeClosed } from "@/lib/disputes";
 import { handleSubscriptionUpsert, handleSubscriptionCanceled } from "@/lib/subscriptions";
+import { verifyProfilePhoto } from "@/lib/credential-verifier";
 
 // Disable body parsing - we need the raw body for signature verification
 export const runtime = "nodejs";
@@ -443,6 +444,43 @@ export async function POST(request: NextRequest) {
               console.error(`[Webhook] Failed to send verified email:`, emailError);
             }
           }
+
+          // Trigger AI profile-photo verification AFTER Stripe acceptance.
+          // We intentionally don't run this during signup (vision inference
+          // can take 60-240s and would block onboarding). Fire-and-forget.
+          if (
+            !wasVerified &&
+            isNowVerified &&
+            locksmith.profileImage &&
+            !locksmith.profilePhotoVerified
+          ) {
+            const photoUrl = locksmith.profileImage;
+            const lsName = locksmith.name;
+            const lsId = locksmith.id;
+            void verifyProfilePhoto(photoUrl, lsName, { timeoutMs: 240_000 })
+              .then((result) =>
+                prisma.locksmith.update({
+                  where: { id: lsId },
+                  data: {
+                    profilePhotoVerified: result.isRealFace,
+                    profilePhotoVerifiedAt: result.isRealFace ? new Date() : null,
+                    profilePhotoRejectionReason: result.rejectionReason ?? null,
+                    profilePhotoAiConfidence: result.confidence,
+                  },
+                })
+              )
+              .then(() =>
+                console.log(
+                  `[Webhook] Post-Stripe face verification persisted for ${lsId}`
+                )
+              )
+              .catch((err) =>
+                console.error(
+                  `[Webhook] Post-Stripe face verification failed for ${lsId}:`,
+                  err
+                )
+              );
+          }
         } else {
           console.log(`[Webhook] No locksmith found for Stripe account ${account.id}`);
         }
@@ -493,6 +531,32 @@ export async function POST(request: NextRequest) {
                   } catch (emailError) {
                     console.error(`[Webhook] Failed to send verified email:`, emailError);
                   }
+                }
+
+                // Trigger AI profile-photo verification (fire-and-forget).
+                // See account.updated handler above for rationale.
+                if (locksmith.profileImage && !locksmith.profilePhotoVerified) {
+                  const photoUrl = locksmith.profileImage;
+                  const lsName = locksmith.name;
+                  const lsId = locksmith.id;
+                  void verifyProfilePhoto(photoUrl, lsName, { timeoutMs: 240_000 })
+                    .then((result) =>
+                      prisma.locksmith.update({
+                        where: { id: lsId },
+                        data: {
+                          profilePhotoVerified: result.isRealFace,
+                          profilePhotoVerifiedAt: result.isRealFace ? new Date() : null,
+                          profilePhotoRejectionReason: result.rejectionReason ?? null,
+                          profilePhotoAiConfidence: result.confidence,
+                        },
+                      })
+                    )
+                    .catch((err) =>
+                      console.error(
+                        `[Webhook] Post-capability face verification failed for ${lsId}:`,
+                        err
+                      )
+                    );
                 }
               }
             } catch (err) {
