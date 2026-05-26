@@ -59,10 +59,17 @@ export async function getOrCreateSession(
     // we want the gclid captured the second time).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const updateData: any = { lastActiveAt: new Date() };
-    if (data.gclid       && !session.gclid)       updateData.gclid       = data.gclid;
-    if (data.fbclid      && !session.fbclid)      updateData.fbclid      = data.fbclid;
+    // Merge ALL attribution fields when they're newly present and weren't
+    // set before. First-touch wins (we never overwrite a value with a new
+    // one) — but if the original session was captured BEFORE attribution
+    // was set, a later visit with proper UTMs should fill them in.
+    if (data.utmSource   && !session.utmSource)   updateData.utmSource   = data.utmSource;
+    if (data.utmMedium   && !session.utmMedium)   updateData.utmMedium   = data.utmMedium;
+    if (data.utmCampaign && !session.utmCampaign) updateData.utmCampaign = data.utmCampaign;
     if (data.utmContent  && !session.utmContent)  updateData.utmContent  = data.utmContent;
     if (data.utmTerm     && !session.utmTerm)     updateData.utmTerm     = data.utmTerm;
+    if (data.gclid       && !session.gclid)       updateData.gclid       = data.gclid;
+    if (data.fbclid      && !session.fbclid)      updateData.fbclid      = data.fbclid;
     session = await prisma.userSession.update({
       where: { id: session.id },
       data: updateData,
