@@ -17,6 +17,7 @@
 
 import { callOllamaVision } from "@/lib/llm-router";
 import { sendAdminAlert } from "@/lib/telegram";
+import sharp from "sharp";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -47,25 +48,44 @@ const MANUAL_REVIEW_THRESHOLD = 0.60;
 /**
  * Fetch a document from its URL and return base64-encoded content + MIME type.
  * Supports images (jpg/png/webp) and PDFs converted via the vision model.
+ *
+ * Images are downscaled to a max edge of `maxEdge` (default 1024px) before
+ * encoding. This dramatically reduces the number of vision tokens the model
+ * has to process — a 4032×3024 phone photo can take 60-240s on qwen2.5vl:7b,
+ * whereas a 1024px-edge version typically returns in 5-15s with no
+ * meaningful accuracy loss for face / certificate verification.
  */
 async function fetchDocumentAsBase64(
-  url: string
+  url: string,
+  options: { maxEdge?: number } = {}
 ): Promise<{ base64: string; mimeType: string } | null> {
+  const maxEdge = options.maxEdge ?? 1024;
   try {
     const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
     if (!response.ok) return null;
 
     const contentType = response.headers.get("content-type") ?? "image/jpeg";
-    const buffer = await response.arrayBuffer();
-    const base64 = Buffer.from(buffer).toString("base64");
+    const buffer = Buffer.from(await response.arrayBuffer());
 
-    // qwen2.5-vl supports: image/jpeg, image/png, image/webp, image/gif
-    // PDFs: pass as image/jpeg (Ollama will handle the first page render)
-    const mimeType = contentType.startsWith("image/")
-      ? contentType.split(";")[0]
-      : "image/jpeg";
+    // Only downscale actual images; PDFs pass through untouched.
+    if (contentType.startsWith("image/")) {
+      try {
+        const downscaled = await sharp(buffer)
+          .rotate() // honour EXIF orientation
+          .resize(maxEdge, maxEdge, { fit: "inside", withoutEnlargement: true })
+          .jpeg({ quality: 85 })
+          .toBuffer();
+        return { base64: downscaled.toString("base64"), mimeType: "image/jpeg" };
+      } catch (sharpErr) {
+        // Fall back to original bytes if sharp can't decode
+        console.warn("[CredentialVerifier] sharp downscale failed, sending original:", sharpErr);
+        const mimeType = contentType.split(";")[0];
+        return { base64: buffer.toString("base64"), mimeType };
+      }
+    }
 
-    return { base64, mimeType };
+    // Non-image (e.g. PDF) — pass through; Ollama treats as image/jpeg.
+    return { base64: buffer.toString("base64"), mimeType: "image/jpeg" };
   } catch {
     return null;
   }
