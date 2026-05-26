@@ -101,7 +101,10 @@ async function evaluateCampaign(
   const utmKey = campaign.name.toLowerCase().replace(/[^a-z0-9]+/g, "_");
   const jobs = await prisma.job.findMany({
     where:  { utmCampaign: utmKey, createdAt: { gte: since } },
-    select: { id: true, status: true, assessmentPaid: true, quote: { select: { total: true, status: true } } },
+    // Quote doesn't have a `status` field — its state is captured by
+    // `accepted` (bool) + `acceptedAt`/`declinedAt`. We only need `total`
+    // here to compute campaign revenue.
+    select: { id: true, status: true, assessmentPaid: true, quote: { select: { total: true } } },
   });
 
   const bookings = jobs.length;
