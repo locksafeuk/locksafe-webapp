@@ -42,6 +42,10 @@
       "schedule": "*/15 * * * *"
     },
     {
+      "path": "/api/cron/generate-district-landings",
+      "schedule": "0 2 * * *"
+    },
+    {
       "path": "/api/cron/google-ads-auto-pause",
       "schedule": "15 6 * * *"
     }

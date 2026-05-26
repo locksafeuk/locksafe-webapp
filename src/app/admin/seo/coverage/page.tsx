@@ -1,11 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, Activity, ExternalLink } from "lucide-react";
+import { ArrowLeft, Activity, ExternalLink, FileText, AlertTriangle, CheckCircle2, Edit3 } from "lucide-react";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
 import { loadAllIntentLandings } from "@/lib/intent-landings-store";
 import { ukCitiesData } from "@/lib/uk-cities-data";
 import { SERVICE_CATALOG } from "@/lib/services-catalog";
 import { postcodeData } from "@/lib/postcode-data";
+import { prisma as _prisma } from "@/lib/db";
+import { REGENERATE_AFTER_DAYS } from "@/lib/district-landing/ensure-landing";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const prisma = _prisma as any;
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Coverage matrix",
@@ -24,11 +31,41 @@ const POSTCODE_PILLAR_SERVICES = [
 export default async function AdminSeoCoveragePage() {
   const landings = await loadAllIntentLandings();
   const cities = Object.values(ukCitiesData);
+
+  // ── District landing pages ─────────────────────────────────────────
+  const districtPages: Array<{
+    id:            string;
+    district:      string;
+    slug:          string;
+    anchorTown:    string | null;
+    contentSource: string;
+    llmModel:      string | null;
+    isPublished:   boolean;
+    generatedAt:   Date | null;
+    updatedAt:     Date;
+  }> = await prisma.districtLandingPage.findMany({
+    select: {
+      id: true, district: true, slug: true,
+      anchorTown: true, contentSource: true,
+      llmModel: true, isPublished: true,
+      generatedAt: true, updatedAt: true,
+    },
+    orderBy: { district: "asc" },
+  });
+
+  const now = Date.now();
+  const staleMs = REGENERATE_AFTER_DAYS * 24 * 60 * 60 * 1000;
+  const staleCount       = districtPages.filter(p => p.generatedAt && (now - p.generatedAt.getTime()) > staleMs).length;
+  const needsRefreshCount = districtPages.filter(p => p.contentSource === "needs_refresh").length;
+  const manualCount       = districtPages.filter(p => p.contentSource === "manual_override").length;
+  const publishedCount    = districtPages.filter(p => p.isPublished).length;
+
   const totalCells =
     landings.length * cities.length +
     SERVICE_CATALOG.length * cities.length +
     cities.reduce((n, c) => n + c.areas.length, 0) +
-    Object.keys(postcodeData).length * POSTCODE_PILLAR_SERVICES.length;
+    Object.keys(postcodeData).length * POSTCODE_PILLAR_SERVICES.length +
+    districtPages.length;
 
   return (
     <AdminSidebar>
@@ -185,6 +222,117 @@ export default async function AdminSeoCoveragePage() {
               </tbody>
             </table>
           </div>
+        </section>
+
+        {/* District Landing Pages */}
+        <section className="mb-10">
+          <h2 className="text-lg font-bold text-slate-900 mb-3">
+            District Landing Pages
+            <span className="text-sm font-normal text-slate-500 ml-2">
+              ({districtPages.length} pages — {publishedCount} published)
+            </span>
+          </h2>
+
+          {/* Stats strip */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+              <div className="text-2xl font-bold text-emerald-600">{publishedCount}</div>
+              <div className="text-xs text-slate-500 mt-0.5">Published</div>
+            </div>
+            <div className={`rounded-xl border px-4 py-3 ${staleCount > 0 ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-white"}`}>
+              <div className={`text-2xl font-bold ${staleCount > 0 ? "text-amber-600" : "text-slate-400"}`}>{staleCount}</div>
+              <div className="text-xs text-slate-500 mt-0.5">Stale (&gt;{REGENERATE_AFTER_DAYS}d)</div>
+            </div>
+            <div className={`rounded-xl border px-4 py-3 ${needsRefreshCount > 0 ? "border-red-200 bg-red-50" : "border-slate-200 bg-white"}`}>
+              <div className={`text-2xl font-bold ${needsRefreshCount > 0 ? "text-red-600" : "text-slate-400"}`}>{needsRefreshCount}</div>
+              <div className="text-xs text-slate-500 mt-0.5">Needs refresh</div>
+            </div>
+            <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3">
+              <div className="text-2xl font-bold text-violet-600">{manualCount}</div>
+              <div className="text-xs text-slate-500 mt-0.5">Manual override</div>
+            </div>
+          </div>
+
+          {districtPages.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center text-slate-500 text-sm">
+              No district landing pages yet. They are created automatically when a campaign draft is published for a covered district.
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500">
+                  <tr>
+                    <th className="text-left px-3 py-2">District</th>
+                    <th className="text-left px-3 py-2">Town</th>
+                    <th className="text-center px-3 py-2">Published</th>
+                    <th className="text-left px-3 py-2">Source</th>
+                    <th className="text-right px-3 py-2">Age</th>
+                    <th className="text-left px-3 py-2 hidden sm:table-cell">Model</th>
+                    <th className="text-center px-3 py-2">Live</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {districtPages.map((p) => {
+                    const ageDays = p.generatedAt
+                      ? Math.floor((now - p.generatedAt.getTime()) / (24 * 60 * 60 * 1000))
+                      : null;
+                    const isStale = ageDays !== null && ageDays > REGENERATE_AFTER_DAYS;
+                    const sourceLabel =
+                      p.contentSource === "manual_override" ? "Manual"
+                      : p.contentSource === "needs_refresh"  ? "Needs refresh"
+                      : "AI";
+                    const sourceCls =
+                      p.contentSource === "manual_override" ? "bg-violet-100 text-violet-700"
+                      : p.contentSource === "needs_refresh"  ? "bg-red-100 text-red-700"
+                      : "bg-sky-100 text-sky-700";
+                    return (
+                      <tr key={p.id} className="hover:bg-slate-50">
+                        <td className="px-3 py-2 font-mono font-semibold text-slate-900">
+                          {p.district}
+                        </td>
+                        <td className="px-3 py-2 text-slate-600">
+                          {p.anchorTown ?? "—"}
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          {p.isPublished ? (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500 inline" />
+                          ) : (
+                            <span className="inline-block w-4 h-4 rounded-full bg-slate-200" />
+                          )}
+                        </td>
+                        <td className="px-3 py-2">
+                          <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${sourceCls}`}>
+                            {p.contentSource === "manual_override" && <Edit3 className="w-2.5 h-2.5" />}
+                            {p.contentSource === "needs_refresh"   && <AlertTriangle className="w-2.5 h-2.5" />}
+                            {p.contentSource === "ai_generated"    && <FileText className="w-2.5 h-2.5" />}
+                            {sourceLabel}
+                          </span>
+                        </td>
+                        <td className={`px-3 py-2 text-right tabular-nums ${isStale ? "text-amber-600 font-medium" : "text-slate-500"}`}>
+                          {ageDays === null ? "—" : ageDays === 0 ? "today" : `${ageDays}d`}
+                          {isStale && " ⚠"}
+                        </td>
+                        <td className="px-3 py-2 text-slate-400 hidden sm:table-cell truncate max-w-[140px]">
+                          {p.llmModel ? p.llmModel.replace(/^(ollama|openai):/, "") : "—"}
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <a
+                            href={`/locksmith-in/${p.slug}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-0.5 text-amber-700 hover:text-amber-800"
+                            title={`/locksmith-in/${p.slug}`}
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
       </div>
     </AdminSidebar>
