@@ -43,6 +43,35 @@ describe("extractBaseLocation", () => {
     expect(extractBaseLocation("17 Park Lane, Mayfair, W1K 1QA"))
       .toBe("Mayfair");
   });
+
+  // ── Defensive guards ────────────────────────────────────────────────────
+  // The field audit on 2026-05-26 found Locksmith.baseAddress rows
+  // containing stringified coordinates and admin-region names. These had
+  // been propagating into DistrictLandingPage.featuredEngineerName and
+  // would have produced nonsense ad copy if the page template ever
+  // surfaced the field. extractBaseLocation must reject them.
+
+  it("rejects coordinate-shaped inputs", () => {
+    expect(extractBaseLocation("-2.6627")).toBeNull();
+    expect(extractBaseLocation("51.4570")).toBeNull();
+    expect(extractBaseLocation("+0.1278")).toBeNull();
+    expect(extractBaseLocation("12345")).toBeNull();
+  });
+
+  it("rejects admin-region phrasings that aren't a town", () => {
+    expect(extractBaseLocation("Borough of Runnymede")).toBeNull();
+    expect(extractBaseLocation("City of London")).toBeNull();
+    expect(extractBaseLocation("Royal Borough of Kensington")).toBeNull();
+    expect(extractBaseLocation("London Borough of Camden")).toBeNull();
+    expect(extractBaseLocation("Metropolitan Borough of Stockport")).toBeNull();
+  });
+
+  it("rejects an admin-region embedded as the second comma segment", () => {
+    // A comma-shaped input where the area slot we'd normally pick is
+    // actually an admin-region label — still bad copy.
+    expect(extractBaseLocation("Some Street, Borough of Runnymede, KT13 9AB"))
+      .toBeNull();
+  });
 });
 
 describe("estimateTravelMins", () => {

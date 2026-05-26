@@ -97,9 +97,33 @@ export interface NoCoverageReason {
  * back gracefully to the second-to-last comma segment, or the whole
  * string if not enough commas.
  */
+// Inputs that look like a coordinate ("-2.6627") rather than an address.
+// Field-level audit on 2026-05-26 found several locksmith baseAddress rows
+// containing stringified longitude/latitude values. Returning these as the
+// engineer base location produced nonsense copy in district landing pages.
+function isCoordString(s: string): boolean {
+  return /^[+-]?\d+(\.\d+)?$/.test(s);
+}
+
+// UK admin-region phrasings that aren't a usable town or area name.
+// postcodes.io sometimes returns these (e.g. "Borough of Runnymede") when
+// a coordinate falls on a council boundary or no parish exists.
+function isAdminRegionName(s: string): boolean {
+  return /^(Borough of\b|City of\b|County of\b|District of\b|Royal Borough of\b|London Borough of\b|Metropolitan Borough of\b|Unitary Authority of\b)/i.test(s);
+}
+
 export function extractBaseLocation(address: string | null | undefined): string | null {
   if (!address) return null;
   const cleaned = address.replace(/[\s,]*(UK|United Kingdom)\s*$/i, "").trim();
+  if (!cleaned) return null;
+
+  // Defensive: reject inputs that aren't shaped like a UK postal address
+  // before we try to split them. We've seen baseAddress fields populated
+  // with stringified coords ("-2.6627") and admin-region names ("Borough
+  // of Runnymede"); neither is usable as an engineer base location.
+  if (isCoordString(cleaned)) return null;
+  if (isAdminRegionName(cleaned)) return null;
+
   const parts = cleaned.split(",").map((p) => p.trim()).filter(Boolean);
   if (parts.length === 0) return null;
   // Strip a trailing postcode-only segment if present.
@@ -107,8 +131,13 @@ export function extractBaseLocation(address: string | null | undefined): string 
   if (/^[A-Z]{1,2}\d/i.test(last) && last.length <= 8) parts.pop();
   // Prefer the second segment when it exists (street, AREA, town, postcode)
   // — i.e. the AREA, not the street nor the wider town.
-  if (parts.length >= 2) return parts[1];
-  return parts[0] ?? null;
+  const candidate = parts.length >= 2 ? parts[1] : parts[0];
+  if (!candidate) return null;
+  // Final defence: even after splitting, a segment may still be a coord
+  // or admin region (e.g. a comma-separated lat,lng or "Borough of X, Y").
+  if (isCoordString(candidate)) return null;
+  if (isAdminRegionName(candidate)) return null;
+  return candidate;
 }
 
 /** Heuristic travel-time band from coverage radius. */
