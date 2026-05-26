@@ -1304,6 +1304,7 @@ model GoogleAdsCampaignDraft {
   publishError String?
   publishedAt  DateTime?
   pausedAt     DateTime?
+  adminNotes   String?
 
   // Manual-vs-AI provenance + post-publish snapshot.
   // createdBy: "ai" (default existing rows) | "admin" (manual via UI)
