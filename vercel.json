@@ -48,6 +48,14 @@
     {
       "path": "/api/cron/google-ads-auto-pause",
       "schedule": "15 6 * * *"
+    },
+    {
+      "path": "/api/cron/lead-outreach-sequence",
+      "schedule": "0 8 * * 1-5"
+    },
+    {
+      "path": "/api/cron/photo-upload-reminder",
+      "schedule": "0 * * * *"
     }
   ],
   "functions": {

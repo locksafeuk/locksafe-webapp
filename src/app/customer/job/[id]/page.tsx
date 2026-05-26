@@ -83,6 +83,8 @@ interface Job {
     id: string;
     name: string;
     phone: string;
+    profileImage?: string | null;
+    rating?: number | null;
   };
 }
 
@@ -594,7 +596,13 @@ export default function CustomerJobPage({ params }: { params: Promise<{ id: stri
               }
             : { name: "Customer", phone: "" },
           locksmith: j.locksmith
-            ? { id: j.locksmith.id, name: j.locksmith.name, phone: j.locksmith.phone || "" }
+            ? {
+                id: j.locksmith.id,
+                name: j.locksmith.name,
+                phone: j.locksmith.phone || "",
+                profileImage: j.locksmith.profileImage ?? null,
+                rating: j.locksmith.rating ?? null,
+              }
             : undefined,
         });
         if (j.acceptedEta) setSelectedEta(j.acceptedEta);
@@ -1187,9 +1195,13 @@ export default function CustomerJobPage({ params }: { params: Promise<{ id: stri
                 {/* Locksmith info */}
                 <div className="bg-white rounded-xl p-3 sm:p-4 flex items-center justify-between gap-3 mb-4">
                   <div className="flex items-center gap-3 sm:gap-4">
-                    <div className="w-10 h-10 sm:w-14 sm:h-14 bg-gradient-to-br from-orange-400 to-orange-600 rounded-xl flex items-center justify-center text-white text-sm sm:text-lg font-bold">
-                      {job.locksmith.name.split(" ").map(n => n[0]).join("").toUpperCase()}
-                    </div>
+                    {job.locksmith.profileImage ? (
+                      <img src={job.locksmith.profileImage} alt={job.locksmith.name} className="w-10 h-10 sm:w-14 sm:h-14 rounded-xl object-cover flex-shrink-0" />
+                    ) : (
+                      <div className="w-10 h-10 sm:w-14 sm:h-14 bg-gradient-to-br from-orange-400 to-orange-600 rounded-xl flex items-center justify-center text-white text-sm sm:text-lg font-bold flex-shrink-0">
+                        {job.locksmith.name.split(" ").map(n => n[0]).join("").toUpperCase()}
+                      </div>
+                    )}
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-slate-900 text-sm sm:text-base">{job.locksmith.name}</span>
@@ -1198,7 +1210,15 @@ export default function CustomerJobPage({ params }: { params: Promise<{ id: stri
                           Verified
                         </span>
                       </div>
-                      <div className="text-xs sm:text-sm text-slate-500 mt-0.5">On the way to your location</div>
+                      {job.locksmith.rating ? (
+                        <div className="flex items-center gap-1 text-xs mt-0.5">
+                          <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                          <span className="font-medium text-slate-700">{job.locksmith.rating.toFixed(1)}</span>
+                          <span className="text-slate-400">· On the way</span>
+                        </div>
+                      ) : (
+                        <div className="text-xs sm:text-sm text-slate-500 mt-0.5">On the way to your location</div>
+                      )}
                     </div>
                   </div>
                   <a href={`tel:${job.locksmith.phone}`}><Button variant="outline" size="sm"><Phone className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />Call</Button></a>
@@ -1243,9 +1263,13 @@ export default function CustomerJobPage({ params }: { params: Promise<{ id: stri
                 </div>
                 <div className="bg-white rounded-xl p-3 sm:p-4 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 sm:gap-4">
-                    <div className="w-10 h-10 sm:w-14 sm:h-14 bg-gradient-to-br from-purple-400 to-purple-600 rounded-xl flex items-center justify-center text-white text-sm sm:text-lg font-bold">
-                      {job.locksmith.name.split(" ").map(n => n[0]).join("").toUpperCase()}
-                    </div>
+                    {job.locksmith.profileImage ? (
+                      <img src={job.locksmith.profileImage} alt={job.locksmith.name} className="w-10 h-10 sm:w-14 sm:h-14 rounded-xl object-cover flex-shrink-0" />
+                    ) : (
+                      <div className="w-10 h-10 sm:w-14 sm:h-14 bg-gradient-to-br from-purple-400 to-purple-600 rounded-xl flex items-center justify-center text-white text-sm sm:text-lg font-bold flex-shrink-0">
+                        {job.locksmith.name.split(" ").map(n => n[0]).join("").toUpperCase()}
+                      </div>
+                    )}
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-slate-900 text-sm sm:text-base">{job.locksmith.name}</span>
@@ -1254,9 +1278,17 @@ export default function CustomerJobPage({ params }: { params: Promise<{ id: stri
                           Verified
                         </span>
                       </div>
-                      <div className="flex items-center gap-1 text-xs sm:text-sm text-purple-600 mt-0.5">
-                        <MapPin className="w-3 h-3 sm:w-4 sm:h-4" />
-                        On Site
+                      <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                        <div className="flex items-center gap-1 text-xs sm:text-sm text-purple-600">
+                          <MapPin className="w-3 h-3 sm:w-4 sm:h-4" />
+                          On Site
+                        </div>
+                        {job.locksmith.rating && (
+                          <div className="flex items-center gap-1 text-xs">
+                            <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                            <span className="font-medium text-slate-700">{job.locksmith.rating.toFixed(1)}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1388,9 +1420,13 @@ export default function CustomerJobPage({ params }: { params: Promise<{ id: stri
                 <div className="bg-white rounded-xl p-4 sm:p-6 space-y-4">
                   <div className="flex items-center justify-between gap-3 pb-4 border-b">
                     <div className="flex items-center gap-3 sm:gap-4">
-                      <div className="w-10 h-10 sm:w-14 sm:h-14 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl flex items-center justify-center text-white text-sm sm:text-lg font-bold">
-                        {job.locksmith.name.split(" ").map(n => n[0]).join("").toUpperCase()}
-                      </div>
+                      {job.locksmith.profileImage ? (
+                        <img src={job.locksmith.profileImage} alt={job.locksmith.name} className="w-10 h-10 sm:w-14 sm:h-14 rounded-xl object-cover flex-shrink-0" />
+                      ) : (
+                        <div className="w-10 h-10 sm:w-14 sm:h-14 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl flex items-center justify-center text-white text-sm sm:text-lg font-bold flex-shrink-0">
+                          {job.locksmith.name.split(" ").map(n => n[0]).join("").toUpperCase()}
+                        </div>
+                      )}
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-bold text-slate-900 text-sm sm:text-base">{job.locksmith.name}</span>
@@ -1399,9 +1435,17 @@ export default function CustomerJobPage({ params }: { params: Promise<{ id: stri
                             Verified
                           </span>
                         </div>
-                        <div className="flex items-center gap-1 text-xs sm:text-sm text-green-600 mt-0.5">
-                          <CheckCircle2 className="w-3 h-3 sm:w-4 sm:h-4" />
-                          Work Completed
+                        <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                          <div className="flex items-center gap-1 text-xs sm:text-sm text-green-600">
+                            <CheckCircle2 className="w-3 h-3 sm:w-4 sm:h-4" />
+                            Work Completed
+                          </div>
+                          {job.locksmith.rating && (
+                            <div className="flex items-center gap-1 text-xs">
+                              <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                              <span className="font-medium text-slate-700">{job.locksmith.rating.toFixed(1)}</span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1463,9 +1507,13 @@ export default function CustomerJobPage({ params }: { params: Promise<{ id: stri
                 <div className="bg-white rounded-xl p-4 sm:p-6 space-y-4">
                   <div className="flex items-center justify-between gap-3 pb-4 border-b">
                     <div className="flex items-center gap-3 sm:gap-4">
-                      <div className="w-10 h-10 sm:w-14 sm:h-14 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl flex items-center justify-center text-white text-sm sm:text-lg font-bold">
-                        {job.locksmith.name.split(" ").map(n => n[0]).join("").toUpperCase()}
-                      </div>
+                      {job.locksmith.profileImage ? (
+                        <img src={job.locksmith.profileImage} alt={job.locksmith.name} className="w-10 h-10 sm:w-14 sm:h-14 rounded-xl object-cover flex-shrink-0" />
+                      ) : (
+                        <div className="w-10 h-10 sm:w-14 sm:h-14 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl flex items-center justify-center text-white text-sm sm:text-lg font-bold flex-shrink-0">
+                          {job.locksmith.name.split(" ").map(n => n[0]).join("").toUpperCase()}
+                        </div>
+                      )}
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-bold text-slate-900 text-sm sm:text-base">{job.locksmith.name}</span>
@@ -1474,9 +1522,17 @@ export default function CustomerJobPage({ params }: { params: Promise<{ id: stri
                             Verified
                           </span>
                         </div>
-                        <div className="flex items-center gap-1 text-xs sm:text-sm text-green-600 mt-0.5">
-                          <CheckCircle2 className="w-3 h-3 sm:w-4 sm:h-4" />
-                          Work Completed
+                        <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                          <div className="flex items-center gap-1 text-xs sm:text-sm text-green-600">
+                            <CheckCircle2 className="w-3 h-3 sm:w-4 sm:h-4" />
+                            Work Completed
+                          </div>
+                          {job.locksmith.rating && (
+                            <div className="flex items-center gap-1 text-xs">
+                              <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                              <span className="font-medium text-slate-700">{job.locksmith.rating.toFixed(1)}</span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1519,9 +1575,13 @@ export default function CustomerJobPage({ params }: { params: Promise<{ id: stri
                 <div className="bg-white rounded-xl p-4 sm:p-6 space-y-4">
                   <div className="flex items-center justify-between gap-3 pb-4 border-b">
                     <div className="flex items-center gap-3 sm:gap-4">
-                      <div className="w-10 h-10 sm:w-14 sm:h-14 bg-gradient-to-br from-green-400 to-green-600 rounded-xl flex items-center justify-center text-white text-sm sm:text-lg font-bold">
-                        {job.locksmith.name.split(" ").map(n => n[0]).join("").toUpperCase()}
-                      </div>
+                      {job.locksmith.profileImage ? (
+                        <img src={job.locksmith.profileImage} alt={job.locksmith.name} className="w-10 h-10 sm:w-14 sm:h-14 rounded-xl object-cover flex-shrink-0" />
+                      ) : (
+                        <div className="w-10 h-10 sm:w-14 sm:h-14 bg-gradient-to-br from-green-400 to-green-600 rounded-xl flex items-center justify-center text-white text-sm sm:text-lg font-bold flex-shrink-0">
+                          {job.locksmith.name.split(" ").map(n => n[0]).join("").toUpperCase()}
+                        </div>
+                      )}
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-bold text-slate-900 text-sm sm:text-base">{job.locksmith.name}</span>
@@ -1530,9 +1590,17 @@ export default function CustomerJobPage({ params }: { params: Promise<{ id: stri
                             Verified
                           </span>
                         </div>
-                        <div className="flex items-center gap-1 text-xs sm:text-sm text-green-600 mt-0.5">
-                          <CheckCircle2 className="w-3 h-3 sm:w-4 sm:h-4" />
-                          Job Complete & Signed
+                        <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                          <div className="flex items-center gap-1 text-xs sm:text-sm text-green-600">
+                            <CheckCircle2 className="w-3 h-3 sm:w-4 sm:h-4" />
+                            Job Complete & Signed
+                          </div>
+                          {job.locksmith.rating && (
+                            <div className="flex items-center gap-1 text-xs">
+                              <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                              <span className="font-medium text-slate-700">{job.locksmith.rating.toFixed(1)}</span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
