@@ -47,10 +47,10 @@ const prisma = _prisma as any;
 
 // ── Tunables (env-overridable) ──────────────────────────────────────────────
 
-const MIN_SPEND_GBP                 = Number(process.env.AUTO_PAUSE_MIN_SPEND_GBP                 ?? "30");
-const MAX_COST_PER_COMPLETE_GBP     = Number(process.env.AUTO_PAUSE_MAX_COST_PER_COMPLETE_GBP     ?? "25");
-const MIN_BOOKINGS_NO_COMPLETION    = Number(process.env.AUTO_PAUSE_MIN_BOOKINGS_NO_COMPLETION    ?? "3");
-const ROLLING_DAYS                  = Number(process.env.AUTO_PAUSE_ROLLING_DAYS                  ?? "7");
+const MIN_SPEND_GBP                 = Number(process.env["AUTO_PAUSE_MIN_SPEND_GBP"]                 ?? "30");
+const MAX_COST_PER_COMPLETE_GBP     = Number(process.env["AUTO_PAUSE_MAX_COST_PER_COMPLETE_GBP"]     ?? "25");
+const MIN_BOOKINGS_NO_COMPLETION    = Number(process.env["AUTO_PAUSE_MIN_BOOKINGS_NO_COMPLETION"]    ?? "3");
+const ROLLING_DAYS                  = Number(process.env["AUTO_PAUSE_ROLLING_DAYS"]                  ?? "7");
 
 // ── Per-campaign evaluation ─────────────────────────────────────────────────
 
@@ -189,6 +189,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
 
+  try {
+    return await runAutoPause(request);
+  } catch (err) {
+    // Surface the underlying error in the response — without this catch,
+    // an unhandled throw → Vercel returns HTTP 500 with empty body, and we
+    // can't see what's wrong without function logs. This makes the route
+    // self-diagnosing.
+    const message = err instanceof Error ? err.message : String(err);
+    const stack   = err instanceof Error ? err.stack?.split("\n").slice(0, 6).join("\n") : undefined;
+    console.error("[auto-pause] unhandled error:", message, stack);
+    return NextResponse.json({
+      success: false,
+      error:   "Auto-pause handler threw",
+      message,
+      stack,
+    }, { status: 500 });
+  }
+}
+
+async function runAutoPause(request: NextRequest): Promise<Response> {
   const url = new URL(request.url);
   const dryRun = url.searchParams.get("dryRun") === "1";
 

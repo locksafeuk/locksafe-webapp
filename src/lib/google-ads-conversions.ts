@@ -89,7 +89,7 @@ export interface ConversionUploadResult {
 export async function uploadClickConversion(
   input: ClickConversionInput,
 ): Promise<ConversionUploadResult> {
-  const conversionAction = process.env.GOOGLE_ADS_CONVERSION_ACTION_RESOURCE;
+  const conversionAction = process.env["GOOGLE_ADS_CONVERSION_ACTION_RESOURCE"];
   if (!conversionAction) {
     return {
       ok: false,

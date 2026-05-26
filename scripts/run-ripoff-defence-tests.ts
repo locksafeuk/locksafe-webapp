@@ -225,7 +225,7 @@ await suite("toGoogleDateString", async () => {
 
 await suite("uploadClickConversion — refuses without env config", async () => {
   await test("missing GOOGLE_ADS_CONVERSION_ACTION_RESOURCE → failed/typed error", async () => {
-    delete process.env.GOOGLE_ADS_CONVERSION_ACTION_RESOURCE;
+    delete process.env["GOOGLE_ADS_CONVERSION_ACTION_RESOURCE"];
     const r = await conv.uploadClickConversion({
       gclid: "x", conversionDateTime: "2026-01-01 00:00:00+00:00",
       conversionValue: 100, orderId: "LS-1",
@@ -237,7 +237,7 @@ await suite("uploadClickConversion — refuses without env config", async () => 
 });
 
 await suite("uploadClickConversion — env configured", async () => {
-  process.env.GOOGLE_ADS_CONVERSION_ACTION_RESOURCE = "customers/1234567890/conversionActions/9999";
+  process.env["GOOGLE_ADS_CONVERSION_ACTION_RESOURCE"] = "customers/1234567890/conversionActions/9999";
   await test("posts to uploadClickConversions endpoint with the right shape", async () => {
     googleAdsCalls.length = 0;
     const r = await conv.uploadClickConversion({
@@ -260,14 +260,14 @@ await suite("uploadClickConversion — env configured", async () => {
     expect(body.conversions[0].orderId).toBe("LS-42");
   });
   await test("malformed env → typed error", async () => {
-    process.env.GOOGLE_ADS_CONVERSION_ACTION_RESOURCE = "garbage";
+    process.env["GOOGLE_ADS_CONVERSION_ACTION_RESOURCE"] = "garbage";
     const r = await conv.uploadClickConversion({
       gclid: "x", conversionDateTime: "2026-01-01 00:00:00+00:00",
       conversionValue: 100, orderId: "LS-1",
     });
     expect(r.ok).toBe(false);
     expect(r.error || "").toContain("Malformed");
-    process.env.GOOGLE_ADS_CONVERSION_ACTION_RESOURCE = "customers/1234567890/conversionActions/9999";
+    process.env["GOOGLE_ADS_CONVERSION_ACTION_RESOURCE"] = "customers/1234567890/conversionActions/9999";
   });
 });
 
