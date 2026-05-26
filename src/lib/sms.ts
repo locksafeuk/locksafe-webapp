@@ -289,14 +289,35 @@ export async function sendSMS(
 
   if (provider === "zadarma") {
     const result = await sendZadarmaSMS(to, message, options);
-    if (!result.success) {
+    if (result.success) {
+      return result;
+    }
+
+    // Safety net: if Zadarma fails but Twilio is configured, fallback so
+    // customer/admin flows are not blocked by provider auth outages.
+    if (hasTwilioConfigured()) {
+      console.warn("[SMS] Zadarma send failed, falling back to Twilio", {
+        context: options?.logContext,
+        error: result.error,
+      });
+
+      const twilioResult = await sendViaTwilio(to, message, options);
+      if (twilioResult.success) {
+        return twilioResult;
+      }
+
       return {
         success: false,
-        error: result.error || "Failed to send SMS via Zadarma",
+        error:
+          `Zadarma failed (${result.error || "unknown error"}); ` +
+          `Twilio fallback failed (${twilioResult.error || "unknown error"})`,
       };
     }
 
-    return result;
+    return {
+      success: false,
+      error: result.error || "Failed to send SMS via Zadarma",
+    };
   }
 
   return sendViaTwilio(to, message, options);
