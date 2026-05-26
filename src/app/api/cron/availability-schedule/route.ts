@@ -4,7 +4,7 @@ import prisma from "@/lib/db";
 import { sendNativePush } from "@/lib/native-push";
 
 type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
-interface DaySchedule { enabled: boolean; start: string; end: string }
+interface DaySchedule { enabled: boolean; start: string; end: string; allDay?: boolean }
 type WeeklySchedule = Record<DayKey, DaySchedule>;
 
 /**
@@ -32,6 +32,7 @@ function getScheduleState(weekly: WeeklySchedule): { inWindow: boolean } {
   const dayKey = weekdayShort.toLowerCase().slice(0, 3) as DayKey;
   const day = weekly[dayKey];
   if (!day?.enabled) return { inWindow: false };
+  if (day.allDay) return { inWindow: true };
 
   const toMins = (t: string) => {
     const [h, m] = t.split(":").map(Number);
@@ -40,6 +41,10 @@ function getScheduleState(weekly: WeeklySchedule): { inWindow: boolean } {
   const start = toMins(day.start);
   const end   = toMins(day.end);
   const cur   = toMins(`${hour}:${minute}`);
+
+  // start == end means full-day coverage for backward compatibility with
+  // schedules that model 24h as 00:00 -> 00:00.
+  if (start === end) return { inWindow: true };
 
   // Support overnight windows (e.g. 22:00–06:00)
   const inWindow = end < start ? cur >= start || cur < end : cur >= start && cur < end;

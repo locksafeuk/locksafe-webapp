@@ -3,21 +3,39 @@ import prisma from "@/lib/db";
 
 // Per-day schedule shape: { mon: { enabled: true, start: "08:00", end: "18:00" }, ... }
 export type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
-export interface DaySchedule { enabled: boolean; start: string; end: string }
+export interface DaySchedule { enabled: boolean; start: string; end: string; allDay: boolean }
 export type WeeklySchedule = Record<DayKey, DaySchedule>;
 
 const DAY_KEYS: DayKey[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 const DEFAULT_WEEKLY: WeeklySchedule = {
-  mon: { enabled: true,  start: "08:00", end: "18:00" },
-  tue: { enabled: true,  start: "08:00", end: "18:00" },
-  wed: { enabled: true,  start: "08:00", end: "18:00" },
-  thu: { enabled: true,  start: "08:00", end: "18:00" },
-  fri: { enabled: true,  start: "08:00", end: "18:00" },
-  sat: { enabled: false, start: "09:00", end: "14:00" },
-  sun: { enabled: false, start: "09:00", end: "14:00" },
+  mon: { enabled: true,  start: "08:00", end: "18:00", allDay: false },
+  tue: { enabled: true,  start: "08:00", end: "18:00", allDay: false },
+  wed: { enabled: true,  start: "08:00", end: "18:00", allDay: false },
+  thu: { enabled: true,  start: "08:00", end: "18:00", allDay: false },
+  fri: { enabled: true,  start: "08:00", end: "18:00", allDay: false },
+  sat: { enabled: false, start: "09:00", end: "14:00", allDay: false },
+  sun: { enabled: false, start: "09:00", end: "14:00", allDay: false },
 };
+
+function normalizeWeekly(weekly: unknown): WeeklySchedule {
+  if (typeof weekly !== "object" || weekly === null) return DEFAULT_WEEKLY;
+  const src = weekly as Record<string, unknown>;
+  const result = { ...DEFAULT_WEEKLY };
+  for (const key of DAY_KEYS) {
+    const day = src[key];
+    if (typeof day !== "object" || day === null) continue;
+    const value = day as Record<string, unknown>;
+    result[key] = {
+      enabled: typeof value.enabled === "boolean" ? value.enabled : result[key].enabled,
+      start: typeof value.start === "string" && TIME_RE.test(value.start) ? value.start : result[key].start,
+      end: typeof value.end === "string" && TIME_RE.test(value.end) ? value.end : result[key].end,
+      allDay: typeof value.allDay === "boolean" ? value.allDay : false,
+    };
+  }
+  return result;
+}
 
 function validateWeekly(weekly: unknown): WeeklySchedule | null {
   if (typeof weekly !== "object" || weekly === null) return null;
@@ -25,11 +43,17 @@ function validateWeekly(weekly: unknown): WeeklySchedule | null {
   for (const key of DAY_KEYS) {
     const day = (weekly as Record<string, unknown>)[key];
     if (typeof day !== "object" || day === null) return null;
-    const { enabled, start, end } = day as Record<string, unknown>;
+    const { enabled, start, end, allDay } = day as Record<string, unknown>;
     if (typeof enabled !== "boolean") return null;
     if (typeof start !== "string" || !TIME_RE.test(start)) return null;
     if (typeof end !== "string" || !TIME_RE.test(end)) return null;
-    result[key] = { enabled, start, end };
+    if (allDay !== undefined && typeof allDay !== "boolean") return null;
+    result[key] = {
+      enabled,
+      start: allDay ? "00:00" : start,
+      end: allDay ? "00:00" : end,
+      allDay: Boolean(allDay),
+    };
   }
   return result;
 }
@@ -59,7 +83,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Locksmith not found" }, { status: 404 });
     }
 
-    const weekly = (locksmith.scheduleWeekly as WeeklySchedule | null) ?? DEFAULT_WEEKLY;
+    const weekly = normalizeWeekly(locksmith.scheduleWeekly);
 
     return NextResponse.json({
       success: true,

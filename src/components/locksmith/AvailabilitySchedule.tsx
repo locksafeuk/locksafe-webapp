@@ -18,6 +18,7 @@ interface DaySchedule {
   enabled: boolean;
   start: string;
   end: string;
+  allDay: boolean;
 }
 
 type WeeklySchedule = Record<DayKey, DaySchedule>;
@@ -40,14 +41,21 @@ for (let h = 0; h < 24; h++) {
   }
 }
 
+const formatTime12 = (time: string) => {
+  const [h, m] = time.split(":").map(Number);
+  const suffix = h >= 12 ? "PM" : "AM";
+  const displayHour = h % 12 === 0 ? 12 : h % 12;
+  return `${displayHour}:${String(m).padStart(2, "0")} ${suffix}`;
+};
+
 const DEFAULT_WEEKLY: WeeklySchedule = {
-  mon: { enabled: true,  start: "08:00", end: "18:00" },
-  tue: { enabled: true,  start: "08:00", end: "18:00" },
-  wed: { enabled: true,  start: "08:00", end: "18:00" },
-  thu: { enabled: true,  start: "08:00", end: "18:00" },
-  fri: { enabled: true,  start: "08:00", end: "18:00" },
-  sat: { enabled: false, start: "09:00", end: "14:00" },
-  sun: { enabled: false, start: "09:00", end: "14:00" },
+  mon: { enabled: true,  start: "08:00", end: "18:00", allDay: false },
+  tue: { enabled: true,  start: "08:00", end: "18:00", allDay: false },
+  wed: { enabled: true,  start: "08:00", end: "18:00", allDay: false },
+  thu: { enabled: true,  start: "08:00", end: "18:00", allDay: false },
+  fri: { enabled: true,  start: "08:00", end: "18:00", allDay: false },
+  sat: { enabled: false, start: "09:00", end: "14:00", allDay: false },
+  sun: { enabled: false, start: "09:00", end: "14:00", allDay: false },
 };
 
 interface AvailabilityScheduleProps {
@@ -64,6 +72,23 @@ export function AvailabilitySchedule({ locksmithId, onUpdate }: AvailabilitySche
   const [overridden, setOverridden] = useState(false);
   const [weekly, setWeekly]       = useState<WeeklySchedule>(DEFAULT_WEEKLY);
 
+  const normalizeWeekly = (incoming: unknown): WeeklySchedule => {
+    if (!incoming || typeof incoming !== "object") return DEFAULT_WEEKLY;
+    const src = incoming as Partial<WeeklySchedule>;
+    const next = { ...DEFAULT_WEEKLY };
+    for (const day of DAYS) {
+      const raw = src[day.key] as Partial<DaySchedule> | undefined;
+      if (!raw) continue;
+      next[day.key] = {
+        enabled: typeof raw.enabled === "boolean" ? raw.enabled : next[day.key].enabled,
+        start: typeof raw.start === "string" ? raw.start : next[day.key].start,
+        end: typeof raw.end === "string" ? raw.end : next[day.key].end,
+        allDay: typeof raw.allDay === "boolean" ? raw.allDay : false,
+      };
+    }
+    return next;
+  };
+
   useEffect(() => {
     (async () => {
       try {
@@ -72,7 +97,7 @@ export function AvailabilitySchedule({ locksmithId, onUpdate }: AvailabilitySche
         if (data.success) {
           setEnabled(data.schedule?.enabled ?? false);
           setOverridden(data.schedule?.overridden ?? false);
-          if (data.schedule?.weekly) setWeekly(data.schedule.weekly);
+          if (data.schedule?.weekly) setWeekly(normalizeWeekly(data.schedule.weekly));
         }
       } catch { /* silently fall through to defaults */ }
       finally { setLoading(false); }
@@ -83,15 +108,25 @@ export function AvailabilitySchedule({ locksmithId, onUpdate }: AvailabilitySche
     setWeekly(prev => ({ ...prev, [key]: { ...prev[key], [field]: value } }));
   };
 
-  const applyPreset = (preset: "weekdays" | "all") => {
+  const applyPreset = (preset: "weekdays" | "all" | "always") => {
     setWeekly(prev => {
       const next = { ...prev } as WeeklySchedule;
       for (const day of DAYS) {
-        const isWork = preset === "all" || !["sat", "sun"].includes(day.key);
-        next[day.key] = { ...next[day.key], enabled: isWork };
+        const isWork = preset === "all" || preset === "always" || !["sat", "sun"].includes(day.key);
+        next[day.key] = {
+          ...next[day.key],
+          enabled: isWork,
+          allDay: preset === "always" ? true : next[day.key].allDay,
+          ...(preset === "always" ? { start: "00:00", end: "00:00" } : {}),
+        };
       }
       return next;
     });
+  };
+
+  const isOvernight = (cfg: DaySchedule) => {
+    if (!cfg.enabled || cfg.allDay) return false;
+    return cfg.end < cfg.start;
   };
 
   const handleSave = async () => {
@@ -181,6 +216,10 @@ export function AvailabilitySchedule({ locksmithId, onUpdate }: AvailabilitySche
               <button onClick={() => applyPreset("all")} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">
                 All 7 days
               </button>
+              <span className="text-slate-200">|</span>
+              <button onClick={() => applyPreset("always")} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">
+                24/7 all days
+              </button>
             </div>
           </div>
 
@@ -213,22 +252,43 @@ export function AvailabilitySchedule({ locksmithId, onUpdate }: AvailabilitySche
                 {/* Time pickers */}
                 {cfg.enabled ? (
                   <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <Clock className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                    <select
-                      value={cfg.start}
-                      onChange={e => updateDay(day.key, "start", e.target.value)}
-                      className="flex-1 min-w-0 text-sm px-2 py-1 rounded-lg border border-indigo-200 bg-white focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400/30 outline-none"
+                    <button
+                      onClick={() => updateDay(day.key, "allDay", !cfg.allDay)}
+                      className={`text-xs px-2 py-1 rounded-lg border font-medium ${
+                        cfg.allDay
+                          ? "bg-emerald-100 border-emerald-300 text-emerald-700"
+                          : "bg-white border-indigo-200 text-indigo-700"
+                      }`}
+                      aria-label={`Toggle 24 hours for ${day.label}`}
                     >
-                      {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                    <span className="text-slate-400 text-xs flex-shrink-0">to</span>
-                    <select
-                      value={cfg.end}
-                      onChange={e => updateDay(day.key, "end", e.target.value)}
-                      className="flex-1 min-w-0 text-sm px-2 py-1 rounded-lg border border-indigo-200 bg-white focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400/30 outline-none"
-                    >
-                      {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
+                      24h
+                    </button>
+
+                    {cfg.allDay ? (
+                      <span className="text-xs text-emerald-700 font-medium">Open all day</span>
+                    ) : (
+                      <>
+                        <Clock className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                        <select
+                          value={cfg.start}
+                          onChange={e => updateDay(day.key, "start", e.target.value)}
+                          className="flex-1 min-w-0 text-sm px-2 py-1 rounded-lg border border-indigo-200 bg-white focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400/30 outline-none"
+                          title={`${day.label} start time`}
+                        >
+                          {TIME_OPTIONS.map(t => <option key={t} value={t}>{formatTime12(t)}</option>)}
+                        </select>
+                        <span className="text-slate-400 text-xs flex-shrink-0">to</span>
+                        <select
+                          value={cfg.end}
+                          onChange={e => updateDay(day.key, "end", e.target.value)}
+                          className="flex-1 min-w-0 text-sm px-2 py-1 rounded-lg border border-indigo-200 bg-white focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400/30 outline-none"
+                          title={`${day.label} end time`}
+                        >
+                          {TIME_OPTIONS.map(t => <option key={t} value={t}>{formatTime12(t)}</option>)}
+                        </select>
+                        {isOvernight(cfg) && <span className="text-[10px] text-indigo-600">overnight</span>}
+                      </>
+                    )}
                   </div>
                 ) : (
                   <span className="text-xs text-slate-400 italic">Off</span>
@@ -242,7 +302,8 @@ export function AvailabilitySchedule({ locksmithId, onUpdate }: AvailabilitySche
             <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
             <span>
               The schedule checks every 15 minutes. If you manually go offline during a shift, you'll stay
-              offline until your next scheduled start time. Times are UK time (GMT/BST).
+              offline until your next scheduled start time. If end time is earlier than start time, it is treated
+              as overnight. Times are UK time (GMT/BST).
             </span>
           </div>
         </div>
