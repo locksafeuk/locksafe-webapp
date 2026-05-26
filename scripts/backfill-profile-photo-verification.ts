@@ -107,6 +107,18 @@ async function main(): Promise<void> {
           timeoutMs: VISION_TIMEOUT_MS,
         });
 
+        // Guard against fail-open: verifyProfilePhoto returns
+        // {isRealFace:true, confidence:0} when the vision model errors or
+        // times out. Treat that as a hard failure here — never persist a
+        // verified=true with confidence=0.
+        if (result.isRealFace && result.confidence === 0) {
+          summary.errors++;
+          summary.failures.push(`${ls.id}: vision model fail-open (timeout or error)`);
+          console.error(`${tag}: ERROR — vision model fail-open (timeout/error); not persisting`);
+          await sleep(REQ_DELAY_MS);
+          continue;
+        }
+
         await prisma.locksmith.update({
           where: { id: ls.id },
           data: {

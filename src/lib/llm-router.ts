@@ -817,7 +817,7 @@ export async function callOllamaVision(
   imageBase64: string,
   prompt: string,
   mimeType: "image/jpeg" | "image/png" | "image/webp" = "image/jpeg",
-  timeoutMs = 60_000,
+  timeoutMs = 180_000,
 ): Promise<{ content: string; durationMs: number }> {
   const startMs = Date.now();
   const model = MODEL_CONFIG.VISION.localModel;
@@ -844,6 +844,7 @@ export async function callOllamaVision(
           },
         ],
         options: { temperature: 0.1 },  // Low temp for factual extraction
+        keep_alive: "30m",              // Keep vision model in VRAM between calls (avoids 30B-model eviction cold-start)
       }),
     });
 
