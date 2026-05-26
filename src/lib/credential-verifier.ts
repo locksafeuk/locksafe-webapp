@@ -384,7 +384,8 @@ Respond ONLY with valid JSON in this exact format:
  */
 export async function verifyProfilePhoto(
   imageUrl: string,
-  locksmithName?: string
+  locksmithName?: string,
+  options: { timeoutMs?: number } = {}
 ): Promise<FaceVerificationResult> {
   const start = Date.now();
 
@@ -404,7 +405,8 @@ export async function verifyProfilePhoto(
     const { content, durationMs } = await callOllamaVision(
       image.base64,
       FACE_PROMPT,
-      image.mimeType as "image/jpeg" | "image/png" | "image/webp"
+      image.mimeType as "image/jpeg" | "image/png" | "image/webp",
+      options.timeoutMs
     );
 
     // Parse structured JSON response
