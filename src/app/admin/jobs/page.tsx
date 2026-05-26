@@ -523,6 +523,8 @@ function AdminJobsContent() {
           status: statusToPersist,
         }),
       });
+      const payload = await response.json().catch(() => null);
+
       if (response.ok) {
         if (editFormData.status === NO_LOCKSMITH_STATUS) {
           toast({
@@ -534,7 +536,9 @@ function AdminJobsContent() {
         setEditingJob(null);
         fetchJobs();
       } else {
-        alert("Failed to update job");
+        const message =
+          payload?.error || payload?.message || "Failed to update job";
+        alert(message);
       }
     } catch (error) {
       console.error("Error updating job:", error);
