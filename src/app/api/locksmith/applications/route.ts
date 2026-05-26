@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 
+const ACTIVE_APPLICATION_JOB_STATUSES = ["PENDING", "PHONE_INITIATED"] as const;
+
 // GET - Get all applications for a locksmith
 export async function GET(request: NextRequest) {
   try {
@@ -64,8 +66,12 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Default: get pending and admin_assigned applications
+    // Default: get pending and admin-assigned applications for jobs that are still open.
+    // This prevents stale cards from showing after a job is cancelled or moved forward.
     whereClause.status = { in: ["pending", "admin_assigned"] };
+    whereClause.job = {
+      status: { in: [...ACTIVE_APPLICATION_JOB_STATUSES] },
+    };
 
     const applications = await prisma.locksmithApplication.findMany({
       where: whereClause,

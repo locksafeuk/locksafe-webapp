@@ -272,11 +272,14 @@ export async function POST(
       },
     });
 
-    // Update application status if exists
+    // Close all active application rows so locksmith pending cards do not linger
+    // after a customer cancellation.
     await prisma.locksmithApplication.updateMany({
       where: {
         jobId: id,
-        status: "accepted",
+        status: {
+          in: ["accepted", "pending", "admin_assigned"],
+        },
       },
       data: {
         status: "cancelled_by_customer",

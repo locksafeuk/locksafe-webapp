@@ -136,11 +136,13 @@ export async function GET(request: NextRequest) {
     }
 
     if (results.reminded > 0 || results.errors.length > 0) {
-      await sendAdminAlert(
-        `📸 Photo Upload Reminders\n` +
-        `Checked: ${results.checked} | Reminded: ${results.reminded} | Errors: ${results.errors.length}` +
-        (results.errors.length > 0 ? `\n\nErrors:\n${results.errors.slice(0, 5).join("\n")}` : ""),
-      );
+      await sendAdminAlert({
+        title: "Photo Upload Reminders",
+        severity: results.errors.length > 0 ? "warning" : "info",
+        message:
+          `Checked: ${results.checked} | Reminded: ${results.reminded} | Errors: ${results.errors.length}` +
+          (results.errors.length > 0 ? `\n\nErrors:\n${results.errors.slice(0, 5).join("\n")}` : ""),
+      });
     }
 
     return NextResponse.json({ success: true, ...results, timestamp: new Date().toISOString() });
