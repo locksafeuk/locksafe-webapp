@@ -115,6 +115,7 @@ export default function LocksmithDashboard() {
   const [adminAssignedJobs, setAdminAssignedJobs] = useState<AdminAssignedApplication[]>([]);
   const [stripeStatus, setStripeStatus] = useState<StripeStatus | null>(null);
   const [locationStatus, setLocationStatus] = useState<LocationStatus | null>(null);
+  const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [insuranceStatus, setInsuranceStatus] = useState<InsuranceStatus | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
@@ -179,6 +180,7 @@ export default function LocksmithDashboard() {
           hasLocation: !!(profileData.profile.baseLat && profileData.profile.baseLng),
           coverageRadius: profileData.profile.coverageRadius || 10,
         });
+        setScheduleEnabled(!!profileData.profile.scheduleEnabled);
         profileRating = profileData.profile.rating || 0;
         profileReviewCount = profileData.profile.reviewCount || 0;
 
@@ -397,9 +399,23 @@ export default function LocksmithDashboard() {
       )}
 
       {/* Header */}
-      <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Dashboard</h1>
-        <p className="text-slate-500">Welcome back, {user?.name || "Locksmith"}</p>
+      <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Dashboard</h1>
+          <p className="text-slate-500">Welcome back, {user?.name || "Locksmith"}</p>
+        </div>
+        <div className="flex gap-2">
+          <Link href="/locksmith/settings">
+            <Button variant="outline" className="w-full sm:w-auto">
+              Settings
+            </Button>
+          </Link>
+          <Link href="/locksmith/settings">
+            <Button className="w-full sm:w-auto bg-indigo-500 hover:bg-indigo-600 text-white">
+              Manage Schedule
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Availability Toggle - Prominent placement */}
@@ -586,7 +602,7 @@ export default function LocksmithDashboard() {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 mb-6 sm:mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-6 sm:mb-8">
         <Link
           href="/locksmith/jobs"
           className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow group"
@@ -636,6 +652,24 @@ export default function LocksmithDashboard() {
               </p>
             </div>
             <ArrowUpRight className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400 group-hover:text-purple-500 transition-colors" />
+          </div>
+        </Link>
+
+        <Link
+          href="/locksmith/settings"
+          className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow group"
+        >
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-indigo-100 rounded-xl flex items-center justify-center group-hover:bg-indigo-200 transition-colors">
+              <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-slate-900 text-sm sm:text-base">Schedule</h3>
+              <p className="text-xs sm:text-sm text-slate-500 truncate">
+                {scheduleEnabled ? "Auto-hours on (24h + overnight supported)" : "Set your weekly hours"}
+              </p>
+            </div>
+            <ArrowUpRight className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400 group-hover:text-indigo-500 transition-colors" />
           </div>
         </Link>
       </div>
