@@ -32,7 +32,10 @@ require("tsconfig-paths").register({
 });
 
 import { prisma as _prisma } from "../src/lib/db";
-import { buildDiscoveryCampaignDraft } from "../src/lib/discovery-campaign-generator";
+import {
+  buildDiscoveryCampaignDraft,
+  buildCampaignName,
+} from "../src/lib/discovery-campaign-generator";
 import { scorePhoneLeadIntent, detectPostcodeDistrict } from "../src/lib/phone-lead-intent-score";
 import { ensureOrSkip, districtSlug }   from "../src/lib/district-landing/ensure-landing";
 import { SITE_URL }                      from "../src/lib/config";
@@ -123,9 +126,23 @@ async function main() {
   }
   console.log("");
 
-  // ── Step 1: find drafts created by the orchestrator (safe to delete) ────
-  console.log("▶ Step 1 — Finding orchestrator-created drafts that are safe to delete");
-  console.log(`  (touches aiPrompt in [${DELETABLE_AI_PROMPTS.map((s) => `"${s}"`).join(", ")}]`);
+  // ── Step 1: find drafts to replace (NAME-based, not tag-based) ─────────
+  // We delete by NAME — specifically the canonical names this script
+  // would produce from CURATED. This is the only reliable way to make
+  // the script idempotent across runs that may have been tagged with
+  // different aiPrompt values over time. Safety: still gated on
+  // status in [DRAFT, PENDING_APPROVAL] so PUBLISHED campaigns are
+  // never touched.
+  const curatedNames: string[] = CURATED.map((c) => {
+    const district = detectPostcodeDistrict(c.keyword);
+    return buildCampaignName(
+      { keyword: c.keyword, family: c.family },
+      district,
+    );
+  });
+
+  console.log("▶ Step 1 — Finding drafts to replace");
+  console.log("  (matches the 6 canonical names this script would create,");
   console.log("   AND status in [DRAFT, PENDING_APPROVAL] — never touches");
   console.log("   PUBLISHED / PUBLISHING / PAUSED drafts)");
   console.log("");
@@ -133,7 +150,7 @@ async function main() {
   const existing = await prisma.googleAdsCampaignDraft.findMany({
     where: {
       accountId: account.id,
-      aiPrompt:  { in: DELETABLE_AI_PROMPTS },
+      name:      { in: curatedNames },
       status:    { in: ["DRAFT", "PENDING_APPROVAL"] },
     },
     select: {
@@ -209,13 +226,13 @@ async function main() {
     return;
   }
 
-  // ── Step 3: delete the old drafts ───────────────────────────────────────
+  // ── Step 3: delete the matching drafts (NAME-based) ─────────────────────
   if (existing.length > 0) {
     console.log("▶ Step 3 — Deleting existing drafts");
     const deletions = await prisma.googleAdsCampaignDraft.deleteMany({
       where: {
         accountId: account.id,
-        aiPrompt:  { in: DELETABLE_AI_PROMPTS },
+        name:      { in: curatedNames },
         status:    { in: ["DRAFT", "PENDING_APPROVAL"] },
       },
     });

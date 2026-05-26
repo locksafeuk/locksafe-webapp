@@ -17,6 +17,23 @@ const prisma = _prisma as any;
 
 // ── Statically generate every published district at build time ─────────────
 // Pages that don't yet exist 404 — the route is gated on real coverage.
+//
+// dynamicParams = true is critical: it lets Next.js render on-demand
+// (ISR) for districts that DIDN'T exist at build time. Without this,
+// any DistrictLandingPage row created after the deploy (e.g. by the
+// orchestrator's ensureOrSkip during a recompose) would 404 until
+// the next full Vercel build. With it, new districts come live as
+// soon as the DB row is written.
+//
+// Inside the page itself we still call notFound() when the DB row
+// is missing or coverage is paused — so the route stays gated on
+// real coverage even though the static-params list might be stale.
+
+export const dynamicParams = true;
+// Revalidate ISR cache every hour so admin edits to a landing page
+// (contentSource = "manual_override") show up within 60 minutes
+// without needing a full deploy.
+export const revalidate = 3600;
 
 export async function generateStaticParams(): Promise<{ district: string }[]> {
   const pages = await prisma.districtLandingPage.findMany({
