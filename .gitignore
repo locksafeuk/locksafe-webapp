@@ -58,3 +58,4 @@ backups/
 # Playwright outputs
 playwright-report/
 test-results/
+test-reports/
