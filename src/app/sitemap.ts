@@ -311,11 +311,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   }
 
-  // ── District landing pages (Phase 4 — /locksmith/{district}) ─────────────
+  // ── District landing pages (Phase 4 — /locksmith-in/{district}) ────────
   // One per published DistrictLandingPage row. Real updatedAt so Google
   // can tell which pages have actually changed since last crawl —
   // critical for crawl-budget allocation. priority 0.9 because these
   // are the ad-landing target pages and convert best.
+  //
+  // Also includes the hub /locksmith-in (priority 0.9) which is the
+  // single entry point Google needs to crawl all districts. Without
+  // this hub the district pages were orphan-linked (only sitemap
+  // discoverable), which is the strongest "low value" signal Google
+  // assigns and explains 161/3800 indexation across the prior matrix.
+  const districtHubEntry: MetadataRoute.Sitemap = [
+    {
+      url: `${baseUrl}/locksmith-in`,
+      lastModified: new Date(),
+      changeFrequency: "weekly" as const,
+      priority: 0.9,
+    },
+  ];
   let districtLandingPages: MetadataRoute.Sitemap = [];
   try {
     const rows: Array<{ slug: string; updatedAt: Date }> =
@@ -352,6 +366,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...postcodePages,
     ...postcodeServicePages,
     ...keywordPages,
+    ...districtHubEntry,
     ...districtLandingPages,
     ...blogPostPages,
     ...blogCategoryPages,

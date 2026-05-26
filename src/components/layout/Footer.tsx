@@ -8,6 +8,7 @@ const footerLinks = {
     { label: "How It Works", href: "/how-it-works" },
     { label: "Services", href: "/services" },
     { label: "Pricing", href: "/pricing" },
+    { label: "Find a Local Locksmith", href: "/locksmith-in" },
     { label: "Contact", href: "/contact" },
   ],
   resources: [
