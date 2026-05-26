@@ -181,6 +181,40 @@ async function handleCallStarted(call: RetellCallData): Promise<{ success: boole
     });
   }
 
+  // ── Per-call attribution match (Phase 3b) ────────────────────────────
+  // Inbound calls only. Try to match this Retell call back to a
+  // CallIntent row written when the visitor clicked the website Call
+  // CTA. If matched, the CallIntent gets stamped with retellCallId and
+  // becomes the gclid source for the eventual Google Ads conversion
+  // upload when the resulting Job completes paid.
+  if (call.direction !== "outbound") {
+    try {
+      // Dynamic import so any breakage in the matcher cannot tank the
+      // primary call-handling flow.
+      const { matchInboundCall } = await import("@/lib/marketing/call-intent-matcher");
+      const matchResult = await matchInboundCall({
+        retellCallId: call.call_id,
+        callStartedAt: call.start_timestamp ? new Date(call.start_timestamp) : new Date(),
+        callerIdE164: call.from_number ?? undefined,
+      });
+      if (matchResult.matched) {
+        console.log(
+          `[Retell] CallIntent matched: intent=${matchResult.intentId} ` +
+          `strategy=${matchResult.strategy} call=${call.call_id}`,
+        );
+      } else {
+        console.log(
+          `[Retell] No CallIntent match for ${call.call_id}: ${matchResult.reason}`,
+        );
+      }
+    } catch (err) {
+      console.warn(
+        `[Retell] CallIntent match failed for ${call.call_id}:`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+
   console.log(`[Retell] Call started: ${call.call_id} from ${call.from_number ?? "unknown"}`);
   return { success: true };
 }

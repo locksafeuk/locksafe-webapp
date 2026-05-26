@@ -202,9 +202,24 @@ export async function uploadJobConversionIfEligible(
     };
   }
 
-  // No gclid means this Job didn't come from a Google ad click — nothing
-  // to upload. Mark accordingly so the retry cron stops trying.
-  if (!job.gclid) {
+  // No gclid on the Job directly? Two reasons that might happen:
+  //   1. Job came from organic / direct traffic — genuinely nothing to upload
+  //   2. Job is CALL-LED — booked via Retell after the visitor clicked
+  //      the website Call CTA. In that case the gclid lives on a
+  //      CallIntent row, joined via VoiceCall.jobId → VoiceCall.retellCallId
+  //      → CallIntent.retellCallId.
+  //
+  // Fall through to CallIntent before giving up.
+  let resolvedGclid: string | undefined = job.gclid ?? undefined;
+  let intentIdForAudit: string | undefined;
+  if (!resolvedGclid) {
+    const intent = await findCallIntentForJob(jobId);
+    if (intent?.gclid) {
+      resolvedGclid    = intent.gclid;
+      intentIdForAudit = intent.id;
+    }
+  }
+  if (!resolvedGclid) {
     await prisma.job.update({
       where: { id: jobId },
       data: { conversionUploadStatus: "skipped_no_gclid" },
@@ -221,7 +236,7 @@ export async function uploadJobConversionIfEligible(
     : (job.assessmentFee ?? 0);
 
   const result = await uploadClickConversion({
-    gclid:              job.gclid,
+    gclid:              resolvedGclid,
     conversionDateTime: toGoogleDateString(
       job.workCompletedAt ?? job.signedAt ?? job.acceptedAt ?? new Date(),
     ),
@@ -240,7 +255,51 @@ export async function uploadJobConversionIfEligible(
     },
   });
 
+  // When the gclid came from a CallIntent (not the Job itself), mirror
+  // the upload outcome onto that row too, so the call-attribution
+  // audit log shows both legs of the loop closing.
+  if (intentIdForAudit) {
+    await prisma.callIntent.update({
+      where: { id: intentIdForAudit },
+      data: {
+        jobId,
+        conversionUploadedAt:   result.ok ? new Date() : null,
+        conversionUploadStatus: result.ok ? "uploaded" : "error",
+        conversionUploadError:  result.ok ? null : (result.error ?? null),
+      },
+    }).catch((err: unknown) => {
+      // Don't fail the whole upload because of the audit-side write.
+      console.warn(`[conversions] failed to mirror to CallIntent ${intentIdForAudit}:`, err);
+    });
+  }
+
   return { ...result, jobId };
+}
+
+/**
+ * Resolve a CallIntent for a Job via the VoiceCall bridge.
+ *
+ * Chain: Job.id → VoiceCall (filtered by jobId) → CallIntent (joined on
+ * retellCallId, must be matched=true).
+ *
+ * Returns null when the job isn't call-led, or when the call wasn't
+ * matched to any preceding CallIntent. Stays internal — exposed for
+ * unit testing via the wrapping uploader.
+ */
+async function findCallIntentForJob(
+  jobId: string,
+): Promise<{ id: string; gclid: string | null } | null> {
+  const voiceCall = await prisma.voiceCall.findFirst({
+    where:  { jobId },
+    select: { retellCallId: true },
+  });
+  if (!voiceCall?.retellCallId) return null;
+
+  const intent = await prisma.callIntent.findFirst({
+    where:  { retellCallId: voiceCall.retellCallId, matched: true },
+    select: { id: true, gclid: true },
+  });
+  return intent;
 }
 
 // ── Formatting helpers ───────────────────────────────────────────────────────
