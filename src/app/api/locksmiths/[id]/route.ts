@@ -9,6 +9,7 @@ import {
   reverseGeocodePostcodeFromCoords,
 } from "@/lib/location-display";
 import { deleteLocksmithCascade } from "@/lib/locksmith-deletion";
+import { verifyProfilePhoto } from "@/lib/credential-verifier";
 
 // GET /api/locksmiths/[id] - Get locksmith public profile with reviews
 export async function GET(
@@ -253,13 +254,21 @@ export async function PATCH(
     }
 
     // General update (for other fields)
-    const allowedFields = ['name', 'companyName', 'phone', 'email', 'yearsExperience', 'coverageAreas', 'services', 'profileImage', 'coverageRadius', 'baseAddress', 'baseLat', 'baseLng'];
+    const allowedFields = ['name', 'companyName', 'phone', 'email', 'yearsExperience', 'coverageAreas', 'services', 'profileImage', 'coverageRadius', 'baseAddress', 'baseLat', 'baseLng', 'profilePhotoVerified', 'profilePhotoRejectionReason'];
     const filteredData: Record<string, unknown> = {};
 
     for (const field of allowedFields) {
       if (updateData[field] !== undefined) {
         filteredData[field] = updateData[field];
       }
+    }
+
+    // If admin is manually setting profilePhotoVerified, stamp the timestamp
+    if (filteredData.profilePhotoVerified === true) {
+      filteredData.profilePhotoVerifiedAt = new Date();
+      filteredData.profilePhotoRejectionReason = null;
+    } else if (filteredData.profilePhotoVerified === false) {
+      filteredData.profilePhotoVerifiedAt = null;
     }
 
     // If base location is being changed, enforce UK + Ireland restriction
@@ -300,6 +309,36 @@ export async function PATCH(
         where: { id },
         data: filteredData,
       });
+
+      // If profileImage changed, kick off async AI face verification
+      if (typeof filteredData.profileImage === "string" && filteredData.profileImage.length > 0) {
+        const newPhotoUrl = filteredData.profileImage;
+        prisma.locksmith
+          .update({
+            where: { id },
+            data: {
+              profilePhotoVerified: false,
+              profilePhotoVerifiedAt: null,
+              profilePhotoRejectionReason: null,
+              profilePhotoAiConfidence: null,
+            },
+          })
+          .catch((err) => console.error("[AdminLocksmithPatch] reset face flags failed:", err));
+
+        verifyProfilePhoto(newPhotoUrl, updated.name)
+          .then((result) =>
+            prisma.locksmith.update({
+              where: { id },
+              data: {
+                profilePhotoVerified: result.isRealFace,
+                profilePhotoVerifiedAt: result.isRealFace ? new Date() : null,
+                profilePhotoRejectionReason: result.rejectionReason ?? null,
+                profilePhotoAiConfidence: result.confidence,
+              },
+            })
+          )
+          .catch((err) => console.error("[AdminLocksmithPatch] face verify failed:", err));
+      }
 
       return NextResponse.json({
         success: true,

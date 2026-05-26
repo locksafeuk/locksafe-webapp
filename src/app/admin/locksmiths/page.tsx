@@ -98,6 +98,11 @@ interface Locksmith {
   insuranceVerifiedAt: string | null;
   insuranceVerifiedById: string | null;
   insuranceStatus: string;
+  // Profile photo AI verification
+  profilePhotoVerified: boolean;
+  profilePhotoVerifiedAt: string | null;
+  profilePhotoRejectionReason: string | null;
+  profilePhotoAiConfidence: number | null;
   // Availability status
   isAvailable: boolean;
   scheduleEnabled: boolean;
@@ -211,6 +216,10 @@ export default function AdminLocksmithsPage() {
           insuranceVerifiedAt?: string | null;
           insuranceVerifiedById?: string | null;
           insuranceStatus?: string;
+          profilePhotoVerified?: boolean;
+          profilePhotoVerifiedAt?: string | null;
+          profilePhotoRejectionReason?: string | null;
+          profilePhotoAiConfidence?: number | null;
           isAvailable?: boolean;
           scheduleEnabled?: boolean;
           lastAvailabilityChange?: string | null;
@@ -248,6 +257,10 @@ export default function AdminLocksmithsPage() {
           insuranceVerifiedAt: ls.insuranceVerifiedAt || null,
           insuranceVerifiedById: ls.insuranceVerifiedById || null,
           insuranceStatus: ls.insuranceStatus || "pending",
+          profilePhotoVerified: ls.profilePhotoVerified ?? false,
+          profilePhotoVerifiedAt: ls.profilePhotoVerifiedAt || null,
+          profilePhotoRejectionReason: ls.profilePhotoRejectionReason || null,
+          profilePhotoAiConfidence: ls.profilePhotoAiConfidence ?? null,
           isAvailable: ls.isAvailable ?? true,
           scheduleEnabled: ls.scheduleEnabled ?? false,
           lastAvailabilityChange: ls.lastAvailabilityChange || null,
@@ -737,6 +750,7 @@ export default function AdminLocksmithsPage() {
     if (statusFilter === "scheduled") matchesFilter = ls.scheduleEnabled === true;
     if (statusFilter === "stripe_pending") matchesFilter = ls.stripeConnectId !== null && !ls.stripeConnectVerified;
     if (statusFilter === "insurance_pending") matchesFilter = ls.insuranceStatus === "pending" && ls.insuranceDocumentUrl !== null;
+    if (statusFilter === "photo_unverified") matchesFilter = ls.profileImage !== null && ls.profilePhotoVerified === false;
 
     return matchesSearch && matchesFilter;
   });
@@ -1051,6 +1065,7 @@ export default function AdminLocksmithsPage() {
                 <option value="inactive">Account Disabled</option>
                 <option value="stripe_pending">Stripe Pending</option>
                 <option value="insurance_pending">Insurance Pending</option>
+                <option value="photo_unverified">Photo Unverified (AI)</option>
               </select>
               {/* View Mode Toggle */}
               <div className="flex border border-slate-300 rounded-lg overflow-hidden">
@@ -1651,6 +1666,102 @@ export default function AdminLocksmithsPage() {
                     )}
                   </div>
                 </div>
+
+                {/* Profile Photo AI Verification */}
+                {selectedLocksmith.profileImage && !selectedLocksmith.profilePhotoVerified && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="flex-1">
+                        <h3 className="text-sm font-semibold text-amber-900 flex items-center gap-2">
+                          <AlertCircle className="w-4 h-4" />
+                          Profile photo not AI-verified
+                        </h3>
+                        {selectedLocksmith.profilePhotoRejectionReason && (
+                          <p className="mt-1 text-sm text-amber-800">
+                            <span className="font-medium">AI notes:</span> {selectedLocksmith.profilePhotoRejectionReason}
+                          </p>
+                        )}
+                        {typeof selectedLocksmith.profilePhotoAiConfidence === "number" && (
+                          <p className="mt-1 text-xs text-amber-700">
+                            AI confidence: {(selectedLocksmith.profilePhotoAiConfidence * 100).toFixed(0)}%
+                          </p>
+                        )}
+                        {!selectedLocksmith.profilePhotoRejectionReason && selectedLocksmith.profilePhotoAiConfidence === null && (
+                          <p className="mt-1 text-xs text-amber-700">
+                            This photo has not yet been checked by the AI face verifier.
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!confirm("Manually mark this profile photo as verified?")) return;
+                            setActionLoading("photo-approve");
+                            try {
+                              const res = await fetch(`/api/locksmiths/${selectedLocksmith.id}`, {
+                                method: "PATCH",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ profilePhotoVerified: true }),
+                              });
+                              const data = await res.json();
+                              if (data.success) {
+                                const updated = {
+                                  ...selectedLocksmith,
+                                  profilePhotoVerified: true,
+                                  profilePhotoVerifiedAt: new Date().toISOString(),
+                                  profilePhotoRejectionReason: null,
+                                };
+                                setSelectedLocksmith(updated);
+                                setLocksmiths(prev => prev.map(ls => ls.id === selectedLocksmith.id ? updated : ls));
+                              }
+                            } catch (err) {
+                              console.error("Approve photo failed:", err);
+                              alert("Failed to approve photo");
+                            } finally {
+                              setActionLoading(null);
+                            }
+                          }}
+                          disabled={actionLoading === "photo-approve"}
+                          className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                        >
+                          {actionLoading === "photo-approve" ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                          Approve manually
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!confirm("Remove this profile photo? The locksmith will need to upload a new one.")) return;
+                            setActionLoading("photo-remove");
+                            try {
+                              const res = await fetch(`/api/locksmiths/${selectedLocksmith.id}`, {
+                                method: "PATCH",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ profileImage: null }),
+                              });
+                              const data = await res.json();
+                              if (data.success) {
+                                const updated = { ...selectedLocksmith, profileImage: null };
+                                setSelectedLocksmith(updated);
+                                setLocksmiths(prev => prev.map(ls => ls.id === selectedLocksmith.id ? updated : ls));
+                              }
+                            } catch (err) {
+                              console.error("Remove photo failed:", err);
+                              alert("Failed to remove photo");
+                            } finally {
+                              setActionLoading(null);
+                            }
+                          }}
+                          disabled={actionLoading === "photo-remove"}
+                          className="inline-flex items-center justify-center gap-2 rounded-lg bg-white border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                        >
+                          {actionLoading === "photo-remove" ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                          Remove photo
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {!selectedLocksmith.stripeConnectOnboarded && (
                   <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">

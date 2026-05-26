@@ -71,6 +71,11 @@ export async function GET(request: NextRequest) {
         insuranceVerifiedAt: true,
         insuranceVerifiedById: true,
         insuranceStatus: true,
+        // Profile photo AI verification
+        profilePhotoVerified: true,
+        profilePhotoVerifiedAt: true,
+        profilePhotoRejectionReason: true,
+        profilePhotoAiConfidence: true,
         // Availability status
         isAvailable: true,
         lastAvailabilityChange: true,

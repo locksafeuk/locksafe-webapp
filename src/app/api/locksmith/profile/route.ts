@@ -8,6 +8,7 @@ import {
   normalizeUkPostcode,
   reverseGeocodePostcodeFromCoords,
 } from "@/lib/location-display";
+import { verifyProfilePhoto } from "@/lib/credential-verifier";
 
 // Locksmith receives 85% of the total (100% - 15% platform fee)
 const LOCKSMITH_SHARE_RATE = 1 - PLATFORM_FEE_PERCENT;
@@ -367,6 +368,40 @@ export async function PATCH(request: NextRequest) {
       where: { id: locksmithId },
       data: filteredUpdates,
     });
+
+    // If profileImage was changed, kick off async AI face verification.
+    // We reset the verification flags immediately so the new photo is treated
+    // as "pending" until the AI check returns.
+    if (typeof filteredUpdates.profileImage === "string" && filteredUpdates.profileImage.length > 0) {
+      const newPhotoUrl = filteredUpdates.profileImage;
+      // Mark photo as pending re-verification immediately
+      prisma.locksmith
+        .update({
+          where: { id: locksmithId },
+          data: {
+            profilePhotoVerified: false,
+            profilePhotoVerifiedAt: null,
+            profilePhotoRejectionReason: null,
+            profilePhotoAiConfidence: null,
+          },
+        })
+        .catch((err) => console.error("[ProfilePatch] reset face flags failed:", err));
+
+      // Fire-and-forget verification
+      verifyProfilePhoto(newPhotoUrl, locksmith.name)
+        .then((result) =>
+          prisma.locksmith.update({
+            where: { id: locksmithId },
+            data: {
+              profilePhotoVerified: result.isRealFace,
+              profilePhotoVerifiedAt: result.isRealFace ? new Date() : null,
+              profilePhotoRejectionReason: result.rejectionReason ?? null,
+              profilePhotoAiConfidence: result.confidence,
+            },
+          })
+        )
+        .catch((err) => console.error("[ProfilePatch] face verify failed:", err));
+    }
 
     return NextResponse.json({
       success: true,
