@@ -82,6 +82,16 @@ describe("buildPrompt", () => {
     expect(system).toMatch(/Checkatrade/);
   });
 
+  it("bans SEO-tail template openers (added after 2026-05-26 launch audit)", () => {
+    // The first round of generations produced openers like "Reliable
+    // Locksmith Services for RG1 & Wokingham Residents" — pure keyword-
+    // stuffer template. The prompt now explicitly forbids that shape.
+    const { system } = buildPrompt(FACTS);
+    expect(system).toMatch(/Reliable \[X\] Services for \[Town\] Residents/);
+    expect(system).toMatch(/Professional \[X\] in \[Town\]/);
+    expect(system).toMatch(/keyword stuffer/);
+  });
+
   it("instructs the LLM to never name the engineer", () => {
     const { system } = buildPrompt(FACTS);
     expect(system).toMatch(/never name an individual engineer/i);

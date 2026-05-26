@@ -100,7 +100,16 @@ FORBIDDEN PHRASES — ABSOLUTE
     • "Best locksmith in X", "Leading locksmith", "Premier locksmith"
     • "Top-rated locksmith", "Trusted by thousands"
     • "Click here", "Call now!" (with exclamation), "Affordable prices"
-    • "Wide range of services", "Competitive prices"${extraBanList}
+    • "Wide range of services", "Competitive prices"
+    • SEO-tail template openers — any sentence shaped like:
+        - "Reliable [X] Services for [Town] Residents"
+        - "Professional [X] in [Town]"
+        - "Trusted [X] Provider for [Town]"
+        - "[X] You Can Trust"
+        - "Quality [X] at Affordable Prices"
+      Open the page like a person introduces themselves — not like a
+      keyword stuffer. Mention the district code or town naturally; do
+      not wrap it in a corporate-marketing frame.${extraBanList}
 
 WRITING STYLE
   • Voice: confident, honest, local UK tradesperson. Not corporate.

@@ -272,7 +272,7 @@ export default async function DistrictLandingPage({ params }: Props) {
         <section id="faq" className="bg-slate-50 border-y border-slate-200">
           <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
             <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-6">
-              Questions {page.anchorTown ?? "locals"} ask us
+              Questions {page.anchorTown ? `${page.anchorTown} residents` : "locals"} ask us
             </h2>
             <div className="space-y-4">
               {faqs.map((f, i) => (
