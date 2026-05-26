@@ -101,7 +101,7 @@ async function evaluateCampaign(
   const utmKey = campaign.name.toLowerCase().replace(/[^a-z0-9]+/g, "_");
   const jobs = await prisma.job.findMany({
     where:  { utmCampaign: utmKey, createdAt: { gte: since } },
-    select: { id: true, status: true, assessmentPaid: true, quote: { select: { totalAmount: true, status: true } } },
+    select: { id: true, status: true, assessmentPaid: true, quote: { select: { total: true, status: true } } },
   });
 
   const bookings = jobs.length;
@@ -110,8 +110,8 @@ async function evaluateCampaign(
       j.status === "COMPLETED" && j.assessmentPaid,
   );
   const actualRevenue = completedJobs.reduce(
-    (s: number, j: { quote: { totalAmount: number | null } | null }) =>
-      s + (j.quote?.totalAmount ?? 0),
+    (s: number, j: { quote: { total: number | null } | null }) =>
+      s + (j.quote?.total ?? 0),
     0,
   );
 

@@ -294,7 +294,7 @@ await suite("uploadJobConversionIfEligible — eligibility rules", async () => {
 
   await test("Job with gclid → uploads with revenue from quote", async () => {
     googleAdsCalls.length = 0;
-    tables.quote.set("q1", { id: "q1", totalAmount: 250, status: "PAID" });
+    tables.quote.set("q1", { id: "q1", total: 250, status: "PAID" });
     tables.job.set("job_with_gclid", {
       id: "job_with_gclid",
       jobNumber: "LS-101",
@@ -351,7 +351,7 @@ await suite("Auto-pause cron — decision matrix", async () => {
     id: "snap_a", platform: "google", googleCampaignId: "g_a",
     date: twoDaysAgo, spend: 50,
   });
-  tables.quote.set("q_a", { id: "q_a", totalAmount: 175 });
+  tables.quote.set("q_a", { id: "q_a", total: 175 });
   tables.job.set("job_a", {
     id: "job_a", jobNumber: "LS-A", utmCampaign: "reading_emergency",
     status: "COMPLETED", assessmentPaid: true, quoteId: "q_a", createdAt: twoDaysAgo,
@@ -392,7 +392,7 @@ await suite("Auto-pause cron — decision matrix", async () => {
     id: "snap_d", platform: "google", googleCampaignId: "g_d",
     date: twoDaysAgo, spend: 150,
   });
-  tables.quote.set("q_d", { id: "q_d", totalAmount: 200 });
+  tables.quote.set("q_d", { id: "q_d", total: 200 });
   for (let i = 0; i < 10; i++) {
     tables.job.set(`job_d_${i}`, {
       id: `job_d_${i}`, jobNumber: `LS-D${i}`, utmCampaign: "derby_anti_snap",

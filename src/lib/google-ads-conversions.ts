@@ -216,8 +216,8 @@ export async function uploadJobConversionIfEligible(
   // assessment fee. Jobs with zero revenue are still uploaded — they're
   // "no value" conversions which still help Google's auction learn
   // (a click that produced a real customer but cancelled has signal).
-  const revenue = typeof job.quote?.totalAmount === "number"
-    ? job.quote.totalAmount
+  const revenue = typeof job.quote?.total === "number"
+    ? job.quote.total
     : (job.assessmentFee ?? 0);
 
   const result = await uploadClickConversion({
