@@ -43,7 +43,7 @@ interface OpsSnapshot {
     pendingApprovals: number;
     llmRuntime: { localPct: number | null; lastModel: string | null };
   };
-  marketing: { scheduledPosts: number; draftPosts: number; activeEmailCampaigns: number; activeAdCampaigns: number };
+  marketing: { scheduledPosts: number; draftPosts: number; activeEmailCampaigns: number; activeAdCampaigns: number; activeGoogleAds: number };
   voice:     { todayCalls: number; inProgressCalls: number };
   timestamp: string;
 }
@@ -219,7 +219,7 @@ export default function AdminPage() {
   const liveVoice   = ops?.voice.inProgressCalls ?? 0;
   const pendPayout  = ops?.finance.pendingPayouts ?? 0;
   const schedPosts  = ops?.marketing.scheduledPosts ?? 0;
-  const activeAds   = ops?.marketing.activeAdCampaigns ?? 0;
+  const activeAds   = ops?.marketing.activeGoogleAds ?? 0;
   const visibleSigJobs = sigJobs.slice(0, 4);
 
   const agentSev = (): Severity => {
@@ -431,9 +431,9 @@ export default function AdminPage() {
             {/* 5 — MARKETING */}
             <Row label="Marketing" dot="bg-pink-500">
               <Tile icon={Megaphone}    label="Google Ads"
-                href="/admin/ads"
+                href="/admin/integrations/google-ads/drafts"
                 value={activeAds}
-                sub="Active campaigns"
+                sub="Published campaigns"
                 accent="pink"
                 sev={activeAds === 0 ? "warn" : "ok"}
                 sevLabel={activeAds > 0 ? `${activeAds} live` : "None active"} />

@@ -36,6 +36,7 @@ export async function GET() {
     inProgressVoiceCallsCount,
     recentExecutions,
     activeAdCampaignsCount,
+    activeGoogleAdsCount,
   ] = await Promise.all([
     prisma.job.count({
       where: { status: { in: ["ACCEPTED", "EN_ROUTE", "ARRIVED", "DIAGNOSING", "QUOTED", "IN_PROGRESS"] } },
@@ -62,6 +63,7 @@ export async function GET() {
       select: { model: true },
     }),
     prisma.adCampaign.count({ where: { status: "ACTIVE" } }),
+    prisma.googleAdsCampaignDraft.count({ where: { status: "PUBLISHED" } }),
   ]);
 
   const activeAgents = agents.filter((a) => a.status === "active").length;
@@ -102,10 +104,11 @@ export async function GET() {
       },
     },
     marketing: {
-      scheduledPosts:      scheduledPostsCount,
-      draftPosts:          draftPostsCount,
+      scheduledPosts:       scheduledPostsCount,
+      draftPosts:           draftPostsCount,
       activeEmailCampaigns: activeEmailCampaignsCount,
-      activeAdCampaigns:   activeAdCampaignsCount,
+      activeAdCampaigns:    activeAdCampaignsCount,   // Meta
+      activeGoogleAds:      activeGoogleAdsCount,      // Google Ads PUBLISHED drafts
     },
     voice: {
       todayCalls:      todayVoiceCallsCount,
