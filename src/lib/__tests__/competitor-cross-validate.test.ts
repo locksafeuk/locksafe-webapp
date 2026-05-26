@@ -344,3 +344,140 @@ describe("normalise", () => {
       .toBe("emergency locksmith manchester");
   });
 });
+
+// ── Trust-cluster synonyms (Phase 2a anti-shark discovery) ───────────────────
+
+describe("Trust-cluster synonyms — anti-shark discovery", () => {
+  describe("honest / reputable cluster", () => {
+    it("treats 'honest' and 'trustworthy' as synonyms", () => {
+      const syns = synonymsOf("honest");
+      expect(syns).toEqual(expect.arrayContaining([
+        "trustworthy", "trusted", "reputable", "reliable",
+      ]));
+    });
+
+    it("dual-confirms 'honest locksmith london' against a page that says 'trustworthy locksmith london'", () => {
+      const serpResults = [serp("honest locksmith london", "london", ["good.co.uk"])];
+      const fingerprints = new Map<string, CompetitorFingerprint>();
+      fingerprints.set("good.co.uk", fp({
+        searchableText: "trustworthy locksmith london | mla approved | dbs checked",
+      }));
+
+      const merged = mergeIntelKeywords(serpResults, fingerprints);
+      expect(merged[0].dualConfirmed).toBe(true);
+    });
+  });
+
+  describe("MLA accreditation cluster", () => {
+    it("treats 'mla' and 'master-locksmith' as synonyms", () => {
+      const syns = synonymsOf("mla");
+      expect(syns).toEqual(expect.arrayContaining([
+        "master-locksmith", "mla-approved", "mla-licensed",
+      ]));
+    });
+
+    it("dual-confirms 'mla locksmith leeds' against a page saying 'master-locksmith leeds'", () => {
+      const serpResults = [serp("mla locksmith leeds", "leeds", ["good.co.uk"])];
+      const fingerprints = new Map<string, CompetitorFingerprint>();
+      fingerprints.set("good.co.uk", fp({
+        searchableText: "approved master-locksmith covering leeds | fixed-price | family-run",
+      }));
+
+      const merged = mergeIntelKeywords(serpResults, fingerprints);
+      expect(merged[0].dualConfirmed).toBe(true);
+    });
+
+    it("does NOT cross MLA into the honest cluster (separate trust attributes)", () => {
+      // A page that only mentions "honest" should not match a keyword for "mla"
+      expect(fingerprintMatchesKeyword(
+        "the most honest locksmith service in the area",
+        "mla locksmith london",
+      )).toBe(false);
+    });
+  });
+
+  describe("DBS / vetting cluster", () => {
+    it("treats 'dbs' and 'vetted' as synonyms", () => {
+      const syns = synonymsOf("dbs");
+      expect(syns).toEqual(expect.arrayContaining([
+        "dbs-checked", "vetted", "background-checked", "crb",
+      ]));
+    });
+
+    it("bridges 'dbs locksmith' ↔ 'background-checked locksmith'", () => {
+      expect(fingerprintMatchesKeyword(
+        "every locksmith on our books is background-checked, no subcontractors",
+        "dbs locksmith",
+      )).toBe(true);
+    });
+  });
+
+  describe("Fixed-price / transparency cluster", () => {
+    it("treats 'fixed-price' and 'transparent' as synonyms", () => {
+      const syns = synonymsOf("fixed-price");
+      expect(syns).toEqual(expect.arrayContaining([
+        "fixed", "fair-price", "transparent", "upfront",
+      ]));
+    });
+
+    it("dual-confirms 'fixed price locksmith manchester' against 'transparent pricing in manchester'", () => {
+      const serpResults = [serp("fixed price locksmith manchester", "manchester", ["good.co.uk"])];
+      const fingerprints = new Map<string, CompetitorFingerprint>();
+      fingerprints.set("good.co.uk", fp({
+        searchableText: "transparent locksmith covering manchester — no surprises at the door",
+      }));
+
+      const merged = mergeIntelKeywords(serpResults, fingerprints);
+      expect(merged[0].dualConfirmed).toBe(true);
+    });
+  });
+
+  describe("No-callout-fee cluster", () => {
+    it("treats 'no-callout' and 'no-call-out-fee' as synonyms", () => {
+      const syns = synonymsOf("no-callout");
+      expect(syns).toEqual(expect.arrayContaining([
+        "no-call-out", "no-call-out-fee", "no-hidden", "no-hidden-fees",
+      ]));
+    });
+
+    it("matches a hyphenated keyword form against an alternate hyphenation", () => {
+      expect(fingerprintMatchesKeyword(
+        "honest local locksmith — no-call-out-fee, ever",
+        "no-callout locksmith",
+      )).toBe(true);
+    });
+  });
+
+  describe("Local / independent cluster", () => {
+    it("treats 'local' and 'family-run' as synonyms", () => {
+      const syns = synonymsOf("local");
+      expect(syns).toEqual(expect.arrayContaining([
+        "in-house", "own-engineer", "independent", "family-run",
+      ]));
+    });
+
+    it("does NOT bridge into national-call-centre framing", () => {
+      // A page that boasts "nationwide coverage" should NOT match "local locksmith"
+      expect(fingerprintMatchesKeyword(
+        "nationwide coverage — 200 engineers across the uk",
+        "local locksmith leeds",
+      )).toBe(false);
+    });
+  });
+
+  describe("Trust clusters stay independent of each other", () => {
+    it("'mla' does NOT match a page that only mentions 'fixed price'", () => {
+      expect(fingerprintMatchesKeyword(
+        "fixed price work, fair quotes, no surprises",
+        "mla locksmith",
+      )).toBe(false);
+    });
+
+    it("'honest' does NOT match a page that only mentions 'dbs'", () => {
+      expect(fingerprintMatchesKeyword(
+        "all engineers dbs-checked annually",
+        "honest locksmith london",
+      )).toBe(false);
+    });
+  });
+});

@@ -123,8 +123,28 @@ export async function getTopSeeds(opts: GetTopSeedsOptions = {}): Promise<string
   return sorted.map((r) => r.keyword);
 }
 
+/**
+ * Seed categories. The first set are the original engine-driven buckets;
+ * the second set are Phase 2a discovery families produced by the postcode
+ * keyword generator. Categories drive per-family budget caps later (e.g.
+ * "trust_signal" gets higher daily cap than "service_long_tail" because
+ * lower CPC + higher intent → better ROI room).
+ */
+export type SeedCategory =
+  | "baseline"
+  | "learned"
+  | "competitor"
+  | "experimental"
+  | "negative"
+  // ── Phase 2a families ─────────────────────────────────────────────────
+  | "postcode_local"
+  | "service_long_tail"
+  | "trust_signal"
+  | "b2b_specialist"
+  | "research_intent";
+
 export interface AddSeedOptions {
-  category?: "baseline" | "learned" | "competitor" | "experimental" | "negative";
+  category?: SeedCategory;
   source?: string;
   notes?: string;
 }

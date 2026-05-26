@@ -435,6 +435,74 @@ model LocksmithCoverage {
   @@index([locksmithId])
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SharkDomain — known UK locksmith scam-pattern domains.
+//
+// WHY THIS EXISTS:
+//   The anti-shark thesis: shark domains dominate generic high-intent
+//   terms (emergency locksmith, locked out, locksmith near me). When 3+
+//   shark domains appear in a SERP for a keyword, the auction is
+//   structurally rigged against an honest operator — even if you bid
+//   competitively, the on-site shark playbook (low call-out bait → £400+
+//   upsell) lets sharks sustain higher CPC than your honest model can.
+//
+//   This model lets competitor-intel flag those keywords and the
+//   opportunity scout deprioritise them, regardless of headline CPC.
+//
+//   Domains are seeded from operations-team research + auto-flagged via
+//   competitor-intel's fingerprint signals (no MLA + national bidding +
+//   call-centre-style copy + suspicious price anchors like "£49 from").
+//
+// USAGE:
+//   const sharks = await prisma.sharkDomain.findMany({ where: { isActive: true } });
+//   const sharkSet = new Set(sharks.map(s => s.domain));
+//   const sharkAdsInSerp = ad.serpDomains.filter(d => sharkSet.has(d)).length;
+//   if (sharkAdsInSerp >= 3) markKeywordSharkSaturated();
+// ─────────────────────────────────────────────────────────────────────────────
+model SharkDomain {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Bare domain (no protocol, no www, lowercase). "lockforce.co.uk" etc.
+  // Indexed for the hot-path "is this domain a shark?" lookup.
+  domain String @unique
+
+  // Free-text label shown in admin UI: "Emergency Locksmith UK (call-centre)"
+  label String?
+
+  // Which signals flagged this as a shark. Free-text array so we can add
+  // new patterns over time without a schema migration. Common values:
+  //   "no_mla"             — claims MLA badge or no MLA membership at all
+  //   "no_dbs"             — no DBS-checked claim
+  //   "national_call_centre" — non-locksmith middleman dispatcher
+  //   "suspect_pricing"    — "from £29" / "£49 callout" bait pattern
+  //   "fake_reviews"       — review-mill pattern detected
+  //   "brand_parasite"     — rides on Yale/Banham brand SEO
+  //   "manual_research"    — added by ops based on customer complaints
+  patterns String[] @default([])
+
+  // Optional supporting evidence — links to BBC/Which? exposés, Trading
+  // Standards reports, Trustpilot review aggregations, etc. Helps ops
+  // justify the flag if a domain disputes its inclusion.
+  evidenceUrls String[] @default([])
+
+  // Lifecycle. Soft-disable rather than delete — once a domain is flagged
+  // and we have spend data confirming it suppresses our ROI, we want a
+  // permanent audit trail. Toggle isActive=false if a previously-flagged
+  // operator demonstrably cleans up (rare but possible).
+  isActive   Boolean   @default(true)
+  source     String    @default("manual") // "manual" | "auto_fingerprint" | "import_research"
+  notes      String?
+
+  firstSeenAt DateTime  @default(now())
+  lastSeenAt  DateTime?  // when competitor-intel last observed this domain in a SERP
+  seenCount   Int        @default(0)  // total SERPs we've observed this domain in
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+}
+
 // Locksmith application for a job (when locksmith applies with assessment fee)
 model LocksmithApplication {
   id String @id @default(auto()) @map("_id") @db.ObjectId

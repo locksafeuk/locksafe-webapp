@@ -103,8 +103,26 @@ export function normalise(keyword: string): string {
  *
  * Conservative: only domain-specific synonyms a locksmith ops person would
  * agree are interchangeable in search intent. Not a thesaurus.
+ *
+ * ── Service-intent clusters (original) ──
+ *   24/7, emergency, locked-out, auto/car, uPVC/composite, replacement, change
+ *
+ * ── Trust-signal clusters (Phase 2a — anti-shark discovery) ──
+ *   Sharks structurally avoid these terms in their copy because they tank
+ *   conversion (a punter looking for "honest locksmith" is the punter who
+ *   already smells the rip-off). When LockSafe scans the SERP for any
+ *   token in a trust cluster, we want to count any synonymous mention on
+ *   a competitor's page as evidence that the competitor competes on that
+ *   axis — so dualConfirmed picks up genuine trust-led rivals (MLA shops,
+ *   independents) instead of dismissing them when phrasing differs.
+ *
+ *   Coverage is conservative: each cluster only contains terms that
+ *   actually signal the SAME trust attribute. We do NOT lump "honest"
+ *   with "MLA" — a shop can use one without the other, and we want the
+ *   intel surface to tell the difference.
  */
 const SYNONYM_GROUPS: Array<Set<string>> = [
+  // ── Service-intent clusters ───────────────────────────────────────────
   new Set(["24",     "24/7", "247",      "24hr",     "24-hour",
            "24hour", "twentyfour", "hour",  "hours",
            "around-the-clock", "anytime"]),
@@ -114,6 +132,51 @@ const SYNONYM_GROUPS: Array<Set<string>> = [
   new Set(["upvc", "u-pvc", "upvc-door", "composite", "composite-door"]),
   new Set(["replacement", "replace", "replacing"]),
   new Set(["change",      "changing", "changeover"]),
+
+  // ── Trust-signal clusters (anti-shark discovery) ──────────────────────
+  // Honest/reputable — the "I don't want to get ripped off" cluster.
+  new Set(["honest",     "honesty", "trustworthy",  "trusted",
+           "reputable",  "genuine", "reliable",     "ethical"]),
+
+  // MLA accreditation — Master Locksmiths Association badge.
+  new Set(["mla",                "mla-approved",  "mla-licensed",
+           "mla-member",         "msla",
+           "master-locksmith",   "master-locksmiths",
+           "approved-locksmith", "approved"]),
+
+  // DBS / criminal-record vetting — sharks dispatch unvetted subcontractors.
+  new Set(["dbs",        "dbs-checked",    "dbs-verified",
+           "vetted",     "background-checked",
+           "crb",        "crb-checked",
+           "police-checked"]),
+
+  // Pricing-transparency cluster — covers BOTH the qualifier ("fixed",
+  // "transparent", "fair") and the vocabulary it qualifies ("price",
+  // "pricing", "quote", "rate"). Conservative for anti-shark intent:
+  // any token here signals a pricing-transparency claim, so keyword
+  // tokens like "fixed" and "price" (which both appear in our templates)
+  // should both count a competitor's "transparent pricing" copy as
+  // evidence.
+  new Set([
+    // Qualifiers
+    "fixed",       "fixed-price",   "fixed-rate",
+    "fair",        "fair-price",    "honest-price",
+    "transparent", "upfront",       "set-price",
+    // Pricing vocabulary
+    "price",       "pricing",       "prices",
+    "quote",       "quotes",
+    "rate",        "rates",
+    "cost",        "costs",
+  ]),
+
+  // No-hidden-fees — the classic call-out trap.
+  new Set(["no-callout",     "no-call-out",      "no-callout-fee",
+           "no-call-out-fee","no-hidden",        "no-hidden-fees",
+           "no-hidden-charges","zero-callout"]),
+
+  // Local / real engineer — anti national-call-centre framing.
+  new Set(["local",       "in-house",   "own-engineer",
+           "independent", "family-run", "family-owned"]),
 ];
 
 /** Return all synonyms of a token (including itself). */
