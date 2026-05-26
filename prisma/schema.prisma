@@ -3663,3 +3663,65 @@ model CampaignSuggestion {
   @@index([googleCampaignId])
   @@index([type, status])
 }
+
+/// Per-call attribution row. Logged the instant a visitor clicks the
+/// Call CTA on the website, BEFORE tel: opens. Captures gclid + UTMs
+/// so we can match the eventual inbound Retell call back to the click
+/// that drove it — closing the loop on the "one shared website phone"
+/// approach without needing per-campaign DIDs.
+///
+/// Match flow:
+///   1. Visitor clicks Call → POST /api/marketing/call-intent → row created
+///   2. tel: opens, user is connected via Zadarma → Retell
+///   3. Retell webhook (or call-end event) hits us with the inbound number
+///      + start time. We find the most recent unmatched CallIntent for
+///      that visitor (or, when visitorId is unknown, the freshest intent
+///      within the last 5 minutes) and stamp the retellCallId here.
+///   4. When the resulting Job completes paid, the Stripe webhook reads
+///      the CallIntent.gclid via Job.callIntentId and fires the Google Ads
+///      offline-conversion upload.
+model CallIntent {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  visitorId String?
+  sessionId String? @db.ObjectId
+
+  // ── Attribution captured at click time ──────────────────────────────
+  gclid       String?
+  fbclid      String?
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  utmContent  String?
+  utmTerm     String?
+  landingPage String?
+  pagePath    String? // page the Call button was clicked from
+
+  // ── Click context ───────────────────────────────────────────────────
+  source   String  // "website_call_button" | "ad_click_to_call" | "modal_cta"
+  buttonId String? // optional CTA identifier (e.g. "hero", "sticky-footer")
+  userAgent String?
+
+  // ── Retell match ────────────────────────────────────────────────────
+  matched      Boolean   @default(false)
+  matchedAt    DateTime?
+  retellCallId String? // Retell's call ID once matched
+  // The phone number caller-ID we observed (when available). Stored for
+  // audit; never used as a join key because UK callers frequently withhold
+  // CLI and many will hit us from numbers we've never seen before.
+  callerIdE164 String?
+
+  // ── Downstream linkage ──────────────────────────────────────────────
+  jobId String? @db.ObjectId
+  // Conversion upload tracking — mirrors the per-Job fields on Job.
+  conversionUploadedAt   DateTime?
+  conversionUploadStatus String? // "uploaded" | "skipped:no_gclid" | "skipped:no_job" | "error"
+  conversionUploadError  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([visitorId])
+  @@index([retellCallId])
+  @@index([matched, createdAt])
+  @@index([createdAt])
+}
