@@ -1,3 +1,5 @@
+export {};
+
 /**
  * WhatsApp Cloud API Status & Green-Tick Readiness Diagnostic
  *

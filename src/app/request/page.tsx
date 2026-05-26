@@ -27,6 +27,7 @@ import { ImageUploader } from "@/components/ui/ImageUploader";
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import { captureGPS } from "@/hooks/useGPS";
 import { useTrackingEvents } from "@/hooks/useTrackingEvents";
+import { getClientAttribution } from "@/lib/marketing/client-attribution";
 
 const problemTypes = [
   { id: "lockout", label: "Locked Out", icon: "🔒", description: "Can't get into your property" },
@@ -245,6 +246,12 @@ function RequestPageContent() {
     // Capture customer's GPS location for anti-fraud protection
     const requestGps = await captureGPS();
 
+    // Capture marketing attribution — visitor ID + any UTM/gclid present
+    // on this page's URL. The server combines this with the visitor's
+    // landing session to recover the originating Google/Meta click so
+    // the Conversions API can credit it when the job completes.
+    const attribution = getClientAttribution();
+
     // If user is logged in as customer, create the job directly
     if (isAuthenticated && user && user.type === "customer") {
       try {
@@ -260,6 +267,7 @@ function RequestPageContent() {
             description: formData.description,
             photos: formData.photos, // Include uploaded photos
             requestGps: requestGps, // Customer's GPS at request time
+            ...attribution,         // visitorId + utm_* + gclid + fbclid
           }),
         });
 
@@ -285,7 +293,9 @@ function RequestPageContent() {
       return;
     }
 
-    // If not authenticated, store request in session and redirect to login
+    // If not authenticated, store request in session and redirect to login.
+    // Includes the same attribution payload so the post-registration Job
+    // creation in /api/auth/register can stamp UTM + gclid the same way.
     const pendingRequest = {
       problemType: formData.problemType,
       propertyType: formData.propertyType,
@@ -296,6 +306,7 @@ function RequestPageContent() {
       phone: formData.phone,
       photos: formData.photos, // Include uploaded photos
       requestGps: requestGps, // Customer's GPS at request time
+      ...attribution,         // visitorId + utm_* + gclid + fbclid
     };
 
     sessionStorage.setItem("pending_request", JSON.stringify(pendingRequest));

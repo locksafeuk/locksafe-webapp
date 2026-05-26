@@ -94,16 +94,33 @@ export async function getTopSeeds(opts: GetTopSeedsOptions = {}): Promise<string
     where.category = { in: opts.includeCategories };
   }
 
+  // Fetch a wider pool and re-rank by effective score (score × stabilityWeight).
+  // Prisma can't ORDER BY a computed field without a raw query, so we fetch
+  // limit×4 rows and sort in application code.
   const rows = await prisma.keywordSeed.findMany({
     where,
-    orderBy: [{ score: "desc" }, { usageCount: "asc" }],
-    take: limit,
+    take: limit * 4,
   });
 
   if (rows.length === 0) {
     return [...FALLBACK_BASELINE_SEEDS];
   }
-  return rows.map((r) => r.keyword);
+
+  // Effective score = reflection win-rate × stability weight.
+  //   score          = Wilson-ish (winCount+1)/(winCount+lossCount+2)
+  //   stabilityWeight = 0.25 for new/unverified → 1.0 for stable (4+ scans, low variance)
+  //
+  // This ensures a keyword that appeared once with a 100% win rate (1 win, 0 losses)
+  // doesn't outrank a keyword with 8 stable wins and moderate variance.
+  const sorted = (rows as Array<Record<string, unknown>>)
+    .map((r) => ({
+      keyword: r.keyword as string,
+      effectiveScore: (r.score as number) * ((r.stabilityWeight as number | undefined) ?? 0.25),
+    }))
+    .sort((a, b) => b.effectiveScore - a.effectiveScore)
+    .slice(0, limit);
+
+  return sorted.map((r) => r.keyword);
 }
 
 export interface AddSeedOptions {

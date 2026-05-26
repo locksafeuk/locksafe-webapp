@@ -21,6 +21,15 @@
  *   DRY_RUN=1 npx ts-node --project tsconfig.scripts.json scripts/backfill-locksmith-coverage.ts
  */
 
+// Register tsconfig paths so the `@/` alias inside locksmith-coverage.ts
+// resolves at runtime under ts-node. Without this the script crashes with
+// MODULE_NOT_FOUND when locksmith-coverage.ts hits `import "@/lib/db"`.
+import * as path from "path";
+require("tsconfig-paths").register({
+  baseUrl: path.resolve(__dirname, ".."),
+  paths:   { "@/*": ["src/*"] },
+});
+
 import { prisma as _prisma } from "../src/lib/db";
 import { extractDistrictsFromText } from "../src/lib/locksmith-coverage";
 

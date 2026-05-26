@@ -540,6 +540,279 @@ export class GoogleAdsClient {
    * Quota: KeywordPlan API has a small daily cap; cache aggressively at the
    * caller layer (the scout caches via the GoogleAdsOpportunity table).
    */
+  /**
+   * Pull Auction Insights for all enabled campaigns — returns competitor
+   * domains that are bidding in the same auctions as our ads.
+   *
+   * Requires at least one ENABLED campaign with sufficient impressions (Google
+   * suppresses results with < ~100 auctions). Returns an empty array when there
+   * are no active campaigns or insufficient data.
+   *
+   * GAQL reference: auction_insight resource (segment by campaign or ad_group).
+   */
+  /**
+   * Campaign impression share per geo-target, from live campaigns.
+   * Returns a map of geoTargetId → impressionShare (0–1).
+   *
+   * Used by the Opportunity Scout to know where we already have coverage
+   * (high IS = already dominant) vs where we have room to grow (low IS).
+   *
+   * Requires at least one active campaign with geo-targeting enabled.
+   * Returns empty map when no campaigns or insufficient data.
+   */
+  async getCampaignImpressionShareByGeo(
+    range: DateRange,
+  ): Promise<Map<string, number>> {
+    assertDateRange(range);
+    // GAQL: pull impression share segmented by geo_target_constant.
+    // geo_target_constant is available on campaign_criterion when geo targeting is set.
+    const gaql = `
+      SELECT
+        campaign_criterion.location.geo_target_constant,
+        metrics.search_impression_share,
+        metrics.impressions
+      FROM campaign_criterion
+      WHERE segments.date BETWEEN '${range.since}' AND '${range.until}'
+        AND campaign_criterion.type = 'LOCATION'
+        AND campaign.status = 'ENABLED'
+        AND metrics.impressions > 100
+      ORDER BY metrics.search_impression_share DESC
+    `;
+    try {
+      const rows = await this.query<{
+        campaignCriterion?: { location?: { geoTargetConstant?: string } };
+        metrics?: { searchImpressionShare?: number; impressions?: string };
+      }>(gaql);
+
+      const result = new Map<string, number>();
+      for (const r of rows) {
+        const rawGeo = r.campaignCriterion?.location?.geoTargetConstant ?? "";
+        // geoTargetConstant returned as "geoTargetConstants/12345" — extract ID
+        const geoId = rawGeo.split("/").pop() ?? "";
+        if (!geoId) continue;
+        const is = r.metrics?.searchImpressionShare ?? 0;
+        // If a geo appears multiple times (multiple campaigns), keep highest IS.
+        if (!result.has(geoId) || (result.get(geoId) ?? 0) < is) {
+          result.set(geoId, Number(is.toFixed(4)));
+        }
+      }
+      return result;
+    } catch (err) {
+      console.warn("[GoogleAdsClient] getCampaignImpressionShareByGeo failed:", err instanceof Error ? err.message : err);
+      return new Map();
+    }
+  }
+
+  /**
+   * Returns performance metrics segmented by hour of day for enabled campaigns.
+   * Used to detect "after-hours gaps" — periods when competitors drop off.
+   *
+   * Returns array of hourly rows sorted by hour (0–23).
+   */
+  async getHourlyPerformance(range: DateRange): Promise<HourlyPerformanceRow[]> {
+    assertDateRange(range);
+    const gaql = `
+      SELECT
+        segments.hour,
+        metrics.impressions,
+        metrics.clicks,
+        metrics.cost_micros,
+        metrics.conversions,
+        metrics.search_impression_share
+      FROM campaign
+      WHERE segments.date BETWEEN '${range.since}' AND '${range.until}'
+        AND campaign.status = 'ENABLED'
+        AND metrics.impressions > 0
+      ORDER BY segments.hour ASC
+    `;
+    try {
+      const rows = await this.query<{
+        segments?: { hour?: number };
+        metrics?: {
+          impressions?: string;
+          clicks?: string;
+          costMicros?: string;
+          conversions?: number;
+          searchImpressionShare?: number;
+        };
+      }>(gaql);
+
+      // Aggregate across all campaigns by hour.
+      const byHour = new Map<number, HourlyPerformanceRow>();
+      for (const r of rows) {
+        const hour = r.segments?.hour ?? 0;
+        const existing = byHour.get(hour);
+        const impressions = Number(r.metrics?.impressions ?? 0);
+        const clicks = Number(r.metrics?.clicks ?? 0);
+        const costMicros = Number(r.metrics?.costMicros ?? 0);
+        const conversions = Number(r.metrics?.conversions ?? 0);
+        const is = r.metrics?.searchImpressionShare ?? 0;
+        if (!existing) {
+          byHour.set(hour, { hour, impressions, clicks, costMicros, conversions, searchImpressionShare: is });
+        } else {
+          existing.impressions += impressions;
+          existing.clicks += clicks;
+          existing.costMicros += costMicros;
+          existing.conversions += conversions;
+          // Weighted average impression share.
+          existing.searchImpressionShare = impressions > 0
+            ? (existing.searchImpressionShare * (existing.impressions - impressions) + is * impressions) / existing.impressions
+            : existing.searchImpressionShare;
+        }
+      }
+      return [...byHour.values()].sort((a, b) => a.hour - b.hour);
+    } catch (err) {
+      console.warn("[GoogleAdsClient] getHourlyPerformance failed:", err instanceof Error ? err.message : err);
+      return [];
+    }
+  }
+
+  async getAuctionInsights(range: DateRange): Promise<AuctionInsightRow[]> {
+    assertDateRange(range);
+    const gaql = `
+      SELECT
+        auction_insight.domain,
+        metrics.impressions,
+        auction_insight.overlap_rate,
+        auction_insight.position_above_rate,
+        auction_insight.top_of_page_rate,
+        auction_insight.absolute_top_of_page_rate
+      FROM auction_insight
+      WHERE segments.date BETWEEN '${range.since}' AND '${range.until}'
+        AND campaign.status = 'ENABLED'
+      ORDER BY auction_insight.overlap_rate DESC
+    `;
+    try {
+      const rows = await this.query<{
+        auctionInsight?: {
+          domain?: string;
+          overlapRate?: number;
+          positionAboveRate?: number;
+          topOfPageRate?: number;
+          absoluteTopOfPageRate?: number;
+        };
+        metrics?: { impressions?: string };
+      }>(gaql);
+
+      // De-duplicate: GAQL returns one row per (domain × campaign), merge by domain.
+      const byDomain = new Map<string, AuctionInsightRow>();
+      for (const r of rows) {
+        const domain = r.auctionInsight?.domain;
+        if (!domain) continue;
+        const existing = byDomain.get(domain);
+        if (!existing) {
+          byDomain.set(domain, {
+            domain,
+            overlapRate: r.auctionInsight?.overlapRate ?? 0,
+            positionAboveRate: r.auctionInsight?.positionAboveRate ?? 0,
+            topOfPageRate: r.auctionInsight?.topOfPageRate ?? 0,
+            absoluteTopOfPageRate: r.auctionInsight?.absoluteTopOfPageRate ?? 0,
+          });
+        } else {
+          // Keep the highest overlap_rate row (most relevant competitor).
+          if ((r.auctionInsight?.overlapRate ?? 0) > existing.overlapRate) {
+            byDomain.set(domain, {
+              ...existing,
+              overlapRate: r.auctionInsight?.overlapRate ?? existing.overlapRate,
+              positionAboveRate: r.auctionInsight?.positionAboveRate ?? existing.positionAboveRate,
+              topOfPageRate: r.auctionInsight?.topOfPageRate ?? existing.topOfPageRate,
+              absoluteTopOfPageRate: r.auctionInsight?.absoluteTopOfPageRate ?? existing.absoluteTopOfPageRate,
+            });
+          }
+        }
+      }
+      return [...byDomain.values()].sort((a, b) => b.overlapRate - a.overlapRate);
+    } catch (err) {
+      // Auction insights may not be available on all account types; fail softly.
+      console.warn("[GoogleAdsClient] getAuctionInsights failed:", err instanceof Error ? err.message : err);
+      return [];
+    }
+  }
+
+  /**
+   * Generate keyword ideas seeded by a competitor's website URL.
+   * Uses the `siteSeed` parameter of KeywordPlanIdeaService — Google returns
+   * keywords relevant to the site's content. This is useful for discovering
+   * locksmith-relevant keyword topics from competitor sites, but it does NOT
+   * reveal their paid keyword list, bid strategy, match types, or negative
+   * keywords. It is keyword prospecting, not paid-search reverse engineering.
+   *
+   * Workflow: pass a domain discovered via getAuctionInsights() (i.e., a domain
+   * that co-appears in our auctions) to get keyword ideas seeded from their site
+   * content. The ideas then go through the Planner volume/CPC pipeline and are
+   * filtered by profitability before entering the seed bank.
+   */
+  async generateKeywordIdeasFromSite(opts: {
+    siteUrl: string;          // e.g. "https://locksmiths.co.uk"
+    geoTargetIds: string[];
+    languageId?: string;
+    network?: "GOOGLE_SEARCH" | "GOOGLE_SEARCH_AND_PARTNERS";
+    pageSize?: number;
+  }): Promise<KeywordIdea[]> {
+    if (!opts.geoTargetIds.length) throw new Error("generateKeywordIdeasFromSite: geoTargetIds required");
+    if (!opts.siteUrl) throw new Error("generateKeywordIdeasFromSite: siteUrl required");
+
+    const cfg = await getGoogleAdsApiConfig().catch(() => null);
+    const developerToken = cfg?.developerToken || process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
+    if (!developerToken) throw new Error("GOOGLE_ADS_DEVELOPER_TOKEN not configured");
+
+    const accessToken = await this.getAccessToken();
+    const url = `${API_BASE}/customers/${this.customerId}:generateKeywordIdeas`;
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${accessToken}`,
+      "developer-token": developerToken,
+      "Content-Type": "application/json",
+    };
+    if (this.loginCustomerId) headers["login-customer-id"] = this.loginCustomerId;
+
+    const body = {
+      language: `languageConstants/${opts.languageId ?? "1000"}`,
+      geoTargetConstants: opts.geoTargetIds.map((g) => `geoTargetConstants/${g}`),
+      keywordPlanNetwork: opts.network ?? "GOOGLE_SEARCH",
+      // siteSeed tells the Planner to return keywords relevant to the given URL.
+      siteSeed: { site: opts.siteUrl },
+      pageSize: opts.pageSize ?? 100,
+      includeAdultKeywords: false,
+    };
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      // Site seeds sometimes fail (private/low-traffic sites); fail softly.
+      console.warn(
+        `[GoogleAdsClient] generateKeywordIdeasFromSite failed (${res.status}) for ${opts.siteUrl}: ${text.slice(0, 200)}`,
+      );
+      return [];
+    }
+
+    const json = (await res.json()) as {
+      results?: Array<{
+        text?: string;
+        keywordIdeaMetrics?: {
+          avgMonthlySearches?: string;
+          competition?: "UNKNOWN" | "UNSPECIFIED" | "LOW" | "MEDIUM" | "HIGH";
+          competitionIndex?: string;
+          lowTopOfPageBidMicros?: string;
+          highTopOfPageBidMicros?: string;
+        };
+      }>;
+    };
+
+    return (json.results ?? []).map((r) => ({
+      text: r.text ?? "",
+      avgMonthlySearches: Number(r.keywordIdeaMetrics?.avgMonthlySearches ?? 0),
+      competition: (r.keywordIdeaMetrics?.competition ?? "UNKNOWN") as KeywordIdea["competition"],
+      competitionIndex: Number(r.keywordIdeaMetrics?.competitionIndex ?? 0),
+      lowTopOfPageBidMicros: Number(r.keywordIdeaMetrics?.lowTopOfPageBidMicros ?? 0),
+      highTopOfPageBidMicros: Number(r.keywordIdeaMetrics?.highTopOfPageBidMicros ?? 0),
+    }));
+  }
+
   async generateKeywordIdeas(opts: {
     geoTargetIds: string[]; // numeric geo constant IDs, e.g. "1006886" (Bristol)
     keywordSeeds: string[]; // e.g. ["locksmith", "emergency locksmith"]
@@ -617,6 +890,40 @@ export interface KeywordIdea {
   competitionIndex: number;
   lowTopOfPageBidMicros: number;
   highTopOfPageBidMicros: number;
+}
+
+export interface AuctionInsightRow {
+  /** Competitor domain, e.g. "locksmiths.co.uk" */
+  domain: string;
+  /**
+   * Fraction of auctions where we and the competitor both appeared (0–1).
+   * NOTE: Auction Insights shows CO-OCCURRENCE only — not what keywords they
+   * bid on, their ad copy, landing page, bid strategy, or negative keywords.
+   * Use this to identify who is fighting for the same search slots, not what
+   * they're targeting specifically.
+   */
+  overlapRate: number;
+  /** Fraction of auctions where competitor appeared above us (0–1). */
+  positionAboveRate: number;
+  /** Fraction of auctions where competitor ad appeared at the top of page (0–1). */
+  topOfPageRate: number;
+  /** Fraction of auctions where competitor ad appeared at absolute top (0–1). */
+  absoluteTopOfPageRate: number;
+}
+
+export interface HourlyPerformanceRow {
+  /** Hour of day (0–23, UTC). */
+  hour: number;
+  impressions: number;
+  clicks: number;
+  costMicros: number;
+  conversions: number;
+  /**
+   * Our search impression share during this hour.
+   * Use this to detect after-hours gaps — hours where IS drops sharply
+   * suggest competitors are pausing campaigns (day-parting opportunity).
+   */
+  searchImpressionShare: number;
 }
 
 /** Resource-name builder helpers (used when chaining mutations). */

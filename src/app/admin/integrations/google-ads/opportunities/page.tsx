@@ -5,14 +5,21 @@
  *
  * Surfaces the latest weekly scout output:
  *   • Coverage tab — cities where we already have locksmiths, ranked by
- *     bias-adjusted score (volume / (CPC × competition × near-London-penalty)).
+ *     expected monthly gross profit (£) from the profit-potential model.
  *   • Recruit-Here tab — cities with strong demand but ZERO locksmiths.
  *
- * Features added:
- *   - "Cheap Cities" toggle — filters to CPC < £1.50, not HIGH, not London
- *   - "Est. clicks/day" column — floor(10 / medianCpc) at a £10/day budget
- *   - London rows greyed out with "Manual only" badge
- *   - Near-London penalty warning on affected rows
+ * Scoring model (v2 — profit-potential):
+ *   profitPerClick = convRate × £175 jobValue - cpcGbp
+ *   expectedMonthlyProfit = Σ(searches × profitPerClick) × supply × modifiers
+ *   convRate priors: LOW 7% · MEDIUM 12% · HIGH 15%
+ *   Overridden by real campaign conv data when ≥50 clicks available.
+ *
+ * Features:
+ *   - Score = expected monthly gross profit (£), not cheapness
+ *   - Est. CPA and conv rate per city
+ *   - After-hours gap badge — competitors day-parting → 24/7 structural advantage
+ *   - Impression share from live campaigns
+ *   - "Cheap Cities" toggle — filters to CPC < £3.00, not HIGH, not London
  *   - CPC bias warning (⚠) when agentNotes.cpaBias > 1.3 (running hotter than predicted)
  *   - Hide cities that already have a PUBLISHED campaign (saturation filter)
  */
@@ -35,11 +42,31 @@ const LONDON_GEO_IDS = new Set([
 ]);
 
 interface AgentNotes {
+  // CPA reflection (from live campaign feedback)
   cpaBias?: number;
+  convRateBias?: number;
   actualCpcGbp?: number;
   predictedCpcGbp?: number;
+  actualConvRate?: number;
   sampleDays?: number;
   sampledAt?: string;
+  // Profit model outputs
+  expectedMonthlyProfitGbp?: number;
+  estimatedConvRate?: number;
+  estimatedCpaGbp?: number;
+  emergencyIntentFraction?: number;
+  // Operational confidence
+  operationalEfficiencyFactor?: number;
+  /** False when factor is a 1.0 default (no operational data), not verified 100% efficiency. */
+  modelConfidenceVerified?: boolean;
+  // Competitive signals
+  ourImpressionShare?: number | null;
+  afterHoursGap?: boolean;
+  // Fallback / geo flags
+  usingFallbackCpc?: boolean;
+  competitorDomains?: string[];
+  nearLondonPenalty?: boolean;
+  winterBoost?: boolean;
 }
 
 interface OpportunityRow {
@@ -58,6 +85,13 @@ interface OpportunityRow {
     monthlySearches: number;
     cpcGbp: number;
     competitionIndex: number;
+    profitPerClick?: number;
+    monthlyProfitGbp?: number;
+    isEmergencyIntent?: boolean;
+    /** 0.05–1.0: geo-local stability weight applied to this keyword's profit estimate */
+    stabilityWeight?: number;
+    /** Consecutive scans with profit > 0: 0–1=🆕, 2–3=⚡, 4+=✓ */
+    consecutiveSurvivalCount?: number;
     score: number;
   }>;
   locksmithCount: number;
@@ -203,7 +237,7 @@ export default function OpportunityScoutPage() {
     if (cheapCitiesOnly) {
       source = source.filter(
         (o) =>
-          o.medianCpcGbp < 1.50 &&
+          o.medianCpcGbp < 3.00 &&
           o.competitionTier !== "HIGH" &&
           !LONDON_GEO_IDS.has(o.geoTargetId),
       );
@@ -220,14 +254,24 @@ export default function OpportunityScoutPage() {
   const estClicksPerDay = (medianCpc: number) =>
     medianCpc > 0 ? Math.floor(10 / medianCpc) : 0;
 
+  /** Keyword stability badge: based on consecutiveSurvivalCount or stabilityWeight. */
+  const stabilityBadge = (kw: { stabilityWeight?: number; consecutiveSurvivalCount?: number }) => {
+    const count = kw.consecutiveSurvivalCount ?? 0;
+    const weight = kw.stabilityWeight ?? 0.25;
+    if (count === 0 && weight <= 0.25) return { icon: "🆕", label: "New — 1st scan, heavily discounted", cls: "text-gray-400" };
+    if (count <= 2 || weight < 0.6)    return { icon: "⚡", label: `${count} scans — building history`, cls: "text-yellow-600" };
+    return { icon: "✓", label: `${count} consecutive profitable scans — stable`, cls: "text-green-600" };
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold">Opportunity Scout</h1>
           <p className="text-sm text-gray-600 mt-1">
-            Weekly UK-wide scan for cheap, under-served Google Ads markets.
-            Score = monthly searches ÷ (CPC × competition) × supply × bias-adjustment.
+            Weekly UK-wide scan for under-served Google Ads markets.
+            Ranked by <strong>expected monthly gross profit</strong>: conv rate × £175 job value − CPC,
+            adjusted for supply, seasonality, and real campaign feedback.
           </p>
           {data?.computedAt && (
             <p className="text-xs text-gray-500 mt-1">
@@ -262,6 +306,32 @@ export default function OpportunityScoutPage() {
         </div>
       )}
 
+      {/* Fallback CPC warning — shown when all data is using industry estimates */}
+      {!loading && rows.length > 0 && rows.every((o) => parseAgentNotes(o.agentNotes).usingFallbackCpc) && (
+        <div className="p-3 rounded text-sm bg-amber-50 border border-amber-300 text-amber-900">
+          <strong>⚠ CPC estimates are based on industry benchmarks</strong>, not live Keyword Planner bids.
+          This happens when your Google Ads developer token is in test mode (not yet production-approved)
+          or when the account lacks sufficient auction history for these geos.
+          CPCs shown reflect realistic UK locksmith ranges (LOW £1.20 · MEDIUM £2.80 · HIGH £5.00)
+          but may differ from actual auction prices.
+          {" "}<a href="https://developers.google.com/google-ads/api/docs/get-started/dev-token" target="_blank" rel="noopener" className="underline">Apply for production token →</a>
+        </div>
+      )}
+
+      {/* Competitor domains panel — shown when auction insights are available */}
+      {!loading && (() => {
+        const allDomains = rows.flatMap((o) => parseAgentNotes(o.agentNotes).competitorDomains ?? []);
+        const unique = [...new Set(allDomains)].slice(0, 8);
+        if (!unique.length) return null;
+        return (
+          <div className="p-3 rounded text-sm bg-blue-50 border border-blue-200">
+            <span className="font-semibold text-blue-900">Competitors in your auctions: </span>
+            <span className="text-blue-800">{unique.join(" · ")}</span>
+            <span className="text-blue-600 text-xs ml-2">(from Google Auction Insights)</span>
+          </div>
+        );
+      })()}
+
       {/* Filter bar */}
       <div className="flex gap-4 items-center text-sm flex-wrap">
         <label className="flex items-center gap-2 cursor-pointer">
@@ -272,7 +342,7 @@ export default function OpportunityScoutPage() {
             className="rounded"
           />
           <span className="font-medium text-green-800">Cheap Cities only</span>
-          <span className="text-xs text-gray-500">(CPC &lt; £1.50, LOW/MEDIUM, non-London)</span>
+          <span className="text-xs text-gray-500">(CPC &lt; £3.00, LOW/MEDIUM, non-London)</span>
         </label>
         {tab === "COVERAGE" && (
           <label className="flex items-center gap-2 cursor-pointer">
@@ -330,7 +400,12 @@ export default function OpportunityScoutPage() {
             <thead className="bg-gray-50 text-xs uppercase text-gray-600">
               <tr>
                 <th className="px-3 py-2 text-left">City</th>
-                <th className="px-3 py-2 text-right">Score</th>
+                <th className="px-3 py-2 text-right" title="Expected gross monthly profit at median CPC (£175 job value, tier-based conv rates)">
+                  Est. Profit/mo
+                </th>
+                <th className="px-3 py-2 text-right" title="Estimated cost per acquisition at median CPC">
+                  Est. CPA
+                </th>
                 <th className="px-3 py-2 text-right">Median CPC</th>
                 <th className="px-3 py-2 text-right" title="Estimated clicks/day at £10 budget">
                   ~Clicks/day
@@ -348,6 +423,15 @@ export default function OpportunityScoutPage() {
                 const notes = parseAgentNotes(opp.agentNotes);
                 const highBias = notes.cpaBias && notes.cpaBias > 1.3;
                 const isSaturated = publishedGeoIds.has(opp.geoTargetId);
+                // Profit from agentNotes (preferred) or fall back to score
+                const profitGbp = notes.expectedMonthlyProfitGbp ?? opp.score;
+                const cpaGbp = notes.estimatedCpaGbp;
+                const convRate = notes.estimatedConvRate;
+                const afterHoursGap = notes.afterHoursGap;
+                const impressionShare = notes.ourImpressionShare;
+                // Operational confidence: false = no platform data yet (1.0 default, optimistic)
+                const opFactor = notes.operationalEfficiencyFactor ?? 1.0;
+                const modelVerified = notes.modelConfidenceVerified ?? false;
                 const rowClass = london
                   ? "bg-gray-50 opacity-60"
                   : isSaturated
@@ -383,16 +467,64 @@ export default function OpportunityScoutPage() {
                               ⚠ CPC hotter
                             </span>
                           )}
+                          {afterHoursGap && (
+                            <span
+                              className="text-xs bg-indigo-100 text-indigo-800 px-1.5 py-0.5 rounded"
+                              title="After-hours gap detected — competitors day-parting significantly. 24/7 platform advantage."
+                            >
+                              🌙 After-hours
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="px-3 py-2 text-right font-mono font-bold">
-                        {opp.score.toFixed(1)}
+                        <span
+                          className={profitGbp >= 500 ? "text-green-700" : profitGbp >= 100 ? "text-gray-900" : "text-gray-500"}
+                          title={convRate ? `Conv rate: ${(convRate * 100).toFixed(1)}%${!modelVerified ? " · Operational data not yet available — estimate is optimistic" : ""}` : undefined}
+                        >
+                          £{profitGbp.toFixed(0)}
+                        </span>
+                        {!modelVerified && (
+                          <span
+                            className="ml-1 text-xs text-gray-400"
+                            title="Model confidence: unverified — no operational data (spam rate, dispatch success, etc.) yet available for this city. Estimate assumes ideal conditions."
+                          >
+                            ~
+                          </span>
+                        )}
+                        {modelVerified && opFactor < 0.85 && (
+                          <span
+                            className="ml-1 text-xs text-orange-500"
+                            title={`Operational efficiency: ${(opFactor * 100).toFixed(0)}% — platform data shows meaningful losses to spam/dispatch/cancellations`}
+                          >
+                            ×{opFactor.toFixed(2)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono text-sm">
+                        {cpaGbp != null ? (
+                          <span
+                            className={cpaGbp <= 40 ? "text-green-700" : cpaGbp <= 80 ? "text-gray-700" : "text-orange-700"}
+                            title="Estimated cost per acquisition at median CPC"
+                          >
+                            £{cpaGbp.toFixed(0)}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
                       </td>
                       <td className="px-3 py-2 text-right font-mono">
                         £{opp.medianCpcGbp.toFixed(2)}
-                        {opp.medianCpcGbp < 1.0 && (
-                          <span className="ml-1 text-green-600 text-xs">✓</span>
-                        )}
+                        {(() => {
+                          const n = parseAgentNotes(opp.agentNotes);
+                          if (n.usingFallbackCpc) {
+                            return <span className="ml-1 text-amber-600 text-xs" title="Estimated — Keyword Planner returned 0 bids (test token)">~est</span>;
+                          }
+                          if (opp.medianCpcGbp < 2.0) {
+                            return <span className="ml-1 text-green-600 text-xs">✓</span>;
+                          }
+                          return null;
+                        })()}
                       </td>
                       <td className="px-3 py-2 text-right font-mono text-gray-700">
                         {estClicksPerDay(opp.medianCpcGbp)}
@@ -442,61 +574,190 @@ export default function OpportunityScoutPage() {
                     </tr>
                     {expandedId === opp.id && (
                       <tr className="bg-gray-50">
-                        <td colSpan={9} className="px-6 py-4">
+                        <td colSpan={10} className="px-6 py-4">
                           <div className="flex gap-8 flex-wrap">
                             <div className="flex-1 min-w-0">
                               <h4 className="text-xs font-semibold uppercase text-gray-600 mb-2">
                                 Top keywords (geo {opp.geoTargetId})
                               </h4>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                {opp.topKeywords.slice(0, 10).map((k) => (
-                                  <div
-                                    key={k.text}
-                                    className="flex justify-between text-xs bg-white rounded px-2 py-1 border"
-                                  >
-                                    <span className="font-mono">{k.text}</span>
-                                    <span className="text-gray-500">
-                                      {k.monthlySearches.toLocaleString()} · £{k.cpcGbp.toFixed(2)} · idx{" "}
-                                      {k.competitionIndex}
-                                    </span>
-                                  </div>
-                                ))}
+                                {opp.topKeywords.slice(0, 10).map((k) => {
+                                  const sb = stabilityBadge(k);
+                                  return (
+                                    <div
+                                      key={k.text}
+                                      className="flex justify-between text-xs bg-white rounded px-2 py-1 border"
+                                    >
+                                      <span className="font-mono flex items-center gap-1">
+                                        {k.isEmergencyIntent && <span title="Emergency intent">🚨</span>}
+                                        <span className={sb.cls} title={sb.label}>{sb.icon}</span>
+                                        {k.text}
+                                      </span>
+                                      <span className="text-gray-500 text-right">
+                                        {k.monthlySearches.toLocaleString()} · £{k.cpcGbp.toFixed(2)}
+                                        {k.profitPerClick != null && (
+                                          <span
+                                            className={k.profitPerClick > 0 ? " text-green-600 font-semibold" : " text-red-500"}
+                                            title={`Raw profit/click · stability weight: ${k.stabilityWeight?.toFixed(2) ?? "0.25"}`}
+                                          >
+                                            {" "}·{" "}
+                                            {k.profitPerClick >= 0 ? "+" : ""}£{k.profitPerClick.toFixed(2)}/click
+                                          </span>
+                                        )}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
-                            {notes.cpaBias && (
-                              <div className="w-56 shrink-0">
+                            <div className="flex flex-col gap-4 shrink-0 w-64">
+                              {/* Profit model summary */}
+                              <div>
                                 <h4 className="text-xs font-semibold uppercase text-gray-600 mb-2">
-                                  CPC reflection
+                                  Profit model
                                 </h4>
                                 <div className="space-y-1 text-xs">
                                   <div className="flex justify-between">
-                                    <span className="text-gray-500">Predicted CPC</span>
-                                    <span className="font-mono">£{notes.predictedCpcGbp?.toFixed(2) ?? "—"}</span>
+                                    <span className="text-gray-500">Est. monthly profit</span>
+                                    <span className="font-mono font-bold text-green-700">£{profitGbp.toFixed(0)}</span>
                                   </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-500">Actual CPC</span>
-                                    <span className={`font-mono font-bold ${(notes.cpaBias ?? 1) > 1.1 ? "text-orange-600" : "text-green-700"}`}>
-                                      £{notes.actualCpcGbp?.toFixed(2) ?? "—"}
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-500">CPA bias</span>
-                                    <span className={`font-mono ${(notes.cpaBias ?? 1) > 1.1 ? "text-orange-600" : "text-green-700"}`}>
-                                      {notes.cpaBias?.toFixed(2)}×
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-500">Sample days</span>
-                                    <span className="font-mono">{notes.sampleDays ?? "—"}</span>
-                                  </div>
-                                  {notes.sampledAt && (
-                                    <p className="text-gray-400 text-xs mt-1">
-                                      Sampled {new Date(notes.sampledAt).toLocaleDateString()}
-                                    </p>
+                                  {cpaGbp != null && (
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-500">Est. CPA</span>
+                                      <span className={`font-mono ${cpaGbp <= 40 ? "text-green-700" : cpaGbp <= 80 ? "text-gray-700" : "text-orange-700"}`}>
+                                        £{cpaGbp.toFixed(0)}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {convRate != null && (
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-500">Conv rate used</span>
+                                      <span className="font-mono">{(convRate * 100).toFixed(1)}%
+                                        {notes.actualConvRate != null && (
+                                          <span className="text-green-600 ml-1">(live data)</span>
+                                        )}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {notes.emergencyIntentFraction != null && (
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-500">Emergency intent</span>
+                                      <span className="font-mono">{(notes.emergencyIntentFraction * 100).toFixed(0)}% of keywords</span>
+                                    </div>
+                                  )}
+                                  {impressionShare != null && (
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-500">Our impression share</span>
+                                      <span className="font-mono">{(impressionShare * 100).toFixed(1)}%</span>
+                                    </div>
+                                  )}
+                                  {afterHoursGap && (
+                                    <div className="mt-1 rounded bg-indigo-50 border border-indigo-200 p-1.5 text-indigo-800">
+                                      🌙 <strong>After-hours gap</strong> — competitors reduce IS after 20:00.
+                                      24/7 platform has structural advantage here.
+                                    </div>
                                   )}
                                 </div>
                               </div>
-                            )}
+
+                              {/* Operational efficiency panel */}
+                              <div>
+                                <h4 className="text-xs font-semibold uppercase text-gray-600 mb-2">
+                                  Operational confidence
+                                </h4>
+                                {!modelVerified ? (
+                                  <div className="rounded bg-yellow-50 border border-yellow-200 p-2 text-xs text-yellow-800">
+                                    <strong>No operational data yet.</strong>
+                                    <br />
+                                    Est. profit assumes ideal conditions (no spam leads, 100% dispatch success, 0% cancellations).
+                                    Connect platform job data to get a realistic discount.
+                                    <br />
+                                    <span className="text-yellow-600 text-xs mt-1 block">
+                                      Fields needed: spam lead rate, missed call rate, dispatch success rate, cancellation rate, refund rate.
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-1 text-xs">
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-500">Operational factor</span>
+                                      <span className={`font-mono font-bold ${opFactor >= 0.85 ? "text-green-700" : opFactor >= 0.65 ? "text-orange-600" : "text-red-600"}`}>
+                                        {(opFactor * 100).toFixed(0)}%
+                                      </span>
+                                    </div>
+                                    <p className="text-gray-400 text-xs">
+                                      Actual realised profit ≈ £{(profitGbp).toFixed(0)} (already applied above).
+                                      Pre-discount gross: £{opFactor > 0 ? (profitGbp / opFactor).toFixed(0) : "—"}.
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+
+                              {notes.usingFallbackCpc && (
+                                <div className="rounded bg-amber-50 border border-amber-200 p-2 text-xs text-amber-800">
+                                  <strong>Estimated CPC</strong><br />
+                                  Keyword Planner returned 0 bids — showing industry benchmarks instead.
+                                  Activate a production developer token to get live auction prices.
+                                </div>
+                              )}
+                              {(notes.competitorDomains ?? []).length > 0 && (
+                                <div>
+                                  <h4 className="text-xs font-semibold uppercase text-gray-600 mb-1">
+                                    Auction co-occurrence
+                                  </h4>
+                                  <p className="text-xs text-gray-500 mb-1">
+                                    Domains appearing in the same auction slots (Auction Insights).
+                                    Not the same as their keyword list or bid strategy.
+                                  </p>
+                                  <ul className="space-y-0.5">
+                                    {(notes.competitorDomains ?? []).slice(0, 6).map((d) => (
+                                      <li key={d} className="text-xs text-blue-700 font-mono truncate">{d}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                              {notes.cpaBias && (
+                                <div>
+                                  <h4 className="text-xs font-semibold uppercase text-gray-600 mb-2">
+                                    Live campaign feedback
+                                  </h4>
+                                  <div className="space-y-1 text-xs">
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-500">Predicted CPC</span>
+                                      <span className="font-mono">£{notes.predictedCpcGbp?.toFixed(2) ?? "—"}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-500">Actual CPC</span>
+                                      <span className={`font-mono font-bold ${(notes.cpaBias ?? 1) > 1.1 ? "text-orange-600" : "text-green-700"}`}>
+                                        £{notes.actualCpcGbp?.toFixed(2) ?? "—"}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-500">CPA bias</span>
+                                      <span className={`font-mono ${(notes.cpaBias ?? 1) > 1.1 ? "text-orange-600" : "text-green-700"}`}>
+                                        {notes.cpaBias?.toFixed(2)}×
+                                      </span>
+                                    </div>
+                                    {notes.convRateBias != null && (
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-500">Conv rate bias</span>
+                                        <span className={`font-mono ${(notes.convRateBias ?? 1) > 1.0 ? "text-green-600" : "text-orange-600"}`}>
+                                          {notes.convRateBias?.toFixed(2)}×
+                                        </span>
+                                      </div>
+                                    )}
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-500">Sample days</span>
+                                      <span className="font-mono">{notes.sampleDays ?? "—"}</span>
+                                    </div>
+                                    {notes.sampledAt && (
+                                      <p className="text-gray-400 text-xs mt-1">
+                                        Sampled {new Date(notes.sampledAt).toLocaleDateString()}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
                           </div>
                           {london && (
                             <p className="mt-3 text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded p-2">
@@ -516,10 +777,13 @@ export default function OpportunityScoutPage() {
 
       {/* Legend */}
       <div className="flex gap-4 text-xs text-gray-500 flex-wrap">
-        <span>✓ green CPC = under £1.00</span>
-        <span>⚠ CPC hotter = actual CPC ran &gt;30% above Planner prediction</span>
-        <span>Live ✓ = already has a published campaign</span>
-        <span>~Clicks/day = estimate at £10/day budget</span>
+        <span><strong>Est. Profit/mo ~</strong> = optimistic estimate (no operational data) · <strong>×0.XX</strong> = efficiency discount applied</span>
+        <span><strong>Est. CPA</strong> = median CPC ÷ conv rate · green ≤£40 · orange &gt;£80</span>
+        <span>🆕 = keyword first scan (heavily discounted) · ⚡ = building history · ✓ = stable (4+ scans)</span>
+        <span>🌙 After-hours = competitors day-part after 20:00, 24/7 platform advantage</span>
+        <span>🚨 = emergency intent keyword</span>
+        <span>~est CPC = industry benchmark (test token) · ⚠ CPC hotter = running &gt;30% above prediction</span>
+        <span>Live ✓ = published campaign · ~Clicks/day = £10/day budget estimate</span>
       </div>
     </div>
   );

@@ -1,16 +1,30 @@
 /**
- * Opportunity Scorer.
+ * Opportunity Scorer — Profit-Potential Model (v2).
  *
- * Given a coverage universe and a Google Ads client, calls the Keyword Planner
- * once per geo with our locksmith seed keywords, then computes per-geo
- * "opportunity scores" used to rank where it's cheapest and least competitive
- * for us to start running ads.
+ * Ranks geos by EXPECTED MONTHLY PROFIT, not cheapness.
  *
- *   score(keyword) = avgMonthlySearches / max(1, cpcGbp * (competitionIndex/10))
- *   geoScore        = sum of top-5 keyword scores
+ * Previous model scored searches / (cpc × competition), which systematically
+ * penalised high-intent markets (£4–8 CPC) that are still very profitable.
+ * In locksmith PPC a £5 click with 15% conversion at £175 avg job value
+ * returns £21 expected revenue per click, i.e. £16 gross profit — far better
+ * than a £1 click with 5% conversion (£7.75 expected revenue, £6.75 profit).
  *
- * High-volume + low-CPC + low-competition geos rise to the top. London comes
- * back saturated; secondary cities (Bristol, Leeds, Wrexham, Hull, ...) bubble.
+ * New formula:
+ *
+ *   profitPerClick(kw) = convRate(tier) × jobValue - cpcGbp
+ *   expectedMonthlyProfit(geo) = Σ_top5(searches × profitPerClick)
+ *                               × supplyFactor
+ *                               × competitorGapFactor      (if IS data available)
+ *                               × seasonalMultiplier
+ *                               × performanceBias          (from live campaign data)
+ *
+ * Conversion rate priors (calibrated against UK locksmith SEM benchmarks):
+ *   LOW competition  7%   — mixed intent, planned work, less urgent
+ *   MEDIUM          12%   — good emergency mix
+ *   HIGH            15%   — very high intent; only urgent searches click through
+ *
+ * These are overridden by real campaign data when available (passed via
+ * opts.geoConvRateMap).
  *
  * Quota note: KeywordPlanIdeaService has a small daily cap. The scout calls
  * this weekly only, and we batch all seeds per geo into a single API call.
@@ -20,6 +34,13 @@ import type { GoogleAdsClient, KeywordIdea } from "@/lib/google-ads";
 import { microsToCurrency } from "@/lib/google-ads";
 import type { CoverageUniverseEntry } from "@/lib/google-ads-geo-universe";
 import prisma from "@/lib/db";
+import {
+  recordSeedScanAppearance,
+  recordGeoScanAppearance,
+  getGeoLocalScoreMap,
+  getAllGeoOperationalFactors,
+  computeStabilityWeight,
+} from "@/lib/keyword-geo-score";
 
 // =========================================================================
 // London geo IDs — excluded from auto-draft to avoid competing with
@@ -86,17 +107,55 @@ export interface OpportunityKeyword {
   monthlySearches: number;
   competition: KeywordIdea["competition"];
   competitionIndex: number;
-  /** Midpoint top-of-page bid in GBP. */
+  /** Top-of-page bid in GBP (high end preferred for realism). */
   cpcGbp: number;
-  /** Opportunity score for this single keyword. */
+  /**
+   * Expected gross profit per click for this keyword:
+   *   profitPerClick = convRate × jobValue - cpcGbp
+   * Negative when CPC > expected revenue per click (keyword is unprofitable at baseline).
+   */
+  profitPerClick: number;
+  /** Expected monthly gross profit contribution: searches × profitPerClick. */
+  monthlyProfitGbp: number;
+  /** True when this keyword contains strong emergency-intent signals. */
+  isEmergencyIntent: boolean;
+  /** @deprecated kept for backwards compat — use monthlyProfitGbp for ranking */
   score: number;
+
+  /**
+   * Stability weight applied to this keyword's profitPerClick (0.05–1.0).
+   * < 1 = discounted because keyword is new, volatile, or has a short scan history.
+   * = 1 = stable, consistent across ≥ 4 scans with low variance.
+   */
+  stabilityWeight?: number;
+
+  /**
+   * Consecutive scans in which this keyword appeared with profitPerClick > 0.
+   * Used for UI stability badge: 0–1 = 🆕, 2–3 = ⚡, 4+ = ✓
+   */
+  consecutiveSurvivalCount?: number;
 }
 
 export interface GeoOpportunity {
   geoId: string;
   cityKey: string;
   label: string;
-  /** Aggregate score (sum of top-5 keyword scores). */
+  /**
+   * Primary ranking signal — expected gross monthly profit (£) at median CPC,
+   * after supply, seasonal, near-London, and performance-bias adjustments.
+   * Replace any display of the legacy `score` with this field.
+   */
+  expectedMonthlyProfitGbp: number;
+  /** Conversion rate used for this geo (real data override or tier baseline). */
+  estimatedConvRate: number;
+  /** Estimated cost per acquisition: medianCpcGbp / estimatedConvRate. */
+  estimatedCpaGbp: number;
+  /**
+   * Fraction of top-10 keywords with emergency intent signals.
+   * Higher = more urgent demand = better conversion rate assumption.
+   */
+  emergencyIntentFraction: number;
+  /** @deprecated use expectedMonthlyProfitGbp for ranking; kept for DB compat */
   score: number;
   /** Median CPC across returned ideas (GBP). */
   medianCpcGbp: number;
@@ -106,26 +165,48 @@ export interface GeoOpportunity {
   competitionTier: CompetitionTier;
   /** Sum of avgMonthlySearches across returned ideas. */
   totalMonthlySearches: number;
-  /** Top 10 keywords by per-keyword score. */
+  /** Top 10 keywords sorted by expected monthly profit (not cheapness). */
   topKeywords: OpportunityKeyword[];
   /** Number of eligible locksmiths who can fulfil leads from this geo. */
   locksmithCount: number;
   /** Locksmith IDs from the coverage cohort. */
   locksmithIds: string[];
-  /** "Supply ratio" — locksmiths per 100 monthly searches. >1 = healthy fulfilment. */
+  /** "Supply ratio" — locksmiths per 100 monthly searches. */
   supplyRatio: number;
   /**
-   * True if this city is within ~38 miles of London and suffers from auction
-   * bleed from national chain broad-match campaigns. Score is already penalised
-   * by NEAR_LONDON_PENALTY; this flag lets the UI show a warning.
+   * Impression share data from a live campaign targeting this geo (0–1).
+   * Null when no campaign is running here yet.
    */
-  nearLondonPenalty?: boolean;
+  ourImpressionShare?: number;
   /**
-   * True if the winter seasonal boost (1.2×) was applied because this is a
-   * northern city and today falls in Oct–Feb. Score already includes the uplift;
-   * this flag lets the UI show a ❄️ badge.
+   * True when competitors have significantly lower impression share after 20:00
+   * — indicates an after-hours coverage gap we can exploit with day-parting.
    */
+  afterHoursGap?: boolean;
+  /** True if this city is within ~38 miles of London (auction bleed). */
+  nearLondonPenalty?: boolean;
+  /** True if the winter seasonal boost (1.2×) was applied. */
   winterBoost?: boolean;
+  /**
+   * True when ALL keywords for this geo returned 0 bid estimates from the
+   * Keyword Planner and industry fallback CPCs were used instead.
+   */
+  usingFallbackCpc?: boolean;
+
+  /**
+   * Operational efficiency factor applied to the profit estimate (0–1).
+   * Derived from GeoOperationalMetrics: spam rate, missed calls, dispatch
+   * success, cancellations, refunds. Returns 1.0 when no operational data
+   * exists yet (optimistic assumption).
+   */
+  operationalEfficiencyFactor?: number;
+
+  /**
+   * False when operationalEfficiencyFactor = 1.0 due to missing data (not
+   * because the geo is genuinely 100% efficient). The UI uses this to show
+   * a "model confidence: unverified" warning on the profit estimate.
+   */
+  modelConfidenceVerified?: boolean;
 }
 
 export interface ScoreOpportunitiesOptions {
@@ -140,16 +221,53 @@ export interface ScoreOpportunitiesOptions {
   maxGeos?: number;
   /**
    * Exclude all London borough geo IDs from scoring (LONDON_GEO_IDS set).
-   * Defaults to true — the two existing UK-wide campaigns already cover London.
+   * Defaults to true.
    */
   excludeLondon?: boolean;
   /**
-   * Skip geos whose computed medianCpcGbp exceeds this threshold.
-   * Defaults to 1.80 (matching the production-hardened MANUAL_CPC max bid).
-   * Set to Infinity to score all geos regardless of CPC.
+   * @deprecated No longer used as a hard filter — the profit model handles
+   * unprofitable CPCs naturally (negative profit term). Kept for backwards compat.
    */
   maxMedianCpcGbp?: number;
-  /** Optional callback when one geo finishes — used for cron progress logs. */
+  /**
+   * Average locksmith job revenue in GBP. Used in the profit calculation.
+   * Defaults to £175 (UK average: emergency £200, planned £120, blended ~£175).
+   */
+  jobValueGbp?: number;
+  /**
+   * Per-geo conversion rate overrides from live campaign data.
+   * Key = geoId (e.g. "1006886"), value = observed conversion rate (0–1).
+   * When present, overrides the tier-based baseline for that geo.
+   */
+  geoConvRateMap?: Map<string, number>;
+  /**
+   * Per-geo impression share from live campaigns.
+   * Key = geoId, value = impression share (0–1).
+   * Used to detect where we're already dominant vs where we have room to grow.
+   */
+  geoImpressionShareMap?: Map<string, number>;
+  /**
+   * Per-geo after-hours gap flag.
+   * Key = geoId, value = true when competitor IS drops >30% after 20:00.
+   */
+  geoAfterHoursGapMap?: Map<string, boolean>;
+
+  /**
+   * Operational efficiency factors — fetched once per run from GeoOperationalMetrics.
+   * Key = geoId, value = { factor: 0–1, dataAvailable: boolean }.
+   * When absent for a geo, assumes factor=1.0 (no discount, but model unverified).
+   * Pre-fetch with getAllGeoOperationalFactors() before calling scoreOpportunities.
+   */
+  geoOperationalFactorMap?: Map<string, { factor: number; dataAvailable: boolean }>;
+
+  /**
+   * When true, record scan appearances in KeywordSeed (stability) and
+   * KeywordGeoScore (geo isolation) tables after scoring each geo.
+   * Defaults to true. Set to false in tests to avoid DB side effects.
+   */
+  recordScanData?: boolean;
+
+  /** Optional callback when one geo finishes. */
   onGeoScored?: (geo: GeoOpportunity) => void;
   /** Hook to record per-geo failures without aborting the whole batch. */
   onGeoFailed?: (geoId: string, label: string, error: Error) => void;
@@ -257,6 +375,64 @@ function isNearLondonCity(cityKey: string): boolean {
   return NEAR_LONDON_CITY_KEYS.has(cityKey.toLowerCase());
 }
 
+// =========================================================================
+// Profit model constants
+// =========================================================================
+
+/**
+ * Average locksmith job revenue in GBP (blended: emergency £200, planned £120).
+ * Override via ScoreOpportunitiesOptions.jobValueGbp when regional data exists.
+ */
+export const LOCKSMITH_DEFAULT_JOB_VALUE_GBP = 175;
+
+/**
+ * Baseline conversion rate priors, calibrated against UK locksmith SEM data.
+ *
+ * Key insight: HIGH competition → HIGHER conversion rate, not lower.
+ * National chains bid aggressively on "emergency locksmith" only because the
+ * intent is near-guaranteed purchase. Low-competition terms often reflect
+ * informational or comparison searches with weaker intent.
+ *
+ *   LOW    7%  — mixed intent, some planned/research queries
+ *   MEDIUM 12% — good emergency mix, high urgency
+ *   HIGH   15% — near-guaranteed purchase intent; only serious searches survive
+ */
+export const BASELINE_CONV_RATES: Record<CompetitionTier, number> = {
+  LOW:     0.07,
+  MEDIUM:  0.12,
+  HIGH:    0.15,
+  UNKNOWN: 0.10,
+};
+
+/**
+ * Bonus multiplier applied when ≥30% of a geo's top keywords are
+ * emergency-intent terms. These convert faster and at higher job value.
+ */
+const EMERGENCY_INTENT_BOOST = 1.15;
+
+/**
+ * Regex patterns that flag emergency-intent locksmith keywords.
+ * These commands a ~15–25% conversion premium over general locksmith terms.
+ */
+const EMERGENCY_INTENT_RE =
+  /\b(emergency|urgent|24.?hour|locked out|lockout|lock out|broken key|snapped key|burglary|break.?in|asap|now|tonight|today)\b/i;
+
+/**
+ * Industry-calibrated CPC floor for the UK locksmith vertical.
+ * Used when Google Keyword Planner returns 0 bid estimates.
+ *
+ * Benchmark ranges (UK locksmith SEM, May 2026):
+ *   LOW    → £0.80–£2.00
+ *   MEDIUM → £2.00–£4.50
+ *   HIGH   → £4.00–£9.00
+ */
+function locksmithCpcFloor(competitionIndex: number): number {
+  if (competitionIndex >= 67) return 5.00;  // HIGH
+  if (competitionIndex >= 34) return 2.80;  // MEDIUM
+  if (competitionIndex > 0)   return 1.20;  // LOW
+  return 1.80;                               // UNKNOWN
+}
+
 export async function scoreOpportunities(
   client: GoogleAdsClient,
   universe: CoverageUniverseEntry[],
@@ -265,10 +441,11 @@ export async function scoreOpportunities(
   if (!opts.seedKeywords.length) {
     throw new Error("scoreOpportunities: seedKeywords required");
   }
-  const seeds = opts.seedKeywords.slice(0, 20);
+  const seeds = opts.seedKeywords.slice(0, 25); // bumped from 20 — competitor terms need room
   const delay = opts.perGeoDelayMs ?? 250;
-  const excludeLondon = opts.excludeLondon !== false; // default true
-  const maxCpc = opts.maxMedianCpcGbp ?? 1.80;
+  const excludeLondon = opts.excludeLondon !== false;
+  const jobValue = opts.jobValueGbp ?? LOCKSMITH_DEFAULT_JOB_VALUE_GBP;
+  const shouldRecord = opts.recordScanData !== false;
 
   // Filter the universe before hitting the Planner API to save quota.
   let filtered = universe;
@@ -276,6 +453,11 @@ export async function scoreOpportunities(
     filtered = filtered.filter((e) => !LONDON_GEO_IDS.has(e.geoId));
   }
   const candidates = opts.maxGeos ? filtered.slice(0, opts.maxGeos) : filtered;
+
+  // Pre-fetch operational efficiency factors for all known geos.
+  // Falls back to an empty map (all geos get factor=1.0 / dataAvailable=false).
+  const operationalFactors = opts.geoOperationalFactorMap ??
+    await getAllGeoOperationalFactors().catch(() => new Map<string, { factor: number; dataAvailable: boolean }>());
 
   const opportunities: GeoOpportunity[] = [];
   const failures: ScoreOpportunitiesResult["failures"] = [];
@@ -286,88 +468,179 @@ export async function scoreOpportunities(
         geoTargetIds: [entry.geoId],
         keywordSeeds: seeds,
       });
+
+      const allZeroBids = ideas.every(
+        (i) => i.highTopOfPageBidMicros === 0 && i.lowTopOfPageBidMicros === 0,
+      );
+
+      // ── Step 1: Determine geo-level conversion rate ──────────────────────
+      // Use real campaign data if available for this geo; otherwise use the
+      // competition-tier baseline. Real data always wins.
+      const compIdx = ideas
+        .map((i) => i.competitionIndex)
+        .filter((v) => v > 0);
+      const medianComp = median(compIdx);
+      const tier = classifyTier(medianComp);
+      const realConvRate = opts.geoConvRateMap?.get(entry.geoId);
+      const estimatedConvRate = realConvRate ?? BASELINE_CONV_RATES[tier];
+
+      // ── Step 1b: Geo-local keyword score map ─────────────────────────────
+      // Fetch per-(keyword × geo) stability weights. These isolate geo-specific
+      // learning so Sheffield's conversion history doesn't inflate Exeter.
+      // Returns empty map on error — scorer falls back to global weights.
+      const geoLocalScoreMap = await getGeoLocalScoreMap(entry.geoId).catch(
+        () => new Map<string, number>(),
+      );
+
+      // ── Step 2: Per-keyword profit calculation ───────────────────────────
       const scored = ideas
         .filter((i) => i.avgMonthlySearches > 0 && i.text)
         .map<OpportunityKeyword>((i) => {
-          const cpcGbp =
-            (microsToCurrency(i.lowTopOfPageBidMicros) +
-              microsToCurrency(i.highTopOfPageBidMicros)) /
-            2;
-          const safeCpc = cpcGbp > 0 ? cpcGbp : 0.1; // £0.10 placeholder when planner returns 0
-          const compDiv = Math.max(1, i.competitionIndex / 10); // 0..10
-          const score = i.avgMonthlySearches / (safeCpc * compDiv);
+          // Prefer highTopOfPageBid — best proxy for actual auction clearing price.
+          const highCpc = microsToCurrency(i.highTopOfPageBidMicros);
+          const lowCpc  = microsToCurrency(i.lowTopOfPageBidMicros);
+          const rawCpc  = highCpc > 0 ? highCpc : (lowCpc + highCpc) / 2;
+          const cpcGbp  = rawCpc > 0 ? rawCpc : locksmithCpcFloor(i.competitionIndex);
+
+          const isEmergencyIntent = EMERGENCY_INTENT_RE.test(i.text);
+          // Emergency terms convert ~15% better and command higher job values.
+          const effectiveConvRate = isEmergencyIntent
+            ? Math.min(0.30, estimatedConvRate * 1.15)
+            : estimatedConvRate;
+
+          // Core profit formula:
+          //   profitPerClick = convRate × jobValue - cpcGbp
+          const rawProfitPerClick = effectiveConvRate * jobValue - cpcGbp;
+
+          // ── Stability / geo isolation weight ──────────────────────────
+          // geoLocalScoreMap contains localScore × stabilityWeight for
+          // keywords we've seen in this geo before. For new keywords (not
+          // in the map), apply the global default stability weight of 0.25
+          // (new/unverified → heavily discounted until confirmed by scans).
+          const geoWeight = geoLocalScoreMap.get(i.text.toLowerCase()) ?? 0.25;
+          // stabilityAdjustedProfit: new keywords start at 25% of face value.
+          // After 4+ profitable scans in this geo, weight reaches ~1.0.
+          const stabilityAdjustedProfit = rawProfitPerClick * geoWeight;
+
+          const monthlyProfitGbp = i.avgMonthlySearches * stabilityAdjustedProfit;
+
+          // Legacy score kept for any callers that still read it.
+          const score = Math.max(0, monthlyProfitGbp);
+
           return {
             text: i.text,
             monthlySearches: i.avgMonthlySearches,
             competition: i.competition,
             competitionIndex: i.competitionIndex,
-            cpcGbp: Number(safeCpc.toFixed(2)),
+            cpcGbp: Number(cpcGbp.toFixed(2)),
+            profitPerClick: Number(rawProfitPerClick.toFixed(2)),  // raw (pre-stability) for display
+            monthlyProfitGbp: Number(monthlyProfitGbp.toFixed(0)), // stability-adjusted
+            isEmergencyIntent,
+            stabilityWeight: Number(geoWeight.toFixed(3)),
             score: Number(score.toFixed(2)),
           };
         })
-        .sort((a, b) => b.score - a.score);
+        // Sort by stability-adjusted expected monthly profit.
+        .sort((a, b) => b.monthlyProfitGbp - a.monthlyProfitGbp);
 
       const top10 = scored.slice(0, 10);
-      const top5Score = top10
-        .slice(0, 5)
-        .reduce((acc, k) => acc + k.score, 0);
       const cpcs = scored.map((s) => s.cpcGbp).filter((v) => v > 0);
-      const compIdx = scored.map((s) => s.competitionIndex).filter((v) => v > 0);
       const medianCpc = median(cpcs);
-      const medianComp = median(compIdx);
       const totalSearches = scored.reduce((acc, s) => acc + s.monthlySearches, 0);
 
-      // Skip this geo if its median CPC exceeds the production max bid.
-      // No point scoring a city where we can't compete at our £1.80 ceiling.
-      if (medianCpc > maxCpc) {
-        opts.onGeoFailed?.(
-          entry.geoId,
-          entry.label,
-          new Error(`medianCpc £${medianCpc.toFixed(2)} > maxMedianCpcGbp £${maxCpc.toFixed(2)} — skipped`),
-        );
-        continue;
-      }
+      // Fraction of top-10 keywords with emergency intent.
+      const emergencyIntentFraction = top10.length > 0
+        ? top10.filter((k) => k.isEmergencyIntent).length / top10.length
+        : 0;
 
-      // Supply-fitness multiplier: reward cities with enough locksmiths to
-      // fulfil demand. supplyRatio ≥ 0.5 → full score; lower → partial.
+      // ── Step 3: Geo-level profit (sum of top-5 keyword monthly profits) ──
+      const rawProfitScore = top10.slice(0, 5).reduce((acc, k) => acc + k.monthlyProfitGbp, 0);
+
+      // ── Step 4: Supply-fitness multiplier ────────────────────────────────
       const supplyRatio =
         totalSearches > 0
           ? Number(((entry.locksmithCount / (totalSearches / 100)) || 0).toFixed(2))
           : entry.locksmithCount;
       const supplyFactor = Math.min(1, supplyRatio > 0 ? supplyRatio / 0.5 : 0.5);
-      const supplyAdjusted = top5Score * (0.5 + 0.5 * supplyFactor);
+      const supplyAdjusted = rawProfitScore * (0.5 + 0.5 * supplyFactor);
 
-      // Near-London proximity penalty: national chains' broad-match campaigns
-      // bleed into SE cities, making actual CPCs 30–60% higher than Planner shows.
+      // ── Step 5: Emergency intent bonus ───────────────────────────────────
+      const intentAdjusted = emergencyIntentFraction >= 0.3
+        ? supplyAdjusted * EMERGENCY_INTENT_BOOST
+        : supplyAdjusted;
+
+      // ── Step 6: Near-London proximity penalty ────────────────────────────
+      // National chain broad-match campaigns bleed actual CPCs 30–60% above
+      // Planner predictions in SE cities. The profit formula partially handles
+      // this (higher CPC → lower profitPerClick) but apply additional penalty
+      // for unpredictable auction variance in these markets.
       const nearLondon = isNearLondonCity(entry.cityKey);
-      const penalised = nearLondon ? supplyAdjusted * NEAR_LONDON_PENALTY : supplyAdjusted;
+      const nearLondonAdjusted = nearLondon ? intentAdjusted * NEAR_LONDON_PENALTY : intentAdjusted;
 
-      // Seasonal winter boost (Oct–Feb) for northern cities where cold-season
-      // lockouts spike ~20% above the 12-month average the Planner returns.
+      // ── Step 7: Seasonal winter boost ────────────────────────────────────
       const winterBoostApplied = isWinterBoostActive() && isNorthernCity(entry.cityKey);
-      const adjustedScore = Number(
-        (winterBoostApplied ? penalised * WINTER_BOOST : penalised).toFixed(2),
-      );
+      const seasonalAdjusted = winterBoostApplied ? nearLondonAdjusted * WINTER_BOOST : nearLondonAdjusted;
+
+      // ── Step 8: After-hours gap bonus ────────────────────────────────────
+      // Geos where competitors disappear after 20:00 offer a structural advantage
+      // for a 24/7 locksmith platform. Boost these geos by 20%.
+      const hasAfterHoursGap = opts.geoAfterHoursGapMap?.get(entry.geoId) ?? false;
+      const afterHoursAdjusted = hasAfterHoursGap ? seasonalAdjusted * 1.20 : seasonalAdjusted;
+
+      // ── Step 9: Operational efficiency factor ────────────────────────────
+      // Discounts the profit estimate by the geo's operational reality:
+      // spam leads, missed calls, dispatch failures, cancellations, refunds.
+      // Returns factor=1.0 + dataAvailable=false when no platform data exists.
+      // The UI shows a confidence warning when dataAvailable=false.
+      const opFactor = operationalFactors.get(entry.geoId) ?? { factor: 1.0, dataAvailable: false };
+      const operationallyAdjusted = afterHoursAdjusted * opFactor.factor;
+
+      const finalProfitScore = Number(operationallyAdjusted.toFixed(2));
+      const estimatedCpaGbp = estimatedConvRate > 0
+        ? Number((medianCpc / estimatedConvRate).toFixed(2))
+        : 0;
 
       const opportunity: GeoOpportunity = {
         geoId: entry.geoId,
         cityKey: entry.cityKey,
         label: entry.label,
-        score: adjustedScore,
+        expectedMonthlyProfitGbp: finalProfitScore,
+        estimatedConvRate: Number(estimatedConvRate.toFixed(4)),
+        estimatedCpaGbp,
+        emergencyIntentFraction: Number(emergencyIntentFraction.toFixed(2)),
+        // Legacy score = same as expectedMonthlyProfitGbp for DB compat.
+        score: finalProfitScore,
         medianCpcGbp: Number(medianCpc.toFixed(2)),
         medianCompetitionIndex: Number(medianComp.toFixed(1)),
-        competitionTier: classifyTier(medianComp),
+        competitionTier: tier,
         totalMonthlySearches: totalSearches,
         topKeywords: top10,
         locksmithCount: entry.locksmithCount,
         nearLondonPenalty: nearLondon,
         winterBoost: winterBoostApplied,
+        afterHoursGap: hasAfterHoursGap,
+        usingFallbackCpc: allZeroBids,
+        ourImpressionShare: opts.geoImpressionShareMap?.get(entry.geoId),
         locksmithIds: entry.locksmithIds,
         supplyRatio,
+        operationalEfficiencyFactor: opFactor.factor,
+        modelConfidenceVerified: opFactor.dataAvailable,
       };
 
       opportunities.push(opportunity);
       opts.onGeoScored?.(opportunity);
+
+      // ── Step 10: Record scan data for stability + geo isolation ──────────
+      // Non-blocking: failures here must not abort the scan.
+      if (shouldRecord) {
+        for (const kw of top10) {
+          const p = kw.profitPerClick; // raw (pre-stability) profit for honest learning
+          // Record geo-local appearance (keyword × geo isolation).
+          recordGeoScanAppearance(kw.text, entry.geoId, p).catch(() => undefined);
+          // Record global seed appearance (stability tracking).
+          recordSeedScanAppearance(kw.text, p).catch(() => undefined);
+        }
+      }
     } catch (err) {
       const e = err instanceof Error ? err : new Error(String(err));
       failures.push({ geoId: entry.geoId, label: entry.label, error: e.message });
@@ -429,7 +702,19 @@ export interface CampaignReflectionResult {
   geoLabel: string;
   predictedCpcGbp: number;
   actualCpcGbp: number;
+  /** actualCpc / predictedCpc. >1 = more expensive than predicted. */
   cpaBias: number;
+  /** Observed conversion rate from actual campaign data (clicks → conversions). */
+  actualConvRate: number | null;
+  /**
+   * actualConvRate / baselineConvRate.
+   * >1 = converting better than expected (boost score).
+   * <1 = converting worse than expected (decay score).
+   * null when insufficient conversion data.
+   */
+  convRateBias: number | null;
+  /** Estimated actual profit per click from live data. */
+  actualProfitPerClick: number | null;
   sampleDays: number;
   opportunityUpdated: boolean;
 }
@@ -479,14 +764,15 @@ export async function reflectOnCampaignPerformance(
   for (const draft of drafts) {
     if (!draft.googleCampaignId) continue;
     try {
-      // Pull actuals from AdPerformanceSnapshot
+      // Pull actuals from AdPerformanceSnapshot.
+      // We also pull conversions so we can track conv rate bias.
       const snapshots = await prisma.adPerformanceSnapshot.findMany({
         where: {
           platform: "google",
           googleCampaignId: draft.googleCampaignId,
           date: { gte: since },
         },
-        select: { date: true, spend: true, clicks: true },
+        select: { date: true, spend: true, clicks: true, conversions: true },
         orderBy: { date: "asc" },
       });
 
@@ -504,14 +790,20 @@ export async function reflectOnCampaignPerformance(
 
       const actualCpcGbp = Number((totalSpend / totalClicks).toFixed(3));
 
-      // Match to a GoogleAdsOpportunity row for this campaign's primary geo.
-      // A campaign can target multiple geos; we update the one that most closely
-      // matches (the first geoTarget that has an opportunity row).
+      // Conversion rate from real data — only trust when we have ≥50 clicks
+      // (below that, conversion counts are too noisy to be meaningful).
+      const totalConversions = snapshots.reduce(
+        (a, s) => a + (typeof s.conversions === "number" ? s.conversions : 0),
+        0,
+      );
+      const actualConvRate = totalClicks >= 50 && totalConversions > 0
+        ? Number((totalConversions / totalClicks).toFixed(4))
+        : null;
+
       const geoTargets = Array.isArray(draft.geoTargets) ? draft.geoTargets : [];
       let updated = false;
 
       for (const geoId of geoTargets) {
-        // Find the most recent COVERAGE opportunity for this geo
         const opp = await prisma.googleAdsOpportunity.findFirst({
           where: { geoTargetId: geoId, kind: "COVERAGE" },
           orderBy: { computedAt: "desc" },
@@ -520,25 +812,41 @@ export async function reflectOnCampaignPerformance(
 
         if (!opp || opp.medianCpcGbp <= 0) continue;
 
+        // CPA bias: are we paying more or less than predicted?
         const cpaBias = Number((actualCpcGbp / opp.medianCpcGbp).toFixed(3));
-        const sampledAt = new Date().toISOString();
 
-        // Merge into existing agentNotes JSON
-        let existing: Record<string, unknown> = {};
-        try {
-          if (opp.agentNotes) {
-            existing = JSON.parse(opp.agentNotes);
-          }
-        } catch {
-          // agentNotes wasn't valid JSON — start fresh
+        // Conv rate bias: are we converting better or worse than the baseline
+        // we used when we generated this opportunity's score?
+        let convRateBias: number | null = null;
+        let actualProfitPerClick: number | null = null;
+        if (actualConvRate !== null) {
+          // Read the baseline conv rate from the stored notes (or derive from tier).
+          let existing: Record<string, unknown> = {};
+          try { if (opp.agentNotes) existing = JSON.parse(opp.agentNotes); } catch { /**/ }
+          const baselineConvRate =
+            (existing.estimatedConvRate as number | undefined) ??
+            BASELINE_CONV_RATES[classifyTier(0)]; // fallback UNKNOWN 10%
+          convRateBias = Number((actualConvRate / baselineConvRate).toFixed(3));
+          actualProfitPerClick = Number(
+            (actualConvRate * LOCKSMITH_DEFAULT_JOB_VALUE_GBP - actualCpcGbp).toFixed(2),
+          );
         }
+
+        const sampledAt = new Date().toISOString();
+        let existing: Record<string, unknown> = {};
+        try { if (opp.agentNotes) existing = JSON.parse(opp.agentNotes); } catch { /**/ }
 
         const updatedNotes = JSON.stringify({
           ...existing,
           cpaBias,
           actualCpcGbp,
           predictedCpcGbp: opp.medianCpcGbp,
+          actualConvRate,
+          convRateBias,
+          actualProfitPerClick,
           sampleDays: snapshots.length,
+          totalClicks,
+          totalConversions,
           sampledAt,
           campaignId: draft.googleCampaignId,
         });
@@ -548,19 +856,25 @@ export async function reflectOnCampaignPerformance(
           data: { agentNotes: updatedNotes },
         });
 
+        const convNote = actualConvRate !== null
+          ? ` | conv ${(actualConvRate * 100).toFixed(1)}% (bias ${convRateBias?.toFixed(2)}×)`
+          : "";
+        console.log(
+          `[CampaignReflection] ${opp.geoLabel}: CPC predicted £${opp.medianCpcGbp} vs actual £${actualCpcGbp} (bias ${cpaBias})${convNote}`,
+        );
+
         reflections.push({
           geoTargetId: geoId,
           geoLabel: opp.geoLabel,
           predictedCpcGbp: opp.medianCpcGbp,
           actualCpcGbp,
           cpaBias,
+          actualConvRate,
+          convRateBias,
+          actualProfitPerClick,
           sampleDays: snapshots.length,
           opportunityUpdated: true,
         });
-
-        console.log(
-          `[CampaignReflection] ${opp.geoLabel}: predicted £${opp.medianCpcGbp} vs actual £${actualCpcGbp} → bias ${cpaBias} (${cpaBias > 1 ? "more expensive" : cpaBias < 0.9 ? "cheaper ✓" : "accurate"})`,
-        );
 
         updated = true;
         break; // update once per draft (primary geo only)
@@ -578,17 +892,40 @@ export async function reflectOnCampaignPerformance(
 }
 
 /**
- * Apply the cpaBias stored on GoogleAdsOpportunity rows to adjust a raw score
- * before presenting it in the scout ranking.
+ * Apply CPA and conversion rate biases to adjust a profit score based on
+ * real campaign performance data.
  *
- * bias > 1 (expensive) → divide score → city falls in ranking.
- * bias < 1 (cheap)     → multiply score → city rises in ranking.
+ * cpaBias > 1  → more expensive than predicted → reduce score
+ * cpaBias < 1  → cheaper than predicted → boost score
+ * convRateBias > 1 → converting better than baseline → boost score
+ * convRateBias < 1 → converting worse than baseline → decay score
  *
- * Clamped: bias below 0.3 or above 3.0 is treated as 0.3/3.0 to prevent
- * a single bad data point destroying a geo.
+ * The combined effect:
+ *   adjustedScore = rawScore × (convRateBias / cpaBias)
+ *
+ * All biases are clamped 0.3–3.0 to prevent single bad data points
+ * from destroying or inflating a geo permanently.
+ *
+ * If convRateBias is null (insufficient conversion data), only cpaBias
+ * is applied. This means new campaigns decay if expensive but don't boost
+ * until we have enough conversions to trust the conversion rate.
  */
-export function applyBiasToScore(rawScore: number, cpaBias: number | null | undefined): number {
-  if (!cpaBias || cpaBias <= 0) return rawScore;
-  const clampedBias = Math.max(0.3, Math.min(3.0, cpaBias));
-  return Number((rawScore / clampedBias).toFixed(2));
+export function applyBiasToScore(
+  rawScore: number,
+  cpaBias: number | null | undefined,
+  convRateBias?: number | null,
+): number {
+  if (rawScore <= 0) return rawScore;
+
+  const clampedCpaBias = cpaBias && cpaBias > 0
+    ? Math.max(0.3, Math.min(3.0, cpaBias))
+    : 1.0;
+  const clampedConvBias = convRateBias && convRateBias > 0
+    ? Math.max(0.3, Math.min(3.0, convRateBias))
+    : 1.0;
+
+  // Combined profit bias: better conversion offsets higher CPC.
+  // A city that costs 2× more but converts 2× as well is net-neutral.
+  const combinedBias = clampedCpaBias / clampedConvBias;
+  return Number((rawScore / combinedBias).toFixed(2));
 }
