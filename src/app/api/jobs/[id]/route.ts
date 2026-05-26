@@ -162,7 +162,25 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { action, gpsData, status } = body;
+    const {
+      action,
+      gpsData,
+      status,
+      problemType,
+      propertyType,
+      postcode,
+      address,
+    } = body;
+
+    // Accept admin UI synthetic status and normalize it server-side.
+    const normalizedStatus =
+      status === "NO_LOCKSMITH_AVAILABLE" ? "CANCELLED" : status;
+
+    const hasEditableFieldUpdates =
+      typeof problemType === "string" ||
+      typeof propertyType === "string" ||
+      typeof postcode === "string" ||
+      typeof address === "string";
 
     // Get the job first
     const existingJob = await prisma.job.findUnique({
@@ -230,10 +248,13 @@ export async function PATCH(
     }
 
     // Handle direct status updates
-    if (status) {
+    if (normalizedStatus) {
       const validStatuses = [
+        "PHONE_INITIATED",
         "PENDING",
+        "SCHEDULED",
         "ACCEPTED",
+        "EN_ROUTE",
         "ARRIVED",
         "DIAGNOSING",
         "QUOTED",
@@ -246,17 +267,47 @@ export async function PATCH(
         "CANCELLED",
       ];
 
-      if (!validStatuses.includes(status)) {
+      if (!validStatuses.includes(normalizedStatus)) {
         return NextResponse.json(
-          { success: false, error: "Invalid status" },
+          {
+            success: false,
+            error: "Invalid status",
+            details: { receivedStatus: normalizedStatus },
+          },
           { status: 400 }
         );
       }
 
-      const updateData: Record<string, unknown> = { status };
+      const updateData: Record<string, unknown> = { status: normalizedStatus };
+
+      // Apply editable fields from admin modal in the same PATCH request.
+      if (typeof problemType === "string") {
+        updateData.problemType = problemType;
+      }
+      if (typeof propertyType === "string") {
+        updateData.propertyType = propertyType;
+      }
+      if (typeof postcode === "string") {
+        updateData.postcode = postcode;
+      }
+      if (typeof address === "string") {
+        updateData.address = address;
+      }
+
+      // Preserve the admin's semantic "No Locksmith Available" status marker.
+      if (status === "NO_LOCKSMITH_AVAILABLE") {
+        if (!existingJob.noLocksmithNotifiedAt) {
+          updateData.noLocksmithNotifiedAt = new Date();
+        }
+      } else if (normalizedStatus !== "CANCELLED") {
+        // If job leaves cancelled state, clear no-locksmith marker fields.
+        updateData.noLocksmithNotifiedAt = null;
+        updateData.noLocksmithNotifiedChannels = [];
+        updateData.noLocksmithNotifiedBy = null;
+      }
 
       // Add timestamps based on status
-      switch (status) {
+      switch (normalizedStatus) {
         case "ARRIVED":
           updateData.arrivedAt = new Date();
           if (gpsData) updateData.arrivalGps = gpsData;
@@ -286,16 +337,56 @@ export async function PATCH(
         },
       });
 
-      if (existingJob.status !== status) {
+      if (existingJob.status !== normalizedStatus) {
         await appendJobActivity({
           jobId: id,
           senderType: "admin",
           senderName: "Admin",
-          message: `Job status updated: ${existingJob.status} -> ${status}`,
+          message: `Job status updated: ${existingJob.status} -> ${normalizedStatus}`,
         }).catch((err) => {
           console.error("[Job PATCH] Failed to append activity log:", err);
         });
       }
+
+      return NextResponse.json({
+        success: true,
+        job: updatedJob,
+      });
+    }
+
+    // Handle non-status job edits from admin modal.
+    if (hasEditableFieldUpdates) {
+      const updateData: Record<string, unknown> = {};
+      if (typeof problemType === "string") {
+        updateData.problemType = problemType;
+      }
+      if (typeof propertyType === "string") {
+        updateData.propertyType = propertyType;
+      }
+      if (typeof postcode === "string") {
+        updateData.postcode = postcode;
+      }
+      if (typeof address === "string") {
+        updateData.address = address;
+      }
+
+      const updatedJob = await prisma.job.update({
+        where: { id },
+        data: updateData,
+        include: {
+          customer: true,
+          locksmith: true,
+        },
+      });
+
+      await appendJobActivity({
+        jobId: id,
+        senderType: "admin",
+        senderName: "Admin",
+        message: "Job details updated by admin",
+      }).catch((err) => {
+        console.error("[Job PATCH] Failed to append activity log:", err);
+      });
 
       return NextResponse.json({
         success: true,

@@ -20,8 +20,10 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
     const { status, gpsData, eta } = body;
+    const normalizedStatus =
+      status === "NO_LOCKSMITH_AVAILABLE" ? "CANCELLED" : status;
 
-    if (!status) {
+    if (!normalizedStatus) {
       return NextResponse.json(
         { success: false, error: "Status is required" },
         { status: 400 }
@@ -45,7 +47,7 @@ export async function PATCH(
       "CANCELLED",
     ];
 
-    if (!validStatuses.includes(status)) {
+    if (!validStatuses.includes(normalizedStatus)) {
       return NextResponse.json(
         { success: false, error: "Invalid status" },
         { status: 400 }
@@ -70,9 +72,19 @@ export async function PATCH(
     }
 
     // Build update data based on status
-    const updateData: Record<string, unknown> = { status };
+    const updateData: Record<string, unknown> = { status: normalizedStatus };
 
-    switch (status) {
+    if (status === "NO_LOCKSMITH_AVAILABLE") {
+      if (!existingJob.noLocksmithNotifiedAt) {
+        updateData.noLocksmithNotifiedAt = new Date();
+      }
+    } else if (normalizedStatus !== "CANCELLED") {
+      updateData.noLocksmithNotifiedAt = null;
+      updateData.noLocksmithNotifiedChannels = [];
+      updateData.noLocksmithNotifiedBy = null;
+    }
+
+    switch (normalizedStatus) {
       case "ACCEPTED":
         updateData.acceptedAt = new Date();
         break;
@@ -130,12 +142,12 @@ export async function PATCH(
       },
     });
 
-    if (existingJob.status !== status) {
+    if (existingJob.status !== normalizedStatus) {
       await appendJobActivity({
         jobId: job.id,
         senderType: "system",
         senderName: "System",
-        message: `Job status updated: ${existingJob.status} -> ${status}`,
+        message: `Job status updated: ${existingJob.status} -> ${normalizedStatus}`,
       }).catch((err) => {
         console.error("[Job Status] Failed to append activity log:", err);
       });
@@ -159,7 +171,7 @@ export async function PATCH(
     };
 
     // Send SMS notification when locksmith is en route
-    if (status === "EN_ROUTE" && job.customer?.phone && job.locksmith) {
+    if (normalizedStatus === "EN_ROUTE" && job.customer?.phone && job.locksmith) {
       notifyCustomerLocksmithEnRoute(smsContext).catch((err) =>
         console.error("[SMS] Failed to send en-route notification:", err)
       );
@@ -167,7 +179,7 @@ export async function PATCH(
     }
 
     // Send notification to customer when locksmith arrives
-    if (status === "ARRIVED" && job.customer?.email && job.locksmith) {
+    if (normalizedStatus === "ARRIVED" && job.customer?.email && job.locksmith) {
       // Send SMS notification
       sendJobNotification("arrived", smsContext).catch((err) =>
         console.error("[SMS] Failed to send arrival notification:", err)
@@ -215,14 +227,14 @@ export async function PATCH(
     }
 
     // Send SMS when work starts
-    if (status === "IN_PROGRESS" && job.customer?.phone && job.locksmith) {
+    if (normalizedStatus === "IN_PROGRESS" && job.customer?.phone && job.locksmith) {
       sendJobNotification("work_started", smsContext).catch((err) =>
         console.error("[SMS] Failed to send work started notification:", err)
       );
     }
 
     // Send notification to customer when locksmith marks work as complete
-    if (status === "PENDING_CUSTOMER_CONFIRMATION" && job.customer?.email && job.locksmith) {
+    if (normalizedStatus === "PENDING_CUSTOMER_CONFIRMATION" && job.customer?.email && job.locksmith) {
       const baseUrl = request.headers.get("origin") || request.headers.get("host") || SITE_URL;
       const confirmationUrl = `${baseUrl.startsWith("http") ? baseUrl : `https://${baseUrl}`}/customer/job/${job.id}`;
       const quoteTotal = job.quote?.total || job.assessmentFee;
@@ -298,7 +310,7 @@ export async function PATCH(
     }
 
     // Send SMS when customer signs/confirms
-    if (status === "SIGNED" && job.locksmith?.phone) {
+    if (normalizedStatus === "SIGNED" && job.locksmith?.phone) {
       sendJobNotification("job_signed", smsContext).catch((err) =>
         console.error("[SMS] Failed to send job signed notification:", err)
       );
