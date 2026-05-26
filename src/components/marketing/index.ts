@@ -1,4 +1,5 @@
 export { UserTracker, useTracking } from "./UserTracker";
+export { TelLinkAttribution } from "./TelLinkAttribution";
 export { ModalSystem } from "./ModalSystem";
 export { WelcomeSurvey } from "./modals/WelcomeSurvey";
 export { ExitIntentModal } from "./modals/ExitIntentModal";

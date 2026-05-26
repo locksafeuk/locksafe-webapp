@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import dynamic from "next/dynamic";
 import { AuthProvider } from "@/components/auth/AuthContext";
-import { UserTracker } from "@/components/marketing";
+import { UserTracker, TelLinkAttribution } from "@/components/marketing";
 
 // Defer non-critical overlays so they don't block LCP / hydration on
 // marketing pages. They render only after the page is interactive.
@@ -57,6 +57,14 @@ export default function ClientBody({
   return (
     <AuthProvider>
       <UserTracker>
+        {/*
+          Global capture-phase listener for <a href="tel:..."> clicks.
+          Fires a CallIntent (gclid + UTMs) before the dialler opens
+          so the eventual Retell call can be matched back to the
+          originating ad click. Mounts once; covers every tel:
+          anchor on the site without per-component edits.
+        */}
+        <TelLinkAttribution />
         <div className="antialiased">{children}</div>
         <ModalSystem />
       </UserTracker>
