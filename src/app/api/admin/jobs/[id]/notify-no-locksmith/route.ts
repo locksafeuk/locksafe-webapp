@@ -22,7 +22,7 @@ async function verifyAdmin() {
  *
  * Body: { channels: ("sms"|"email")[], customSmsMessage?: string }
  *
- * Sends an SMS (via Zadarma) and/or email (via Resend) to the customer
+ * Sends an SMS (via active provider) and/or email (via Resend) to the customer
  * letting them know no locksmith is currently available in their coverage
  * area, and offering the priority phone line + radius widening as next steps.
  *

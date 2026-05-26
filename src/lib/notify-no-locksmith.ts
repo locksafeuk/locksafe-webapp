@@ -2,7 +2,8 @@
  * Orchestrates the "no locksmith available" notification sent by an admin
  * from /admin/jobs.
  *
- * - SMS goes via Zadarma (`sendZadarmaSMS`).
+ * - SMS goes via the active provider (`sendSMS`), honoring `SMS_PROVIDER`
+ *   and current environment configuration.
  * - Email goes via Resend (`sendNoLocksmithAvailableEmail`).
  *
  * Copy follows Neil Patel + Ryan Deiss conversion principles:
@@ -12,8 +13,7 @@
 
 import { SITE_URL, SUPPORT_PHONE, siteConfig } from "@/lib/config";
 import { sendNoLocksmithAvailableEmail } from "@/lib/email";
-import type { SMSResult } from "@/lib/sms";
-import { sendZadarmaSMS } from "@/lib/sms-zadarma";
+import { sendSMS, type SMSResult } from "@/lib/sms";
 
 export type NotifyChannel = "sms" | "email";
 
@@ -52,7 +52,7 @@ export interface NotifyNoLocksmithResult {
 
 /**
  * Build the default SMS body. Kept under ~320 chars (max 2 GSM-7 segments)
- * so it sends reliably on Zadarma without being chunked into 4+ parts.
+ * to reduce splitting risk across SMS providers.
  */
 export function buildNoLocksmithSms(input: {
   customerName: string;
@@ -109,7 +109,7 @@ export async function notifyNoLocksmithAvailable(
           priorityPhone,
           jobUrl,
         });
-      result.smsResult = await sendZadarmaSMS(customer.phone, message, {
+      result.smsResult = await sendSMS(customer.phone, message, {
         logContext: `no-locksmith:${job.jobNumber}`,
       });
       if (result.smsResult.success) channelsSent.push("sms");
