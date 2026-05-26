@@ -4,6 +4,16 @@ import { put } from "@vercel/blob";
 // POST /api/upload - Handle direct uploads for smaller files
 export async function POST(request: NextRequest) {
   try {
+    // Validate content-type before parsing — otherwise formData() throws
+    // a 500 on JSON/empty requests. (Surfaced by scripts/system-full-test.ts.)
+    const contentType = request.headers.get("content-type") ?? "";
+    if (!contentType.toLowerCase().startsWith("multipart/form-data")) {
+      return NextResponse.json(
+        { success: false, error: "Content-Type must be multipart/form-data" },
+        { status: 400 }
+      );
+    }
+
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
     const jobId = formData.get("jobId") as string | null;

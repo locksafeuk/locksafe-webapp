@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { geocodePostcode } from "@/lib/locksmith-matcher";
 import { notifyNearbyLocksmiths } from "@/lib/job-notifications";
+import { requireAdminFromCookies } from "@/lib/agent-api-auth";
 
 /**
  * POST /api/jobs/notify-locksmiths
@@ -13,14 +14,30 @@ import { notifyNearbyLocksmiths } from "@/lib/job-notifications";
  * Returns: { notifiedCount, locksmithIds, locksmiths }
  */
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { jobId } = body;
+  // Admin-only: this endpoint can blast SMS/push to locksmiths, so it must
+  // never be publicly callable. (Surfaced by scripts/system-full-test.ts.)
+  const admin = await requireAdminFromCookies();
+  if (!admin) {
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  }
 
-    if (!jobId) {
+  try {
+    const body = await request.json().catch(() => ({}));
+    const { jobId } = body as { jobId?: string };
+
+    if (!jobId || typeof jobId !== "string") {
       return NextResponse.json(
         { success: false, error: "jobId is required" },
         { status: 400 }
+      );
+    }
+
+    // Mongo ObjectIds are 24 hex chars — guard against Prisma throwing on
+    // malformed input so we return a clean 404 instead of a 500.
+    if (!/^[a-f0-9]{24}$/i.test(jobId)) {
+      return NextResponse.json(
+        { success: false, error: "Job not found" },
+        { status: 404 }
       );
     }
 
