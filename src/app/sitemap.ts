@@ -11,6 +11,9 @@ import {
 } from "@/lib/keyword-templates-store";
 import { PILLAR_KEYWORDS } from "@/lib/intents-catalog";
 import { slugify } from "@/lib/seo/url-helpers";
+import { prisma as _prisma } from "@/lib/db";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const prisma = _prisma as any;
 
 // NOTE: must be real ServiceSlug values from src/lib/services-catalog.ts.
 // `burglary-repair` and `auto-locksmith` are pillar *keywords*, not service
@@ -308,6 +311,34 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   }
 
+  // ── District landing pages (Phase 4 — /locksmith/{district}) ─────────────
+  // One per published DistrictLandingPage row. Real updatedAt so Google
+  // can tell which pages have actually changed since last crawl —
+  // critical for crawl-budget allocation. priority 0.9 because these
+  // are the ad-landing target pages and convert best.
+  let districtLandingPages: MetadataRoute.Sitemap = [];
+  try {
+    const rows: Array<{ slug: string; updatedAt: Date }> =
+      await prisma.districtLandingPage.findMany({
+        where:  { isPublished: true },
+        select: { slug: true, updatedAt: true },
+      });
+    districtLandingPages = rows.map((r) => ({
+      url: `${baseUrl}/locksmith/${r.slug}`,
+      lastModified: r.updatedAt,
+      changeFrequency: "weekly" as const,
+      priority: 0.9,
+    }));
+  } catch (err) {
+    // Mongo failure must not break the sitemap build — Vercel runs
+    // this during deploy and a transient DB hiccup shouldn't fail the
+    // whole site. The missing entries will appear on the next build.
+    console.warn(
+      "[sitemap] failed to load DistrictLandingPage rows:",
+      err instanceof Error ? err.message : err,
+    );
+  }
+
   return [
     ...staticPages,
     ...servicesIndex,
@@ -321,6 +352,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...postcodePages,
     ...postcodeServicePages,
     ...keywordPages,
+    ...districtLandingPages,
     ...blogPostPages,
     ...blogCategoryPages,
   ];

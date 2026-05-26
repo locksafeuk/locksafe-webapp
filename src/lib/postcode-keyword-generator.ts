@@ -59,11 +59,15 @@ export const POSTCODE_SERVICE_TEMPLATES: Array<{
   { template: "yale lock replacement {district}",  family: "service_long_tail", intent: "brand-specific — informed buyer" },
   { template: "anti snap lock {district}",         family: "service_long_tail", intent: "security upgrade — informed buyer" },
 
-  // Trust-signal head terms (informed/cautious searchers)
-  { template: "honest locksmith {district}",       family: "trust_signal",      intent: "scarred buyer looking for trustworthy operator" },
-  { template: "fixed price locksmith {district}",  family: "trust_signal",      intent: "wants quote certainty" },
-  { template: "mla locksmith {district}",          family: "trust_signal",      intent: "knows the MLA badge matters" },
-  { template: "no callout fee locksmith {district}", family: "trust_signal",    intent: "direct shark-contrast" },
+  // Trust-signal head terms (informed/cautious searchers).
+  // NOTE: "mla locksmith {district}" was removed in May 2026 — LockSafe
+  // does NOT currently hold MLA accreditation; bidding on a phrase that
+  // implies membership we don't have is misrepresentation under the
+  // Consumer Protection from Unfair Trading Regulations 2008.
+  { template: "honest locksmith {district}",        family: "trust_signal",      intent: "scarred buyer looking for trustworthy operator" },
+  { template: "fixed price locksmith {district}",   family: "trust_signal",      intent: "wants quote certainty" },
+  { template: "dbs checked locksmith {district}",   family: "trust_signal",      intent: "knows DBS vetting matters (verifiable for LockSafe)" },
+  { template: "no callout fee locksmith {district}", family: "trust_signal",     intent: "direct shark-contrast" },
 
   // B2B specialist
   { template: "landlord lock change {district}",   family: "b2b_specialist",    intent: "letting agent / landlord — repeat customer" },

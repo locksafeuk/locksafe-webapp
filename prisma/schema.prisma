@@ -3725,3 +3725,84 @@ model CallIntent {
   @@index([matched, createdAt])
   @@index([createdAt])
 }
+
+/// Per-postcode-district landing page. One row per UK outcode where we
+/// have at least one active LocksmithCoverage entry. Content is
+/// AI-generated from STRUCTURED FACTS (real engineer name, coverage
+/// radius, anchor town, nearby outcodes) so each page reads as a real
+/// local locksmith page — not a programmatic doorway.
+///
+/// Generation lifecycle:
+///   1. orchestrator creates a campaign draft for keyword containing district D
+///   2. ensureDistrictLandingPage(D) is called BEFORE the draft is written
+///   3. if no row exists, the generator pulls facts (locksmith data,
+///      postcodes.io enrichment) and calls Ollama (OpenAI fallback) to
+///      produce the prose blocks
+///   4. row persisted; draft's finalUrl = /locksmith/{district}
+///   5. /locksmith/[district] route reads this row on render
+///
+/// Regeneration:
+///   • triggered when generatedAt is older than REGENERATE_AFTER_DAYS
+///   • or when contentSource = "needs_refresh" (manual flag)
+///   • manual edits via admin set contentSource = "manual_override"
+///     and the regenerator never overwrites them.
+model DistrictLandingPage {
+  id        String @id @default(auto()) @map("_id") @db.ObjectId
+  /// UK outcode, uppercase. E.g. "RG1", "SW1A", "M1".
+  district  String @unique
+  /// URL slug — lowercase district. Stored separately so we can change
+  /// the URL convention later without losing the district key.
+  slug      String @unique
+
+  // ── Resolved local facts (the LLM's grounding data) ─────────────────
+  /// Anchor town for the outcode (Reading, Manchester, etc.)
+  anchorTown      String?
+  /// County or region (Berkshire, Greater Manchester, etc.)
+  region          String?
+  /// Outcode centroid for distance computation.
+  lat             Float?
+  lng             Float?
+  /// Outcodes adjacent to this one (within ~10mi). E.g. for RG1: ["RG2","RG4","RG6","RG30"]
+  nearbyOutcodes  String[] @default([])
+  /// Locksmith IDs covering this district (mirrors LocksmithCoverage).
+  locksmithIds    String[] @default([])
+  /// The primary engineer to highlight in the hero copy.
+  featuredLocksmithId String?
+  /// Their displayed first name in the copy (cached so we don't re-join).
+  featuredEngineerName String?
+
+  // ── Generated content blocks ────────────────────────────────────────
+  /// Hero headline — 6-12 words, district-specific. NOT a template fill.
+  heroHeadline       String?
+  /// One short sentence supporting the hero.
+  heroSubcopy        String?
+  /// Opening paragraph (3-5 sentences) introducing the district.
+  introParagraph     String?
+  /// Paragraph about WHO covers the district — names the engineer.
+  coverageNarrative  String?
+  /// Trust paragraph — fixed price, MLA, DBS, no-callout-fee positioning.
+  whyChooseUs        String?
+  /// District-specific FAQs (4-6 entries). [{question, answer}]
+  faqs               Json     @default("[]")
+  /// Short bullet points for the trust strip ("Within 8mi of all RG1 postcodes").
+  localTrustAnchors  String[] @default([])
+
+  // ── Provenance + lifecycle ──────────────────────────────────────────
+  /// "ai_generated" | "manual_override" | "needs_refresh"
+  contentSource  String   @default("ai_generated")
+  /// Which model produced the content. e.g. "ollama:llama3.1:8b" / "openai:gpt-4o-mini"
+  llmModel       String?
+  /// Free-text notes from an admin (only used when contentSource = manual_override).
+  adminNotes     String?
+  /// True = visible at /locksmith/{district}. False = hidden (e.g. coverage paused).
+  isPublished    Boolean  @default(true)
+
+  generatedAt  DateTime?
+  publishedAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([isPublished])
+  @@index([contentSource])
+  @@index([generatedAt])
+}

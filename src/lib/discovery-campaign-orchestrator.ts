@@ -35,6 +35,7 @@ import { prisma as _prisma } from "@/lib/db";
 import {
   scorePhoneLeadIntent,
   type PhoneLeadIntentScore,
+  detectPostcodeDistrict,
 } from "@/lib/phone-lead-intent-score";
 import {
   partitionBySharkSaturation,
@@ -44,6 +45,8 @@ import {
   buildDiscoveryCampaignDraft,
   type CampaignDraftPayload,
 } from "@/lib/discovery-campaign-generator";
+import { ensureOrSkip, districtSlug } from "@/lib/district-landing/ensure-landing";
+import { SITE_URL } from "@/lib/config";
 import type { SeedCategory } from "@/agents/core/seed-bank";
 import type { IntelKeyword } from "@/lib/competitor-cross-validate";
 
@@ -58,7 +61,7 @@ const prisma = _prisma as any;
 export interface OrchestratorOptions {
   /** GoogleAdsAccount.id to attach drafts to. Required. */
   accountId:        string;
-  /** Landing page URL. Default: https://locksafe.uk/book */
+  /** Landing page URL. Default: https://locksafe.uk/request */
   finalUrl?:        string;
   /** Shared website phone in E.164. Default reads LOCKSAFE_WEBSITE_PHONE env. */
   websitePhoneE164?: string;
@@ -122,7 +125,9 @@ export interface OrchestratorResult {
 
 // ── Defaults ────────────────────────────────────────────────────────────────
 
-const DEFAULT_FINAL_URL = "https://locksafe.uk/book";
+// /request is the actual booking-flow page (title "Book a Locksmith");
+// /book does NOT exist in the codebase and would 404.
+const DEFAULT_FINAL_URL = "https://locksafe.uk/request";
 const DEFAULT_MAX_DRAFTS = 6;
 
 /**
@@ -289,9 +294,51 @@ export async function generateDiscoveryDrafts(
   const selected = applyFamilyQuotas(scored, quota, maxDrafts);
   result.quotaFiltered = scored.length - selected.length;
 
-  // ── 6. Build draft payloads ─────────────────────────────────────────
-  const payloads: Array<{ seed: ScoredSeed; payload: CampaignDraftPayload }> = selected.map(
-    (seed) => ({
+  // ── 6. Ensure district landing pages + build draft payloads ──────────
+  // For every selected seed: if the keyword contains a UK outcode, ensure
+  // there's a published /locksmith/{district} landing page first. If the
+  // district has no LockSafe coverage, ensureOrSkip returns ok=false and
+  // we drop the draft entirely (no campaign without a real local page).
+  //
+  // Seeds with NO district in the keyword (e.g. "fixed price locksmith")
+  // fall back to the generic finalUrl — those are usually trust-cluster
+  // queries we route to /request.
+  const payloads: Array<{ seed: ScoredSeed; payload: CampaignDraftPayload }> = [];
+  const districtErrors: string[] = [];
+
+  for (const seed of selected) {
+    const detectedDistrict = detectPostcodeDistrict(seed.keyword);
+    let draftFinalUrl = finalUrl;
+
+    if (detectedDistrict) {
+      // In dry-run we don't actually call ensure() — it does LLM work +
+      // DB writes which we want gated behind --live.
+      if (options.dryRun) {
+        draftFinalUrl = `${SITE_URL}/locksmith/${districtSlug(detectedDistrict)}`;
+      } else {
+        try {
+          const ensured = await ensureOrSkip(detectedDistrict);
+          if (!ensured.ok) {
+            districtErrors.push(
+              `${seed.keyword}: ${ensured.skipReason ?? "no coverage"} — draft skipped`,
+            );
+            result.quotaFiltered++;
+            continue;
+          }
+          draftFinalUrl = `${SITE_URL}/locksmith/${ensured.result!.slug}`;
+        } catch (err) {
+          // LLM/network failure — block this draft and surface the
+          // error rather than ship a campaign with a missing page.
+          const message = err instanceof Error ? err.message : String(err);
+          districtErrors.push(
+            `${seed.keyword} (${detectedDistrict}): landing-page generation failed — ${message}`,
+          );
+          continue;
+        }
+      }
+    }
+
+    payloads.push({
       seed,
       payload: buildDiscoveryCampaignDraft(
         {
@@ -301,14 +348,17 @@ export async function generateDiscoveryDrafts(
         },
         {
           accountId:        options.accountId,
-          finalUrl,
+          finalUrl:         draftFinalUrl,
           websitePhoneE164: phone,
           agentId:          options.agentId,
           aiPrompt:         "discovery-orchestrator:phase2c",
         },
       ),
-    }),
-  );
+    });
+  }
+
+  // Bubble district errors up to the result so callers can log them
+  result.errors.push(...districtErrors);
 
   // ── 7. Write (or report) ─────────────────────────────────────────────
   for (const { seed, payload } of payloads) {

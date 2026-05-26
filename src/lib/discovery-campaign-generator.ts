@@ -148,18 +148,25 @@ interface FamilyCopy {
 const HEADLINE_MAX    = 30;
 const DESCRIPTION_MAX = 90;
 
+// NOTE on trust signals (May 2026): LockSafe does NOT currently hold MLA
+// (Master Locksmiths Association), Which? Trusted Trader, or Checkatrade
+// accreditation. Claiming these in ad copy would be misrepresentation
+// under the Consumer Protection from Unfair Trading Regulations 2008.
+// We use ONLY verifiable trust signals: DBS-checked (AI-verified at
+// onboarding), insured (AI-verified certificates), fixed-price process,
+// real local engineer, 24/7 dispatch, GPS-tracked.
 const FAMILY_COPY: Record<string, FamilyCopy> = {
   postcode_local: {
     headlines: [
       "Locksmith {district} 24/7",
       "Locked Out? Call Now",
       "Emergency Locksmith {district}",
-      "MLA Approved · Fixed Price",
+      "DBS-Checked · Fixed Price",
       "Real Local · No Callout Fee",
     ],
     descriptions: [
-      "Locked out in {district}? MLA-approved local engineer. Fixed price, no callout fee.",
-      "Real local locksmith — not a national call centre. DBS-checked, transparent pricing.",
+      "Locked out in {district}? DBS-checked local engineer. Fixed price, no callout fee.",
+      "Real local locksmith — not a national call centre. Insured, transparent pricing.",
     ],
     extraNegatives: [],
     matchTypeMix:   ["PHRASE", "EXACT"],
@@ -167,14 +174,14 @@ const FAMILY_COPY: Record<string, FamilyCopy> = {
 
   trust_signal: {
     headlines: [
-      "MLA Approved Locksmith",
+      "DBS-Checked Locksmith",
       "Fixed Price Guarantee",
-      "DBS-Checked Engineers",
+      "Insured Local Engineer",
       "Honest Locksmith {district}",
       "No Hidden Callout Fees",
     ],
     descriptions: [
-      "MLA-approved, DBS-checked locksmith. Fixed price guarantee — no surprises at the door.",
+      "DBS-checked, fully insured local engineer. Fixed price agreed before any work starts.",
       "Tired of dodgy quotes? Real engineer, honest pricing, no callout fee. Call us.",
     ],
     extraNegatives: [],
@@ -187,10 +194,10 @@ const FAMILY_COPY: Record<string, FamilyCopy> = {
       "uPVC & Composite Locks",
       "Anti-Snap Cylinder Fit",
       "Free Quote · Fixed Price",
-      "MLA Approved Engineer",
+      "DBS-Checked Engineer",
     ],
     descriptions: [
-      "Need a lock changed? MLA-approved engineer, fixed price quote before we start.",
+      "Need a lock changed? DBS-checked engineer, fixed price quote before we start.",
       "uPVC, Yale, anti-snap cylinders fitted. Local engineer, no callout fee, fair quote.",
     ],
     extraNegatives: ["second-hand", "used", "refurbished"],
@@ -203,11 +210,11 @@ const FAMILY_COPY: Record<string, FamilyCopy> = {
       "Landlord Lock Changes",
       "Office & Shop Security",
       "Fixed Price · Invoice Paid",
-      "MLA Approved · DBS Checked",
+      "DBS-Checked · Insured",
     ],
     descriptions: [
       "Commercial locksmith for landlords, offices and shops. Fixed price, invoice payment.",
-      "Letting agent? Need lock changes between tenancies? MLA-approved, fast turnaround.",
+      "Letting agent? Need lock changes between tenancies? DBS-checked, fast turnaround.",
     ],
     extraNegatives: ["residential", "house", "diy", "domestic"],
     matchTypeMix:   ["PHRASE"],
@@ -217,14 +224,14 @@ const FAMILY_COPY: Record<string, FamilyCopy> = {
     // Should rarely run — research_intent has a tiny budget cap.
     headlines: [
       "Honest Locksmith Reviews",
-      "MLA Approved Locksmith UK",
+      "DBS-Checked Locksmith UK",
       "Fixed Price Locksmith Guide",
       "Real Engineer · No Tricks",
       "How to Pick a Locksmith",
     ],
     descriptions: [
-      "Real local locksmith — MLA approved. See how we compare on price and reviews.",
-      "Avoid the rip-off. Fixed price, MLA-approved. Read our pricing guarantee.",
+      "Real local locksmith — DBS-checked, insured. See how we compare on price.",
+      "Avoid the rip-off. Fixed price, DBS-checked. Read our pricing guarantee.",
     ],
     extraNegatives: [],
     matchTypeMix:   ["PHRASE"],
@@ -235,13 +242,13 @@ const FAMILY_COPY: Record<string, FamilyCopy> = {
 const FALLBACK_COPY: FamilyCopy = {
   headlines: [
     "Local Locksmith Service",
-    "MLA Approved Engineer",
+    "DBS-Checked Engineer",
     "Fixed Price · No Surprises",
     "Locked Out? Call Now",
     "Honest Local Locksmith",
   ],
   descriptions: [
-    "MLA-approved local locksmith. Fixed price guarantee — no callout fees.",
+    "DBS-checked local locksmith. Fixed price guarantee — no callout fees.",
     "Real engineer, not a national call centre. Honest pricing, fast response.",
   ],
   extraNegatives: [],
