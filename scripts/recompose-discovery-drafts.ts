@@ -33,7 +33,9 @@ require("tsconfig-paths").register({
 
 import { prisma as _prisma } from "../src/lib/db";
 import { buildDiscoveryCampaignDraft } from "../src/lib/discovery-campaign-generator";
-import { scorePhoneLeadIntent }         from "../src/lib/phone-lead-intent-score";
+import { scorePhoneLeadIntent, detectPostcodeDistrict } from "../src/lib/phone-lead-intent-score";
+import { ensureOrSkip, districtSlug }   from "../src/lib/district-landing/ensure-landing";
+import { SITE_URL }                      from "../src/lib/config";
 import type { SeedCategory } from "../src/agents/core/seed-bank";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -66,7 +68,23 @@ const CURATED: Candidate[] = [
   { keyword: "commercial locksmith BS1",      family: "b2b_specialist",  note: "Bristol central — B2B, higher LTV, SW England" },
 ];
 
-const RECOMPOSE_TAG = "discovery-orchestrator:phase2c-recompose-v1";
+const RECOMPOSE_TAG = "discovery-orchestrator:phase2c-recompose-v2";
+/**
+ * Tags this script considers safe to delete. The widening v1 → v2 was
+ * driven by:
+ *   • the original `phase2c` lineup had MLA copy + /request URLs
+ *   • the v1 recompose still bypassed ensureDistrictLandingPage so
+ *     the /locksmith/{district} URLs were never set
+ *   • v2 (this script) calls ensureOrSkip per district AND uses the
+ *     correct landing-page URL
+ *
+ * The deletion filter matches any past orchestrator tag so stale
+ * drafts from earlier runs get cleaned up regardless of version.
+ */
+const DELETABLE_AI_PROMPTS = [
+  "discovery-orchestrator:phase2c",
+  "discovery-orchestrator:phase2c-recompose-v1",
+];
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -107,7 +125,7 @@ async function main() {
 
   // ── Step 1: find drafts created by the orchestrator (safe to delete) ────
   console.log("▶ Step 1 — Finding orchestrator-created drafts that are safe to delete");
-  console.log("  (only touches aiPrompt = 'discovery-orchestrator:phase2c'");
+  console.log(`  (touches aiPrompt in [${DELETABLE_AI_PROMPTS.map((s) => `"${s}"`).join(", ")}]`);
   console.log("   AND status in [DRAFT, PENDING_APPROVAL] — never touches");
   console.log("   PUBLISHED / PUBLISHING / PAUSED drafts)");
   console.log("");
@@ -115,11 +133,11 @@ async function main() {
   const existing = await prisma.googleAdsCampaignDraft.findMany({
     where: {
       accountId: account.id,
-      aiPrompt:  "discovery-orchestrator:phase2c",
+      aiPrompt:  { in: DELETABLE_AI_PROMPTS },
       status:    { in: ["DRAFT", "PENDING_APPROVAL"] },
     },
     select: {
-      id: true, name: true, status: true, dailyBudget: true, createdAt: true,
+      id: true, name: true, status: true, dailyBudget: true, createdAt: true, aiPrompt: true,
     },
     orderBy: { createdAt: "desc" },
   });
@@ -133,6 +151,7 @@ async function main() {
       { label: "Status",       value: d.status,                       width: 18 },
       { label: "Name",         value: d.name,                         width: 32 },
       { label: "£/day",        value: d.dailyBudget.toFixed(2),       width: 6  },
+      { label: "Tag",          value: (d.aiPrompt ?? "").replace("discovery-orchestrator:", ""), width: 22 },
       { label: "Created",      value: d.createdAt.toISOString().slice(0, 16), width: 16 },
     ];
     console.log(header(dCols(existing[0])));
@@ -144,29 +163,35 @@ async function main() {
   console.log("▶ Step 2 — Curated replacement set (6 drafts):");
   console.log("");
 
+  // For the dry-run we compute the EXPECTED finalUrl assuming the
+  // landing page WOULD generate — we do NOT call ensureOrSkip yet
+  // (that hits Ollama + writes to DB; gated behind LIVE).
   const previews = CURATED.map((c) => {
     const intent = scorePhoneLeadIntent({ keyword: c.keyword, category: c.family });
+    const district = detectPostcodeDistrict(c.keyword);
+    const expectedFinalUrl = district
+      ? `${SITE_URL}/locksmith-in/${districtSlug(district)}`
+      : `${SITE_URL}/request`;
     const payload = buildDiscoveryCampaignDraft(
       { keyword: c.keyword, family: c.family, phoneLeadIntentScore: intent.score },
       {
         accountId:        account.id,
-        // /request is the actual booking-flow page (title "Book a
-        // Locksmith"); /book does NOT exist and would 404.
-        finalUrl:         "https://locksafe.uk/request",
+        finalUrl:         expectedFinalUrl,
         websitePhoneE164: phone,
         aiPrompt:         RECOMPOSE_TAG,
         status:           "PENDING_APPROVAL",
       },
     );
-    return { candidate: c, intent, payload };
+    return { candidate: c, intent, payload, district, expectedFinalUrl };
   });
 
   const cols = (p: typeof previews[number]): Col[] => [
-    { label: "Family",       value: p.candidate.family,                  width: 18 },
-    { label: "Keyword",      value: p.candidate.keyword,                 width: 36 },
-    { label: "Intent",       value: `${p.intent.score}`,                 width: 6  },
-    { label: "£/day",        value: p.payload.data.dailyBudget.toFixed(2), width: 6 },
-    { label: "Name",         value: p.payload.data.name,                 width: 32 },
+    { label: "Family",       value: p.candidate.family,                          width: 18 },
+    { label: "Keyword",      value: p.candidate.keyword,                         width: 36 },
+    { label: "Intent",       value: `${p.intent.score}`,                         width: 6  },
+    { label: "£/day",        value: p.payload.data.dailyBudget.toFixed(2),       width: 6  },
+    { label: "Landing URL",  value: p.expectedFinalUrl.replace(SITE_URL, ""),    width: 24 },
+    { label: "Name",         value: p.payload.data.name,                         width: 32 },
   ];
   if (previews[0]) console.log(header(cols(previews[0])));
   for (const p of previews) console.log(fmtRow(cols(p)));
@@ -190,7 +215,7 @@ async function main() {
     const deletions = await prisma.googleAdsCampaignDraft.deleteMany({
       where: {
         accountId: account.id,
-        aiPrompt:  "discovery-orchestrator:phase2c",
+        aiPrompt:  { in: DELETABLE_AI_PROMPTS },
         status:    { in: ["DRAFT", "PENDING_APPROVAL"] },
       },
     });
@@ -198,13 +223,44 @@ async function main() {
     console.log("");
   }
 
-  // ── Step 4: create the new ones ─────────────────────────────────────────
-  console.log("▶ Step 4 — Creating the curated set");
+  // ── Step 4: ensure landing pages + create drafts ───────────────────────
+  console.log("▶ Step 4 — Ensuring landing pages + creating drafts");
+  console.log("  (each district triggers an Ollama call on first generation —");
+  console.log("   expect ~10-20s per district)");
+  console.log("");
   let created = 0;
   let skipped = 0;
+  let errored = 0;
+
   for (const p of previews) {
+    let finalUrl = p.expectedFinalUrl;
+
+    // For districted keywords, ensure the landing page exists first.
+    // If coverage is missing or LLM generation fails, skip the draft
+    // entirely rather than ship a campaign with no page.
+    if (p.district) {
+      console.log(`  ▸ Ensuring /locksmith-in/${districtSlug(p.district)} ...`);
+      try {
+        const ensured = await ensureOrSkip(p.district);
+        if (!ensured.ok) {
+          console.log(`    ⊘ ${p.candidate.keyword}: ${ensured.skipReason}`);
+          skipped++;
+          continue;
+        }
+        finalUrl = `${SITE_URL}/locksmith-in/${ensured.result!.slug}`;
+        console.log(
+          `    ✓ ${ensured.result!.action} (${ensured.result!.modelUsed ?? "?"})`
+          + (ensured.result!.reason ? ` — ${ensured.result!.reason}` : ""),
+        );
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.log(`    ✗ ${p.candidate.keyword}: landing-page generation failed — ${msg}`);
+        errored++;
+        continue;
+      }
+    }
+
     // Idempotency: skip if a draft with this name already exists
-    // (shouldn't happen since we just deleted, but defensive)
     const conflict = await prisma.googleAdsCampaignDraft.findFirst({
       where: { accountId: account.id, name: p.payload.data.name },
       select: { id: true },
@@ -214,12 +270,31 @@ async function main() {
       skipped++;
       continue;
     }
-    await prisma.googleAdsCampaignDraft.create({ data: p.payload.data });
-    console.log(`  ✓ Created: ${p.payload.data.name}`);
+
+    // Rebuild the payload with the resolved finalUrl (the dry-run
+    // payload used the expected URL; the live URL may have a different
+    // slug if ensureOrSkip normalised the district casing).
+    const livePayload = buildDiscoveryCampaignDraft(
+      {
+        keyword:              p.candidate.keyword,
+        family:               p.candidate.family,
+        phoneLeadIntentScore: p.intent.score,
+      },
+      {
+        accountId:        account.id,
+        finalUrl,
+        websitePhoneE164: phone,
+        aiPrompt:         RECOMPOSE_TAG,
+        status:           "PENDING_APPROVAL",
+      },
+    );
+
+    await prisma.googleAdsCampaignDraft.create({ data: livePayload.data });
+    console.log(`  ✓ Created draft: ${livePayload.data.name}  →  ${finalUrl}`);
     created++;
   }
   console.log("");
-  console.log(`Done — created ${created}, skipped ${skipped}.`);
+  console.log(`Done — created ${created}, skipped ${skipped}, errored ${errored}.`);
   console.log("");
   console.log("Review at /admin/integrations/google-ads/drafts");
   console.log("Each draft is PENDING_APPROVAL — Publish to push live.");

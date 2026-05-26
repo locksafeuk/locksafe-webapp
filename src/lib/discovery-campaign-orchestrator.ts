@@ -314,7 +314,7 @@ export async function generateDiscoveryDrafts(
       // In dry-run we don't actually call ensure() — it does LLM work +
       // DB writes which we want gated behind --live.
       if (options.dryRun) {
-        draftFinalUrl = `${SITE_URL}/locksmith/${districtSlug(detectedDistrict)}`;
+        draftFinalUrl = `${SITE_URL}/locksmith-in/${districtSlug(detectedDistrict)}`;
       } else {
         try {
           const ensured = await ensureOrSkip(detectedDistrict);
@@ -325,7 +325,7 @@ export async function generateDiscoveryDrafts(
             result.quotaFiltered++;
             continue;
           }
-          draftFinalUrl = `${SITE_URL}/locksmith/${ensured.result!.slug}`;
+          draftFinalUrl = `${SITE_URL}/locksmith-in/${ensured.result!.slug}`;
         } catch (err) {
           // LLM/network failure — block this draft and surface the
           // error rather than ship a campaign with a missing page.

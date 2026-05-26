@@ -40,7 +40,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const page = await loadPage(slug);
   if (!page) return {};
 
-  const canonicalUrl = `${SITE_URL}/locksmith/${page.slug}`;
+  const canonicalUrl = `${SITE_URL}/locksmith-in/${page.slug}`;
   const title       = `Locksmith in ${page.district}, ${page.anchorTown ?? "UK"} | LockSafe`;
   const description = page.heroSubcopy ?? page.heroHeadline ?? "Local locksmith service.";
 
@@ -118,14 +118,14 @@ export default async function DistrictLandingPage({ params }: Props) {
   const page = await loadPage(slug);
   if (!page) notFound();
 
-  const canonicalUrl = `${SITE_URL}/locksmith/${page.slug}`;
+  const canonicalUrl = `${SITE_URL}/locksmith-in/${page.slug}`;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const faqs = Array.isArray(page.faqs) ? (page.faqs as Array<{ question: string; answer: string }>) : [];
 
   const breadcrumbs = [
     { name: "Home",     url: "/" },
-    { name: "Locksmith areas", url: "/locksmith" },
-    { name: page.district, url: `/locksmith/${page.slug}` },
+    { name: "Locksmith areas", url: "/locksmith-in" },
+    { name: page.district, url: `/locksmith-in/${page.slug}` },
   ];
 
   // Sister districts that ALSO have a published page → real internal links.
@@ -293,7 +293,7 @@ export default async function DistrictLandingPage({ params }: Props) {
             {sisterDistricts.map((s: { district: string; slug: string; anchorTown: string | null }) => (
               <Link
                 key={s.slug}
-                href={`/locksmith/${s.slug}`}
+                href={`/locksmith-in/${s.slug}`}
                 className="block rounded-xl border border-slate-200 bg-white hover:border-amber-400 hover:shadow-sm transition-all p-4"
               >
                 <div className="font-semibold text-slate-900">{s.district}</div>

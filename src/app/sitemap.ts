@@ -324,7 +324,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         select: { slug: true, updatedAt: true },
       });
     districtLandingPages = rows.map((r) => ({
-      url: `${baseUrl}/locksmith/${r.slug}`,
+      url: `${baseUrl}/locksmith-in/${r.slug}`,
       lastModified: r.updatedAt,
       changeFrequency: "weekly" as const,
       priority: 0.9,
