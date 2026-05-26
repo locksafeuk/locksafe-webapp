@@ -72,11 +72,12 @@ function expect<T>(actual: T) {
 
 interface Row { id: string; [k: string]: unknown }
 const tables: Record<string, Map<string, Row>> = {
-  job:                    new Map(),
-  adCampaign:             new Map(),
-  adPerformanceSnapshot:  new Map(),
-  quote:                  new Map(),
-  userSession:            new Map(),
+  job:                       new Map(),
+  adCampaign:                new Map(),  // kept for Meta-side tests; not used by Google auto-pause
+  googleAdsCampaignDraft:    new Map(),  // Google Ads campaigns — what auto-pause queries
+  adPerformanceSnapshot:     new Map(),
+  quote:                     new Map(),
+  userSession:               new Map(),
 };
 let nextId = 1;
 const mkId = () => `id_${nextId++}`;
@@ -330,20 +331,25 @@ await suite("uploadJobConversionIfEligible — eligibility rules", async () => {
 // ── Auto-pause cron decision matrix ─────────────────────────────────────────
 
 await suite("Auto-pause cron — decision matrix", async () => {
-  // Reset tables
-  tables.job.clear(); tables.adCampaign.clear(); tables.adPerformanceSnapshot.clear(); tables.quote.clear();
+  // Reset tables — Google Ads campaigns live in GoogleAdsCampaignDraft,
+  // performance snapshots use platform="google" + googleCampaignId.
+  tables.job.clear();
+  tables.googleAdsCampaignDraft.clear();
+  tables.adPerformanceSnapshot.clear();
+  tables.quote.clear();
   telegramAlerts.length = 0; googleAdsCalls.length = 0;
 
   const now = new Date();
   const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
 
   // Campaign A: spent £50, produced 1 completed job → costPerComplete=£50 → PAUSE
-  tables.adCampaign.set("camp_a", {
-    id: "camp_a", name: "Reading Emergency", status: "ACTIVE",
-    googleCampaignId: "g_a", account: { accountId: "12345" },
+  tables.googleAdsCampaignDraft.set("camp_a", {
+    id: "camp_a", name: "Reading Emergency", status: "PUBLISHED",
+    googleCampaignId: "g_a", account: { customerId: "1234567890" },
   });
   tables.adPerformanceSnapshot.set("snap_a", {
-    id: "snap_a", adCampaignId: "camp_a", date: twoDaysAgo, spend: 50,
+    id: "snap_a", platform: "google", googleCampaignId: "g_a",
+    date: twoDaysAgo, spend: 50,
   });
   tables.quote.set("q_a", { id: "q_a", totalAmount: 175 });
   tables.job.set("job_a", {
@@ -352,12 +358,13 @@ await suite("Auto-pause cron — decision matrix", async () => {
   });
 
   // Campaign B: spent £100, 5 bookings but ZERO completed → PAUSE (vanity pattern)
-  tables.adCampaign.set("camp_b", {
-    id: "camp_b", name: "MK Lockout", status: "ACTIVE",
-    googleCampaignId: "g_b", account: { accountId: "12345" },
+  tables.googleAdsCampaignDraft.set("camp_b", {
+    id: "camp_b", name: "MK Lockout", status: "PUBLISHED",
+    googleCampaignId: "g_b", account: { customerId: "1234567890" },
   });
   tables.adPerformanceSnapshot.set("snap_b", {
-    id: "snap_b", adCampaignId: "camp_b", date: twoDaysAgo, spend: 100,
+    id: "snap_b", platform: "google", googleCampaignId: "g_b",
+    date: twoDaysAgo, spend: 100,
   });
   for (let i = 0; i < 5; i++) {
     tables.job.set(`job_b_${i}`, {
@@ -367,21 +374,23 @@ await suite("Auto-pause cron — decision matrix", async () => {
   }
 
   // Campaign C: under MIN_SPEND_GBP (£20) — don't pause yet
-  tables.adCampaign.set("camp_c", {
-    id: "camp_c", name: "Coventry Trust", status: "ACTIVE",
-    googleCampaignId: "g_c", account: { accountId: "12345" },
+  tables.googleAdsCampaignDraft.set("camp_c", {
+    id: "camp_c", name: "Coventry Trust", status: "PUBLISHED",
+    googleCampaignId: "g_c", account: { customerId: "1234567890" },
   });
   tables.adPerformanceSnapshot.set("snap_c", {
-    id: "snap_c", adCampaignId: "camp_c", date: twoDaysAgo, spend: 20,
+    id: "snap_c", platform: "google", googleCampaignId: "g_c",
+    date: twoDaysAgo, spend: 20,
   });
 
-  // Campaign D: spent £200, completed 10 jobs at £15 each → KEEP
-  tables.adCampaign.set("camp_d", {
-    id: "camp_d", name: "Derby Anti Snap", status: "ACTIVE",
-    googleCampaignId: "g_d", account: { accountId: "12345" },
+  // Campaign D: spent £150, completed 10 jobs → KEEP
+  tables.googleAdsCampaignDraft.set("camp_d", {
+    id: "camp_d", name: "Derby Anti Snap", status: "PUBLISHED",
+    googleCampaignId: "g_d", account: { customerId: "1234567890" },
   });
   tables.adPerformanceSnapshot.set("snap_d", {
-    id: "snap_d", adCampaignId: "camp_d", date: twoDaysAgo, spend: 150,
+    id: "snap_d", platform: "google", googleCampaignId: "g_d",
+    date: twoDaysAgo, spend: 150,
   });
   tables.quote.set("q_d", { id: "q_d", totalAmount: 200 });
   for (let i = 0; i < 10; i++) {
@@ -400,23 +409,23 @@ await suite("Auto-pause cron — decision matrix", async () => {
   });
 
   await test("Campaign A (over cost-per-complete threshold) paused", () => {
-    const a = tables.adCampaign.get("camp_a");
+    const a = tables.googleAdsCampaignDraft.get("camp_a");
     expect((a as unknown as { status: string }).status).toBe("PAUSED");
   });
 
   await test("Campaign B (vanity conversions) paused", () => {
-    const b = tables.adCampaign.get("camp_b");
+    const b = tables.googleAdsCampaignDraft.get("camp_b");
     expect((b as unknown as { status: string }).status).toBe("PAUSED");
   });
 
   await test("Campaign C (under MIN_SPEND) NOT paused", () => {
-    const c = tables.adCampaign.get("camp_c");
-    expect((c as unknown as { status: string }).status).toBe("ACTIVE");
+    const c = tables.googleAdsCampaignDraft.get("camp_c");
+    expect((c as unknown as { status: string }).status).toBe("PUBLISHED");
   });
 
   await test("Campaign D (healthy ROI) NOT paused", () => {
-    const d = tables.adCampaign.get("camp_d");
-    expect((d as unknown as { status: string }).status).toBe("ACTIVE");
+    const d = tables.googleAdsCampaignDraft.get("camp_d");
+    expect((d as unknown as { status: string }).status).toBe("PUBLISHED");
   });
 
   await test("Telegram alerts fired for paused campaigns (2 of 4)", () => {
@@ -432,16 +441,16 @@ await suite("Auto-pause cron — decision matrix", async () => {
   });
 
   await test("dryRun=1 evaluates but does NOT pause or alert", async () => {
-    // Reset campaign A back to ACTIVE
-    const a = tables.adCampaign.get("camp_a") as unknown as { status: string };
-    a.status = "ACTIVE";
+    // Reset campaign A back to PUBLISHED (the active state for Google Ads drafts)
+    const a = tables.googleAdsCampaignDraft.get("camp_a") as unknown as { status: string };
+    a.status = "PUBLISHED";
     telegramAlerts.length = 0; googleAdsCalls.length = 0;
     const req = new Request("https://example.com/api/cron/google-ads-auto-pause?dryRun=1", { method: "POST" }) as unknown as import("next/server").NextRequest;
     const res = await autoPauseRoute.POST(req);
     const json = await res.json();
     expect(json.dryRun).toBe(true);
     expect(json.paused).toBeGreaterThan(0);  // verdict counted
-    expect((tables.adCampaign.get("camp_a") as unknown as { status: string }).status).toBe("ACTIVE");
+    expect((tables.googleAdsCampaignDraft.get("camp_a") as unknown as { status: string }).status).toBe("PUBLISHED");
     expect(telegramAlerts.length).toBe(0);
   });
 });

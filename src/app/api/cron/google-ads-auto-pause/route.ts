@@ -70,17 +70,26 @@ interface CampaignVerdict {
 
 async function evaluateCampaign(
   campaign: {
-    id:           string;
-    name:         string;
-    status:       string;
+    id:               string;
+    name:             string;
+    status:           string;
+    googleCampaignId: string | null;
   },
   since: Date,
 ): Promise<CampaignVerdict> {
-  // 1) Spend — sum AdPerformanceSnapshot for this campaign
-  const snapshots = await prisma.adPerformanceSnapshot.findMany({
-    where:  { adCampaignId: campaign.id, date: { gte: since } },
-    select: { spend: true },
-  });
+  // 1) Spend — sum AdPerformanceSnapshot for this Google Ads campaign.
+  // AdPerformanceSnapshot uses platform="google" + googleCampaignId (string)
+  // as the join key for Google rows (vs adCampaignId ObjectId for Meta).
+  const snapshots = campaign.googleCampaignId
+    ? await prisma.adPerformanceSnapshot.findMany({
+        where: {
+          platform:         "google",
+          googleCampaignId: campaign.googleCampaignId,
+          date:             { gte: since },
+        },
+        select: { spend: true },
+      })
+    : [];
   const spend = snapshots.reduce(
     (s: number, r: { spend: number | null }) => s + (r.spend ?? 0),
     0,
@@ -185,11 +194,13 @@ export async function POST(request: NextRequest) {
 
   const since = new Date(Date.now() - ROLLING_DAYS * 24 * 60 * 60 * 1000);
 
-  // Active campaigns linked to Google Ads (we only auto-pause those we
-  // actually have a remote handle on).
-  const campaigns = await prisma.adCampaign.findMany({
+  // Active Google Ads campaigns we have a remote handle on.
+  // GoogleAdsCampaignDraft is the canonical model for Google Ads
+  // (AdCampaign only carries Meta-side fields). status="PUBLISHED" is
+  // the equivalent of "active in production" for that table.
+  const campaigns = await prisma.googleAdsCampaignDraft.findMany({
     where: {
-      status:           "ACTIVE",
+      status:           "PUBLISHED",
       googleCampaignId: { not: null },
     },
     select: {
@@ -197,7 +208,7 @@ export async function POST(request: NextRequest) {
       name:              true,
       status:            true,
       googleCampaignId:  true,
-      account:           { select: { accountId: true } },
+      account:           { select: { customerId: true } },
     },
   });
 
@@ -213,17 +224,20 @@ export async function POST(request: NextRequest) {
         pauses.push(verdict);
         continue;
       }
-      // 1. Update local row
-      await prisma.adCampaign.update({
+      // 1. Update local row (GoogleAdsCampaignDraft uses "PAUSED" as a valid
+      //    status in its lifecycle: DRAFT|PENDING_APPROVAL|APPROVED|...|PUBLISHED|PAUSED|FAILED).
+      await prisma.googleAdsCampaignDraft.update({
         where: { id: campaign.id },
         data:  { status: "PAUSED" },
       });
-      // 2. Pause remote on Google Ads (if account info present)
+      // 2. Pause remote on Google Ads (if account info present).
+      // customerId is the dash-stripped Google Ads account ID (e.g. "1234567890"),
+      // which is what the Ads API requires in the resource path.
       let pauseResult: { ok: boolean; error?: string } | undefined;
-      if (campaign.googleCampaignId && campaign.account?.accountId) {
+      if (campaign.googleCampaignId && campaign.account?.customerId) {
         pauseResult = await pauseRemoteCampaign(
           campaign.googleCampaignId,
-          campaign.account.accountId,
+          campaign.account.customerId,
         );
       }
       pauses.push({ ...verdict, pauseResult });
