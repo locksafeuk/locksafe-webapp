@@ -59,6 +59,11 @@ export function LocksmithOnboardingModal({
   // Profile photo
   const [profilePhoto, setProfilePhoto] = useState<ProfilePhoto | null>(null);
 
+    // Face verification state
+    const [isFaceVerifying, setIsFaceVerifying] = useState(false);
+    const [faceVerified, setFaceVerified] = useState<boolean | null>(null); // null = not checked yet
+    const [faceRejectionReason, setFaceRejectionReason] = useState<string | null>(null);
+
   // Document uploads
   const [insuranceDoc, setInsuranceDoc] = useState<UploadedDocument | null>(null);
   const [insuranceExpiryDate, setInsuranceExpiryDate] = useState<string>("");
@@ -75,6 +80,8 @@ export function LocksmithOnboardingModal({
 
   const handleProfilePhotoUpload = useCallback(async (file: File) => {
     setIsUploading(true);
+      setFaceVerified(null);
+      setFaceRejectionReason(null);
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -91,6 +98,35 @@ export function LocksmithOnboardingModal({
           url: data.url,
           name: file.name,
         });
+
+          // Trigger AI face verification (non-blocking for UX — runs in background)
+          setIsFaceVerifying(true);
+          fetch("/api/locksmith/verify-profile-photo", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              locksmithId,
+              photoUrl: data.url,
+              locksmithName,
+            }),
+          })
+            .then((r) => r.json())
+            .then((result) => {
+              if (result.success) {
+                setFaceVerified(result.isRealFace);
+                if (!result.isRealFace) {
+                  setFaceRejectionReason(
+                    result.rejectionReason ??
+                      "Please upload a clear headshot photo of yourself."
+                  );
+                }
+              }
+            })
+            .catch(() => {
+              // Verification service unavailable — allow photo through silently
+              setFaceVerified(true);
+            })
+            .finally(() => setIsFaceVerifying(false));
       } else {
         alert("Failed to upload photo. Please try again.");
       }
@@ -179,7 +215,12 @@ export function LocksmithOnboardingModal({
     }
   };
 
-  const canProceedFromWelcome = profilePhoto !== null;
+  // Allow proceeding if photo is uploaded AND (face not yet checked OR face verified).
+  // If face explicitly rejected (faceVerified === false), block until they replace the photo.
+  const canProceedFromWelcome =
+    profilePhoto !== null &&
+    !isFaceVerifying &&
+    faceVerified !== false;
   const canProceedToTerms = insuranceDoc !== null && insuranceExpiryDate !== "";
 
   const handleSkip = () => {
@@ -198,9 +239,15 @@ export function LocksmithOnboardingModal({
           <div className="text-center py-4 sm:py-6">
             {/* Profile Photo Upload */}
             <div className="relative mx-auto mb-6">
-              <div className={`w-28 h-28 sm:w-32 sm:h-32 rounded-full mx-auto relative overflow-hidden border-4 transition-colors ${
-                profilePhoto ? "border-green-400" : "border-dashed border-slate-300"
-              }`}>
+              <div
+                className={`w-28 h-28 sm:w-32 sm:h-32 rounded-full mx-auto relative overflow-hidden border-4 transition-colors ${
+                  faceVerified === false
+                    ? "border-red-400"
+                    : profilePhoto
+                    ? "border-green-400"
+                    : "border-dashed border-slate-300"
+                }`}
+              >
                 {profilePhoto ? (
                   <Image
                     src={profilePhoto.url}
@@ -216,11 +263,15 @@ export function LocksmithOnboardingModal({
               </div>
 
               {/* Upload/Change button */}
-              <label className={`absolute bottom-0 right-1/2 translate-x-1/2 translate-y-1/3 w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center cursor-pointer transition-all shadow-lg ${
-                profilePhoto
-                  ? "bg-green-500 hover:bg-green-600"
-                  : "bg-orange-500 hover:bg-orange-600"
-              }`}>
+              <label
+                className={`absolute bottom-0 right-1/2 translate-x-1/2 translate-y-1/3 w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center cursor-pointer transition-all shadow-lg ${
+                  faceVerified === false
+                    ? "bg-red-500 hover:bg-red-600"
+                    : profilePhoto
+                    ? "bg-green-500 hover:bg-green-600"
+                    : "bg-orange-500 hover:bg-orange-600"
+                }`}
+              >
                 {isUploading ? (
                   <Loader2 className="w-5 h-5 text-white animate-spin" />
                 ) : (
@@ -238,8 +289,8 @@ export function LocksmithOnboardingModal({
                 />
               </label>
 
-              {/* Uploaded indicator */}
-              {profilePhoto && (
+              {/* Verified indicator — hide when rejected */}
+              {profilePhoto && !isFaceVerifying && faceVerified !== false && (
                 <div className="absolute -top-1 -right-1 sm:right-[calc(50%-4rem)]">
                   <div className="w-7 h-7 bg-green-500 rounded-full flex items-center justify-center shadow-md">
                     <CheckCircle2 className="w-4 h-4 text-white" />
@@ -248,30 +299,53 @@ export function LocksmithOnboardingModal({
               )}
             </div>
 
-            {/* Photo upload hint */}
-            <div className={`mb-4 px-4 py-2 rounded-full inline-flex items-center gap-2 text-sm ${
-              profilePhoto
-                ? "bg-green-50 text-green-700"
-                : "bg-orange-50 text-orange-700"
-            }`}>
-              {profilePhoto ? (
-                <>
-                  <CheckCircle2 className="w-4 h-4" />
-                  Profile photo uploaded
-                </>
-              ) : (
-                <>
-                  <Camera className="w-4 h-4" />
-                  Upload your profile photo
-                  <span className="bg-red-100 text-red-600 text-xs px-1.5 py-0.5 rounded-full">Required</span>
-                </>
-              )}
-            </div>
+            {/* AI face verification feedback */}
+            {!profilePhoto && (
+              <div className="mb-4 px-4 py-2 rounded-full inline-flex items-center gap-2 text-sm bg-orange-50 text-orange-700">
+                <Camera className="w-4 h-4" />
+                Upload your profile photo
+                <span className="bg-red-100 text-red-600 text-xs px-1.5 py-0.5 rounded-full">Required</span>
+              </div>
+            )}
+            {profilePhoto && isFaceVerifying && (
+              <div className="mb-4 px-4 py-2 rounded-full inline-flex items-center gap-2 text-sm bg-blue-50 text-blue-700">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Verifying photo\u2026
+              </div>
+            )}
+            {profilePhoto && !isFaceVerifying && faceVerified === true && (
+              <div className="mb-4 px-4 py-2 rounded-full inline-flex items-center gap-2 text-sm bg-green-50 text-green-700">
+                <CheckCircle2 className="w-4 h-4" />
+                Face verified \u2713
+              </div>
+            )}
+            {profilePhoto && !isFaceVerifying && faceVerified === null && (
+              <div className="mb-4 px-4 py-2 rounded-full inline-flex items-center gap-2 text-sm bg-green-50 text-green-700">
+                <CheckCircle2 className="w-4 h-4" />
+                Profile photo uploaded
+              </div>
+            )}
+            {profilePhoto && !isFaceVerifying && faceVerified === false && (
+              <div className="mb-4 px-4 py-3 rounded-xl flex flex-col items-center gap-1 text-sm bg-red-50 border border-red-200 text-red-700 max-w-sm mx-auto">
+                <div className="flex items-center gap-2 font-semibold">
+                  <AlertTriangle className="w-4 h-4" />
+                  Photo not accepted
+                </div>
+                <p className="text-xs text-center text-red-600">
+                  {faceRejectionReason ?? "Please upload a clear headshot photo of yourself."}
+                </p>
+                <p className="text-xs text-center text-red-500">Tap the camera icon to replace your photo.</p>
+              </div>
+            )}
 
             {profilePhoto && (
               <button
                 type="button"
-                onClick={() => setProfilePhoto(null)}
+                onClick={() => {
+                  setProfilePhoto(null);
+                  setFaceVerified(null);
+                  setFaceRejectionReason(null);
+                }}
                 className="text-xs text-slate-500 hover:text-red-500 underline mb-4 block mx-auto"
               >
                 Remove photo
@@ -282,7 +356,7 @@ export function LocksmithOnboardingModal({
               Welcome to LockSafe, {locksmithName.split(" ")[0]}!
             </h2>
             <p className="text-slate-600 text-base sm:text-lg max-w-md mx-auto">
-              Thank you for joining the UK's first anti-fraud locksmith platform. Let's get you set up.
+              {`Thank you for joining the UK's first anti-fraud locksmith platform. Let's get you set up.`}
             </p>
             <div className="mt-6 grid grid-cols-2 gap-3 text-sm max-w-sm mx-auto">
               <div className="flex items-center gap-2 bg-slate-50 rounded-lg p-3">
@@ -306,7 +380,7 @@ export function LocksmithOnboardingModal({
             {/* Why profile photo matters */}
             <div className="mt-6 bg-blue-50 rounded-xl p-4 text-sm text-left">
               <p className="text-blue-700">
-                <strong>Why a profile photo?</strong> Customers feel more confident booking verified locksmiths with professional photos. It also helps customers recognize you when you arrive.
+                <strong>Why a profile photo?</strong> Customers feel more confident booking verified locksmiths with professional photos. It also helps customers recognise you when you arrive.
               </p>
             </div>
           </div>

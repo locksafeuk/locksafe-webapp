@@ -339,3 +339,154 @@ export function isFullyCredentialed(
   const okStatuses = ["verified", "expiring_soon"]; // expiring_soon still counts
   return okStatuses.includes(insuranceStatus) && okStatuses.includes(dbsStatus);
 }
+
+// ─── Profile Photo Face Verification ─────────────────────────────────────────
+
+export interface FaceVerificationResult {
+  isRealFace: boolean;
+  confidence: number; // 0–1
+  notes: string;
+  rejectionReason?: string; // Human-readable reason if rejected
+  durationMs: number;
+}
+
+const FACE_ACCEPT_THRESHOLD = 0.75; // confidence must be ≥ this to accept photo
+
+const FACE_PROMPT = `You are reviewing a locksmith professional profile photo for the LockSafe platform.
+
+Analyse this image and determine if it is a genuine professional headshot/selfie of a real person.
+
+The photo MUST be ACCEPTED if it shows:
+- A clear, real human face (headshot or portrait)
+- The person is recognisable and presentable
+- Reasonable image quality
+
+The photo MUST be REJECTED if it is:
+- A company logo or brand image
+- A stock photo / advertisement / commercial image
+- A cartoon, illustration, or AI-generated face
+- A group photo (multiple people)
+- A landscape, car, tool, or non-person image
+- Deliberately obscured or face not visible
+- A scanned ID/document image
+
+Respond ONLY with valid JSON in this exact format:
+{
+  "isRealFace": true or false,
+  "confidence": 0.0 to 1.0,
+  "rejectionReason": "brief plain-English reason if rejected, or null if accepted",
+  "notes": "one sentence summary"
+}`;
+
+/**
+ * Verify that a profile photo is a genuine headshot of a real person.
+ * Rejects logos, stock images, commercial/advertising imagery, and non-face photos.
+ */
+export async function verifyProfilePhoto(
+  imageUrl: string,
+  locksmithName?: string
+): Promise<FaceVerificationResult> {
+  const start = Date.now();
+
+  const image = await fetchDocumentAsBase64(imageUrl);
+
+  if (!image) {
+    return {
+      isRealFace: false,
+      confidence: 0,
+      notes: "Could not fetch image for verification.",
+      rejectionReason: "Image could not be retrieved for verification.",
+      durationMs: Date.now() - start,
+    };
+  }
+
+  try {
+    const { content, durationMs } = await callOllamaVision(
+      image.base64,
+      FACE_PROMPT,
+      image.mimeType as "image/jpeg" | "image/png" | "image/webp"
+    );
+
+    // Parse structured JSON response
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        const parsed = JSON.parse(jsonMatch[0]);
+        const confidence = Math.min(1, Math.max(0, Number(parsed.confidence ?? 0)));
+        const isRealFace = Boolean(parsed.isRealFace) && confidence >= FACE_ACCEPT_THRESHOLD;
+
+        const result: FaceVerificationResult = {
+          isRealFace,
+          confidence,
+          notes: String(parsed.notes ?? ""),
+          durationMs: Date.now() - start,
+        };
+
+        if (!isRealFace) {
+          result.rejectionReason =
+            parsed.rejectionReason ??
+            "Please upload a clear headshot photo of yourself.";
+        }
+
+        if (!isRealFace) {
+          console.log(
+            `[FaceVerifier] Rejected photo for ${locksmithName ?? "unknown"} — confidence=${confidence.toFixed(2)} reason="${result.rejectionReason}"`
+          );
+          // Optionally alert admin for very suspicious uploads
+          if (confidence < 0.3) {
+            await sendAdminAlert({
+              title: "Suspicious Profile Photo Rejected",
+              message:
+                `Locksmith: ${locksmithName ?? "Unknown"}\n` +
+                `Confidence: ${Math.round(confidence * 100)}%\n` +
+                `Reason: ${result.rejectionReason}\n` +
+                `Notes: ${result.notes}`,
+              severity: "warning",
+            }).catch(() => {});
+          }
+        } else {
+          console.log(
+            `[FaceVerifier] Accepted photo for ${locksmithName ?? "unknown"} — confidence=${confidence.toFixed(2)}`
+          );
+        }
+
+        return result;
+      } catch {
+        // fall through to prose fallback
+      }
+    }
+
+    // Prose fallback
+    const lower = content.toLowerCase();
+    const isRealFace =
+      lower.includes("real face") ||
+      lower.includes("genuine") ||
+      lower.includes("headshot") ||
+      lower.includes("person");
+    const isRejected =
+      lower.includes("logo") ||
+      lower.includes("stock photo") ||
+      lower.includes("advertisement") ||
+      lower.includes("not a person") ||
+      lower.includes("no face");
+
+    return {
+      isRealFace: isRealFace && !isRejected,
+      confidence: isRejected ? 0.2 : isRealFace ? 0.65 : 0.5,
+      notes: content.slice(0, 200),
+      rejectionReason: isRejected
+        ? "Please upload a clear headshot photo of yourself."
+        : undefined,
+      durationMs: Date.now() - start,
+    };
+  } catch (error) {
+    console.error("[FaceVerifier] Vision model error:", error);
+    // Fail open — don't block onboarding if AI is unavailable
+    return {
+      isRealFace: true,
+      confidence: 0,
+      notes: "Verification service temporarily unavailable.",
+      durationMs: Date.now() - start,
+    };
+  }
+}

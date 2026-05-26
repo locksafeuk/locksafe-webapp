@@ -215,6 +215,10 @@ model Locksmith {
   phone         String
   passwordHash  String? // For login
   profileImage  String?
+  profilePhotoVerified   Boolean @default(false) // True once AI face check passes
+  profilePhotoVerifiedAt DateTime? // When face check passed
+  profilePhotoRejectionReason String? // Why AI rejected the photo (if any)
+  profilePhotoAiConfidence    Float?  // AI face verification confidence 0–1
   rating        Float   @default(5.0)
   totalJobs     Int     @default(0)
   totalEarnings Float   @default(0)

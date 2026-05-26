@@ -4135,3 +4135,144 @@ export async function sendCoverPaymentFailedEmail(
     html,
   });
 }
+
+// ============================================
+// DBS EXPIRY REMINDER EMAILS
+// ============================================
+
+export async function sendDbsExpiryReminderEmail(
+  locksmithEmail: string,
+  data: {
+    locksmithName: string;
+    companyName: string | null;
+    expiryDate: Date;
+    daysUntilExpiry: number;
+    renewUrl: string;
+  },
+) {
+  const isUrgent = data.daysUntilExpiry <= 7;
+  const headerBg = isUrgent
+    ? "background: linear-gradient(135deg, #dc2626, #b91c1c);"
+    : "background: linear-gradient(135deg, #7c3aed, #6d28d9);";
+
+  const urgencyText =
+    data.daysUntilExpiry <= 0
+      ? "has expired"
+      : data.daysUntilExpiry === 1
+        ? "expires tomorrow"
+        : `expires in ${data.daysUntilExpiry} days`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: system-ui, sans-serif; line-height: 1.6; color: #1e293b; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { ${headerBg} color: white; padding: 24px; border-radius: 12px 12px 0 0; text-align: center; }
+        .content { background: #f8fafc; padding: 24px; border-radius: 0 0 12px 12px; }
+        .box { background: white; padding: 20px; border-radius: 12px; margin: 16px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .footer { text-align: center; color: #64748b; font-size: 12px; margin-top: 24px; }
+        .button { display: inline-block; background: #7c3aed; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; }
+        .alert { background: ${isUrgent ? "#fef2f2" : "#f5f3ff"}; border: 2px solid ${isUrgent ? "#fecaca" : "#ddd6fe"}; padding: 16px; border-radius: 12px; text-align: center; }
+        .countdown { font-size: 48px; font-weight: bold; color: ${isUrgent ? "#dc2626" : "#7c3aed"}; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1 style="margin:0;font-size:28px;">🔒 DBS Certificate ${data.daysUntilExpiry <= 0 ? "Expired" : "Expiring Soon"}</h1>
+          <p style="margin:8px 0 0 0;opacity:0.9;font-size:16px;">Action required for your LockSafe account</p>
+        </div>
+        <div class="content">
+          <div class="alert">
+            <p class="countdown">${data.daysUntilExpiry <= 0 ? "EXPIRED" : data.daysUntilExpiry}</p>
+            <p style="margin:0;color:${isUrgent ? "#991b1b" : "#4c1d95"};font-weight:600;">
+              ${data.daysUntilExpiry <= 0 ? "Your DBS certificate has expired" : `day${data.daysUntilExpiry === 1 ? "" : "s"} until expiry`}
+            </p>
+          </div>
+
+          <p>Hi ${data.locksmithName},</p>
+          <p>
+            Your DBS (Disclosure and Barring Service) certificate ${urgencyText}.
+            ${
+              data.daysUntilExpiry <= 0
+                ? "Your account has been restricted until you upload a valid DBS certificate."
+                : "Please renew your DBS check and upload the new certificate to continue accepting jobs without interruption."
+            }
+          </p>
+
+          <div class="box">
+            <table style="width:100%;border-collapse:collapse;">
+              <tr>
+                <td style="padding:12px 0;color:#64748b;">Current Expiry Date</td>
+                <td style="padding:12px 0;text-align:right;font-weight:600;${isUrgent ? "color:#dc2626;" : ""}">${data.expiryDate.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</td>
+              </tr>
+              ${
+                data.companyName
+                  ? `
+              <tr>
+                <td style="padding:12px 0;color:#64748b;border-top:1px solid #e2e8f0;">Company</td>
+                <td style="padding:12px 0;text-align:right;font-weight:600;border-top:1px solid #e2e8f0;">${data.companyName}</td>
+              </tr>
+              `
+                  : ""
+              }
+            </table>
+          </div>
+
+          <div class="box" style="background:${isUrgent ? "#fef2f2" : "#f5f3ff"};border:1px solid ${isUrgent ? "#fecaca" : "#ddd6fe"};">
+            <p style="margin:0;color:${isUrgent ? "#991b1b" : "#4c1d95"};font-weight:600;">
+              ${isUrgent ? "⚠️ Urgent Action Required" : "✓ What to do next"}
+            </p>
+            <ol style="margin:12px 0 0 0;color:${isUrgent ? "#dc2626" : "#6d28d9"};padding-left:20px;">
+              <li>Apply for a new DBS check via the Gov.uk portal or your employer</li>
+              <li>Log in to your LockSafe account</li>
+              <li>Go to Settings → Insurance &amp; Documentation</li>
+              <li>Upload your new DBS certificate</li>
+              <li>Enter the new expiry date</li>
+            </ol>
+          </div>
+
+          <p style="text-align:center;margin-top:24px;">
+            <a href="${data.renewUrl}" class="button">Update DBS Certificate Now</a>
+          </p>
+
+          ${
+            data.daysUntilExpiry <= 0
+              ? `
+          <p style="background:#fef2f2;border:1px solid #fecaca;padding:12px 16px;border-radius:8px;color:#991b1b;font-size:14px;margin-top:24px;">
+            <strong>Important:</strong> Your ability to accept new jobs has been suspended until a valid DBS certificate is provided.
+            Upload your renewed DBS certificate to restore your account.
+          </p>
+          `
+              : data.daysUntilExpiry <= 7
+                ? `
+          <p style="background:#f5f3ff;border:1px solid #ddd6fe;padding:12px 16px;border-radius:8px;color:#4c1d95;font-size:14px;margin-top:24px;">
+            <strong>Note:</strong> If your DBS certificate expires before you renew, your ability to accept new jobs will be temporarily suspended.
+          </p>
+          `
+                : ""
+          }
+        </div>
+        <div class="footer">
+          <p>${SITE_NAME} - Locksmith Partner Portal</p>
+          <p>Need admin help? Call ${LOCKSMITH_ADMIN_PHONE} or <a href="${LOCKSMITH_ADMIN_WHATSAPP_URL}" style="color:#7c3aed;">WhatsApp Admin</a></p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const subjectPrefix = isUrgent ? "🚨 URGENT" : "⚠️ Reminder";
+  const subjectSuffix =
+    data.daysUntilExpiry <= 0
+      ? "DBS Certificate Expired - Action Required"
+      : `DBS Certificate ${urgencyText}`;
+
+  return sendEmail({
+    to: locksmithEmail,
+    subject: `${subjectPrefix}: ${subjectSuffix}`,
+    html,
+  });
+}
