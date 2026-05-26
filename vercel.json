@@ -64,6 +64,10 @@
     {
       "path": "/api/cron/dbs-reminders",
       "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/cron/email-campaigns",
+      "schedule": "*/15 * * * *"
     }
   ],
   "functions": {

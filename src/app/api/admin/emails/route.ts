@@ -1,14 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import prisma from "@/lib/db";
+import { isAdminAuthenticated } from "@/lib/auth";
+import {
+  getLocksmithRecipientsBySegment,
+  type LocksmithCampaignSegment,
+} from "@/lib/email-campaign-recipient-segments";
+
+const SUPPORTED_SEGMENTS: LocksmithCampaignSegment[] = [
+  "all_locksmiths",
+  "active_locksmiths",
+  "inactive_locksmiths",
+  "stripe_not_onboarded",
+  "schedule_enabled",
+  "no_base_location",
+];
 
 // GET: List all email campaigns
 export async function GET(request: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const authToken = cookieStore.get("auth_token");
-
-    if (!authToken) {
+    const admin = await isAdminAuthenticated();
+    if (!admin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -59,10 +70,8 @@ export async function GET(request: NextRequest) {
 // POST: Create a new email campaign
 export async function POST(request: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const authToken = cookieStore.get("auth_token");
-
-    if (!authToken) {
+    const admin = await isAdminAuthenticated();
+    if (!admin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -78,6 +87,9 @@ export async function POST(request: NextRequest) {
       ctaUrl,
       accentColor,
       locksmithIds,
+      segment,
+      maxRecipients,
+      scheduledFor,
     } = body;
 
     // Validate required fields
@@ -88,18 +100,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Fetch selected locksmiths
-    const locksmiths = await prisma.locksmith.findMany({
-      where: {
-        id: { in: locksmithIds || [] },
-        emailNotifications: true, // Only send to those who haven't opted out
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-      },
-    });
+    if (!segment && (!Array.isArray(locksmithIds) || locksmithIds.length === 0)) {
+      return NextResponse.json(
+        { error: "Provide either locksmithIds or segment" },
+        { status: 400 },
+      );
+    }
+
+    let locksmiths: Array<{ id: string; name: string; email: string }> = [];
+
+    if (segment) {
+      if (!SUPPORTED_SEGMENTS.includes(segment as LocksmithCampaignSegment)) {
+        return NextResponse.json(
+          { error: `Unsupported segment: ${segment}` },
+          { status: 400 },
+        );
+      }
+
+      locksmiths = await getLocksmithRecipientsBySegment(
+        segment as LocksmithCampaignSegment,
+        typeof maxRecipients === "number" && maxRecipients > 0 ? maxRecipients : undefined,
+      );
+    } else {
+      locksmiths = await prisma.locksmith.findMany({
+        where: {
+          id: { in: locksmithIds || [] },
+          emailNotifications: true,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      });
+    }
 
     // Create campaign with recipients
     const campaign = await prisma.emailCampaign.create({
@@ -113,6 +147,9 @@ export async function POST(request: NextRequest) {
         ctaText: ctaText || null,
         ctaUrl: ctaUrl || null,
         accentColor: accentColor || "#f97316",
+        createdBy: admin.id,
+        scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
+        status: scheduledFor ? "SCHEDULED" : "DRAFT",
         totalRecipients: locksmiths.length,
         recipients: {
           create: locksmiths.map((ls) => ({
