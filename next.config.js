@@ -111,12 +111,13 @@ const nextConfig = {
           { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
         ],
       },
-      {
-        source: '/_next/static/:path*',
-        headers: [
-          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
-        ],
-      },
+      // Note: previously we set Cache-Control: public, max-age=31536000,
+      // immutable on /_next/static/:path* explicitly. Next.js does this
+      // natively in production and the override triggered the build
+      // warning "Custom Cache-Control headers detected — can break
+      // Next.js development behavior". Removing the override let
+      // Vercel's edge cache eviction work correctly again, which fixed
+      // a persistent stuck-404 issue for newly-deployed routes.
       {
         source: '/:path*',
         headers: securityHeaders,
