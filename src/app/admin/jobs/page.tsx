@@ -767,6 +767,8 @@ function AdminJobsContent() {
                 setStatusFilter(e.target.value);
                 setCurrentPage(1);
               }}
+              aria-label="Filter jobs by status"
+              title="Filter jobs by status"
               className="flex-1 lg:flex-none px-3 lg:px-4 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none bg-white"
             >
               <option value="all">All Statuses</option>
@@ -1256,6 +1258,8 @@ function AdminJobsContent() {
               <button
                 type="button"
                 onClick={() => setEditingJob(null)}
+                aria-label="Close edit job modal"
+                title="Close"
                 className="p-1 hover:bg-slate-100 rounded"
               >
                 <X className="w-5 h-5" />
@@ -1271,6 +1275,8 @@ function AdminJobsContent() {
                   onChange={(e) =>
                     setEditFormData({ ...editFormData, status: e.target.value })
                   }
+                  aria-label="Job status"
+                  title="Job status"
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
                 >
                   <option value={NO_LOCKSMITH_STATUS}>No Locksmith Available</option>
@@ -1293,6 +1299,8 @@ function AdminJobsContent() {
                       problemType: e.target.value,
                     })
                   }
+                  aria-label="Problem type"
+                  title="Problem type"
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
                 >
                   {Object.entries(problemLabels).map(([key, label]) => (
@@ -1315,6 +1323,8 @@ function AdminJobsContent() {
                       postcode: e.target.value,
                     })
                   }
+                  title="Postcode"
+                  placeholder="Enter postcode"
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
                 />
               </div>
@@ -1331,6 +1341,8 @@ function AdminJobsContent() {
                     })
                   }
                   rows={2}
+                  title="Address"
+                  placeholder="Enter address"
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none resize-none"
                 />
               </div>
@@ -1377,6 +1389,8 @@ function AdminJobsContent() {
               <button
                 type="button"
                 onClick={() => setAssignModalJob(null)}
+                aria-label="Close assign locksmith modal"
+                title="Close"
                 className="p-1 hover:bg-slate-100 rounded"
               >
                 <X className="w-5 h-5" />
@@ -1462,6 +1476,8 @@ function AdminJobsContent() {
                     <select
                       value={selectedLocksmithId}
                       onChange={(e) => setSelectedLocksmithId(e.target.value)}
+                      aria-label="Select locksmith"
+                      title="Select locksmith"
                       className="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none text-sm"
                     >
                       <option value="">Choose a locksmith...</option>
@@ -1576,6 +1592,8 @@ function AdminJobsContent() {
               <button
                 type="button"
                 onClick={() => setDeleteJobId(null)}
+                aria-label="Close delete job modal"
+                title="Close"
                 className="p-1 hover:bg-slate-100 rounded"
               >
                 <X className="w-5 h-5" />

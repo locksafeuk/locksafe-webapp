@@ -1142,6 +1142,8 @@ export default function AdminLocksmithsPage() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
+                aria-label="Filter locksmiths by status"
+                title="Filter locksmiths by status"
                 className={isMapView ? "flex-1 lg:flex-none px-2 py-1.5 text-[11px] lg:text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none bg-white" : "flex-1 lg:flex-none px-2.5 py-1.5 text-xs lg:text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none bg-white"}
               >
                 <option value="all">All Locksmiths</option>
@@ -1631,6 +1633,7 @@ export default function AdminLocksmithsPage() {
                         type="file"
                         id="photo-upload"
                         accept="image/*"
+                        title="Upload profile photo"
                         className="hidden"
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
@@ -1695,7 +1698,10 @@ export default function AdminLocksmithsPage() {
                     </div>
                   </div>
                   <button
+                    type="button"
                     onClick={() => { setSelectedLocksmith(null); setEditingProfile(false); }}
+                    aria-label="Close locksmith details"
+                    title="Close"
                     className="p-2 hover:bg-slate-100 rounded-full"
                   >
                     <XCircle className="w-5 h-5" />
@@ -2022,6 +2028,8 @@ export default function AdminLocksmithsPage() {
                             type="text"
                             value={profileEdits.name}
                             onChange={(e) => setProfileEdits(prev => ({ ...prev, name: e.target.value }))}
+                            title="Full name"
+                            placeholder="Enter full name"
                             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
                           />
                         </div>
@@ -2043,6 +2051,8 @@ export default function AdminLocksmithsPage() {
                             type="email"
                             value={profileEdits.email}
                             onChange={(e) => setProfileEdits(prev => ({ ...prev, email: e.target.value }))}
+                            title="Email"
+                            placeholder="name@example.com"
                             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
                           />
                         </div>
@@ -2052,6 +2062,8 @@ export default function AdminLocksmithsPage() {
                             type="tel"
                             value={profileEdits.phone}
                             onChange={(e) => setProfileEdits(prev => ({ ...prev, phone: e.target.value }))}
+                            title="Phone"
+                            placeholder="+44 7..."
                             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
                           />
                         </div>
@@ -2065,6 +2077,8 @@ export default function AdminLocksmithsPage() {
                             max={50}
                             value={profileEdits.yearsExperience}
                             onChange={(e) => setProfileEdits(prev => ({ ...prev, yearsExperience: Number(e.target.value) }))}
+                            title="Years experience"
+                            placeholder="Years"
                             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
                           />
                         </div>
@@ -2074,8 +2088,10 @@ export default function AdminLocksmithsPage() {
                             type="number"
                             min={1}
                             max={100}
+                            placeholder="Coverage Radius"
                             value={profileEdits.coverageRadius}
                             onChange={(e) => setProfileEdits(prev => ({ ...prev, coverageRadius: Number(e.target.value) }))}
+                            title="Coverage radius in miles"
                             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
                           />
                         </div>
@@ -2417,6 +2433,8 @@ export default function AdminLocksmithsPage() {
                             <a
                               href={selectedLocksmith.insuranceDocumentUrl}
                               download
+                              aria-label="Download insurance document"
+                              title="Download insurance document"
                               className="flex items-center gap-1 text-sm text-slate-600 hover:text-slate-800 font-medium px-2 py-1 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
                             >
                               <Download className="w-4 h-4" />
@@ -2477,6 +2495,8 @@ export default function AdminLocksmithsPage() {
                             <a
                               href={selectedLocksmith.certificationDocumentUrl}
                               download
+                              aria-label="Download certification document"
+                              title="Download certification document"
                               className="flex items-center gap-1 text-sm text-slate-600 hover:text-slate-800 font-medium px-2 py-1 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
                             >
                               <Download className="w-4 h-4" />
@@ -2658,7 +2678,7 @@ export default function AdminLocksmithsPage() {
                   <AlertCircle className="w-5 h-5 text-red-500" />
                   Delete Locksmith
                 </h3>
-                <button type="button" onClick={() => setDeleteLocksmithId(null)} className="p-1 hover:bg-slate-100 rounded">
+                <button type="button" onClick={() => setDeleteLocksmithId(null)} aria-label="Close delete locksmith modal" title="Close" className="p-1 hover:bg-slate-100 rounded">
                   <X className="w-5 h-5" />
                 </button>
               </div>

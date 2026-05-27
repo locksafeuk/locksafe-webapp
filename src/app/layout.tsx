@@ -108,6 +108,11 @@ export const metadata: Metadata = {
   verification: {
     google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || "",
   },
+  manifest: "/manifest.json",
+  icons: {
+    icon: "/favicon.svg",
+    apple: "/icons/icon-192x192.svg",
+  },
   alternates: {
     canonical: SITE_URL,
   },
@@ -258,10 +263,6 @@ export default function RootLayout({
         {/* GTM consent-default + loader. Must be in <head> so consent defaults
             (deny-by-default) execute before any tag fires. */}
         <GoogleTagManager gtmId={GTM_ID} />
-        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-        <link rel="manifest" href="/manifest.json" />
-        <link rel="apple-touch-icon" href="/icons/icon-192x192.svg" />
-        <meta name="theme-color" content="#f97316" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="LockSafe" />

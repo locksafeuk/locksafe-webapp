@@ -846,12 +846,13 @@ export default function LocksmithDashboard() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label htmlFor="assessment-fee-input" className="block text-sm font-medium text-slate-700 mb-2">
                   Assessment Fee <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-medium">£</span>
                   <input
+                    id="assessment-fee-input"
                     type="number"
                     min="0"
                     step="0.01"

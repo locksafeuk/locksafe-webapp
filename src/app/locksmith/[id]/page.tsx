@@ -351,12 +351,11 @@ export default function LocksmithProfilePage({
                     <span className="text-sm font-medium text-slate-600">{star}</span>
                     <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
                   </div>
-                  <div className="flex-1 h-3 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-amber-400 rounded-full transition-all duration-500"
-                      style={{ width: `${percentage}%` }}
-                    />
-                  </div>
+                  <progress
+                    max={100}
+                    value={percentage}
+                    className="flex-1 h-3 rounded-full overflow-hidden [&::-webkit-progress-bar]:bg-slate-100 [&::-webkit-progress-value]:bg-amber-400 [&::-moz-progress-bar]:bg-amber-400"
+                  />
                   <span className="text-sm text-slate-500 w-12 text-right">
                     {count}
                   </span>
@@ -379,6 +378,8 @@ export default function LocksmithProfilePage({
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as any)}
+                aria-label="Sort customer reviews"
+                title="Sort customer reviews"
                 className="appearance-none bg-slate-100 border-none rounded-lg px-4 py-2 pr-10 text-sm font-medium text-slate-700 cursor-pointer focus:ring-2 focus:ring-orange-500"
               >
                 <option value="recent">Most Recent</option>

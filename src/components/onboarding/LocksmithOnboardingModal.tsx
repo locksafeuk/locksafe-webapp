@@ -532,6 +532,8 @@ export function LocksmithOnboardingModal({
                           setInsuranceDoc(null);
                           setInsuranceExpiryDate("");
                         }}
+                        aria-label="Remove insurance document"
+                        title="Remove insurance document"
                         className="text-slate-400 hover:text-red-500 p-1"
                       >
                         <X className="w-4 h-4" />
@@ -539,7 +541,7 @@ export function LocksmithOnboardingModal({
                     </div>
                     {/* Insurance Expiry Date */}
                     <div className="bg-white rounded-lg p-3 border">
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                      <label htmlFor="insurance-expiry-date" className="block text-sm font-medium text-slate-700 mb-2">
                         <div className="flex items-center gap-2">
                           <Calendar className="w-4 h-4 text-orange-500" />
                           Insurance Expiry Date
@@ -547,10 +549,12 @@ export function LocksmithOnboardingModal({
                         </div>
                       </label>
                       <input
+                        id="insurance-expiry-date"
                         type="date"
                         value={insuranceExpiryDate}
                         onChange={(e) => setInsuranceExpiryDate(e.target.value)}
                         min={new Date().toISOString().split("T")[0]}
+                        title="Insurance expiry date"
                         className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none text-sm"
                       />
                       {insuranceExpiryDate && (
@@ -608,6 +612,8 @@ export function LocksmithOnboardingModal({
                     <button
                       type="button"
                       onClick={() => setCertificationDoc(null)}
+                      aria-label="Remove certification document"
+                      title="Remove certification document"
                       className="text-slate-400 hover:text-red-500 p-1"
                     >
                       <X className="w-4 h-4" />
@@ -652,6 +658,8 @@ export function LocksmithOnboardingModal({
                         <button
                           type="button"
                           onClick={() => removeAdditionalDoc(index)}
+                          aria-label="Remove additional document"
+                          title="Remove additional document"
                           className="text-slate-400 hover:text-red-500 p-1"
                         >
                           <X className="w-4 h-4" />

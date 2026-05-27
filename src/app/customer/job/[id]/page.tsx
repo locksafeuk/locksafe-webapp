@@ -462,12 +462,15 @@ function ArrivalTimer({
           <span>En route</span>
           <span>ETA: {acceptedEta} min</span>
         </div>
-        <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-          <div
-            className={`h-full transition-all duration-500 ${isOverdue ? 'bg-red-500' : 'bg-green-500'}`}
-            style={{ width: `${Math.min(100, progressPercent)}%` }}
-          />
-        </div>
+        <progress
+          max={100}
+          value={Math.min(100, progressPercent)}
+          className={`w-full h-2 rounded-full overflow-hidden [&::-webkit-progress-bar]:bg-slate-200 [&::-webkit-progress-value]:transition-all [&::-moz-progress-bar]:transition-all ${
+            isOverdue
+              ? "[&::-webkit-progress-value]:bg-red-500 [&::-moz-progress-bar]:bg-red-500"
+              : "[&::-webkit-progress-value]:bg-green-500 [&::-moz-progress-bar]:bg-green-500"
+          }`}
+        />
       </div>
 
       {/* Time display */}
@@ -1034,7 +1037,7 @@ export default function CustomerJobPage({ params }: { params: Promise<{ id: stri
           <div className="bg-green-600 text-white px-4 sm:px-6 py-3 sm:py-4 rounded-xl shadow-lg flex items-center gap-3">
             <Bell className="w-5 h-5 flex-shrink-0" />
             <span className="font-medium text-sm sm:text-base">{notifications[notifications.length - 1]}</span>
-            <button onClick={() => setShowNotification(false)} className="ml-2 hover:bg-green-700 p-1 rounded">
+            <button type="button" onClick={() => setShowNotification(false)} aria-label="Dismiss notification" title="Dismiss" className="ml-2 hover:bg-green-700 p-1 rounded">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -1871,7 +1874,7 @@ export default function CustomerJobPage({ params }: { params: Promise<{ id: stri
               <>
                 <div className="p-4 border-b flex items-center justify-between sticky top-0 bg-white rounded-t-2xl">
                   <h2 className="text-lg font-bold text-slate-900">Confirm & Pay</h2>
-                  <button onClick={handleClosePaymentModal} className="p-2 hover:bg-slate-100 rounded-full"><X className="w-5 h-5" /></button>
+                  <button type="button" onClick={handleClosePaymentModal} aria-label="Close payment modal" title="Close" className="p-2 hover:bg-slate-100 rounded-full"><X className="w-5 h-5" /></button>
                 </div>
                 <div className="p-4 space-y-4 overflow-y-auto flex-1">
                   <div className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 bg-slate-50 rounded-xl">
@@ -2015,7 +2018,7 @@ export default function CustomerJobPage({ params }: { params: Promise<{ id: stri
           <div className="bg-white w-full sm:max-w-md sm:mx-4 sm:rounded-2xl rounded-t-2xl max-h-[90vh] flex flex-col shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b flex items-center justify-between sticky top-0 bg-white rounded-t-2xl">
               <h2 className="text-lg font-bold text-slate-900">Sign to Complete</h2>
-              <button onClick={() => setShowSignatureModal(false)} className="p-2 hover:bg-slate-100 rounded-full"><X className="w-5 h-5" /></button>
+              <button type="button" onClick={() => setShowSignatureModal(false)} aria-label="Close signature modal" title="Close" className="p-2 hover:bg-slate-100 rounded-full"><X className="w-5 h-5" /></button>
             </div>
             <div className="p-4 space-y-4 overflow-y-auto flex-1">
               <div className="space-y-3">

@@ -179,6 +179,8 @@ export default function LocksmithLayout({
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
+            aria-label="Open navigation menu"
+            title="Open menu"
             className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
           >
             <Menu className="w-6 h-6" />
@@ -247,6 +249,8 @@ export default function LocksmithLayout({
               <button
                 type="button"
                 onClick={() => setSidebarOpen(false)}
+                aria-label="Close navigation menu"
+                title="Close menu"
                 className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
               >
                 <X className="w-5 h-5" />

@@ -303,6 +303,8 @@ export default function AvailableJobsPage() {
           <button
             type="button"
             onClick={() => setNewJobAlert(null)}
+            aria-label="Dismiss new job alert"
+            title="Dismiss"
             className="p-1 hover:bg-white/20 rounded-full transition-colors"
           >
             <X className="w-4 h-4" />
@@ -534,6 +536,8 @@ export default function AvailableJobsPage() {
               <button
                 type="button"
                 onClick={() => setSelectedJobForView(null)}
+                aria-label="Close job details modal"
+                title="Close"
                 className="p-2 hover:bg-slate-100 rounded-full transition-colors"
               >
                 <X className="w-5 h-5" />
@@ -650,6 +654,8 @@ export default function AvailableJobsPage() {
               <button
                 type="button"
                 onClick={() => setShowApplyModal(false)}
+                aria-label="Close apply modal"
+                title="Close"
                 className="p-2 hover:bg-slate-100 rounded-full transition-colors"
               >
                 <X className="w-5 h-5" />
@@ -699,6 +705,8 @@ export default function AvailableJobsPage() {
                 <select
                   value={etaInput}
                   onChange={(e) => setEtaInput(e.target.value)}
+                  aria-label="Estimated time of arrival"
+                  title="Estimated time of arrival"
                   className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
                 >
                   <option value="15">15 minutes</option>
