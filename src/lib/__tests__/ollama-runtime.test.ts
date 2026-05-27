@@ -36,4 +36,23 @@ describe("ollama runtime decision", () => {
 
     expect(decision.enabled).toBe(true);
   });
+
+  it("disables Ollama on serverless when endpoint is localhost → routes to OpenAI", () => {
+    const decision = getOllamaRuntimeDecision({
+      VERCEL: "1",
+      VERCEL_ENV: "production",
+      OLLAMA_BASE_URL: "http://localhost:11434",
+    } as unknown as NodeJS.ProcessEnv);
+
+    expect(decision.enabled).toBe(false);
+    expect(decision.reason).toMatch(/serverless/i);
+  });
+
+  it("disables Ollama on serverless when no base URL is set → routes to OpenAI", () => {
+    const decision = getOllamaRuntimeDecision({
+      VERCEL: "1",
+    } as unknown as NodeJS.ProcessEnv);
+
+    expect(decision.enabled).toBe(false);
+  });
 });
