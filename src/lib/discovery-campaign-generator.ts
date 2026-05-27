@@ -264,11 +264,17 @@ const FALLBACK_COPY: FamilyCopy = {
 export const BASELINE_NEGATIVES = [
   "amazon",        "apprenticeship", "b&q",         "blog",
   "course",        "courses",        "definition",  "diy",
-  "ebay",          "free",           "game",        "games",
-  "history",       "how to",         "job",         "jobs",
-  "kit",           "kits",           "near me job", "review of",
+  "ebay",          "game",           "games",       "history",
+  "job",           "jobs",           "near me job", "review of",
   "salary",        "screwfix",       "training",    "tutorial",
   "video",         "videos",         "wikipedia",   "youtube",
+  // Specific DIY/research negatives. NB: we deliberately do NOT use the bare
+  // tokens "free", "how to", "kit" or "kits" — as broad/phrase negatives they
+  // self-block valid commercial queries ("free callout", "free quote",
+  // "how to get a locksmith fast", "lock kit for my door"). Target the junk
+  // intent precisely instead:
+  "how to pick a lock", "how to become a locksmith",
+  "lock pick set",      "lock pick kit",
 ];
 
 // ── Pure helpers ────────────────────────────────────────────────────────────
