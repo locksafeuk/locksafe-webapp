@@ -12,6 +12,7 @@
 
 import prisma from "@/lib/db";
 import { JobStatus } from "@prisma/client";
+import { sendCustomerCalloutPaymentRequest } from "@/lib/customer-payment-request";
 import {
   sendAutoDispatchNotification,
   notifyLocksmithAutoDispatchConfirmed,
@@ -405,6 +406,23 @@ export async function acceptAutoDispatchedJob(
     };
 
     await notifyLocksmithAutoDispatchConfirmed(smsContext);
+
+    await sendCustomerCalloutPaymentRequest({
+      jobId: application.job.id,
+      jobNumber: application.job.jobNumber,
+      applicationId: application.id,
+      customerId: application.job.customerId,
+      customerName: application.job.customer?.name || "Customer",
+      customerPhone: application.job.customer?.phone,
+      customerEmail: application.job.customer?.email,
+      locksmithName: application.locksmith.name,
+      locksmithCompany: application.locksmith.companyName,
+      assessmentFee: application.assessmentFee,
+      etaMinutes: application.eta,
+      problemType: application.job.problemType,
+      address: application.job.address,
+      postcode: application.job.postcode,
+    });
 
     return {
       success: true,

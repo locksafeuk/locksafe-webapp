@@ -1,16 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
-import { sendSMS } from "@/lib/sms";
-import { sendCustomerPaymentLinkEmail } from "@/lib/email";
-import { createNotification } from "@/lib/notifications";
-import { SITE_URL } from "@/lib/config";
+import { sendCustomerCalloutPaymentRequest } from "@/lib/customer-payment-request";
 
 /**
  * POST /api/locksmith/applications/[id]/accept
  *
  * Locksmith accepts an admin-assigned job. This:
  * 1. Updates the application status from "admin_assigned" to "accepted"
- * 2. Sends payment link to customer (for assessment fee)
+ * 2. Sends payment link to customer (for call-out fee)
  * 3. Notifies customer via SMS, email, and push
  */
 export async function POST(
@@ -78,62 +75,23 @@ export async function POST(
     // Use the updated assessment fee for notifications
     const finalAssessmentFee = assessmentFee !== undefined && assessmentFee > 0 ? assessmentFee : application.assessmentFee;
 
-    // Build payment link URL
-    const paymentUrl = `${SITE_URL}/customer/job/${application.job.id}/pay?applicationId=${applicationId}`;
-
-    // Send SMS to customer with payment link
-    if (application.job.customer?.phone) {
-      const smsMessage = `🔐 LockSafe UK: ${application.locksmith.name} has accepted your job ${application.job.jobNumber}.
-
-Assessment Fee: £${finalAssessmentFee.toFixed(2)}
-Estimated Arrival: ${application.eta} minutes
-
-Please pay the assessment fee to confirm:
-${paymentUrl}
-
-Questions? Call us: +44 20 4577 1989`;
-
-      sendSMS(application.job.customer.phone, smsMessage).catch((err) => {
-        console.error("[Locksmith Accept] Failed to send customer SMS:", err);
-      });
-    }
-
-    // Send email to customer with payment link
-    if (application.job.customer?.email) {
-      sendCustomerPaymentLinkEmail(application.job.customer.email, {
-        customerName: application.job.customer.name,
-        jobNumber: application.job.jobNumber,
-        locksmithName: application.locksmith.name,
-        locksmithCompany: application.locksmith.companyName || undefined,
-        assessmentFee: finalAssessmentFee,
-        eta: application.eta,
-        paymentUrl,
-        problemType: formatProblemType(application.job.problemType),
-        address: `${application.job.address}, ${application.job.postcode}`,
-      }).catch((err) => {
-        console.error("[Locksmith Accept] Failed to send customer email:", err);
-      });
-    }
-
-    // Create in-app notification for customer
-    if (application.job.customerId) {
-      await createNotification({
-        customerId: application.job.customerId,
-        jobId: application.job.id,
-        type: "locksmith_accepted",
-        title: "Locksmith Assigned",
-        message: `${application.locksmith.name} has accepted your job ${application.job.jobNumber}. Please pay the assessment fee to confirm.`,
-        actionUrl: `/customer/job/${application.job.id}`,
-        actionLabel: "Pay Now",
-        data: {
-          assessmentFee: application.assessmentFee,
-          eta: application.eta,
-          locksmithName: application.locksmith.name,
-        },
-      }).catch((err) => {
-        console.error("[Locksmith Accept] Failed to create customer notification:", err);
-      });
-    }
+    // Post-acceptance payment request to customer.
+    const paymentRequest = await sendCustomerCalloutPaymentRequest({
+      jobId: application.job.id,
+      jobNumber: application.job.jobNumber,
+      applicationId,
+      customerId: application.job.customerId,
+      customerName: application.job.customer?.name || "Customer",
+      customerPhone: application.job.customer?.phone,
+      customerEmail: application.job.customer?.email,
+      locksmithName: application.locksmith.name,
+      locksmithCompany: application.locksmith.companyName,
+      assessmentFee: finalAssessmentFee,
+      etaMinutes: application.eta,
+      problemType: application.job.problemType,
+      address: application.job.address,
+      postcode: application.job.postcode,
+    });
 
     console.log(`[Locksmith Accept] ${application.locksmith.name} accepted admin-assigned job ${application.job.jobNumber}`);
 
@@ -146,7 +104,7 @@ Questions? Call us: +44 20 4577 1989`;
         assessmentFee: updatedApplication.assessmentFee,
         eta: updatedApplication.eta,
       },
-      paymentUrl,
+      paymentUrl: paymentRequest.paymentUrl,
     });
   } catch (error) {
     console.error("[Locksmith Accept] Error:", error);
@@ -155,18 +113,4 @@ Questions? Call us: +44 20 4577 1989`;
       { status: 500 }
     );
   }
-}
-
-// Helper function to format problem types
-function formatProblemType(type: string): string {
-  const labels: Record<string, string> = {
-    lockout: "Locked Out",
-    broken: "Broken Lock",
-    "key-stuck": "Key Stuck",
-    "lost-keys": "Lost Keys",
-    burglary: "After Burglary",
-    "lock-change": "Lock Change",
-    other: "Other Issue",
-  };
-  return labels[type] || type;
 }

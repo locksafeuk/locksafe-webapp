@@ -182,12 +182,14 @@ describe("Retell Endpoint Response Contracts", () => {
         notifications_sent: ["sms"],
         sms_sent: true,
         email_sent: false,
-        notification_type: "payment",
+        notification_type: "continue",
+        notification_type_requested: "payment",
         job_number: "LRS-202604-0001",
-        message: "I've sent you a text message with the payment link.",
+        message: "I've sent you a text message with a link to complete your request.",
       };
 
-      expect(response.notification_type).toBe("payment");
+      expect(response.notification_type).toBe("continue");
+      expect(response.notification_type_requested).toBe("payment");
     });
   });
 

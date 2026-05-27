@@ -24,6 +24,7 @@ export interface EmergencyContext {
   etaMinutes?: number;
   callOutFee?: number;
   paymentUrl?: string;
+  detailsUrl?: string;
   onboardingUrl?: string;
   distance?: number;
   rating?: number;
@@ -72,13 +73,14 @@ export const EMERGENCY_SMS_TEMPLATES = {
   // ==========================================
 
   /**
-   * Sent to customer when a locksmith applies - includes payment link
-   * This is the KEY message in the emergency workflow
+   * Sent to customer when a locksmith applies.
+   * Pre-acceptance stage: share details/options only, no payment request.
    */
   CUSTOMER_LOCKSMITH_APPLIED: (ctx: EmergencyContext) => {
     const ratingText = ctx.rating ? ` ⭐ ${ctx.rating.toFixed(1)}` : "";
     const etaText = ctx.eta || (ctx.etaMinutes ? `${ctx.etaMinutes} mins` : "ASAP");
-    return `LockSafe UK: A locksmith is ready to help!\n\n👤 ${ctx.locksmithName}${ctx.companyName ? ` (${ctx.companyName})` : ""}${ratingText}\n⏱ ETA: ${etaText}\n💷 Call-out fee: £${ctx.callOutFee?.toFixed(2)}\n\nPay to confirm: ${ctx.paymentUrl}\n\nThis covers the call-out. Work is quoted separately on-site.`;
+    const detailsUrl = ctx.detailsUrl || `${getBaseUrl()}/customer/job/${ctx.jobId}`;
+    return `LockSafe UK: A locksmith is ready to help!\n\n👤 ${ctx.locksmithName}${ctx.companyName ? ` (${ctx.companyName})` : ""}${ratingText}\n⏱ ETA: ${etaText}\n\nView details and next steps: ${detailsUrl}`;
   },
 
   /**
@@ -97,7 +99,7 @@ export const EMERGENCY_SMS_TEMPLATES = {
    * Sent to customer when job is first created (emergency acknowledgment)
    */
   CUSTOMER_EMERGENCY_CREATED: (ctx: EmergencyContext) =>
-    `LockSafe UK: Your emergency request ${ctx.jobNumber} is live!\n\nWe're notifying nearby verified locksmiths now. You'll receive an SMS with locksmith details and payment link shortly.\n\nStay by your phone.`,
+    `LockSafe UK: Your emergency request ${ctx.jobNumber} is live!\n\nWe're notifying nearby verified locksmiths now. You'll receive an SMS with locksmith details and next steps shortly.\n\nStay by your phone.`,
 
   /**
    * Sent to customer if no locksmiths available

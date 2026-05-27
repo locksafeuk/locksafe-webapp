@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use, useRef } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   MapPin,
@@ -521,6 +522,8 @@ function ArrivalTimer({
 
 export default function CustomerJobPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const searchParams = useSearchParams();
+  const hasAutoOpenedPaymentRef = useRef(false);
   const [job, setJob] = useState<Job | null>(null);
   const [applications, setApplications] = useState<Application[]>([]);
   const [quote, setQuote] = useState<Quote | null>(null);
@@ -638,6 +641,27 @@ export default function CustomerJobPage({ params }: { params: Promise<{ id: stri
   useEffect(() => {
     fetchJobData();
   }, [id]);
+
+  useEffect(() => {
+    if (hasAutoOpenedPaymentRef.current || loading) return;
+
+    const applicationId = searchParams.get("applicationId");
+    const shouldAutoPay = searchParams.get("pay") === "1";
+    if (!applicationId || !shouldAutoPay || applications.length === 0) return;
+
+    const matchedApplication = applications.find((app) => app.id === applicationId);
+    if (!matchedApplication) return;
+
+    hasAutoOpenedPaymentRef.current = true;
+    handleSelectLocksmith(matchedApplication);
+
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("applicationId");
+      url.searchParams.delete("pay");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [applications, loading, searchParams]);
 
   // Poll for updates
   useEffect(() => {

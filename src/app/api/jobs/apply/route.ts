@@ -9,9 +9,7 @@ import prisma from "@/lib/db";
  * Emergency workflow: Locksmith applies for a job with call-out fee.
  * This triggers:
  * 1. Creates LocksmithApplication
- * 2. Creates Stripe Checkout Session
- * 3. Creates Payment record
- * 4. Sends SMS to customer with locksmith details + payment link
+ * 2. Sends customer locksmith details and next-step link (no fee request yet)
  *
  * Input: {
  *   jobId: string,
@@ -107,8 +105,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       application: result.application,
-      payment: result.payment,
-      message: "Application submitted. Customer has been sent payment link via SMS.",
+      message: "Application submitted. Customer has been sent job details via SMS.",
     });
   } catch (error) {
     console.error("[API] Jobs apply error:", error);

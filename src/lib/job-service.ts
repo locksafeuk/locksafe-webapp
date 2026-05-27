@@ -5,7 +5,7 @@
  * 1. Create job from AI/phone data
  * 2. Find and notify nearby locksmiths
  * 3. Handle locksmith application
- * 4. Generate payment link and SMS to customer
+ * 4. Send details-only updates to customer pre-acceptance
  * 5. Process payment and trigger onboarding
  */
 
@@ -20,7 +20,6 @@ import {
   geocodePostcode,
   type NearbyLocksmith,
 } from "@/lib/locksmith-matcher";
-import { createCheckoutSession } from "@/lib/stripe";
 import { EMERGENCY_SMS_TEMPLATES } from "@/lib/sms-templates";
 import { createNotification } from "@/lib/notifications";
 import { evaluateEmergencyJobRisk, getEmergencyJobRiskConfig } from "@/lib/risk-controls";
@@ -517,9 +516,7 @@ export async function createEmergencyJob(
 /**
  * When a locksmith applies for an emergency job:
  * 1. Create application record
- * 2. Create Stripe Checkout session
- * 3. Create Payment record
- * 4. SMS customer with payment link
+ * 2. Notify customer with locksmith details (no payment request yet)
  */
 export async function handleLocksmithApplication(params: {
   jobId: string;
@@ -530,7 +527,6 @@ export async function handleLocksmithApplication(params: {
 }): Promise<{
   success: boolean;
   application?: { id: string };
-  payment?: { id: string; paymentUrl: string };
   error?: string;
 }> {
   try {
@@ -598,43 +594,12 @@ export async function handleLocksmithApplication(params: {
 
     console.log(`[Job Service] Application created: ${application.id} for job ${job.jobNumber}`);
 
-    // Create Stripe Checkout Session
-    const checkoutSession = await createCheckoutSession({
-      amount: callOutFee,
-      jobId: job.id,
-      customerId: job.customer.id,
-      locksmithId: locksmith.id,
-      applicationId: application.id,
-      customerEmail: job.customer.email,
-      customerName: job.customer.name,
-      locksmithName: locksmith.name,
-      jobNumber: job.jobNumber,
-      locksmithStripeAccountId: locksmith.stripeConnectVerified
-        ? locksmith.stripeConnectId
-        : null,
-      paymentType: "callout",
-    });
-
-    // Create Payment record
-    const payment = await prisma.payment.create({
-      data: {
-        jobId: job.id,
-        customerId: job.customer.id,
-        type: "callout",
-        amount: callOutFee,
-        status: "pending",
-        stripeCheckoutId: checkoutSession.id,
-        paymentUrl: checkoutSession.url,
-        paymentUrlExpiresAt: new Date(Date.now() + 30 * 60 * 1000), // 30 min
-      },
-    });
-
-    console.log(`[Job Service] Payment created: ${payment.id}, checkout URL: ${checkoutSession.url}`);
-
-    // SMS customer with locksmith details + payment link
+    // SMS customer with locksmith details only.
     const etaText = estimatedETA <= 60
       ? `${estimatedETA} mins`
       : `${Math.round(estimatedETA / 60)} hours`;
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_BASE_URL || "https://locksafe.uk";
+    const detailsUrl = `${siteUrl}/customer/job/${job.id}`;
 
     const smsMessage = EMERGENCY_SMS_TEMPLATES.CUSTOMER_LOCKSMITH_APPLIED({
       jobId: job.id,
@@ -647,13 +612,13 @@ export async function handleLocksmithApplication(params: {
       callOutFee,
       rating: locksmith.rating,
       totalJobs: locksmith.totalJobs,
-      paymentUrl: checkoutSession.url || "",
+      detailsUrl,
     });
 
     sendSMS(job.customer.phone, smsMessage, {
-      logContext: `Payment link for job ${job.jobNumber}`,
+      logContext: `Locksmith application details for job ${job.jobNumber}`,
     }).catch((err) =>
-      console.error("[Job Service] Customer payment SMS error:", err)
+      console.error("[Job Service] Customer application SMS error:", err)
     );
 
     // Create in-app notification for customer
@@ -662,9 +627,9 @@ export async function handleLocksmithApplication(params: {
       jobId: job.id,
       type: "locksmith_applied",
       title: "Locksmith Ready to Help",
-      message: `${locksmith.name} can be with you in ${etaText}. Call-out fee: £${callOutFee.toFixed(2)}`,
-      actionUrl: checkoutSession.url || undefined,
-      actionLabel: "Pay & Confirm",
+      message: `${locksmith.name} can be with you in ${etaText}. Review details and choose next steps.`,
+      actionUrl: detailsUrl,
+      actionLabel: "View Details",
     }).catch((err) =>
       console.error("[Job Service] Notification error:", err)
     );
@@ -672,10 +637,6 @@ export async function handleLocksmithApplication(params: {
     return {
       success: true,
       application: { id: application.id },
-      payment: {
-        id: payment.id,
-        paymentUrl: checkoutSession.url || "",
-      },
     };
   } catch (error) {
     console.error("[Job Service] Application error:", error);

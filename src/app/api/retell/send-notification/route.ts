@@ -64,11 +64,11 @@ async function ensureContinueUrl(params: {
 }
 
 /**
- * Retell AI Custom Tool: Send notification with continue link or payment link
+ * Retell AI Custom Tool: Send notification with details-completion link.
  *
- * Supports two notification types:
- * 1. "continue" (default) - Sends SMS/email with link to complete request
- * 2. "payment" - Sends SMS with payment link (handled by job-service workflow)
+ * Notification policy:
+ * - Pre-acceptance client notifications are details-only (continue link).
+ * - Payment links are sent later by acceptance-stage workflows.
  *
  * IMPORTANT: Returns 200 even on logical errors so Retell doesn't retry.
  */
@@ -115,8 +115,7 @@ export async function POST(request: NextRequest) {
       customer_name,
       job_number,
       continue_url,
-      notification_type, // "continue" or "payment"
-      payment_url, // For payment link notifications
+      notification_type,
     } = args;
 
     console.log("[Retell send-notification] Request:", {
@@ -196,7 +195,14 @@ export async function POST(request: NextRequest) {
 
     const notifications: string[] = [];
     const notificationStartedAt = Date.now();
-    const type = notification_type || "continue";
+    const requestedType = notification_type || "continue";
+    const type = "continue";
+
+    if (requestedType === "payment") {
+      console.log(
+        "[Retell send-notification] Remapping payment notification request to continue/details flow"
+      );
+    }
 
     // Normalize phone for SMS
     let phoneForSms = customerDetails.phone;
@@ -224,15 +230,7 @@ export async function POST(request: NextRequest) {
     // Send SMS based on notification type
     if (isValidPhone) {
       try {
-        let smsMessage: string;
-
-        if (type === "payment" && payment_url) {
-          // Payment link SMS
-          smsMessage = `LockSafe UK: A locksmith has applied for your job ${jobDetails.jobNumber || ""}. Pay the call-out fee to confirm: ${payment_url}`;
-        } else {
-          // Standard continue link SMS
-          smsMessage = `LockSafe UK: Your emergency request ${jobDetails.jobNumber || "has been"} registered. ${jobDetails.continueUrl ? `Complete your request: ${jobDetails.continueUrl}` : `Visit ${baseUrl} to manage your request.`}`;
-        }
+        const smsMessage = `LockSafe UK: Your emergency request ${jobDetails.jobNumber || "has been"} registered. ${jobDetails.continueUrl ? `Complete your request: ${jobDetails.continueUrl}` : `Visit ${baseUrl} to manage your request.`}`;
 
         const smsResult = await withTimeout(
           sendSMS(phoneForSms!, smsMessage, {
@@ -260,8 +258,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Send email (only for continue-type notifications)
-    if (type === "continue" && customerDetails.email) {
+    // Send email alongside details-link SMS when available.
+    if (customerDetails.email) {
       try {
         await withTimeout(sendPhoneRequestContinuationEmail(customerDetails.email, {
           customerName: customerDetails.name,
@@ -283,13 +281,8 @@ export async function POST(request: NextRequest) {
       notificationMessage =
         "I've sent you a text message and an email with a link to complete your request.";
     } else if (notifications.includes("sms")) {
-      if (type === "payment") {
-        notificationMessage =
-          "I've sent you a text message with the payment link.";
-      } else {
-        notificationMessage =
-          "I've sent you a text message with a link to complete your request.";
-      }
+      notificationMessage =
+        "I've sent you a text message with a link to complete your request.";
     } else if (notifications.includes("email")) {
       notificationMessage =
         "I've sent you an email with a link to complete your request.";
@@ -330,6 +323,7 @@ export async function POST(request: NextRequest) {
         email_sent: notifications.includes("email"),
         provider: "retell",
         notification_type: type,
+        notification_type_requested: requestedType,
         job_number: jobDetails.jobNumber,
         continue_url: jobDetails.continueUrl,
         message: notificationMessage,

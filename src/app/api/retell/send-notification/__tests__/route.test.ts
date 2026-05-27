@@ -113,4 +113,29 @@ describe("POST /api/retell/send-notification", () => {
       })
     );
   });
+
+  it("remaps payment notification requests to continue/details behavior", async () => {
+    const req = makeRequest({
+      call: { call_id: "call_789" },
+      args: {
+        job_id: "job_1",
+        job_number: "LRS-202605-0003",
+        customer_phone: "+447700900125",
+        customer_name: "Alex",
+        notification_type: "payment",
+      },
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.notification_type).toBe("continue");
+    expect(body.notification_type_requested).toBe("payment");
+    expect(body.message).toContain("complete your request");
+    expect(mockSendSMS).toHaveBeenCalledTimes(1);
+    const sentMessage = mockSendSMS.mock.calls[0]?.[1];
+    expect(String(sentMessage)).not.toContain("Pay the call-out fee");
+  });
 });
