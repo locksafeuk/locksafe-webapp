@@ -1,20 +1,26 @@
 /**
- * deep-locksmith-scraper.ts — v2 Enhanced UK Locksmith Lead Scraper
+ * deep-locksmith-scraper.ts — v3 Coverage-Aware UK Locksmith Lead Scraper
  *
- * Improvements over v1 (find-independent-locksmiths.ts):
- *   • 200+ cities/towns  (v1 had 125)
- *   • 7 search query types per city (v1 had 3)
- *   • Coordinate-based nearby search for 60 major cities
- *   • Smarter email extraction: mailto: links + more contact pages
- *   • --enrich  — add missing emails to existing DB leads that have a website
+ * Improvements over v2:
+ *   • Coverage-aware: queries DB to find UK cities with no active locksmiths
+ *     and scrapes those first (highest-priority gaps for onboarding pipeline)
+ *   • SerpAPI integration: runs google_maps SerpAPI search alongside Google
+ *     Places for every city, catching leads that Places API misses
+ *   • --coverage  — print coverage gap report and exit (no scraping)
+ *
+ * Unchanged from v2:
+ *   • 200+ cities, 7 query types, coordinate-based nearby search
+ *   • Email extraction (mailto + page crawl)
+ *   • --enrich  — add missing emails to existing DB leads
  *   • --dedup   — flag duplicate leads with same phone number
  *   • --resume  — skip already-completed cities + already-in-DB place IDs
  *
  * Usage:
  *   npx ts-node --compiler-options '{"module":"CommonJS","strict":false}' \
- *     scripts/deep-locksmith-scraper.ts [--resume] [--enrich] [--dedup]
+ *     scripts/deep-locksmith-scraper.ts [--resume] [--enrich] [--dedup] [--coverage]
  *
  * Env required: GOOGLE_PLACES_API_KEY
+ * Env optional: SERPAPI_KEY (adds SerpAPI as supplementary lead source)
  */
 
 import * as fs from "fs";
@@ -29,6 +35,14 @@ const API_KEY = process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API
 if (!API_KEY) {
   console.error("❌  GOOGLE_PLACES_API_KEY not set");
   process.exit(1);
+}
+const SERP_KEY = process.env.SERPAPI_KEY && process.env.SERPAPI_KEY !== "your_serpapi_key_here"
+  ? process.env.SERPAPI_KEY
+  : null;
+if (SERP_KEY) {
+  console.log("🔑  SerpAPI key detected — supplementary lead discovery enabled.");
+} else {
+  console.log("ℹ️   SERPAPI_KEY not set — running Google Places only.");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -280,6 +294,65 @@ async function nearbySearch(lat: number, lng: number, pageToken?: string): Promi
   return { results: data.results || [], nextPageToken: data.next_page_token };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SerpAPI — google_maps engine: structured local results including place IDs
+// ─────────────────────────────────────────────────────────────────────────────
+interface SerpLocalResult {
+  title?: string;
+  phone?: string;
+  address?: string;
+  rating?: number;
+  reviews?: number;
+  website?: string;
+  place_id?: string;
+  links?: { website?: string };
+}
+
+interface SerpLead {
+  placeId: string;
+  name: string;
+  address: string;
+  phone: string;
+  website: string;
+  rating: number;
+  reviewCount: number;
+}
+
+async function serpSearch(city: string): Promise<SerpLead[]> {
+  if (!SERP_KEY) return [];
+  const url = new URL("https://serpapi.com/search.json");
+  url.searchParams.set("engine", "google_maps");
+  url.searchParams.set("q", `locksmith ${city} UK`);
+  url.searchParams.set("type", "search");
+  url.searchParams.set("hl", "en");
+  url.searchParams.set("gl", "uk");
+  url.searchParams.set("api_key", SERP_KEY);
+
+  try {
+    const res = await fetchWithRetry(url.toString(), 20000, 2);
+    const data = await res.json() as { local_results?: SerpLocalResult[] };
+    if (!data?.local_results?.length) return [];
+
+    return data.local_results
+      .filter((r) => r.title && !isChain(r.title))
+      .map((r): SerpLead => ({
+        placeId: r.place_id ||
+          `serp-${Buffer.from(`${r.title}|${r.address ?? ""}`)
+            .toString("base64")
+            .slice(0, 24)}`,
+        name:        r.title ?? "",
+        address:     r.address ?? "",
+        phone:       r.phone ?? "",
+        website:     r.links?.website ?? r.website ?? "",
+        rating:      r.rating ?? 0,
+        reviewCount: r.reviews ?? 0,
+      }));
+  } catch (err) {
+    console.warn(`  ⚠  SerpAPI error for "${city}":`, err);
+    return [];
+  }
+}
+
 async function getDetails(placeId: string): Promise<PlaceDetails | null> {
   const url = new URL(`${BASE}/details/json`);
   url.searchParams.set("place_id", placeId);
@@ -492,6 +565,86 @@ async function runEnrich() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Coverage gap helpers — prioritise cities with no active locksmiths
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Returns the set of city names that already have at least one active locksmith
+ *  in LocksmithCoverage. Used to sort the scrape order so uncovered areas run first. */
+async function getCoveredCities(): Promise<Set<string>> {
+  const rows = await (prisma as unknown as {
+    locksmithCoverage: { findMany: (a: unknown) => Promise<{ city: string | null }[]> };
+  }).locksmithCoverage.findMany({
+    where: { isPaused: false, city: { not: null } },
+    select: { city: true },
+    distinct: ["city"],
+  });
+  return new Set(rows.map((r) => r.city).filter((c): c is string => Boolean(c)));
+}
+
+/** Returns city names flagged as RECRUIT targets in GoogleAdsOpportunity
+ *  (kind=RECRUIT, locksmithCount=0) — highest-value onboarding gaps. */
+async function getRecruitTargetCities(): Promise<Set<string>> {
+  const rows = await (prisma as unknown as {
+    googleAdsOpportunity: { findMany: (a: unknown) => Promise<{ geoLabel: string }[]> };
+  }).googleAdsOpportunity.findMany({
+    where: { kind: "RECRUIT", locksmithCount: 0 },
+    select: { geoLabel: true },
+    orderBy: { score: "desc" },
+    take: 60,
+  });
+  return new Set(rows.map((r) => r.geoLabel));
+}
+
+/** Reorders cities: RECRUIT targets → uncovered cities → covered cities */
+function buildPriorityOrder(
+  cities: string[],
+  covered: Set<string>,
+  recruitTargets: Set<string>,
+): string[] {
+  return [...cities].sort((a, b) => {
+    const scoreA = recruitTargets.has(a) ? 2 : !covered.has(a) ? 1 : 0;
+    const scoreB = recruitTargets.has(b) ? 2 : !covered.has(b) ? 1 : 0;
+    return scoreB - scoreA;
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Mode: --coverage — print coverage gap report
+// ─────────────────────────────────────────────────────────────────────────────
+async function runCoverageReport() {
+  console.log("📊  Coverage gap report\n");
+  const [covered, recruitTargets] = await Promise.all([
+    getCoveredCities(),
+    getRecruitTargetCities(),
+  ]);
+
+  const uncovered = CITIES_DEDUPED.filter((c) => !covered.has(c));
+  const priorityUncovered = uncovered.filter((c) => recruitTargets.has(c));
+  const standardUncovered = uncovered.filter((c) => !recruitTargets.has(c));
+
+  console.log(`Total cities in list:       ${CITIES_DEDUPED.length}`);
+  console.log(`Cities WITH locksmiths:     ${covered.size}`);
+  console.log(`Cities WITHOUT locksmiths:  ${uncovered.length}`);
+  console.log(`  → RECRUIT targets (high-value gaps): ${priorityUncovered.length}`);
+  console.log(`  → Standard uncovered:                ${standardUncovered.length}\n`);
+
+  if (priorityUncovered.length > 0) {
+    console.log("🎯  RECRUIT targets (prioritised):");
+    for (const c of priorityUncovered) console.log(`   ${c}`);
+    console.log();
+  }
+
+  if (standardUncovered.length > 0) {
+    console.log("📍  Uncovered cities:");
+    for (const c of standardUncovered.slice(0, 40)) console.log(`   ${c}`);
+    if (standardUncovered.length > 40)
+      console.log(`   … and ${standardUncovered.length - 40} more`);
+  }
+
+  await prisma.$disconnect();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Mode: default / --resume — full scrape
 // ─────────────────────────────────────────────────────────────────────────────
 interface Lead {
@@ -531,11 +684,24 @@ async function processBatch(
 }
 
 async function runScrape(isResume: boolean) {
-  console.log(`🔍  Deep UK locksmith scraper — ${CITIES_DEDUPED.length} cities, 7 queries + nearby search\n`);
+  console.log(`🔍  Deep UK locksmith scraper v3 — ${CITIES_DEDUPED.length} cities, 7 queries + nearby + SerpAPI\n`);
 
   const seen = new Set<string>();
   const leads: Lead[] = [];
   let completedCities: string[] = [];
+
+  // ── Coverage-aware city ordering ─────────────────────────────────────────
+  console.log("🗺   Loading coverage data to prioritise uncovered areas…");
+  const [coveredCities, recruitTargets] = await Promise.all([
+    getCoveredCities().catch(() => new Set<string>()),
+    getRecruitTargetCities().catch(() => new Set<string>()),
+  ]);
+  const orderedCities = buildPriorityOrder(CITIES_DEDUPED, coveredCities, recruitTargets);
+  const uncoveredCount = orderedCities.filter((c) => !coveredCities.has(c)).length;
+  console.log(
+    `   ${coveredCities.size} cities covered | ${uncoveredCount} uncovered (will run first) | ` +
+    `${recruitTargets.size} RECRUIT targets\n`,
+  );
 
   if (isResume) {
     console.log("▶️  Resume mode — loading existing place IDs from DB…");
@@ -551,7 +717,7 @@ async function runScrape(isResume: boolean) {
     console.log(`   Loaded ${seen.size} existing place IDs, ${completedCities.length} cities done.\n`);
   }
 
-  for (const city of CITIES_DEDUPED) {
+  for (const city of orderedCities) {
     if (completedCities.includes(city)) {
       console.log(`📍 ${city}… ⏭  skipped`);
       continue;
@@ -588,9 +754,32 @@ async function runScrape(isResume: boolean) {
       } while (pageToken && page < 3);
     }
 
+    // 3. SerpAPI google_maps supplementary search
+    if (SERP_KEY) {
+      console.log(`   🌐  SerpAPI search for "${city}"…`);
+      const serpLeads = await serpSearch(city);
+      let serpNew = 0;
+      for (const s of serpLeads) {
+        if (seen.has(s.placeId) || isChain(s.name)) continue;
+        seen.add(s.placeId);
+        // Note: SerpAPI already provides structured fields — no details lookup needed
+        // Email extraction deferred to --enrich pass
+        leads.push({
+          placeId: s.placeId, name: s.name, city,
+          address: s.address, phone: s.phone, email: "",
+          website: s.website, rating: s.rating, reviewCount: s.reviewCount,
+        });
+        console.log(`   🌐 ${s.name} | ${s.phone || "no phone"} [SERP]`);
+        serpNew++;
+      }
+      if (serpNew) console.log(`   → ${serpNew} new leads from SerpAPI`);
+      await sleep(500); // SerpAPI rate limit courtesy
+    }
+
     completedCities.push(city);
     saveProgress(completedCities);
-    console.log(`   → ${leads.length} total leads so far`);
+    const covLabel = coveredCities.has(city) ? "" : " 🔴 uncovered";
+    console.log(`   → ${leads.length} total leads so far${covLabel}`);
   }
 
   try { fs.unlinkSync(PROGRESS_FILE); } catch { /* ignore */ }
@@ -600,7 +789,7 @@ async function runScrape(isResume: boolean) {
   // ── CSV export ────────────────────────────────────────────────────────────
   const dataDir = path.join(process.cwd(), "data");
   if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir);
-  const csvPath = path.join(dataDir, "locksmith-leads-v2.csv");
+  const csvPath = path.join(dataDir, "locksmith-leads-v3.csv");
   const header = "Name,Email,Phone,City,Address,Website,Rating,Reviews,Google Place ID\n";
   const rows = leads
     .map((l) => [l.name, l.email, l.phone, l.city, l.address, l.website, l.rating, l.reviewCount, l.placeId].map(escapeCsv).join(","))
@@ -680,6 +869,8 @@ if (args.includes("--dedup")) {
   runDedup().catch(e => { console.error(e); process.exit(1); });
 } else if (args.includes("--enrich")) {
   runEnrich().catch(e => { console.error(e); process.exit(1); });
+} else if (args.includes("--coverage")) {
+  runCoverageReport().catch(e => { console.error(e); process.exit(1); });
 } else {
   runScrape(args.includes("--resume")).catch(e => { console.error(e); process.exit(1); });
 }

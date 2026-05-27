@@ -94,6 +94,26 @@ model LeadBatch {
   @@index([status, processedAt])
 }
 
+// Scraper run progress — persisted in DB so Vercel cron invocations can
+// resume across the 300-second function limit without relying on /tmp.
+// One active record per scrape cycle; completed cycles are kept for audit.
+model ScraperProgress {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  runId           String   @unique @default(cuid())
+  // Cities finished in this cycle (JSON-safe city names from UK_CITIES list)
+  completedCities String[] @default([])
+  // Running totals for this cycle
+  totalLeadsFound Int      @default(0)
+  totalLeadsSaved Int      @default(0)
+  // Metadata
+  isComplete      Boolean  @default(false)
+  lastRunAt       DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([isComplete, createdAt])
+}
+
 // Customer/Client model
 model Customer {
   id           String  @id @default(auto()) @map("_id") @db.ObjectId
