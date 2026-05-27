@@ -215,6 +215,11 @@ export async function generateDistrictContent(facts: DistrictFacts): Promise<Gen
         responseFormat:        "json",
         timeoutMs:             GENERATION_TIMEOUT_MS,
         allowOpenAIFallback:   true,
+        // High severity = router's "emergency" path: lets this call reach OpenAI
+        // even when the global fallback toggle/min-severity would block a "low"
+        // call. Needed so prod page generation works on OpenAI when Ollama isn't
+        // reachable (serverless). Cost is trivial (gpt-4o-mini, ~$0.001/page).
+        fallbackSeverity:      "high",
       },
     );
 
