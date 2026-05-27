@@ -17,6 +17,7 @@ import { sendAdminAlert } from "@/lib/telegram";
 import { getOperationalPolicy, shouldEmitAlert } from "@/agents/core/operational-policy";
 import { generateTikTokScript } from "@/lib/tiktok";
 import { generateSocialVideo } from "@/lib/creatomate";
+import { generateTalkingVideo, preferredVideoProvider } from "@/lib/d-id";
 import type { AgentConfig } from "@/agents/core/types";
 
 export const SOCIAL_MEDIA_AGENT_CONFIG: AgentConfig = {
@@ -150,19 +151,33 @@ export async function runSocialMediaHeartbeat(): Promise<void> {
       const content = await generateContentSet(pillar, slotIndex, recentJobs, activePlatforms);
 
       // ── Video generation (non-blocking, non-fatal) ────────────────────────
-      // Generates a 15s branded Reel/TikTok video via Creatomate.
-      // Only runs when CREATOMATE_API_KEY is set — silently skips otherwise.
+      // Routes to D-ID (talking avatar) for trust/story pillars,
+      // Creatomate (branded text overlay) for everything else.
+      // Only runs when the relevant API key is set.
       let videoUrl: string | null = null;
       try {
-        const video = await generateSocialVideo({
-          headline: content.title,
-          subtext: content.facebook.split("\n")[0]?.slice(0, 120) ?? undefined,
-          pillar,
-          format: "vertical",
-          durationSeconds: 15,
-        });
-        videoUrl = video?.url ?? null;
-        if (videoUrl) console.log(`[SocialMedia] 🎬 Video generated: ${videoUrl}`);
+        const provider = preferredVideoProvider(pillar);
+
+        if (provider === "d-id" && process.env.D_ID_API_KEY) {
+          // D-ID: talking-head avatar narrates the post copy
+          const video = await generateTalkingVideo({
+            script: content.facebook.split("\n")[0]?.slice(0, 300) ?? content.title,
+            pillar,
+          });
+          videoUrl = video?.url ?? null;
+        } else {
+          // Creatomate: animated text overlay on branded gradient
+          const video = await generateSocialVideo({
+            headline: content.title,
+            subtext: content.facebook.split("\n")[0]?.slice(0, 120) ?? undefined,
+            pillar,
+            format: "vertical",
+            durationSeconds: 15,
+          });
+          videoUrl = video?.url ?? null;
+        }
+
+        if (videoUrl) console.log(`[SocialMedia] 🎬 Video ready (${preferredVideoProvider(pillar)}): ${videoUrl}`);
       } catch {
         // video errors never block the post
       }
