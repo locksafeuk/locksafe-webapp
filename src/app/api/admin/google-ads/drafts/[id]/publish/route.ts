@@ -12,6 +12,7 @@ import { cookies } from "next/headers";
 import prisma from "@/lib/db";
 import { verifyToken } from "@/lib/auth";
 import { publishGoogleAdsDraft } from "@/lib/google-ads-publish";
+import { LandingPagePreflightError } from "@/lib/google-ads-landing-preflight";
 import { checkAutoAction } from "@/lib/spend-guard";
 
 async function verifyAdmin() {
@@ -74,6 +75,16 @@ export async function POST(
     return NextResponse.json({ success: true, ...result });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    // Landing-page pre-flight failures are an operator-actionable 422, not a
+    // 500 — the draft is left APPROVED so it can be re-published once the page
+    // is generated / published / cleaned.
+    if (err instanceof LandingPagePreflightError) {
+      console.warn(`[google-ads/publish/${id}] blocked — landing page not ready (${err.reasonCode}): ${message}`);
+      return NextResponse.json(
+        { error: "Landing page not ready", reasonCode: err.reasonCode, finalUrl: err.finalUrl, details: message },
+        { status: 422 },
+      );
+    }
     console.error(`[google-ads/publish/${id}] failed:`, message);
     return NextResponse.json(
       { error: "Publish failed", details: message },

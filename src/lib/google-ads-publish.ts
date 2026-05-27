@@ -20,6 +20,7 @@ import prisma from "@/lib/db";
 import { GoogleAdsClient, getGoogleAdsClientForAccount, buildResourceName } from "./google-ads";
 import type { GoogleKeyword, GoogleKeywordMatchType } from "./openai-google-ads";
 import { captureAndStoreSnapshot } from "./google-ads-snapshot";
+import { assertLandingPageReady } from "./google-ads-landing-preflight";
 
 interface PublishResult {
   draftId: string;
@@ -129,6 +130,14 @@ export async function publishGoogleAdsDraft(draftId: string): Promise<PublishRes
     where: { id: draftId },
   })) as DraftLike | null;
   if (!draft) throw new Error(`Draft ${draftId} not found`);
+
+  // ── PRE-FLIGHT GATE ──────────────────────────────────────────────────────
+  // Hard condition: the landing page must exist, be published, content-clean,
+  // and return HTTP 200 BEFORE we hand the Final URL to Google. Otherwise the
+  // campaign gets disapproved for a broken/policy-violating destination.
+  // Runs before the PUBLISHING status flip so a not-ready page leaves the draft
+  // untouched (still APPROVED) with a clear error.
+  await assertLandingPageReady(draft.finalUrl);
 
   const client = await getGoogleAdsClientForAccount(draft.accountId);
   if (!client) {
