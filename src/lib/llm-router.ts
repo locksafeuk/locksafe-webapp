@@ -96,7 +96,8 @@ const MODEL_CONFIG: Record<ModelAlias, ModelConfig> = {
   CONTENT: {
     // Dense 32B — every parameter contributes to each token; superior for creative/persuasive copy
     localModel: modelFromEnv("CONTENT", "qwen3:32b"),
-    openAiFallbackModel: "gpt-4o-mini",
+    // Customer-facing landing-page + long-form copy: use gpt-4o (not mini) for quality.
+    openAiFallbackModel: "gpt-4o",
   },
   QUALITY: {
     localModel: modelFromEnv("QUALITY", "qwen3:32b"),
