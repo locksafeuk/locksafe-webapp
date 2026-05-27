@@ -34,6 +34,26 @@ export function getOllamaRuntimeDecision(env: RuntimeEnv = process.env): {
     };
   }
 
+  // Default (no explicit OLLAMA_RUNTIME_ENABLED): on serverless (Vercel) with no
+  // reachable Ollama endpoint (base URL unset or pointing at localhost), disable
+  // the local runtime and route LLM calls to OpenAI. This keeps the OpenAI
+  // fallback effectively PERMANENT in prod — prod never hits the dead localhost
+  // Ollama, so the circuit breaker can't trip and force-block OpenAI.
+  //
+  // A home/Tailscale Ollama is still used whenever OLLAMA_BASE_URL explicitly
+  // points at it (non-localhost), and local dev (localhost Ollama reachable)
+  // is unaffected because it doesn't run on Vercel.
+  const onServerless = !!env.VERCEL || !!env.VERCEL_ENV;
+  const baseIsLocalhost =
+    !env.OLLAMA_BASE_URL || /(?:^|\/\/)(?:localhost|127\.0\.0\.1)/i.test(baseUrl);
+  if (onServerless && baseIsLocalhost) {
+    return {
+      enabled: false,
+      baseUrl,
+      reason: "serverless runtime with no reachable Ollama (localhost) — routing LLM to OpenAI",
+    };
+  }
+
   return { enabled: true, baseUrl };
 }
 
