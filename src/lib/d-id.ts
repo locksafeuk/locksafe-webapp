@@ -77,12 +77,24 @@ export const PILLAR_SCRIPT_INTRO: Record<string, string> = {
 
 function getAuthHeader(): string {
   const key = process.env.D_ID_API_KEY ?? "";
-  // D-ID accepts either a raw API key OR Basic base64(email:key)
-  // If the key already looks like base64, use it as-is; otherwise wrap it
-  if (key.includes(":") || key.length < 40) {
-    return `Basic ${Buffer.from(key).toString("base64")}`;
+
+  // D-ID stores keys as base64(email):apikey — e.g. "Y29udGFjd...:34Kz8E9g..."
+  // We must decode the email part and re-encode the whole credential string.
+  // Format: <base64-email>:<api-key>  →  Basic base64(<email>:<api-key>)
+  const colonIdx = key.indexOf(":");
+  if (colonIdx !== -1) {
+    const emailB64 = key.slice(0, colonIdx);
+    const apiKey   = key.slice(colonIdx + 1);
+    try {
+      const email = Buffer.from(emailB64, "base64").toString("utf8");
+      return `Basic ${Buffer.from(`${email}:${apiKey}`).toString("base64")}`;
+    } catch {
+      // fall through to raw encoding
+    }
   }
-  return `Basic ${key}`;
+
+  // Fallback: treat the whole key as a raw token
+  return `Basic ${Buffer.from(key).toString("base64")}`;
 }
 
 function buildScript(req: TalkingVideoRequest): string {

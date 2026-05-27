@@ -53,9 +53,14 @@ function log(msg: string) {
   console.log(`[agent-runner] ${new Date().toISOString()}  ${msg}`);
 }
 
-async function alertTelegram(msg: string) {
+async function alertTelegram(msg: string, severity: "info" | "warning" | "error" = "info") {
   try {
-    await sendAdminAlert(`🤖 *Mac Studio Agent Runner*\n\n${msg}`);
+    await sendAdminAlert({
+      title: "🤖 Mac Studio Agent Runner",
+      message: msg,
+      severity,
+      bypassPolicyGate: true,
+    });
   } catch {
     // never crash due to Telegram failure
   }
@@ -103,7 +108,7 @@ async function tick() {
     if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
       const alert = `${consecutiveErrors} consecutive heartbeat failures.\nLast error: ${msg}\n\nRunner is still alive but agents may be stuck.`;
       log(`🚨 Alerting Telegram after ${consecutiveErrors} consecutive errors.`);
-      await alertTelegram(`🚨 ${alert}`);
+      await alertTelegram(`🚨 ${alert}`, "error");
       consecutiveErrors = 0; // reset so we don't spam Telegram every tick
     }
   } finally {
@@ -123,7 +128,7 @@ setInterval(() => {
 // ─── Graceful shutdown ────────────────────────────────────────────────────────
 async function shutdown(signal: string) {
   log(`🛑 Received ${signal}. Shutting down gracefully...`);
-  await alertTelegram(`🛑 Agent runner stopped (${signal}) on Mac Studio.`);
+  await alertTelegram(`Agent runner stopped (${signal}) on Mac Studio.`, "warning");
   process.exit(0);
 }
 
@@ -132,14 +137,14 @@ process.on("SIGINT",  () => shutdown("SIGINT"));
 
 process.on("uncaughtException", async (err) => {
   log(`💥 Uncaught exception: ${err.message}`);
-  await alertTelegram(`💥 Uncaught exception in agent runner:\n\`${err.message}\`\n\nPM2 will restart the process.`);
+  await alertTelegram(`Uncaught exception in agent runner:\n${err.message}\n\nPM2 will restart the process.`, "error");
   process.exit(1);
 });
 
 process.on("unhandledRejection", async (reason) => {
   const msg = reason instanceof Error ? reason.message : String(reason);
   log(`💥 Unhandled rejection: ${msg}`);
-  await alertTelegram(`💥 Unhandled promise rejection:\n\`${msg}\`\n\nPM2 will restart the process.`);
+  await alertTelegram(`Unhandled promise rejection:\n${msg}\n\nPM2 will restart the process.`, "error");
   process.exit(1);
 });
 
@@ -153,7 +158,7 @@ async function main() {
 
   // Announce startup on Telegram
   await alertTelegram(
-    `✅ Agent runner *started* on Mac Studio.\nOllama: \`${process.env.OLLAMA_BASE_URL ?? "http://localhost:11434"}\`\nTick: every ${TICK_INTERVAL_MS / 60000} min`
+    `Agent runner started on Mac Studio.\nOllama: ${process.env.OLLAMA_BASE_URL ?? "http://localhost:11434"}\nTick: every ${TICK_INTERVAL_MS / 60000} min`
   );
 
   // Initialize the full agent system (syncs DB state, registers tools, sets dependencies)
@@ -172,6 +177,6 @@ async function main() {
 
 main().catch(async (err) => {
   log(`💥 Fatal startup error: ${err.message}`);
-  await alertTelegram(`💥 Agent runner failed to start:\n\`${err.message}\``);
+  await alertTelegram(`Agent runner failed to start:\n${err.message}`, "error");
   process.exit(1);
 });
