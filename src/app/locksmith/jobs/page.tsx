@@ -27,6 +27,8 @@ interface Job {
   id: string;
   jobNumber: string;
   status: string;
+  sourceType: "normal" | "auto";
+  sourceLabel: string;
   problemType: string;
   propertyType: string;
   postcode: string;
@@ -43,6 +45,8 @@ interface MyApplication {
   assessmentFee: number;
   eta: number;
   status: string;
+  sourceType: "normal" | "auto";
+  sourceLabel: string;
   appliedAt: string;
   job: {
     jobNumber: string;
@@ -82,6 +86,7 @@ const applicationStatusMeta: Record<string, { label: string; className: string }
 
 export default function AvailableJobsPage() {
   const { user } = useAuth();
+  const [sourceFilter, setSourceFilter] = useState<"all" | "normal" | "auto">("normal");
   const [jobs, setJobs] = useState<Job[]>([]);
   const [myApplications, setMyApplications] = useState<MyApplication[]>([]);
   const [appliedJobIds, setAppliedJobIds] = useState<Set<string>>(new Set());
@@ -127,7 +132,9 @@ export default function AvailableJobsPage() {
 
       if (user?.id) {
         // Fetch applications
-        const appsResponse = await fetch(`/api/locksmith/applications?locksmithId=${user.id}`);
+        const appsResponse = await fetch(
+          `/api/locksmith/applications?locksmithId=${user.id}&sourceType=${sourceFilter}`,
+        );
         const appsData = await appsResponse.json();
         if (appsData.success && appsData.applications) {
           setMyApplications(appsData.applications);
@@ -155,8 +162,8 @@ export default function AvailableJobsPage() {
 
       // Always fetch jobs - allow viewing without Stripe
       const jobsUrl = user?.id && hasLocation
-        ? `/api/jobs?status=PENDING&availableForLocksmith=${user.id}`
-        : "/api/jobs?status=PENDING";
+        ? `/api/jobs?status=PENDING&availableForLocksmith=${user.id}&sourceType=${sourceFilter}`
+        : `/api/jobs?status=PENDING&sourceType=${sourceFilter}`;
 
       const response = await fetch(jobsUrl);
       const data = await response.json();
@@ -168,6 +175,8 @@ export default function AvailableJobsPage() {
             id: job.id,
             jobNumber: job.jobNumber,
             status: job.status,
+            sourceType: job.sourceType || "normal",
+            sourceLabel: job.sourceLabel || "Normal",
             problemType: job.problemType,
             propertyType: job.propertyType,
             postcode: job.postcode,
@@ -185,7 +194,7 @@ export default function AvailableJobsPage() {
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [sourceFilter, user?.id]);
 
   useEffect(() => {
     fetchJobs();
@@ -267,6 +276,11 @@ export default function AvailableJobsPage() {
     };
   };
 
+  const sourceBadgeClass = (sourceType: "normal" | "auto") =>
+    sourceType === "auto"
+      ? "bg-violet-100 text-violet-700"
+      : "bg-emerald-100 text-emerald-700";
+
   if (loading) {
     return (
       <div className="p-4 sm:p-6 lg:p-8">
@@ -342,9 +356,31 @@ export default function AvailableJobsPage() {
 
       {/* Available Jobs */}
       <div className="space-y-4 mb-8">
-        <h2 className="text-lg font-semibold text-slate-900">
-          {jobs.length} {jobs.length === 1 ? "Job" : "Jobs"} Available
-        </h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-slate-900">
+            {jobs.length} {jobs.length === 1 ? "Job" : "Jobs"} Available
+          </h2>
+          <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1">
+            {[
+              { key: "normal", label: "Normal" },
+              { key: "auto", label: "AUTO" },
+              { key: "all", label: "All" },
+            ].map((option) => (
+              <button
+                key={option.key}
+                type="button"
+                onClick={() => setSourceFilter(option.key as "all" | "normal" | "auto")}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                  sourceFilter === option.key
+                    ? "bg-slate-900 text-white"
+                    : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {jobs.length === 0 ? (
           <div className="bg-white rounded-2xl shadow-sm p-8 sm:p-12 text-center">
@@ -367,6 +403,9 @@ export default function AvailableJobsPage() {
                       <span className="font-mono text-xs text-slate-500">{job.jobNumber}</span>
                       <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
                         Awaiting Offers
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${sourceBadgeClass(job.sourceType)}`}>
+                        {job.sourceLabel}
                       </span>
                     </div>
                     <h3 className="font-semibold text-slate-900 text-base sm:text-lg">
@@ -457,6 +496,9 @@ export default function AvailableJobsPage() {
                         <span className="font-mono text-xs text-slate-500">{app.job.jobNumber}</span>
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusMeta.className}`}>
                           {statusMeta.label}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${sourceBadgeClass(app.sourceType)}`}>
+                          {app.sourceLabel}
                         </span>
                       </div>
                       <h3 className="font-semibold text-slate-900">

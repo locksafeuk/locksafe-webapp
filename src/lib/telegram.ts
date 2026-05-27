@@ -32,10 +32,15 @@ const ADMIN_ALERT_FALLBACK_PHONES = (process.env.ADMIN_ALERT_FALLBACK_PHONES || 
   .split(",")
   .map((v) => v.trim())
   .filter(Boolean);
+const TELEGRAM_NEW_JOB_DEDUPE_MINUTES = Math.max(
+  1,
+  Number.parseInt(process.env.TELEGRAM_NEW_JOB_DEDUPE_MINUTES || "1440", 10) || 1440,
+);
 
 // Best-effort in-process dedupe to reduce noisy repeated admin alerts.
 // Repeats are keyed by severity+title unless a caller provides dedupeKey.
 const adminAlertCooldownCache = new Map<string, number>();
+const newJobNotificationCache = new Map<string, number>();
 
 function normalizeAlertTitleForDedupe(title: string): string {
   return title
@@ -112,6 +117,66 @@ async function recordAdminAlertSent(dedupeKey: string, data: {
   } catch (error) {
     // Fail open: notification delivery should not be blocked by audit write errors.
     console.warn("[Telegram][dedupe] Failed to persist sent alert marker:", error);
+  }
+}
+
+async function wasNewJobNotificationSentRecently(jobId: string, cooldownMs: number): Promise<boolean> {
+  if (!jobId || cooldownMs <= 0) return false;
+
+  const now = Date.now();
+  const nextAllowedAt = newJobNotificationCache.get(jobId) ?? 0;
+  if (now < nextAllowedAt) {
+    return true;
+  }
+
+  try {
+    const threshold = new Date(now - cooldownMs);
+    const recentlySent = await prisma.agentDecision.findFirst({
+      where: {
+        agent: "system-alerts",
+        platform: "global",
+        action: `telegram_new_job:${jobId}`,
+        createdAt: { gte: threshold },
+      },
+      select: { id: true },
+    });
+
+    if (recentlySent) {
+      newJobNotificationCache.set(jobId, now + cooldownMs);
+      return true;
+    }
+  } catch (error) {
+    // Fail open so notifications continue if dedupe storage is unavailable.
+    console.warn("[Telegram][new-job dedupe] DB check failed, proceeding:", error);
+  }
+
+  return false;
+}
+
+async function recordNewJobNotificationSent(jobId: string, cooldownMs: number): Promise<void> {
+  if (!jobId) return;
+
+  const now = Date.now();
+  if (cooldownMs > 0) {
+    newJobNotificationCache.set(jobId, now + cooldownMs);
+  }
+
+  try {
+    await prisma.agentDecision.create({
+      data: {
+        agent: "system-alerts",
+        platform: "global",
+        action: `telegram_new_job:${jobId}`,
+        payload: { jobId, event: "new_job" },
+        policySnapshot: { source: "notifyNewJob" },
+        dryRun: false,
+        outcome: "ok",
+        outcomeMessage: "telegram_sent",
+        executedAt: new Date(),
+      },
+    });
+  } catch (error) {
+    console.warn("[Telegram][new-job dedupe] Failed to persist sent marker:", error);
   }
 }
 
@@ -255,11 +320,14 @@ function formatCurrency(amount: number): string {
 function formatDate(date: Date | string): string {
   const d = typeof date === "string" ? new Date(date) : date;
   return d.toLocaleString("en-GB", {
+    timeZone: "Europe/London",
     day: "2-digit",
     month: "short",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
+    timeZoneName: "short",
   });
 }
 
@@ -346,6 +414,12 @@ export async function notifyNewJob(data: {
   description?: string | null;
   isUrgent?: boolean;
 }): Promise<boolean> {
+  const dedupeCooldownMs = TELEGRAM_NEW_JOB_DEDUPE_MINUTES * 60 * 1000;
+  if (await wasNewJobNotificationSentRecently(data.jobId, dedupeCooldownMs)) {
+    console.log(`[Telegram] Skipping duplicate new job notification for ${data.jobId}`);
+    return false;
+  }
+
   const urgentTag = data.isUrgent ? "🚨 <b>URGENT</b> " : "";
 
   const message = `
@@ -367,7 +441,11 @@ ${data.description ? `📝 <b>Notes:</b> ${escapeHtml(data.description)}` : ""}
 🕐 <b>Time:</b> ${formatDate(new Date())}
 `;
 
-  return sendTelegramMessage(message, "HTML", TOPIC_NEW_JOBS);
+  const sent = await sendTelegramMessage(message, "HTML", TOPIC_NEW_JOBS);
+  if (sent) {
+    await recordNewJobNotificationSent(data.jobId, dedupeCooldownMs);
+  }
+  return sent;
 }
 
 /**

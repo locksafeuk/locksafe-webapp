@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
+import { getApplicationSourceType, getJobSourceLabel, sourceMatchesFilter, type JobSourceFilter } from "@/lib/job-source";
 
 const ACTIVE_APPLICATION_JOB_STATUSES = ["PENDING", "PHONE_INITIATED"] as const;
 
@@ -9,6 +10,12 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const locksmithId = searchParams.get("locksmithId");
     const status = searchParams.get("status");
+    const sourceTypeParam = searchParams.get("sourceType");
+
+    const sourceFilter: JobSourceFilter =
+      sourceTypeParam === "auto" || sourceTypeParam === "normal"
+        ? sourceTypeParam
+        : "all";
 
     if (!locksmithId) {
       return NextResponse.json(
@@ -89,25 +96,44 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
+    const filteredApplications = applications.filter((app) => {
+      const sourceType = getApplicationSourceType({
+        status: app.status,
+        message: app.message,
+        jobCreatedVia: app.job.createdVia,
+      });
+      return sourceMatchesFilter(sourceType, sourceFilter);
+    });
+
     return NextResponse.json({
       success: true,
-      applications: applications.map((app) => ({
-        id: app.id,
-        jobId: app.jobId,
-        assessmentFee: app.assessmentFee,
-        eta: app.eta,
-        status: app.status,
-        appliedAt: app.createdAt.toISOString(),
-        job: {
-          jobNumber: app.job.jobNumber,
-          problemType: app.job.problemType,
-          postcode: app.job.postcode,
-          address: app.job.address,
-          customer: {
-            name: app.job.customer.name,
+      applications: filteredApplications.map((app) => {
+        const sourceType = getApplicationSourceType({
+          status: app.status,
+          message: app.message,
+          jobCreatedVia: app.job.createdVia,
+        });
+
+        return {
+          id: app.id,
+          jobId: app.jobId,
+          assessmentFee: app.assessmentFee,
+          eta: app.eta,
+          status: app.status,
+          sourceType,
+          sourceLabel: getJobSourceLabel(sourceType),
+          appliedAt: app.createdAt.toISOString(),
+          job: {
+            jobNumber: app.job.jobNumber,
+            problemType: app.job.problemType,
+            postcode: app.job.postcode,
+            address: app.job.address,
+            customer: {
+              name: app.job.customer.name,
+            },
           },
-        },
-      })),
+        };
+      }),
     });
   } catch (error) {
     console.error("Error fetching locksmith applications:", error);

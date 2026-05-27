@@ -7,6 +7,7 @@ import { notifyCustomerJobSubmitted, notifyLocksmiths, type JobSMSContext } from
 import { generateJobNumber } from "@/lib/job-number";
 import { shouldTriggerAuction, createAuction } from "@/lib/job-auction";
 import { calculateSurgeFee } from "@/lib/surge-pricing";
+import { getJobSourceLabel, getJobSourceType, sourceMatchesFilter, type JobSourceFilter } from "@/lib/job-source";
 
 // Geocode postcode to coordinates
 async function geocodePostcode(postcode: string): Promise<{ lat: number; lng: number } | null> {
@@ -380,6 +381,7 @@ export async function GET(request: NextRequest) {
     const customerId = searchParams.get("customerId");
     const postcode = searchParams.get("postcode");
     const availableForLocksmith = searchParams.get("availableForLocksmith"); // New param for radius filtering
+    const sourceTypeParam = searchParams.get("sourceType");
 
     const where: Record<string, unknown> = {};
 
@@ -395,6 +397,13 @@ export async function GET(request: NextRequest) {
     if (postcode) {
       where.postcode = { startsWith: postcode.substring(0, 3).toUpperCase() };
     }
+
+    const effectiveSourceFilter: JobSourceFilter =
+      sourceTypeParam === "auto" || sourceTypeParam === "normal"
+        ? sourceTypeParam
+        : availableForLocksmith
+          ? "normal"
+          : "all";
 
     let jobs = await prisma.job.findMany({
       where,
@@ -465,12 +474,25 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    jobs = jobs.filter((job) =>
+      sourceMatchesFilter(getJobSourceType(job.createdVia), effectiveSourceFilter),
+    );
+
+    const jobsWithSource = jobs.map((job) => {
+      const sourceType = getJobSourceType(job.createdVia);
+      return {
+        ...job,
+        sourceType,
+        sourceLabel: getJobSourceLabel(sourceType),
+      };
+    });
+
     // Return array directly when filtering by customerId for simpler client handling
     if (customerId) {
-      return NextResponse.json(jobs);
+      return NextResponse.json(jobsWithSource);
     }
 
-    return NextResponse.json({ success: true, jobs });
+    return NextResponse.json({ success: true, jobs: jobsWithSource });
   } catch (error) {
     console.error("Error fetching jobs:", error);
     return NextResponse.json(

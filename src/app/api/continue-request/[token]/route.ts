@@ -286,6 +286,8 @@ export async function POST(
       });
     }
 
+    const shouldBroadcastNewJob = job.status === "PHONE_INITIATED";
+
     // Geocode the postcode
     let latitude: number | null = job.latitude;
     let longitude: number | null = job.longitude;
@@ -328,38 +330,40 @@ export async function POST(
       },
     });
 
-    // Notify nearby locksmiths about the new job (async, don't await)
-    notifyNearbyLocksmiths({
-      id: updatedJob.id,
-      jobNumber: updatedJob.jobNumber,
-      problemType: updatedJob.problemType,
-      propertyType: updatedJob.propertyType,
-      postcode: updatedJob.postcode,
-      address: updatedJob.address,
-      latitude: updatedJob.latitude,
-      longitude: updatedJob.longitude,
-      createdAt: updatedJob.createdAt.toISOString(),
-    }).then((result) => {
-      console.log(`[Continue Request] Notified ${result.notifiedCount} locksmiths about job ${updatedJob.jobNumber}`);
-    }).catch((err) => {
-      console.error(`[Continue Request] Failed to notify locksmiths:`, err);
-    });
+    if (shouldBroadcastNewJob) {
+      // Notify nearby locksmiths about the new job (async, don't await)
+      notifyNearbyLocksmiths({
+        id: updatedJob.id,
+        jobNumber: updatedJob.jobNumber,
+        problemType: updatedJob.problemType,
+        propertyType: updatedJob.propertyType,
+        postcode: updatedJob.postcode,
+        address: updatedJob.address,
+        latitude: updatedJob.latitude,
+        longitude: updatedJob.longitude,
+        createdAt: updatedJob.createdAt.toISOString(),
+      }).then((result) => {
+        console.log(`[Continue Request] Notified ${result.notifiedCount} locksmiths about job ${updatedJob.jobNumber}`);
+      }).catch((err) => {
+        console.error(`[Continue Request] Failed to notify locksmiths:`, err);
+      });
 
-    // Send Telegram notification (non-blocking)
-    notifyNewJob({
-      jobNumber: updatedJob.jobNumber,
-      jobId: updatedJob.id,
-      customerName: updatedJob.customer?.name || "Unknown",
-      customerPhone: updatedJob.customer?.phone || "",
-      problemType: updatedJob.problemType,
-      propertyType: updatedJob.propertyType,
-      postcode: updatedJob.postcode,
-      address: updatedJob.address,
-      description: updatedJob.description,
-      isUrgent: problemType.toLowerCase().includes("lockout") || problemType.toLowerCase().includes("emergency"),
-    }).catch((err) => {
-      console.error(`[Continue Request] Failed to send Telegram notification:`, err);
-    });
+      // Send Telegram notification (non-blocking)
+      notifyNewJob({
+        jobNumber: updatedJob.jobNumber,
+        jobId: updatedJob.id,
+        customerName: updatedJob.customer?.name || "Unknown",
+        customerPhone: updatedJob.customer?.phone || "",
+        problemType: updatedJob.problemType,
+        propertyType: updatedJob.propertyType,
+        postcode: updatedJob.postcode,
+        address: updatedJob.address,
+        description: updatedJob.description,
+        isUrgent: problemType.toLowerCase().includes("lockout") || problemType.toLowerCase().includes("emergency"),
+      }).catch((err) => {
+        console.error(`[Continue Request] Failed to send Telegram notification:`, err);
+      });
+    }
 
     console.log(`[Continue Request] Job ${updatedJob.jobNumber} completed via web (originally from phone)`);
 
