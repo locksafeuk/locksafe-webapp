@@ -1,49 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 
-// POST /api/notifications/unsubscribe - Remove push subscription
+// POST /api/notifications/unsubscribe - Clear a PWA web-push subscription
+//
+// Body: { userId, userType? }
+// userType is optional (the PWA client omits it). Only locksmith subscriptions
+// are tracked, so we clear the web-push fields for a matching locksmith.
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { userId, userType } = body;
 
-    if (!userId || !userType) {
+    if (!userId) {
       return NextResponse.json(
-        { success: false, error: "Missing required fields" },
+        { success: false, error: "userId is required" },
         { status: 400 }
       );
     }
 
-    if (!["customer", "locksmith"].includes(userType)) {
-      return NextResponse.json(
-        { success: false, error: "Invalid user type" },
-        { status: 400 }
-      );
-    }
-
-    // Remove subscription from database
     if (userType === "customer") {
-      console.log(`[Push] Removing subscription for customer ${userId}`);
-      // In a full implementation:
-      // await prisma.customer.update({
-      //   where: { id: userId },
-      //   data: { pushSubscription: null },
-      // });
-    } else if (userType === "locksmith") {
-      console.log(`[Push] Removing subscription for locksmith ${userId}`);
-      // In a full implementation:
-      // await prisma.locksmith.update({
-      //   where: { id: userId },
-      //   data: { pushSubscription: null },
-      // });
+      return NextResponse.json({ success: true, message: "Acknowledged (customer tracking not enabled)" });
     }
 
-    return NextResponse.json({
-      success: true,
-      message: "Subscription removed successfully",
+    // Clear the web-push fields if this is a known locksmith. updateMany avoids
+    // throwing when the id is not a locksmith (e.g. a customer).
+    await prisma.locksmith.updateMany({
+      where: { id: userId },
+      data: {
+        webPushSubscription: null,
+        webPushPlatform: null,
+        webPushRegisteredAt: null,
+      },
     });
+
+    return NextResponse.json({ success: true, message: "Subscription removed" });
   } catch (error) {
-    console.error("Error removing push subscription:", error);
+    console.error("[Push][WebPush] Error removing subscription:", error);
     return NextResponse.json(
       { success: false, error: "Failed to remove subscription" },
       { status: 500 }

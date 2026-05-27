@@ -3,6 +3,7 @@ import { sendAutoDispatchEmail, sendNewJobInAreaEmail } from "@/lib/email";
 import { sendSMS } from "@/lib/sms";
 import { calculateDistanceMiles } from "@/lib/utils";
 import { sendNativePushToMany } from "@/lib/native-push";
+import { sendWebPushToMany } from "@/lib/web-push";
 
 interface JobForNotification {
   id: string;
@@ -61,6 +62,7 @@ export async function notifyNearbyLocksmiths(job: JobForNotification): Promise<{
         nativeDeviceToken: true, // For native APNs/FCM push (mobile app)
         nativeTokenType: true,
         nativeTokenPlatform: true,
+        webPushSubscription: true, // For PWA web push (browser-installed app)
       },
     });
 
@@ -72,6 +74,7 @@ export async function notifyNearbyLocksmiths(job: JobForNotification): Promise<{
       nativeDeviceToken: string | null;
       nativeTokenType: string | null;
       nativeTokenPlatform: string | null;
+      webPushSubscription: string | null;
     }> = [];
 
     // Pre-compute distance for every candidate so we can do the in-radius pass
@@ -100,6 +103,7 @@ export async function notifyNearbyLocksmiths(job: JobForNotification): Promise<{
           nativeDeviceToken: l.nativeDeviceToken,
           nativeTokenType: l.nativeTokenType,
           nativeTokenPlatform: l.nativeTokenPlatform,
+          webPushSubscription: l.webPushSubscription,
         });
         console.log(
           `[Job Notifications] Locksmith ${l.name} (${l.id}) is ${distance.toFixed(1)} miles away - within ${coverageRadius} mile radius`,
@@ -127,6 +131,7 @@ export async function notifyNearbyLocksmiths(job: JobForNotification): Promise<{
               nativeDeviceToken: l.nativeDeviceToken,
               nativeTokenType: l.nativeTokenType,
               nativeTokenPlatform: l.nativeTokenPlatform,
+              webPushSubscription: l.webPushSubscription,
             });
           }
           console.log(
@@ -283,6 +288,34 @@ export async function notifyNearbyLocksmiths(job: JobForNotification): Promise<{
         })
         .catch((err) => {
           console.error("[Job Notifications] Native push error:", err);
+        });
+    }
+
+    // Send PWA web-push notifications (secondary channel for browser-installed users)
+    const webTargets = nearbyLocksmiths.filter(
+      (ls): ls is typeof ls & { webPushSubscription: string } => !!ls.webPushSubscription,
+    );
+
+    if (webTargets.length > 0) {
+      const problemLabel = problemLabels[job.problemType] || job.problemType;
+      sendWebPushToMany(webTargets, {
+        title: "New Job Available",
+        body: `${problemLabel} near ${job.postcode}`,
+        data: {
+          type: "NEW_JOB_AVAILABLE",
+          jobId: job.id,
+          jobNumber: job.jobNumber,
+          postcode: job.postcode,
+          url: "/locksmith/jobs",
+        },
+      })
+        .then((count) => {
+          console.log(
+            `[Job Notifications] Web push sent to ${count}/${webTargets.length} locksmiths`,
+          );
+        })
+        .catch((err) => {
+          console.error("[Job Notifications] Web push error:", err);
         });
     }
 

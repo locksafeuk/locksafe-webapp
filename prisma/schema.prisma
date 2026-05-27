@@ -301,6 +301,11 @@ model Locksmith {
   nativeTokenPlatform     String? // "ios" | "android"
   nativeTokenRegisteredAt DateTime? // When the native token was last registered
 
+  // PWA Web Push (browser-installed Progressive Web App, separate from native app)
+  webPushSubscription   String?   // JSON: { endpoint, keys: { p256dh, auth } }
+  webPushPlatform       String?   // OS hint derived from User-Agent: "ios" | "android" | "desktop"
+  webPushRegisteredAt   DateTime? // When the web-push subscription was last saved
+
   // Onboarding & Terms
   termsAcceptedAt          DateTime? // When locksmith accepted T&C
   onboardingCompleted      Boolean   @default(false)

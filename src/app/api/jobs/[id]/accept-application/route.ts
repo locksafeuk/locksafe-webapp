@@ -5,6 +5,7 @@ import { sendJobConfirmationEmail, sendLocksmithBookedEmail } from "@/lib/email"
 import { notifyApplicationAccepted, notifyAssessmentFeePaid } from "@/lib/telegram";
 import { sendJobNotification, type JobSMSContext } from "@/lib/sms";
 import { sendNativePush } from "@/lib/native-push";
+import { sendWebPushToMany } from "@/lib/web-push";
 
 // Problem type labels for email
 const problemLabels: Record<string, string> = {
@@ -237,6 +238,27 @@ export async function POST(
           },
         }
       ).catch((err) => console.error("[NativePush] Failed to notify locksmith on accept:", err));
+    }
+
+    // Send web push to locksmith (PWA — secondary channel)
+    if (updatedJob.locksmith?.webPushSubscription) {
+      sendWebPushToMany(
+        [{
+          id: updatedJob.locksmith.id,
+          name: updatedJob.locksmith.name,
+          webPushSubscription: updatedJob.locksmith.webPushSubscription,
+        }],
+        {
+          title: "Job Confirmed! 🔑",
+          body: `You've been booked for job ${updatedJob.jobNumber} in ${updatedJob.postcode}`,
+          data: {
+            type: "JOB_ACCEPTED",
+            jobId: updatedJob.id,
+            jobNumber: updatedJob.jobNumber,
+            url: "/locksmith/jobs",
+          },
+        }
+      ).catch((err) => console.error("[WebPush] Failed to notify locksmith on accept:", err));
     }
 
     return NextResponse.json({

@@ -16,6 +16,7 @@
 import prisma from "@/lib/db";
 import { sendAdminAlert } from "@/lib/telegram";
 import { sendNativePushToMany } from "@/lib/native-push";
+import { sendWebPushToMany } from "@/lib/web-push";
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const AUCTION_STEP_MINUTES = 2;
@@ -228,6 +229,7 @@ export async function sendAuctionNotifications(
       nativeDeviceToken: true,
       nativeTokenType: true,
       nativeTokenPlatform: true,
+      webPushSubscription: true,
       pushNotifications: true,
     },
   });
@@ -267,6 +269,19 @@ export async function sendAuctionNotifications(
     await sendNativePushToMany(pushRecipients, pushPayload).catch((err) =>
       console.error("[JobAuction] Native push failed:", err),
     );
+  }
+
+  // ── Web push (PWA — secondary channel) ──────────────────────────────────
+  const webRecipients = locksmiths.filter(
+    (ls) => ls.webPushSubscription && ls.pushNotifications !== false,
+  ) as Array<{ id: string; name: string; webPushSubscription: string }>;
+
+  if (webRecipients.length > 0) {
+    await sendWebPushToMany(webRecipients, {
+      title: pushPayload.title,
+      body: pushPayload.body,
+      data: { ...pushPayload.data, url: "/locksmith/jobs" },
+    }).catch((err) => console.error("[JobAuction] Web push failed:", err));
   }
 
   // ── Telegram inline buttons (supplementary — locksmiths with both channels) ─

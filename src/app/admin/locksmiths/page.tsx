@@ -107,6 +107,72 @@ interface Locksmith {
   isAvailable: boolean;
   scheduleEnabled: boolean;
   lastAvailabilityChange: string | null;
+  // Mobile app platform (from native push-token registration)
+  nativeTokenPlatform: string | null;
+  nativeTokenRegisteredAt: string | null;
+  // PWA web-push (boolean + OS hint; raw subscription is never sent to the client)
+  onPwa: boolean;
+  webPushPlatform: string | null;
+  webPushRegisteredAt: string | null;
+}
+
+/**
+ * Channel badges showing where a locksmith can be reached:
+ *   - Native app: 🍎 iOS (nativeTokenPlatform === "ios") / 🤖 Android (=== "android")
+ *   - PWA: 🌐 (onPwa — a stored web-push subscription)
+ * A locksmith can be on both. "No app" means neither a native token nor a PWA
+ * web-push subscription — a candidate to nudge to install / open the app.
+ */
+function ChannelBadges({
+  nativePlatform,
+  onPwa,
+  webPushPlatform,
+}: {
+  nativePlatform: string | null;
+  onPwa: boolean;
+  webPushPlatform?: string | null;
+}) {
+  const hasNative = nativePlatform === "ios" || nativePlatform === "android";
+
+  if (!hasNative && !onPwa) {
+    return (
+      <span
+        title="No app registered — may need a reminder to install / open the app"
+        className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-50 text-slate-400 rounded-full text-[10px] font-medium border border-slate-200"
+      >
+        No app
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1 flex-wrap">
+      {nativePlatform === "ios" && (
+        <span
+          title="Native app — iOS"
+          className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 text-slate-700 rounded-full text-[10px] font-semibold border border-slate-200"
+        >
+          <span aria-hidden>🍎</span> iOS
+        </span>
+      )}
+      {nativePlatform === "android" && (
+        <span
+          title="Native app — Android"
+          className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-[10px] font-semibold border border-green-200"
+        >
+          <span aria-hidden>🤖</span> Android
+        </span>
+      )}
+      {onPwa && (
+        <span
+          title={`PWA — installed web app${webPushPlatform ? ` (${webPushPlatform})` : ""}`}
+          className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-[10px] font-semibold border border-blue-200"
+        >
+          <span aria-hidden>🌐</span> PWA
+        </span>
+      )}
+    </span>
+  );
 }
 
 export default function AdminLocksmithsPage() {
@@ -223,6 +289,11 @@ export default function AdminLocksmithsPage() {
           isAvailable?: boolean;
           scheduleEnabled?: boolean;
           lastAvailabilityChange?: string | null;
+          nativeTokenPlatform?: string | null;
+          nativeTokenRegisteredAt?: string | null;
+          onPwa?: boolean;
+          webPushPlatform?: string | null;
+          webPushRegisteredAt?: string | null;
         }) => ({
           id: ls.id,
           name: ls.name,
@@ -264,6 +335,11 @@ export default function AdminLocksmithsPage() {
           isAvailable: ls.isAvailable ?? true,
           scheduleEnabled: ls.scheduleEnabled ?? false,
           lastAvailabilityChange: ls.lastAvailabilityChange || null,
+          nativeTokenPlatform: ls.nativeTokenPlatform || null,
+          nativeTokenRegisteredAt: ls.nativeTokenRegisteredAt || null,
+          onPwa: ls.onPwa ?? false,
+          webPushPlatform: ls.webPushPlatform || null,
+          webPushRegisteredAt: ls.webPushRegisteredAt || null,
         }));
 
         setLocksmiths(nextLocksmiths);
@@ -959,6 +1035,12 @@ export default function AdminLocksmithsPage() {
   const verifiedCount = locksmiths.filter((ls) => ls.isVerified).length;
   const availableCount = locksmiths.filter((ls) => ls.isAvailable).length;
   const totalEarnings = locksmiths.reduce((sum, ls) => sum + ls.totalEarnings, 0);
+  // App adoption across channels: native (iOS/Android) and PWA (web push).
+  const iosCount = locksmiths.filter((ls) => ls.nativeTokenPlatform === "ios").length;
+  const androidCount = locksmiths.filter((ls) => ls.nativeTokenPlatform === "android").length;
+  const pwaCount = locksmiths.filter((ls) => ls.onPwa).length;
+  // "On any app channel" — native token OR a PWA web-push subscription.
+  const anyAppCount = locksmiths.filter((ls) => ls.nativeTokenPlatform != null || ls.onPwa).length;
 
   const filteredTotalCount = filteredLocksmiths.length;
   const filteredVerifiedCount = filteredLocksmiths.filter((ls) => ls.isVerified).length;
@@ -1010,7 +1092,7 @@ export default function AdminLocksmithsPage() {
         </div>
         {/* Stats Cards */}
         {!isMapView && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 lg:gap-4 mb-3 lg:mb-4">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5 lg:gap-4 mb-3 lg:mb-4">
             <div className="bg-white rounded-xl p-2.5 lg:p-4 shadow-sm">
             <div className={isMapView ? "text-[10px] lg:text-[11px] text-slate-500" : "text-[11px] lg:text-sm text-slate-500"}>Total Locksmiths</div>
               <div className={isMapView ? "text-base lg:text-lg font-bold text-slate-900 leading-tight" : "text-lg lg:text-2xl font-bold text-slate-900 leading-tight"}>{totalLocksmithsCount}</div>
@@ -1032,6 +1114,13 @@ export default function AdminLocksmithsPage() {
             <div className={isMapView ? "text-base lg:text-lg font-bold text-orange-600 leading-tight" : "text-lg lg:text-2xl font-bold text-orange-600 leading-tight"}>
                 £{totalEarnings.toLocaleString()}
             </div>
+            </div>
+            <div className="bg-white rounded-xl p-2.5 lg:p-4 shadow-sm">
+            <div className={isMapView ? "text-[10px] lg:text-[11px] text-slate-500" : "text-[11px] lg:text-sm text-slate-500"}>On App (any)</div>
+            <div className={isMapView ? "text-base lg:text-lg font-bold text-blue-600 leading-tight" : "text-lg lg:text-2xl font-bold text-blue-600 leading-tight"}>
+                {anyAppCount}
+            </div>
+            <div className="text-[10px] text-slate-400 mt-0.5">🍎 {iosCount} · 🤖 {androidCount} · 🌐 {pwaCount}</div>
             </div>
           </div>
         )}
@@ -1367,6 +1456,7 @@ export default function AdminLocksmithsPage() {
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-medium text-slate-900">{ls.name}</span>
+                            <ChannelBadges nativePlatform={ls.nativeTokenPlatform} onPwa={ls.onPwa} webPushPlatform={ls.webPushPlatform} />
                             {ls.isVerified && (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-[10px] font-semibold border border-green-200">
                                 <Shield className="w-3 h-3 fill-green-600 text-green-600" />
@@ -1590,6 +1680,7 @@ export default function AdminLocksmithsPage() {
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
                         <h2 className="text-xl font-bold text-slate-900">{selectedLocksmith.name}</h2>
+                        <ChannelBadges nativePlatform={selectedLocksmith.nativeTokenPlatform} onPwa={selectedLocksmith.onPwa} webPushPlatform={selectedLocksmith.webPushPlatform} />
                         {selectedLocksmith.isVerified && (
                           <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-semibold border border-green-200">
                             <Shield className="w-4 h-4 fill-green-600 text-green-600" />

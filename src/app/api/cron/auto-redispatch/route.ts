@@ -151,6 +151,7 @@ async function notifyWithExpandedRadius(
   const { calculateDistanceMiles } = await import("@/lib/utils");
   const { sendNewJobInAreaEmail } = await import("@/lib/email");
   const { sendNativePushToMany } = await import("@/lib/native-push");
+  const { sendWebPushToMany } = await import("@/lib/web-push");
 
   const locksmiths = await prisma.locksmith.findMany({
     where: {
@@ -169,6 +170,7 @@ async function notifyWithExpandedRadius(
       nativeDeviceToken: true,
       nativeTokenType: true,
       nativeTokenPlatform: true,
+      webPushSubscription: true,
     },
   });
 
@@ -179,6 +181,7 @@ async function notifyWithExpandedRadius(
     nativeDeviceToken: string | null;
     nativeTokenType: string | null;
     nativeTokenPlatform: string | null;
+    webPushSubscription: string | null;
   }> = [];
 
   for (const ls of locksmiths) {
@@ -224,6 +227,18 @@ async function notifyWithExpandedRadius(
       title: "🔑 New job in your area (re-dispatch)",
       body: `${job.problemType} at ${job.postcode} — still unassigned. Be first to apply!`,
       data: { jobId: job.id, type: "new_job" },
+    }).catch(console.error);
+  }
+
+  // Web push (PWA)
+  const webCandidates = newNotifications
+    .filter((ls) => ls.webPushSubscription)
+    .map((ls) => ({ id: ls.id, name: ls.name, webPushSubscription: ls.webPushSubscription! }));
+  if (webCandidates.length > 0) {
+    await sendWebPushToMany(webCandidates, {
+      title: "🔑 New job in your area (re-dispatch)",
+      body: `${job.problemType} at ${job.postcode} — still unassigned. Be first to apply!`,
+      data: { jobId: job.id, type: "new_job", url: "/locksmith/jobs" },
     }).catch(console.error);
   }
 

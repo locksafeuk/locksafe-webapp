@@ -83,6 +83,13 @@ export async function GET(request: NextRequest) {
         scheduleStartTime: true,
         scheduleEndTime: true,
         scheduleDays: true,
+        // Mobile app platform (set by native push-token registration)
+        nativeTokenPlatform: true,
+        nativeTokenRegisteredAt: true,
+        // PWA web-push (subscription itself is stripped before returning)
+        webPushSubscription: true,
+        webPushPlatform: true,
+        webPushRegisteredAt: true,
         _count: {
           select: {
             reviews: true,
@@ -93,10 +100,13 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      locksmiths: locksmiths.map((ls) => ({
+      // Strip the raw web-push subscription (contains endpoint + keys); expose
+      // only a boolean so the dashboard can show PWA adoption safely.
+      locksmiths: locksmiths.map(({ webPushSubscription, ...ls }) => ({
         ...ls,
         reviewCount: ls._count.reviews,
         _count: undefined,
+        onPwa: !!webPushSubscription,
       })),
     });
   } catch (error) {

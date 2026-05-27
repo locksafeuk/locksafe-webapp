@@ -1,56 +1,69 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 
-// POST /api/notifications/subscribe - Save push subscription
+/**
+ * Best-effort OS hint from the User-Agent. Used only to label which kind of
+ * device a PWA (web-push) subscriber is on — "ios" | "android" | "desktop".
+ */
+function platformFromUserAgent(ua: string | null): string {
+  if (!ua) return "desktop";
+  const s = ua.toLowerCase();
+  if (/iphone|ipad|ipod/.test(s)) return "ios";
+  if (/android/.test(s)) return "android";
+  return "desktop";
+}
+
+// POST /api/notifications/subscribe - Save a PWA web-push subscription
+//
+// Body: { subscription, userId, userType? }
+// The PWA client (usePushNotifications) historically omits userType, so it is
+// optional here. We only persist locksmith subscriptions (current scope); a
+// subscription whose userId is not a known locksmith is acknowledged but not
+// stored.
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { subscription, userId, userType } = body;
 
-    if (!subscription || !userId || !userType) {
+    if (!subscription || !userId) {
       return NextResponse.json(
-        { success: false, error: "Missing required fields" },
+        { success: false, error: "subscription and userId are required" },
         { status: 400 }
       );
     }
 
-    if (!["customer", "locksmith"].includes(userType)) {
-      return NextResponse.json(
-        { success: false, error: "Invalid user type" },
-        { status: 400 }
-      );
-    }
-
-    // Store subscription in database
-    // For simplicity, we'll store it as JSON in the user model
-    // In production, you might want a separate PushSubscription model
-
+    // Out of scope: customer PWA tracking. Acknowledge without storing.
     if (userType === "customer") {
-      // Find and update customer - we'd need to add a pushSubscription field
-      // For now, log it
-      console.log(`[Push] Saving subscription for customer ${userId}:`, subscription.endpoint);
-
-      // In a full implementation, you'd update the customer record:
-      // await prisma.customer.update({
-      //   where: { id: userId },
-      //   data: { pushSubscription: JSON.stringify(subscription) },
-      // });
-    } else if (userType === "locksmith") {
-      console.log(`[Push] Saving subscription for locksmith ${userId}:`, subscription.endpoint);
-
-      // In a full implementation, you'd update the locksmith record:
-      // await prisma.locksmith.update({
-      //   where: { id: userId },
-      //   data: { pushSubscription: JSON.stringify(subscription) },
-      // });
+      return NextResponse.json({ success: true, message: "Acknowledged (customer tracking not enabled)" });
     }
 
-    return NextResponse.json({
-      success: true,
-      message: "Subscription saved successfully",
+    // Only persist if this userId is a real locksmith.
+    const locksmith = await prisma.locksmith.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true },
     });
+
+    if (!locksmith) {
+      // Unknown id (e.g. a customer) — acknowledge without storing.
+      return NextResponse.json({ success: true, message: "Acknowledged" });
+    }
+
+    const platform = platformFromUserAgent(request.headers.get("user-agent"));
+
+    await prisma.locksmith.update({
+      where: { id: userId },
+      data: {
+        webPushSubscription: JSON.stringify(subscription),
+        webPushPlatform: platform,
+        webPushRegisteredAt: new Date(),
+      },
+    });
+
+    console.log(`[Push][WebPush] Subscription saved for locksmith ${locksmith.name} (${userId}) on ${platform}`);
+
+    return NextResponse.json({ success: true, message: "Subscription saved" });
   } catch (error) {
-    console.error("Error saving push subscription:", error);
+    console.error("[Push][WebPush] Error saving subscription:", error);
     return NextResponse.json(
       { success: false, error: "Failed to save subscription" },
       { status: 500 }
