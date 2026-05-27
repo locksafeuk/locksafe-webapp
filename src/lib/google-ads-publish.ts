@@ -21,6 +21,7 @@ import { GoogleAdsClient, getGoogleAdsClientForAccount, buildResourceName } from
 import type { GoogleKeyword, GoogleKeywordMatchType } from "./openai-google-ads";
 import { captureAndStoreSnapshot } from "./google-ads-snapshot";
 import { assertLandingPageReady } from "./google-ads-landing-preflight";
+import { assertAdCopyClean } from "./google-ads-copy-guard";
 
 interface PublishResult {
   draftId: string;
@@ -138,6 +139,11 @@ export async function publishGoogleAdsDraft(draftId: string): Promise<PublishRes
   // Runs before the PUBLISHING status flip so a not-ready page leaves the draft
   // untouched (still APPROVED) with a clear error.
   await assertLandingPageReady(draft.finalUrl);
+
+  // Ad-copy compliance: never hand Google (or customers) a false "no call-out
+  // fee" / "no fees" claim or an unprovable price superlative. Throws
+  // AdCopyPreflightError (publish route → 422) before any Google mutation.
+  assertAdCopyClean(draft.headlines ?? [], draft.descriptions ?? []);
 
   const client = await getGoogleAdsClientForAccount(draft.accountId);
   if (!client) {

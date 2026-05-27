@@ -37,6 +37,7 @@ import {
   mergeNegativeKeywords,
 } from "@/lib/google-ads-keywords";
 import { getNegativeSeedKeywords } from "@/agents/core/seed-bank";
+import { scrubForbiddenAdCopy } from "@/lib/google-ads-copy-guard";
 import {
   type GoogleAdsLearnings,
   provenKeywordsToGoogleKeywords,
@@ -254,14 +255,18 @@ Return a JSON object (no markdown, no commentary):
     parsed = {};
   }
 
-  const headlines = dedupe(
-    (Array.isArray(parsed.headlines) ? parsed.headlines : [])
-      .map((h) => clip(String(h).trim(), RSA_HEADLINE_MAX)),
+  const headlines = scrubForbiddenAdCopy(
+    dedupe(
+      (Array.isArray(parsed.headlines) ? parsed.headlines : [])
+        .map((h) => clip(String(h).trim(), RSA_HEADLINE_MAX)),
+    ),
   ).slice(0, RSA_HEADLINE_TARGET_COUNT);
 
-  const descriptions = dedupe(
-    (Array.isArray(parsed.descriptions) ? parsed.descriptions : [])
-      .map((d) => clip(String(d).trim(), RSA_DESCRIPTION_MAX)),
+  const descriptions = scrubForbiddenAdCopy(
+    dedupe(
+      (Array.isArray(parsed.descriptions) ? parsed.descriptions : [])
+        .map((d) => clip(String(d).trim(), RSA_DESCRIPTION_MAX)),
+    ),
   ).slice(0, RSA_DESCRIPTION_TARGET_COUNT);
 
   return {
@@ -278,7 +283,7 @@ function fallbackHeadlines(cityLabel: string | null): string[] {
   return [
     `${city} Locksmith — 24/7`,
     "Vetted & Insured Locksmiths",
-    "No Surprise Fees. Ever.",
+    "Upfront Fixed Pricing",
     "Anti-Fraud Booking Guarantee",
     "Book in 60 Seconds",
     "15 Min Response Time",

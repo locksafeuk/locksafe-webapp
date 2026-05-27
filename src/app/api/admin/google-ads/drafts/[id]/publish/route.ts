@@ -13,6 +13,7 @@ import prisma from "@/lib/db";
 import { verifyToken } from "@/lib/auth";
 import { publishGoogleAdsDraft } from "@/lib/google-ads-publish";
 import { LandingPagePreflightError } from "@/lib/google-ads-landing-preflight";
+import { AdCopyPreflightError } from "@/lib/google-ads-copy-guard";
 import { checkAutoAction } from "@/lib/spend-guard";
 
 async function verifyAdmin() {
@@ -82,6 +83,15 @@ export async function POST(
       console.warn(`[google-ads/publish/${id}] blocked — landing page not ready (${err.reasonCode}): ${message}`);
       return NextResponse.json(
         { error: "Landing page not ready", reasonCode: err.reasonCode, finalUrl: err.finalUrl, details: message },
+        { status: 422 },
+      );
+    }
+    // Ad-copy compliance failures are likewise operator-actionable — the draft
+    // stays APPROVED so the copy can be fixed and re-published.
+    if (err instanceof AdCopyPreflightError) {
+      console.warn(`[google-ads/publish/${id}] blocked — ad copy not compliant: ${message}`);
+      return NextResponse.json(
+        { error: "Ad copy not compliant", reasonCode: "copy_unclean", offending: err.offending, details: message },
         { status: 422 },
       );
     }
