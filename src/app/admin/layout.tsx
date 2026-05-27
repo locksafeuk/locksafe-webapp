@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { AdminTabTitleSync } from "./AdminTabTitleSync";
 
 export const metadata: Metadata = {
   title: {
@@ -21,5 +22,10 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return children;
+  return (
+    <>
+      <AdminTabTitleSync />
+      {children}
+    </>
+  );
 }
