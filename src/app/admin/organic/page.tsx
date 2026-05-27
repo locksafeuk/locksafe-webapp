@@ -91,6 +91,7 @@ export default function OrganicPostsPage() {
   const [selectedPillar, setSelectedPillar] = useState("all");
   const [autopilotEnabled, setAutopilotEnabled] = useState(false);
   const [generatingContent, setGeneratingContent] = useState(false);
+  const [publishingNextFacebook, setPublishingNextFacebook] = useState(false);
 
   useEffect(() => {
     fetchPosts();
@@ -209,6 +210,28 @@ export default function OrganicPostsPage() {
     }
   };
 
+  const handlePublishNextFacebook = async () => {
+    setPublishingNextFacebook(true);
+    try {
+      const response = await fetch("/api/admin/organic/publish-next-facebook", {
+        method: "POST",
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert("Published next post to Facebook successfully!");
+        fetchPosts();
+      } else {
+        alert(`Failed to publish next Facebook post: ${data.error || "Unknown error"}`);
+      }
+    } catch (error) {
+      console.error("Error publishing next Facebook post:", error);
+      alert("Failed to publish next Facebook post");
+    } finally {
+      setPublishingNextFacebook(false);
+    }
+  };
+
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "—";
     return new Date(dateString).toLocaleDateString("en-GB", {
@@ -259,6 +282,24 @@ export default function OrganicPostsPage() {
                 <>
                   <Sparkles className="w-4 h-4 mr-2" />
                   AI Generate
+                </>
+              )}
+            </Button>
+
+            <Button
+              onClick={handlePublishNextFacebook}
+              disabled={publishingNextFacebook}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {publishingNextFacebook ? (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  Publishing...
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4 mr-2" />
+                  Publish Next FB
                 </>
               )}
             </Button>

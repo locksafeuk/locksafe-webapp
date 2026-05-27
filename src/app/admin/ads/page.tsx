@@ -149,6 +149,7 @@ export default function AdsPage() {
 
   // Per-campaign activation state ("Activate in Meta" button)
   const [activatingId, setActivatingId] = useState<string | null>(null);
+  const [runningWindowId, setRunningWindowId] = useState<string | null>(null);
 
   const activateCampaign = async (id: string) => {
     setActivatingId(id);
@@ -165,6 +166,46 @@ export default function AdsPage() {
       alert(err instanceof Error ? err.message : "Failed to activate campaign");
     } finally {
       setActivatingId(null);
+    }
+  };
+
+  const runCampaignWindow = async (id: string) => {
+    const budgetInput = window.prompt("Daily budget in GBP", "10");
+    if (!budgetInput) return;
+    const daysInput = window.prompt("Run for how many days?", "5");
+    if (!daysInput) return;
+
+    const dailyBudget = Number(budgetInput);
+    const days = Number(daysInput);
+
+    if (!Number.isFinite(dailyBudget) || dailyBudget < 1) {
+      alert("Daily budget must be at least 1 GBP.");
+      return;
+    }
+    if (!Number.isFinite(days) || days < 1 || days > 60) {
+      alert("Days must be between 1 and 60.");
+      return;
+    }
+
+    setRunningWindowId(id);
+    try {
+      const res = await fetch(`/api/admin/ads/${id}/run-window`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dailyBudget, days }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        alert(data?.error || "Failed to update campaign run window");
+        return;
+      }
+      await fetchCampaigns();
+      alert(`Campaign scheduled: £${dailyBudget}/day for ${days} days.`);
+    } catch (err) {
+      console.error("Failed to run campaign window:", err);
+      alert(err instanceof Error ? err.message : "Failed to run campaign window");
+    } finally {
+      setRunningWindowId(null);
     }
   };
 
@@ -947,6 +988,16 @@ export default function AdsPage() {
 
                     {/* Actions */}
                     <div className="flex gap-2">
+                      <button
+                        onClick={() => runCampaignWindow(campaign.id)}
+                        disabled={runningWindowId === campaign.id || !campaign.metaCampaignId}
+                        className={`p-2 rounded-lg transition-colors bg-blue-100 text-blue-700 hover:bg-blue-200 ${
+                          runningWindowId === campaign.id ? "opacity-60" : ""
+                        } ${!campaign.metaCampaignId ? "cursor-not-allowed opacity-50" : ""}`}
+                        title={campaign.metaCampaignId ? "Run with budget + day window" : "Publish to Meta first"}
+                      >
+                        <Clock className="h-4 w-4" />
+                      </button>
                       <button
                         onClick={() => {
                           if (campaign.status === "PAUSED" && campaign.metaCampaignId) {
