@@ -554,9 +554,13 @@ async function scrapeCity(
   // ── 3. SerpAPI (FALLBACK) — when Google is unavailable/exhausted, or the
   //    city came back sparse. Hard-capped per run to respect 200 req/hour.
   const serpKey = engine.serpKey;
+  // Serper is a pure fallback: only when Google is absent or has exhausted its
+  // free quota. (Previously this also fired on `googleCount < 5`, which burned
+  // Serper credits on nearly every city — most return <5 NEW leads after dedup —
+  // even while Google was healthy. Google-first is the intended behaviour.)
   const serpEligible =
     !!serpKey &&
-    (!engine.googleKey || engine.googleExhausted || googleCount < 5);
+    (!engine.googleKey || engine.googleExhausted);
 
   if (serpKey && serpEligible && engine.serpCallsThisRun < engine.serpCapPerRun) {
     engine.serpCallsThisRun++;
