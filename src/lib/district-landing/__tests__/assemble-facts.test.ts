@@ -10,6 +10,7 @@
 import {
   extractBaseLocation,
   estimateTravelMins,
+  sanitizeRegion,
   NoCoverageError,
 } from "@/lib/district-landing/assemble-facts";
 
@@ -71,6 +72,31 @@ describe("extractBaseLocation", () => {
     // actually an admin-region label — still bad copy.
     expect(extractBaseLocation("Some Street, Borough of Runnymede, KT13 9AB"))
       .toBeNull();
+  });
+});
+
+describe("sanitizeRegion", () => {
+  // The radius-backfill wrote synthetic region strings into
+  // LocksmithCoverage.region (found on L1/Liverpool: "(pseudo) England
+  // (UA/MD/LB)"). They must never reach JSON-LD addressRegion.
+  it("rejects the pseudo backfill region string", () => {
+    expect(sanitizeRegion("(pseudo) England (UA/MD/LB)")).toBeNull();
+    expect(sanitizeRegion("(pseudo) Scotland (UA)")).toBeNull();
+    expect(sanitizeRegion("England (UA/MD)")).toBeNull();
+  });
+
+  it("passes through real region names", () => {
+    expect(sanitizeRegion("Merseyside")).toBe("Merseyside");
+    expect(sanitizeRegion("Greater Manchester")).toBe("Greater Manchester");
+    expect(sanitizeRegion("Berkshire")).toBe("Berkshire");
+    expect(sanitizeRegion("  West Yorkshire  ")).toBe("West Yorkshire");
+  });
+
+  it("returns null for empty/missing input", () => {
+    expect(sanitizeRegion(null)).toBeNull();
+    expect(sanitizeRegion(undefined)).toBeNull();
+    expect(sanitizeRegion("")).toBeNull();
+    expect(sanitizeRegion("   ")).toBeNull();
   });
 });
 

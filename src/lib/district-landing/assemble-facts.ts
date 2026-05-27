@@ -112,6 +112,24 @@ function isAdminRegionName(s: string): boolean {
   return /^(Borough of\b|City of\b|County of\b|District of\b|Royal Borough of\b|London Borough of\b|Metropolitan Borough of\b|Unitary Authority of\b)/i.test(s);
 }
 
+// Reject synthetic/debug region strings written by the radius-backfill,
+// e.g. "(pseudo) England (UA/MD/LB)". Field audit on 2026-05-26 found
+// these in LocksmithCoverage.region; they flow straight into the page's
+// LocalBusiness JSON-LD `addressRegion` (structured data Google reads).
+// Returning null lets the template fall back to "United Kingdom" rather
+// than shipping garbage. Real regions come from postcodes.io county.
+export function sanitizeRegion(s: string | null | undefined): string | null {
+  if (!s) return null;
+  const trimmed = s.trim();
+  if (!trimmed) return null;
+  // Debug markers: parenthesised qualifiers, "pseudo", admin-type code
+  // soup like "UA/MD/LB".
+  if (/\(pseudo\)|\bpseudo\b/i.test(trimmed)) return null;
+  if (/\b(UA|MD|LB)\b\s*\/\s*\b(UA|MD|LB)\b/i.test(trimmed)) return null;
+  if (/\(\s*(UA|MD|LB)(\s*\/\s*(UA|MD|LB))*\s*\)/i.test(trimmed)) return null;
+  return trimmed;
+}
+
 export function extractBaseLocation(address: string | null | undefined): string | null {
   if (!address) return null;
   const cleaned = address.replace(/[\s,]*(UK|United Kingdom)\s*$/i, "").trim();
@@ -253,7 +271,9 @@ export async function assembleDistrictFacts(rawDistrict: string): Promise<Distri
   // Failures here are non-fatal — we generate the page without the
   // nearby-outcodes context rather than throwing.
   let anchorTown: string | null = activeCoverage[0]?.city ?? null;
-  let region:     string | null = activeCoverage[0]?.region ?? null;
+  // sanitizeRegion strips synthetic backfill strings like
+  // "(pseudo) England (UA/MD/LB)" so they never reach JSON-LD addressRegion.
+  let region:     string | null = sanitizeRegion(activeCoverage[0]?.region);
   let lat:        number | null = null;
   let lng:        number | null = null;
   let nearby:     string[]      = [];
@@ -263,7 +283,8 @@ export async function assembleDistrictFacts(rawDistrict: string): Promise<Distri
     const enriched = await enrichOutcode(district);
     if (enriched) {
       anchorTown = enriched.info.anchorTown ?? anchorTown;
-      region     = enriched.info.county[0] ?? region;
+      // Prefer postcodes.io county; sanitize in case it's also unusable.
+      region     = sanitizeRegion(enriched.info.county[0]) ?? region;
       lat        = enriched.info.latitude;
       lng        = enriched.info.longitude;
       country    = enriched.info.country[0] ?? null;
