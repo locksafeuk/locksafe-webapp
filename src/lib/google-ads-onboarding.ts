@@ -300,7 +300,7 @@ function fallbackDescriptions(cityLabel: string | null): string[] {
   const city = cityLabel ?? "the UK";
   return [
     `LockSafe connects you with vetted, insured locksmiths in ${city} in under 30 minutes.`,
-    "Anti-fraud protection built in. See upfront prices with no surprise call-out fees.",
+    "Anti-fraud protection built in. See the full price up front before any work starts.",
     "All LockSafe locksmiths are background-checked, GPS-tracked & fully insured. Book now.",
     "Emergency lockout service. Transparent pricing. Money-back guarantee available 24/7.",
   ].map((d) => clip(d, RSA_DESCRIPTION_MAX)).slice(0, RSA_DESCRIPTION_TARGET_COUNT);
