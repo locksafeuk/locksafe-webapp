@@ -47,13 +47,19 @@ export async function POST() {
     const nextPost = await prisma.socialPost.findFirst({
       where: {
         status: { in: ["APPROVED", "DRAFT", "PENDING_APPROVAL", "SCHEDULED"] },
-        OR: [
-          { platforms: { has: "FACEBOOK" } },
-          { platforms: { isEmpty: true } },
-        ],
-        OR: [
-          { scheduledFor: null },
-          { scheduledFor: { lte: now } },
+        AND: [
+          {
+            OR: [
+              { platforms: { has: "FACEBOOK" } },
+              { platforms: { isEmpty: true } },
+            ],
+          },
+          {
+            OR: [
+              { scheduledFor: null },
+              { scheduledFor: { lte: now } },
+            ],
+          },
         ],
       },
       include: { pillar: true },
