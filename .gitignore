@@ -20,6 +20,8 @@
 # production
 /build
 .env
+.env.agent-runner
+logs/
 
 # misc
 .DS_Store
