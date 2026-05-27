@@ -52,20 +52,68 @@ const MAX_COST_PER_COMPLETE_GBP     = Number(process.env["AUTO_PAUSE_MAX_COST_PE
 const MIN_BOOKINGS_NO_COMPLETION    = Number(process.env["AUTO_PAUSE_MIN_BOOKINGS_NO_COMPLETION"]    ?? "3");
 const ROLLING_DAYS                  = Number(process.env["AUTO_PAUSE_ROLLING_DAYS"]                  ?? "7");
 
+// ── Safety guards added 2026-05-26 ──────────────────────────────────────────
+// Three campaigns died this week because auto-pause fired during a routing
+// outage: ads → 404 landing → vanity conversions → cron pauses → Google's
+// recommendation engine then removed the paused campaigns. The fixes:
+//   1. WARMUP: don't auto-pause campaigns younger than this. Give them
+//      time to learn before judging them.
+//   2. MIN_IMPRESSIONS: £30 spend with 5 impressions is statistical noise.
+//      Require a real audience denominator before any decision.
+//   3. Landing-page health check: if the campaign's finalUrl is currently
+//      returning non-200, the spend/conversion ratio is the website's
+//      fault, not the campaign's — don't pause, alert separately.
+const WARMUP_DAYS                   = Number(process.env["AUTO_PAUSE_WARMUP_DAYS"]                   ?? "14");
+const MIN_IMPRESSIONS               = Number(process.env["AUTO_PAUSE_MIN_IMPRESSIONS"]               ?? "200");
+const LANDING_HEALTH_TIMEOUT_MS     = Number(process.env["AUTO_PAUSE_LANDING_HEALTH_TIMEOUT_MS"]     ?? "5000");
+
 // ── Per-campaign evaluation ─────────────────────────────────────────────────
 
 interface CampaignVerdict {
-  campaignId:        string;
-  campaignName:      string;
-  utmCampaign:       string | null;
-  spend:             number;
-  bookings:          number;
-  completedJobs:     number;
-  actualRevenue:     number;
-  costPerBooked:     number | null;
-  costPerCompleted:  number | null;
-  shouldPause:       boolean;
-  pauseReason:       string | null;
+  campaignId:           string;
+  campaignName:         string;
+  utmCampaign:          string | null;
+  spend:                number;
+  impressions:          number;
+  bookings:             number;
+  completedJobs:        number;
+  actualRevenue:        number;
+  costPerBooked:        number | null;
+  costPerCompleted:     number | null;
+  daysSincePublished:   number | null;
+  landingHealth:        "ok" | "broken" | "skipped" | "unknown";
+  landingStatusCode:    number | null;
+  shouldPause:          boolean;
+  pauseReason:          string | null;
+  skipReason:           string | null;   // why we did NOT pause despite suspicious signals
+}
+
+// Health-check a campaign's finalUrl. We do a HEAD request with a short
+// timeout; if the page is broken (4xx/5xx), the campaign isn't to blame
+// for any "vanity conversion" pattern — the website is. Failures + DNS
+// errors return "broken" so we err on the side of NOT pausing during
+// site outages.
+async function checkLandingHealth(finalUrl: string | null): Promise<{
+  status: "ok" | "broken" | "skipped" | "unknown";
+  code:   number | null;
+}> {
+  if (!finalUrl) return { status: "skipped", code: null };
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), LANDING_HEALTH_TIMEOUT_MS);
+    const res = await fetch(finalUrl, {
+      method: "HEAD",
+      redirect: "follow",
+      signal: controller.signal,
+      // Identify ourselves so site analytics don't count these
+      headers: { "user-agent": "Locksafe-AutoPause-HealthCheck/1.0" },
+    });
+    clearTimeout(timer);
+    if (res.ok) return { status: "ok", code: res.status };
+    return { status: "broken", code: res.status };
+  } catch {
+    return { status: "broken", code: null };
+  }
 }
 
 async function evaluateCampaign(
@@ -74,10 +122,12 @@ async function evaluateCampaign(
     name:             string;
     status:           string;
     googleCampaignId: string | null;
+    finalUrl:         string | null;
+    publishedAt:      Date | null;
   },
   since: Date,
 ): Promise<CampaignVerdict> {
-  // 1) Spend — sum AdPerformanceSnapshot for this Google Ads campaign.
+  // 1) Spend + impressions — sum AdPerformanceSnapshot for this campaign.
   // AdPerformanceSnapshot uses platform="google" + googleCampaignId (string)
   // as the join key for Google rows (vs adCampaignId ObjectId for Meta).
   const snapshots = campaign.googleCampaignId
@@ -87,11 +137,15 @@ async function evaluateCampaign(
           googleCampaignId: campaign.googleCampaignId,
           date:             { gte: since },
         },
-        select: { spend: true },
+        select: { spend: true, impressions: true },
       })
     : [];
   const spend = snapshots.reduce(
     (s: number, r: { spend: number | null }) => s + (r.spend ?? 0),
+    0,
+  );
+  const impressions = snapshots.reduce(
+    (s: number, r: { impressions: number | null }) => s + (r.impressions ?? 0),
     0,
   );
 
@@ -121,38 +175,73 @@ async function evaluateCampaign(
   const costPerBooked     = bookings > 0           ? spend / bookings           : null;
   const costPerCompleted  = completedJobs.length > 0 ? spend / completedJobs.length : null;
 
-  // 3) Decide
+  // 3) Decide — with three new safety guards (added 2026-05-26).
   let shouldPause = false;
   let pauseReason: string | null = null;
+  let skipReason:  string | null = null;
 
-  if (spend < MIN_SPEND_GBP) {
-    // not enough data — let it warm up
+  const daysSincePublished = campaign.publishedAt
+    ? Math.floor((Date.now() - campaign.publishedAt.getTime()) / (24 * 60 * 60 * 1000))
+    : null;
+
+  // GUARD 1 — warmup grace period. New campaigns need time to learn.
+  // Without this, a campaign published yesterday with bad-luck traffic
+  // gets killed before it has any real signal.
+  const inWarmup = daysSincePublished !== null && daysSincePublished < WARMUP_DAYS;
+
+  // GUARD 2 — landing-page health. If the page is broken, spend → 404
+  // → vanity conversions is an APP bug, not a campaign-quality bug.
+  // We check BEFORE deciding so we can record the result either way.
+  let landing: { status: "ok" | "broken" | "skipped" | "unknown"; code: number | null } =
+    { status: "unknown", code: null };
+  if (campaign.finalUrl) {
+    landing = await checkLandingHealth(campaign.finalUrl);
+  }
+
+  // Now the rules:
+  if (inWarmup) {
+    skipReason = `in warmup (${daysSincePublished}d old, threshold ${WARMUP_DAYS}d) — not evaluating yet`;
+  } else if (spend < MIN_SPEND_GBP) {
+    skipReason = `spend £${spend.toFixed(2)} below MIN_SPEND_GBP £${MIN_SPEND_GBP} — not enough data`;
+  } else if (impressions < MIN_IMPRESSIONS) {
+    // GUARD 3 — statistical-floor. £30 spent with 5 impressions means
+    // bidding misfired; not a verdict on quality. Don't pause yet.
+    skipReason = `${impressions} impressions below MIN_IMPRESSIONS ${MIN_IMPRESSIONS} — signal too thin`;
+  } else if (landing.status === "broken") {
+    // GUARD 4 — landing page is the culprit. Surface as a different
+    // alert (handled by caller) but do NOT pause the campaign.
+    skipReason = `landing page ${campaign.finalUrl} returned ${landing.code ?? "network-error"} — campaign not at fault, alert separately`;
   } else if (costPerCompleted !== null && costPerCompleted > MAX_COST_PER_COMPLETE_GBP) {
     shouldPause = true;
     pauseReason =
       `cost-per-completed-job £${costPerCompleted.toFixed(2)} ` +
       `exceeds threshold £${MAX_COST_PER_COMPLETE_GBP} ` +
-      `(spend £${spend.toFixed(2)} / ${completedJobs.length} completed over ${ROLLING_DAYS}d)`;
+      `(spend £${spend.toFixed(2)} / ${completedJobs.length} completed over ${ROLLING_DAYS}d, ${impressions} impressions)`;
   } else if (completedJobs.length === 0 && bookings >= MIN_BOOKINGS_NO_COMPLETION) {
     shouldPause = true;
     pauseReason =
       `${bookings} bookings produced but 0 completed jobs ` +
-      `(£${spend.toFixed(2)} spent over ${ROLLING_DAYS}d) — looks like ` +
+      `(£${spend.toFixed(2)} spent over ${ROLLING_DAYS}d, ${impressions} impressions) — looks like ` +
       `vanity conversions, classic Google rip-off pattern`;
   }
 
   return {
-    campaignId:       campaign.id,
-    campaignName:     campaign.name,
-    utmCampaign:      utmKey,
+    campaignId:         campaign.id,
+    campaignName:       campaign.name,
+    utmCampaign:        utmKey,
     spend,
+    impressions,
     bookings,
-    completedJobs:    completedJobs.length,
+    completedJobs:      completedJobs.length,
     actualRevenue,
     costPerBooked,
     costPerCompleted,
+    daysSincePublished,
+    landingHealth:      landing.status,
+    landingStatusCode:  landing.code,
     shouldPause,
     pauseReason,
+    skipReason,
   };
 }
 
@@ -231,16 +320,45 @@ async function runAutoPause(request: NextRequest): Promise<Response> {
       name:              true,
       status:            true,
       googleCampaignId:  true,
+      finalUrl:          true,
+      publishedAt:       true,
       account:           { select: { customerId: true } },
     },
   });
 
   const verdicts: CampaignVerdict[] = [];
   const pauses:   Array<CampaignVerdict & { pauseResult?: { ok: boolean; error?: string } }> = [];
+  const brokenLandings: CampaignVerdict[] = [];
 
   for (const campaign of campaigns) {
     const verdict = await evaluateCampaign(campaign, since);
     verdicts.push(verdict);
+
+    // ── Broken landing page — alert separately, do NOT pause ──────────
+    // The campaign would otherwise be killed for the website's fault.
+    // We surface this as a high-priority alert so the user can fix the
+    // app issue rather than discovering it via missing revenue.
+    if (verdict.landingHealth === "broken" && verdict.spend >= MIN_SPEND_GBP) {
+      brokenLandings.push(verdict);
+      if (!dryRun) {
+        await sendAdminAlert({
+          title:    `🚨 BROKEN LANDING PAGE on live campaign: ${verdict.campaignName}`,
+          message:
+            `Campaign \`${verdict.campaignName}\` has spent £${verdict.spend.toFixed(2)} ` +
+            `over the last ${ROLLING_DAYS} days, but its finalUrl is returning ` +
+            `${verdict.landingStatusCode ?? "a network error"}. ` +
+            `Auto-pause is HOLDING OFF because this is an app bug, not a campaign bug — ` +
+            `but the spend is being wasted until the landing page is fixed.\n\n` +
+            `Action: investigate the deploy / proxy / route registration for the campaign's finalUrl.`,
+          severity:          "error",          // upgraded so it always reaches Telegram
+          bypassPolicyGate:  true,             // even if alertSensitivity is "critical"
+          dedupeKey:         `broken-landing:${verdict.campaignId}`,
+        }).catch((err) =>
+          console.error("[auto-pause] broken-landing alert failed:", err),
+        );
+      }
+      continue;
+    }
 
     if (verdict.shouldPause) {
       if (dryRun) {
@@ -265,25 +383,34 @@ async function runAutoPause(request: NextRequest): Promise<Response> {
       }
       pauses.push({ ...verdict, pauseResult });
 
-      // 3. Notify ops
+      // 3. Notify ops — bypassing the policy gate because pausing a live
+      // campaign is ALWAYS critical regardless of operationalPolicy
+      // sensitivity setting. Severity bumped to "error" for the same
+      // reason (warning was being suppressed when alertSensitivity =
+      // "critical", which is exactly when we most need the alert).
       const messageBody =
         `Campaign: \`${verdict.campaignName}\`\n` +
         `Reason: ${verdict.pauseReason}\n\n` +
+        `Days since launch: ${verdict.daysSincePublished ?? "?"}\n` +
         `Spend (${ROLLING_DAYS}d): £${verdict.spend.toFixed(2)}\n` +
+        `Impressions: ${verdict.impressions}\n` +
         `Bookings: ${verdict.bookings}\n` +
         `Completed jobs: ${verdict.completedJobs}\n` +
         `Revenue: £${verdict.actualRevenue.toFixed(2)}\n` +
         (verdict.costPerCompleted !== null
           ? `Cost per completed job: £${verdict.costPerCompleted.toFixed(2)}\n`
           : "") +
+        `Landing page health: ${verdict.landingHealth}` +
+        (verdict.landingStatusCode !== null ? ` (${verdict.landingStatusCode})` : "") + `\n` +
         (pauseResult && !pauseResult.ok
           ? `\n⚠️ Google Ads API pause FAILED: ${pauseResult.error}\nManual pause needed in Google Ads UI.`
           : "");
       await sendAdminAlert({
-        title:    `🚨 Auto-paused Google Ads campaign: ${verdict.campaignName}`,
-        message:  messageBody,
-        severity: "warning",
-        dedupeKey: `auto-pause:${verdict.campaignId}`,
+        title:            `🚨 Auto-paused Google Ads campaign: ${verdict.campaignName}`,
+        message:          messageBody,
+        severity:         "error",
+        bypassPolicyGate: true,
+        dedupeKey:        `auto-pause:${verdict.campaignId}`,
       }).catch((err) =>
         console.error("[auto-pause] Telegram alert failed:", err),
       );
@@ -291,17 +418,21 @@ async function runAutoPause(request: NextRequest): Promise<Response> {
   }
 
   return NextResponse.json({
-    success:   true,
+    success:        true,
     dryRun,
-    evaluated: verdicts.length,
-    paused:    pauses.length,
+    evaluated:      verdicts.length,
+    paused:         pauses.length,
+    brokenLandings: brokenLandings.length,
     verdicts,
     pauses,
+    brokenLandingDetails: brokenLandings,
     thresholds: {
       MIN_SPEND_GBP,
       MAX_COST_PER_COMPLETE_GBP,
       MIN_BOOKINGS_NO_COMPLETION,
       ROLLING_DAYS,
+      WARMUP_DAYS,
+      MIN_IMPRESSIONS,
     },
   });
 }

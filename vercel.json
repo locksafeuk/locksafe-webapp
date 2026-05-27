@@ -50,6 +50,10 @@
       "schedule": "15 6 * * *"
     },
     {
+      "path": "/api/cron/google-ads-drift-sync",
+      "schedule": "0 7 * * *"
+    },
+    {
       "path": "/api/cron/lead-outreach-sequence",
       "schedule": "0 8 * * 1-5"
     },
