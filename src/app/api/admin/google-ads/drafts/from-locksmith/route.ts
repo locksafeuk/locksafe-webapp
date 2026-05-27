@@ -105,6 +105,8 @@ export async function POST(request: NextRequest) {
       name: true,
       companyName: true,
       baseAddress: true,
+      baseLat: true,
+      baseLng: true,
       yearsExperience: true,
       rating: true,
       totalJobs: true,

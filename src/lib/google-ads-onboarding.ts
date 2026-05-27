@@ -44,6 +44,7 @@ import {
 import {
   UK_GEO_IDS,
   type UKGeoKey,
+  resolveLocksmithGeo as resolveGeoCanonical,
 } from "@/lib/google-ads-locations";
 import {
   RSA_DESCRIPTION_MAX,
@@ -103,30 +104,24 @@ function dedupe(arr: string[]): string[] {
  * Resolve a locksmith's base location to a (geoId, cityKey) pair, with
  * graceful fallback to UK-wide.
  */
-function resolveLocksmithGeo(locksmith: Pick<Locksmith, "baseAddress">): {
+function resolveLocksmithGeo(
+  locksmith: Pick<Locksmith, "baseAddress" | "baseLat" | "baseLng">,
+): {
   geoTargets: string[];
   cityLabel: string | null;
   cityKey: UKGeoKey | null;
 } {
-  if (locksmith.baseAddress) {
-    const tokens = locksmith.baseAddress
-      .toLowerCase()
-      .split(/[,\n]+/)
-      .map((t) => t.trim())
-      .filter(Boolean);
-    const sortedKeys = (Object.keys(UK_GEO_IDS) as UKGeoKey[]).sort(
-      (a, b) => b.length - a.length,
-    );
-    for (const key of sortedKeys) {
-      if (key === "uk") continue;
-      if (tokens.some((t) => t === key || t.includes(key))) {
-        return {
-          geoTargets: [UK_GEO_IDS[key]],
-          cityLabel: key.replace(/\b\w/g, (c) => c.toUpperCase()),
-          cityKey: key,
-        };
-      }
-    }
+  // Delegate to the canonical resolver in google-ads-locations: it matches the
+  // address text first, then falls back to nearest-city by lat/lng. This is why
+  // coords-only locksmiths (no recognisable town word in baseAddress) now resolve
+  // to their actual town instead of defaulting to UK-wide.
+  const r = resolveGeoCanonical({
+    baseAddress: locksmith.baseAddress,
+    baseLat: locksmith.baseLat,
+    baseLng: locksmith.baseLng,
+  });
+  if (r) {
+    return { geoTargets: [r.geoId], cityLabel: r.label, cityKey: r.cityKey };
   }
   return { geoTargets: [UK_GEO_IDS.uk], cityLabel: null, cityKey: null };
 }
@@ -316,7 +311,7 @@ function fallbackDescriptions(cityLabel: string | null): string[] {
 export async function generateDraftPlanForLocksmith(
   locksmith: Pick<
     Locksmith,
-    "id" | "name" | "companyName" | "baseAddress" | "yearsExperience" | "rating" | "totalJobs"
+    "id" | "name" | "companyName" | "baseAddress" | "baseLat" | "baseLng" | "yearsExperience" | "rating" | "totalJobs"
   >,
   options: GenerateLocksmithDraftOptions = {},
 ): Promise<LocksmithDraftBuild> {
