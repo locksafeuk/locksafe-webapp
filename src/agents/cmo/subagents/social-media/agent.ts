@@ -16,6 +16,7 @@ import { recordCost } from "@/agents/core/budget";
 import { sendAdminAlert } from "@/lib/telegram";
 import { getOperationalPolicy, shouldEmitAlert } from "@/agents/core/operational-policy";
 import { generateTikTokScript } from "@/lib/tiktok";
+import { generateSocialVideo } from "@/lib/creatomate";
 import type { AgentConfig } from "@/agents/core/types";
 
 export const SOCIAL_MEDIA_AGENT_CONFIG: AgentConfig = {
@@ -148,6 +149,24 @@ export async function runSocialMediaHeartbeat(): Promise<void> {
     try {
       const content = await generateContentSet(pillar, slotIndex, recentJobs, activePlatforms);
 
+      // ── Video generation (non-blocking, non-fatal) ────────────────────────
+      // Generates a 15s branded Reel/TikTok video via Creatomate.
+      // Only runs when CREATOMATE_API_KEY is set — silently skips otherwise.
+      let videoUrl: string | null = null;
+      try {
+        const video = await generateSocialVideo({
+          headline: content.title,
+          subtext: content.facebook.split("\n")[0]?.slice(0, 120) ?? undefined,
+          pillar,
+          format: "vertical",
+          durationSeconds: 15,
+        });
+        videoUrl = video?.url ?? null;
+        if (videoUrl) console.log(`[SocialMedia] 🎬 Video generated: ${videoUrl}`);
+      } catch {
+        // video errors never block the post
+      }
+
       await prisma.socialPost.create({
         data: {
           content: content.facebook,        // base content (Facebook copy)
@@ -166,6 +185,7 @@ export async function runSocialMediaHeartbeat(): Promise<void> {
           aiGenerated: true,
           imagePrompt: content.imagePrompt ?? null,
           headline: content.title,
+          videoUrl,
         },
       });
 

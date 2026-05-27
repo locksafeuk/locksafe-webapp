@@ -61,6 +61,10 @@ module.exports = {
         // doesn't think we're serverless
         VERCEL: "",
         VERCEL_ENV: "",
+
+        // Preload the server-only shim so Next.js guards don't throw
+        // when agent modules are imported outside the Next.js runtime.
+        NODE_OPTIONS: "--require ./scripts/mock-server-only.cjs",
       },
     },
   ],

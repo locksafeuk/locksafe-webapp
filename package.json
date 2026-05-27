@@ -26,6 +26,7 @@
     "google-ads:fraud-monitor": "npx tsx --env-file=.env.local --tsconfig tsconfig.scripts.json scripts/monitor-click-fraud.ts",
     "retell:local-eval": "npx tsx --env-file=.env.local --tsconfig tsconfig.scripts.json scripts/retell-local-evaluator.ts",
     "retell:publish-latest": "npx tsx --env-file=.env.local --tsconfig tsconfig.scripts.json scripts/publish-retell-latest.ts",
+    "postinstall": "echo '// Shimmed for standalone runner' > node_modules/server-only/index.js",
     "format": "bunx biome format --write",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
