@@ -31,6 +31,15 @@ const MAX_DURATION_MS = 245_000;
  *  risk approaching the time limit even on slow API days. */
 const MAX_CITIES_PER_RUN = 40;
 
+/** SerpAPI hard cap per invocation. SerpAPI allows ~200 requests/hour; with a
+ *  2-hourly schedule and ≤1 SerpAPI call per city, 40 cities/run already keeps
+ *  us far under. This is defence-in-depth so a config change (or repeated
+ *  manual triggers) can't blow the hourly limit. */
+const SERP_MAX_CALLS_PER_RUN = 150;
+
+/** Courtesy spacing between SerpAPI calls (ms). */
+const SERP_MIN_INTERVAL_MS = 400;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // UK cities — identical list to deep-locksmith-scraper.ts
 // ─────────────────────────────────────────────────────────────────────────────
@@ -230,6 +239,18 @@ interface SerpLocalResult {
   links?: { website?: string };
 }
 
+/** Per-invocation engine state. Google Places is the primary engine; once it
+ *  reports quota exhaustion (or is unavailable), `googleExhausted` flips and
+ *  the run switches to SerpAPI for the remaining cities. */
+interface ScrapeEngine {
+  googleKey: string;
+  serpKey: string | null;
+  googleExhausted: boolean;
+  serpCallsThisRun: number;
+  serpCapPerRun: number;
+  serpMinIntervalMs: number;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
@@ -256,13 +277,31 @@ async function fetchJson<T>(url: string, timeoutMs = 12000): Promise<T | null> {
 // ─────────────────────────────────────────────────────────────────────────────
 const PLACES_BASE = "https://maps.googleapis.com/maps/api/place";
 
+// Google Places statuses that mean "stop using Google for this run".
+const GOOGLE_EXHAUSTED_STATUSES = new Set([
+  "OVER_QUERY_LIMIT", // per-second / per-day quota hit
+  "OVER_DAILY_LIMIT",
+  "RESOURCE_EXHAUSTED",
+  "REQUEST_DENIED", // billing disabled / key restricted — Google effectively unavailable
+]);
+
+/** Flip the engine to SerpAPI if a Places response signals quota/auth failure. */
+function noteGoogleStatus(engine: ScrapeEngine, status: string | undefined): void {
+  if (status && GOOGLE_EXHAUSTED_STATUSES.has(status) && !engine.googleExhausted) {
+    engine.googleExhausted = true;
+    console.warn(
+      `[scraper-cron] Google Places returned ${status} — free quota exhausted/unavailable. Switching to SerpAPI for the rest of this run.`,
+    );
+  }
+}
+
 async function placesTextSearch(
   query: string,
-  apiKey: string,
+  engine: ScrapeEngine,
 ): Promise<PlaceResult[]> {
   const url = new URL(`${PLACES_BASE}/textsearch/json`);
   url.searchParams.set("query", query);
-  url.searchParams.set("key", apiKey);
+  url.searchParams.set("key", engine.googleKey);
   url.searchParams.set("type", "locksmith");
   url.searchParams.set("region", "gb");
 
@@ -270,30 +309,32 @@ async function placesTextSearch(
     results: PlaceResult[];
     status: string;
   }>(url.toString());
+  noteGoogleStatus(engine, data?.status);
   return data?.results ?? [];
 }
 
 async function placesNearbySearch(
   lat: number,
   lng: number,
-  apiKey: string,
+  engine: ScrapeEngine,
 ): Promise<PlaceResult[]> {
   const url = new URL(`${PLACES_BASE}/nearbysearch/json`);
   url.searchParams.set("location", `${lat},${lng}`);
   url.searchParams.set("radius", "5000");
   url.searchParams.set("type", "locksmith");
-  url.searchParams.set("key", apiKey);
+  url.searchParams.set("key", engine.googleKey);
 
   const data = await fetchJson<{
     results: PlaceResult[];
     status: string;
   }>(url.toString());
+  noteGoogleStatus(engine, data?.status);
   return data?.results ?? [];
 }
 
 async function placesGetDetails(
   placeId: string,
-  apiKey: string,
+  engine: ScrapeEngine,
 ): Promise<PlaceDetails | null> {
   const url = new URL(`${PLACES_BASE}/details/json`);
   url.searchParams.set("place_id", placeId);
@@ -301,11 +342,12 @@ async function placesGetDetails(
     "fields",
     "name,formatted_address,formatted_phone_number,international_phone_number,website,rating,user_ratings_total,business_status",
   );
-  url.searchParams.set("key", apiKey);
+  url.searchParams.set("key", engine.googleKey);
 
   const data = await fetchJson<{ result?: PlaceDetails; status: string }>(
     url.toString(),
   );
+  noteGoogleStatus(engine, data?.status);
   return data?.result ?? null;
 }
 
@@ -423,79 +465,88 @@ function prioritizeCities(
 async function scrapeCity(
   city: string,
   seen: Set<string>,
-  googleKey: string,
-  serpKey: string | null,
+  engine: ScrapeEngine,
 ): Promise<ScrapedLead[]> {
   const leads: ScrapedLead[] = [];
-
-  // 1. Google Places text searches (one page each — fast for cron)
   let googleCount = 0;
-  for (const buildQuery of SEARCH_QUERIES) {
-    const results = await placesTextSearch(buildQuery(city), googleKey);
-    for (const place of results) {
-      if (seen.has(place.place_id) || isChain(place.name)) continue;
-      seen.add(place.place_id);
-      await sleep(80);
-      const details = await placesGetDetails(place.place_id, googleKey);
-      if (!details || details.business_status === "CLOSED_PERMANENTLY") continue;
-      leads.push({
-        placeId: place.place_id,
-        name: details.name,
-        city,
-        address: details.formatted_address || place.formatted_address,
-        phone:
-          details.formatted_phone_number ||
-          details.international_phone_number ||
-          "",
-        website: details.website || "",
-        rating: details.rating || 0,
-        reviewCount: details.user_ratings_total || 0,
-        source: "google_places",
-      });
-      googleCount++;
+
+  // ── 1+2. Google Places (PRIMARY — uses the free quota first) ────────────
+  //    Skipped if no Google key, or once the run has flipped to SerpAPI.
+  if (engine.googleKey && !engine.googleExhausted) {
+    for (const buildQuery of SEARCH_QUERIES) {
+      if (engine.googleExhausted) break; // quota hit mid-city → stop Google now
+      const results = await placesTextSearch(buildQuery(city), engine);
+      for (const place of results) {
+        if (seen.has(place.place_id) || isChain(place.name)) continue;
+        seen.add(place.place_id);
+        await sleep(80);
+        const details = await placesGetDetails(place.place_id, engine);
+        if (!details || details.business_status === "CLOSED_PERMANENTLY") continue;
+        leads.push({
+          placeId: place.place_id,
+          name: details.name,
+          city,
+          address: details.formatted_address || place.formatted_address,
+          phone:
+            details.formatted_phone_number ||
+            details.international_phone_number ||
+            "",
+          website: details.website || "",
+          rating: details.rating || 0,
+          reviewCount: details.user_ratings_total || 0,
+          source: "google_places",
+        });
+        googleCount++;
+      }
+      await sleep(200);
     }
-    await sleep(200);
+
+    // Nearby search (if we have coords for this city)
+    const coords = CITY_COORDS[city];
+    if (!engine.googleExhausted && coords) {
+      const nearby = await placesNearbySearch(coords.lat, coords.lng, engine);
+      for (const place of nearby) {
+        if (seen.has(place.place_id) || isChain(place.name)) continue;
+        seen.add(place.place_id);
+        await sleep(80);
+        const details = await placesGetDetails(place.place_id, engine);
+        if (!details || details.business_status === "CLOSED_PERMANENTLY") continue;
+        leads.push({
+          placeId: place.place_id,
+          name: details.name,
+          city,
+          address: details.formatted_address || place.formatted_address,
+          phone:
+            details.formatted_phone_number ||
+            details.international_phone_number ||
+            "",
+          website: details.website || "",
+          rating: details.rating || 0,
+          reviewCount: details.user_ratings_total || 0,
+          source: "google_places",
+        });
+        googleCount++;
+      }
+      await sleep(200);
+    }
   }
 
-  // 2. Nearby search (if we have coords for this city)
-  const coords = CITY_COORDS[city];
-  if (coords) {
-    const nearby = await placesNearbySearch(coords.lat, coords.lng, googleKey);
-    for (const place of nearby) {
-      if (seen.has(place.place_id) || isChain(place.name)) continue;
-      seen.add(place.place_id);
-      await sleep(80);
-      const details = await placesGetDetails(place.place_id, googleKey);
-      if (!details || details.business_status === "CLOSED_PERMANENTLY") continue;
-      leads.push({
-        placeId: place.place_id,
-        name: details.name,
-        city,
-        address: details.formatted_address || place.formatted_address,
-        phone:
-          details.formatted_phone_number ||
-          details.international_phone_number ||
-          "",
-        website: details.website || "",
-        rating: details.rating || 0,
-        reviewCount: details.user_ratings_total || 0,
-        source: "google_places",
-      });
-      googleCount++;
-    }
-    await sleep(200);
-  }
+  // ── 3. SerpAPI (FALLBACK) — when Google is unavailable/exhausted, or the
+  //    city came back sparse. Hard-capped per run to respect 200 req/hour.
+  const serpKey = engine.serpKey;
+  const serpEligible =
+    !!serpKey &&
+    (!engine.googleKey || engine.googleExhausted || googleCount < 5);
 
-  // 3. SerpAPI — run if we have a key AND Google returned fewer than 5 results
-  //    (sparse areas often miss local listings in Places API)
-  if (serpKey && (googleCount < 5 || serpKey)) {
+  if (serpKey && serpEligible && engine.serpCallsThisRun < engine.serpCapPerRun) {
+    engine.serpCallsThisRun++;
     const serpLeads = await serpSearch(city, serpKey);
     for (const lead of serpLeads) {
       if (seen.has(lead.placeId) || isChain(lead.name)) continue;
       seen.add(lead.placeId);
       leads.push(lead);
     }
-    await sleep(300); // SerpAPI rate limit courtesy
+    await sleep(engine.serpMinIntervalMs); // rate-limit courtesy spacing
   }
 
   return leads;
@@ -539,13 +590,28 @@ export async function GET(request: NextRequest) {
     process.env.GOOGLE_PLACES_API_KEY ||
     process.env.GOOGLE_MAPS_API_KEY ||
     "";
-  if (!googleKey) {
+  const serpKey = process.env.SERPAPI_KEY || null;
+
+  // SerpAPI is a first-class engine: run if EITHER key is present. Google Places
+  // calls are skipped when no Google key is set (see scrapeCity), so SerpAPI
+  // alone is enough to source leads.
+  if (!googleKey && !serpKey) {
     return NextResponse.json(
-      { error: "GOOGLE_PLACES_API_KEY not configured" },
+      { error: "No scraper API key configured — set SERPAPI_KEY and/or GOOGLE_PLACES_API_KEY" },
       { status: 500 },
     );
   }
-  const serpKey = process.env.SERPAPI_KEY || null;
+  const engine: ScrapeEngine = {
+    googleKey,
+    serpKey,
+    googleExhausted: false,
+    serpCallsThisRun: 0,
+    serpCapPerRun: SERP_MAX_CALLS_PER_RUN,
+    serpMinIntervalMs: SERP_MIN_INTERVAL_MS,
+  };
+  console.log(
+    `[scraper-cron] Engines: ${[googleKey && "Google Places (primary)", serpKey && "SerpAPI (fallback)"].filter(Boolean).join(", ")}`,
+  );
   const siteUrl =
     process.env.NEXT_PUBLIC_SITE_URL || "https://www.locksafe.uk";
   const cronSecret = process.env.CRON_SECRET || "dev-secret";
@@ -661,7 +727,7 @@ export async function GET(request: NextRequest) {
 
     console.log(`[scraper-cron] Scraping: ${city}`);
 
-    const cityLeads = await scrapeCity(city, seen, googleKey, serpKey);
+    const cityLeads = await scrapeCity(city, seen, engine);
     leadsFoundThisRun += cityLeads.length;
 
     // Upsert leads to DB
@@ -768,5 +834,7 @@ export async function GET(request: NextRequest) {
     elapsedSeconds: Math.round(elapsed() / 1000),
     uncoveredCities: prioritizedCities.length - coveredCities.size,
     recruitTargets: recruitTargets.size,
+    googleExhausted: engine.googleExhausted,
+    serpCallsThisRun: engine.serpCallsThisRun,
   });
 }
