@@ -593,6 +593,23 @@ async function shouldUseOpenAIFallback(
   options: LLMOptions,
   flags: { ollamaRuntimeDisabled?: boolean } = {}
 ): Promise<boolean> {
+  // When the Ollama runtime is intentionally disabled for this environment
+  // (e.g. OLLAMA_RUNTIME_ENABLED=false on serverless, or a serverless runtime
+  // with no reachable Ollama), OpenAI is the PRIMARY — and only — provider, not
+  // an emergency fallback. There is no local model to prefer, and the circuit
+  // breaker is never consulted in this branch, so the per-call opt-in
+  // (allowOpenAIFallback), severity gates, policy toggle, and circuit-grace
+  // hard-block are all irrelevant. Respect only the genuine hard limits: a
+  // configured API key and the daily spend cap. This keeps every LLM-backed
+  // flow (district landing pages, ad copy, classification) alive in prod
+  // without each call site having to opt into "fallback" for what is actually
+  // the primary path.
+  if (flags.ollamaRuntimeDisabled) {
+    if (!OPENAI_API_KEY) return false;
+    if (await isFallbackCapExceeded()) return false;
+    return true;
+  }
+
   const inCircuitGrace = cbState === "open" && Date.now() < fallbackGraceUntil;
   if (cbState === "open" && Date.now() >= fallbackGraceUntil) {
     await notifyRouterAdminAlert({
