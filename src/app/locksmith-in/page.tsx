@@ -134,7 +134,7 @@ export default async function LocksmithInHub() {
             Find a local LockSafe locksmith by postcode
           </h1>
           <p className="text-lg sm:text-xl text-slate-700 leading-relaxed mb-7 max-w-2xl mx-auto">
-            We dispatch DBS-checked, insured engineers across the UK. Fixed price agreed before any work starts. No callout fee.
+            We dispatch DBS-checked, insured engineers across the UK. Fixed price agreed before any work starts.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <a
@@ -218,7 +218,7 @@ export default async function LocksmithInHub() {
             <li className="flex items-center gap-2"><span aria-hidden className="text-amber-500 font-bold">✓</span><span>DBS-checked</span></li>
             <li className="flex items-center gap-2"><span aria-hidden className="text-amber-500 font-bold">✓</span><span>Insured</span></li>
             <li className="flex items-center gap-2"><span aria-hidden className="text-amber-500 font-bold">✓</span><span>Fixed price</span></li>
-            <li className="flex items-center gap-2"><span aria-hidden className="text-amber-500 font-bold">✓</span><span>No callout fee</span></li>
+            <li className="flex items-center gap-2"><span aria-hidden className="text-amber-500 font-bold">✓</span><span>GPS-tracked</span></li>
             <li className="flex items-center gap-2"><span aria-hidden className="text-amber-500 font-bold">✓</span><span>24/7 dispatch</span></li>
             <li className="flex items-center gap-2"><span aria-hidden className="text-amber-500 font-bold">✓</span><span>Real local engineer</span></li>
           </ul>

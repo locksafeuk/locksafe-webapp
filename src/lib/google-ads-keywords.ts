@@ -244,10 +244,13 @@ export const BASELINE_NEGATIVE_KEYWORDS: string[] = [
   "best locksmith uk",              // comparison/editorial, low-intent
   "locksmith directory",
 
-  // ── Free / generic "near me" solo (low quality score, wrong match) ───────
+  // ── Free-seekers (no budget) ─────────────────────────────────────────────
   "free locksmith",
   "locksmith for free",
-  "near me",                        // alone it matches everything; block it
+  // NB: do NOT negate bare "near me" — it would block our CORE positive
+  // keywords "locksmith near me" / "emergency locksmith near me" (they're in
+  // the positive set above). The only junk variant is "near me job", which is
+  // negated specifically elsewhere.
 
   // ── Property/rental context (not emergency, low conversion) ──────────────
   "landlord locksmith",             // usually bulk/long lead time work
