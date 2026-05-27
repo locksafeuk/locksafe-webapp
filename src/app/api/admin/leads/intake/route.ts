@@ -119,16 +119,14 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // 2. Count uncontacted leads in this batch (status = "new")
+    // 2. Queue depth: count uncontacted ("new") leads.
+    //    NOTE: this previously also did `notes: { not: { contains: "[batch:<id>]" } }`,
+    //    but on MongoDB `contains` compiles to a regex — the literal "[" and "-"
+    //    in "[batch:cron-<ts>]" form an invalid character class ("range out of
+    //    order"), which threw 51111. The batch tag isn't applied until step 3
+    //    below, so the filter was a no-op regardless. Plain status count is correct.
     const uncontactedCount = await prisma.locksmithLead.count({
-      where: {
-        status: "new",
-        notes: {
-          not: {
-            contains: `[batch:${batchId}]`,
-          },
-        },
-      },
+      where: { status: "new" },
     });
 
     // 3. Mark leads with this batch ID for tracking
