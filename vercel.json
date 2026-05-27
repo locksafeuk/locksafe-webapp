@@ -18,6 +18,10 @@
       "schedule": "0 8 * * *"
     },
     {
+      "path": "/api/agents/heartbeat",
+      "schedule": "*/30 * * * *"
+    },
+    {
       "path": "/api/cron/google-ads-suggestions",
       "schedule": "0 */6 * * *"
     },
