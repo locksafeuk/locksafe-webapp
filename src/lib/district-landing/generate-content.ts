@@ -83,6 +83,20 @@ CLAIMABLE TRUST SIGNALS (verifiable, safe to mention)
   • Around-the-clock dispatch (LockSafe operates 24/7)
   • GPS-tracked engineer on the way
 
+FEE POLICY — STATE TRUTHFULLY (CRITICAL)
+  • LockSafe DOES charge a call-out / assessment fee. This is true and
+    must never be denied. "Fixed price agreed up front" means the TOTAL
+    price (including the call-out) is disclosed and agreed before any
+    work starts — it does NOT mean the service is free or that there is
+    no call-out fee.
+  • If a FAQ or any copy touches on call-out charges, answer truthfully:
+    YES, a call-out fee applies, and it is shown to the customer up front
+    as part of a fixed, agreed price with no hidden extras. NEVER answer
+    "no" to "do you charge for call-outs?" — that is a false statement.
+  • Safe framings: "transparent, fixed pricing agreed before any work",
+    "no hidden fees" (the call-out is disclosed, not hidden). Unsafe:
+    anything implying the visit or call-out itself is free.
+
 FORBIDDEN PHRASES — ABSOLUTE
   The following must NEVER appear in your output. Some are template
   tells Google flags as low-quality; others are accreditations LockSafe
@@ -101,6 +115,9 @@ FORBIDDEN PHRASES — ABSOLUTE
     • "Top-rated locksmith", "Trusted by thousands"
     • "Click here", "Call now!" (with exclamation), "Affordable prices"
     • "Wide range of services", "Competitive prices"
+    • "No call-out fee", "no call out fee", "free call-out", "free callout",
+      "no charge for call-outs", or answering "No" to whether call-outs are
+      charged (ALL FALSE — LockSafe charges a call-out fee, see FEE POLICY)
     • SEO-tail template openers — any sentence shaped like:
         - "Reliable [X] Services for [Town] Residents"
         - "Professional [X] in [Town]"

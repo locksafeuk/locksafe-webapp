@@ -136,6 +136,31 @@ export async function assertLandingPageReady(finalUrl: string): Promise<void> {
         `Landing page for ${district} has a coordinate-shaped region ("${page.region}"). Fix the region before publishing.`,
       );
     }
+
+    // Call-out-fee denial scan — LockSafe DOES charge a call-out fee, so any copy
+    // that denies it is FALSE. The literal-substring scan above misses the split
+    // Q&A form ("Do you charge for call-outs?" → "No, ..."), so check FAQ pairs
+    // explicitly: a question about call-outs whose answer negates is a false claim.
+    const faqList = Array.isArray(page.faqs)
+      ? (page.faqs as Array<Record<string, unknown>>)
+      : [];
+    for (const f of faqList) {
+      const q = String(f.question ?? f.q ?? "").trim();
+      const a = String(f.answer ?? f.a ?? "").trim();
+      const asksAboutCallOut = /call[\s-]?out/i.test(q);
+      const answerDenies =
+        /^\s*no\b/i.test(a) ||
+        /\bno\s+call[\s-]?out\s+(fee|charge|cost)\b/i.test(a) ||
+        /\b(?:don'?t|do not|never|no)\s+charge\b[^.]*\bcall[\s-]?out/i.test(a) ||
+        /\bcall[\s-]?out[^.]*\b(?:is\s+)?free\b/i.test(a);
+      if (asksAboutCallOut && answerDenies) {
+        throw new LandingPagePreflightError(
+          "content_unclean",
+          finalUrl,
+          `Landing page for ${district} FAQ falsely implies there is no call-out fee ("${q}" → "${a.slice(0, 80)}"). LockSafe charges a call-out fee — correct this answer before publishing.`,
+        );
+      }
+    }
   }
 
   // ── Liveness check: the URL must return HTTP 200 ────────────────────────

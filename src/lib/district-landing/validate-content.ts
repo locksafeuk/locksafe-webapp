@@ -111,6 +111,39 @@ export function scanForBannedPhrases(content: RawContent): string[] {
   return hits;
 }
 
+/**
+ * Detect FALSE "no call-out fee" claims. LockSafe DOES charge a call-out fee,
+ * so any copy denying it is misrepresentation. Catches both the split Q&A form
+ * ("Do you charge for call-outs?" → "No, ...") and explicit body denials.
+ * Deliberately does NOT flag "no hidden fees" (true — the call-out is disclosed).
+ */
+export function findFalseCallOutClaim(content: RawContent): string[] {
+  const hits: string[] = [];
+
+  for (const f of content.faqs ?? []) {
+    const q = String(f?.question ?? "");
+    const a = String(f?.answer ?? "");
+    if (/call[\s-]?out/i.test(q) && /^\s*no\b/i.test(a)) {
+      hits.push('faq: "No" answer to a call-out-charge question (false — LockSafe charges a call-out fee)');
+    }
+  }
+
+  const body = [
+    content.heroSubcopy, content.introParagraph,
+    content.coverageNarrative, content.whyChooseUs,
+    ...(content.faqs ?? []).flatMap((f) => [f?.answer ?? ""]),
+  ].join("  ");
+  const explicitDenial =
+    /\bno\s+call[\s-]?out\s+(?:fee|charge|cost)/i.test(body) ||
+    /\bfree\s+call[\s-]?out/i.test(body) ||
+    /\bcall[\s-]?out[^.]*\bis\s+free\b/i.test(body);
+  if (explicitDenial) {
+    hits.push("no call-out fee (false — LockSafe charges a call-out fee)");
+  }
+
+  return hits;
+}
+
 /** Check every required block is non-empty. */
 export function findMissingBlocks(content: RawContent): string[] {
   const missing: string[] = [];
@@ -157,7 +190,10 @@ export function validateLLMOutput(rawJson: string): ValidationResult {
   const content = parsed as RawContent;
 
   const missing    = findMissingBlocks(content);
-  const bannedHits = scanForBannedPhrases(content);
+  const bannedHits = [
+    ...scanForBannedPhrases(content),
+    ...findFalseCallOutClaim(content),
+  ];
   const ok         = missing.length === 0 && bannedHits.length === 0;
 
   return { ok, bannedHits, missing, parsed: ok ? content : undefined };
