@@ -181,6 +181,45 @@ function isChain(name: string): boolean {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Locksmith business validator — rejects non-locksmith results that slip
+// through Google's type filter (shoe shops, cobblers, glaziers, etc.)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Google Place `types` values that confirm a locksmith business. */
+const LOCKSMITH_TYPES = new Set(["locksmith"]);
+
+/** Name keywords that strongly indicate a locksmith business. */
+const LOCKSMITH_NAME_PATTERNS = [
+  /lock/i,           // locksmith, locks, LockFit, Locktec …
+  /\bkeys?\b/i,      // key, keys, car key, key cutting
+  /\bsafe\b/i,       // safe engineer, safesmith
+  /\bsafes\b/i,
+  /deadbolt/i,
+  /deadlock/i,
+  /burglary/i,
+  /upvc/i,
+  /access[\s-]?control/i,
+  /padlock/i,
+  /auto[\s-]?locksmith/i,
+  /car[\s-]?key/i,
+];
+
+/**
+ * Returns true if the result is actually a locksmith business.
+ * First checks Google's own `types` array (most reliable); falls back to
+ * a name-keyword scan so legitimate businesses with no "lock" in the name
+ * (e.g. "Page Security") are still accepted via the types path.
+ */
+function isLocksmithBusiness(name: string, types?: string[]): boolean {
+  // Trust Google's types when present
+  if (types && types.length > 0) {
+    return types.some((t) => LOCKSMITH_TYPES.has(t));
+  }
+  // Fallback: name must contain at least one locksmith keyword
+  return LOCKSMITH_NAME_PATTERNS.some((p) => p.test(name));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Query builders — 7 types (same as CLI scraper)
 // ─────────────────────────────────────────────────────────────────────────────
 const SEARCH_QUERIES: Array<(city: string) => string> = [
@@ -225,6 +264,7 @@ interface PlaceDetails {
   rating?: number;
   user_ratings_total?: number;
   business_status?: string;
+  types?: string[];
 }
 
 interface SerperPlace {
@@ -339,7 +379,7 @@ async function placesGetDetails(
   url.searchParams.set("place_id", placeId);
   url.searchParams.set(
     "fields",
-    "name,formatted_address,formatted_phone_number,international_phone_number,website,rating,user_ratings_total,business_status",
+    "name,formatted_address,formatted_phone_number,international_phone_number,website,rating,user_ratings_total,business_status,types",
   );
   url.searchParams.set("key", engine.googleKey);
 
@@ -502,6 +542,11 @@ async function scrapeCity(
         await sleep(80);
         const details = await placesGetDetails(place.place_id, engine);
         if (!details || details.business_status === "CLOSED_PERMANENTLY") continue;
+        // Reject non-locksmith results (shoe shops, glaziers, cobblers etc.)
+        if (!isLocksmithBusiness(details.name, details.types)) {
+          console.log(`[scraper-cron] Skipping non-locksmith: "${details.name}" (types: ${details.types?.join(",") ?? "none"})`);
+          continue;
+        }
         leads.push({
           placeId: place.place_id,
           name: details.name,
@@ -531,6 +576,11 @@ async function scrapeCity(
         await sleep(80);
         const details = await placesGetDetails(place.place_id, engine);
         if (!details || details.business_status === "CLOSED_PERMANENTLY") continue;
+        // Reject non-locksmith results
+        if (!isLocksmithBusiness(details.name, details.types)) {
+          console.log(`[scraper-cron] Skipping non-locksmith: "${details.name}" (types: ${details.types?.join(",") ?? "none"})`);
+          continue;
+        }
         leads.push({
           placeId: place.place_id,
           name: details.name,
@@ -567,6 +617,11 @@ async function scrapeCity(
     const serpLeads = await serpSearch(city, serpKey);
     for (const lead of serpLeads) {
       if (seen.has(lead.placeId) || isChain(lead.name)) continue;
+      // Serper has no types — use name-based locksmith check
+      if (!isLocksmithBusiness(lead.name, undefined)) {
+        console.log(`[scraper-cron] Serper: skipping non-locksmith "${lead.name}"`);
+        continue;
+      }
       seen.add(lead.placeId);
       leads.push(lead);
     }
