@@ -31,13 +31,12 @@ const MAX_DURATION_MS = 245_000;
  *  risk approaching the time limit even on slow API days. */
 const MAX_CITIES_PER_RUN = 40;
 
-/** SerpAPI hard cap per invocation. SerpAPI allows ~200 requests/hour; with a
- *  2-hourly schedule and ≤1 SerpAPI call per city, 40 cities/run already keeps
- *  us far under. This is defence-in-depth so a config change (or repeated
- *  manual triggers) can't blow the hourly limit. */
+/** Serper.dev hard cap per invocation. Serper bills per credit (1 credit per
+ *  search), so this caps cost/run: ≤1 call per city × 40 cities = ≤40 credits,
+ *  and this ceiling protects against config changes or repeated manual triggers. */
 const SERP_MAX_CALLS_PER_RUN = 150;
 
-/** Courtesy spacing between SerpAPI calls (ms). */
+/** Courtesy spacing between Serper.dev calls (ms). */
 const SERP_MIN_INTERVAL_MS = 400;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -206,7 +205,7 @@ interface ScrapedLead {
   website: string;
   rating: number;
   reviewCount: number;
-  source: "google_places" | "serpapi";
+  source: "google_places" | "serper";
 }
 
 interface PlaceResult {
@@ -228,15 +227,15 @@ interface PlaceDetails {
   business_status?: string;
 }
 
-interface SerpLocalResult {
+interface SerperPlace {
   title?: string;
-  phone?: string;
   address?: string;
-  rating?: number;
-  reviews?: number;
+  phoneNumber?: string;
   website?: string;
-  place_id?: string;
-  links?: { website?: string };
+  rating?: number;
+  ratingCount?: number;
+  cid?: string;
+  placeId?: string;
 }
 
 /** Per-invocation engine state. Google Places is the primary engine; once it
@@ -290,7 +289,7 @@ function noteGoogleStatus(engine: ScrapeEngine, status: string | undefined): voi
   if (status && GOOGLE_EXHAUSTED_STATUSES.has(status) && !engine.googleExhausted) {
     engine.googleExhausted = true;
     console.warn(
-      `[scraper-cron] Google Places returned ${status} — free quota exhausted/unavailable. Switching to SerpAPI for the rest of this run.`,
+      `[scraper-cron] Google Places returned ${status} — free quota exhausted/unavailable. Switching to Serper.dev for the rest of this run.`,
     );
   }
 }
@@ -352,49 +351,70 @@ async function placesGetDetails(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SerpAPI — google_maps engine returns structured local results with place IDs
+// Serper.dev — POST /places returns Google Maps business listings (name, phone,
+// website, address, rating). Auth via X-API-KEY header. Errors are logged (not
+// swallowed) so failures are visible in the Vercel logs.
 // ─────────────────────────────────────────────────────────────────────────────
 async function serpSearch(
   city: string,
   apiKey: string,
 ): Promise<ScrapedLead[]> {
-  const url = new URL("https://serpapi.com/search.json");
-  url.searchParams.set("engine", "google_maps");
-  url.searchParams.set("q", `locksmith ${city} UK`);
-  url.searchParams.set("type", "search");
-  url.searchParams.set("hl", "en");
-  url.searchParams.set("gl", "uk");
-  url.searchParams.set("api_key", apiKey);
-
-  const data = await fetchJson<{ local_results?: SerpLocalResult[] }>(
-    url.toString(),
-    15000,
-  );
-  if (!data?.local_results?.length) return [];
-
-  const leads: ScrapedLead[] = [];
-  for (const r of data.local_results) {
-    if (!r.title || isChain(r.title)) continue;
-    // Use SerpAPI's place_id if present so we can dedup with Google Places results
-    const placeId = r.place_id
-      ? r.place_id
-      : `serp-${Buffer.from(`${r.title}|${r.address ?? ""}`)
-          .toString("base64")
-          .slice(0, 24)}`;
-
-    leads.push({
-      placeId,
-      name: r.title,
-      city,
-      address: r.address ?? "",
-      phone: r.phone ?? "",
-      website: r.links?.website ?? r.website ?? "",
-      rating: r.rating ?? 0,
-      reviewCount: r.reviews ?? 0,
-      source: "serpapi",
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch("https://google.serper.dev/places", {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "X-API-KEY": apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ q: `locksmith ${city} UK`, gl: "uk", hl: "en" }),
     });
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      console.error(`[scraper-cron] Serper error ${res.status} for ${city}: ${body.slice(0, 200)}`);
+      return [];
+    }
+
+    const data = (await res.json()) as { places?: SerperPlace[] };
+    const places = data?.places ?? [];
+    if (places.length === 0) {
+      console.warn(`[scraper-cron] Serper returned 0 places for ${city}`);
+      return [];
+    }
+
+    const leads: ScrapedLead[] = [];
+    for (const p of places) {
+      if (!p.title || isChain(p.title)) continue;
+      // Prefer Google placeId (dedups with Google Places results); fall back to
+      // the maps CID, then a synthetic hash.
+      const placeId =
+        p.placeId ||
+        (p.cid
+          ? `cid-${p.cid}`
+          : `serper-${Buffer.from(`${p.title}|${p.address ?? ""}`).toString("base64").slice(0, 24)}`);
+
+      leads.push({
+        placeId,
+        name: p.title,
+        city,
+        address: p.address ?? "",
+        phone: p.phoneNumber ?? "",
+        website: p.website ?? "",
+        rating: p.rating ?? 0,
+        reviewCount: p.ratingCount ?? 0,
+        source: "serper",
+      });
+    }
+    return leads;
+  } catch (err) {
+    console.error(`[scraper-cron] Serper request failed for ${city}:`, err);
+    return [];
+  } finally {
+    clearTimeout(timer);
   }
-  return leads;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -590,14 +610,14 @@ export async function GET(request: NextRequest) {
     process.env.GOOGLE_PLACES_API_KEY ||
     process.env.GOOGLE_MAPS_API_KEY ||
     "";
-  const serpKey = process.env.SERPAPI_KEY || null;
+  const serpKey = process.env.SERPER_API_KEY || null;
 
-  // SerpAPI is a first-class engine: run if EITHER key is present. Google Places
-  // calls are skipped when no Google key is set (see scrapeCity), so SerpAPI
-  // alone is enough to source leads.
+  // Serper.dev is a first-class fallback engine: run if EITHER key is present.
+  // Google Places calls are skipped when no Google key is set (see scrapeCity),
+  // so Serper alone is enough to source leads.
   if (!googleKey && !serpKey) {
     return NextResponse.json(
-      { error: "No scraper API key configured — set SERPAPI_KEY and/or GOOGLE_PLACES_API_KEY" },
+      { error: "No scraper API key configured — set SERPER_API_KEY and/or GOOGLE_PLACES_API_KEY" },
       { status: 500 },
     );
   }
@@ -610,7 +630,7 @@ export async function GET(request: NextRequest) {
     serpMinIntervalMs: SERP_MIN_INTERVAL_MS,
   };
   console.log(
-    `[scraper-cron] Engines: ${[googleKey && "Google Places (primary)", serpKey && "SerpAPI (fallback)"].filter(Boolean).join(", ")}`,
+    `[scraper-cron] Engines: ${[googleKey && "Google Places (primary)", serpKey && "Serper.dev (fallback)"].filter(Boolean).join(", ")}`,
   );
   const siteUrl =
     process.env.NEXT_PUBLIC_SITE_URL || "https://www.locksafe.uk";
