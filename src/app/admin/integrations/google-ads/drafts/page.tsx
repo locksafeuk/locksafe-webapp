@@ -40,6 +40,15 @@ const STATUS_COLORS: Record<string, string> = {
   DRAFT: "bg-gray-100 text-gray-700",
 };
 
+// Live Google Ads serving labels (from the on-demand live-status check)
+const LIVE_COLORS: Record<string, string> = {
+  SERVING: "bg-green-100 text-green-900",
+  DORMANT: "bg-amber-100 text-amber-900",
+  PAUSED: "bg-gray-200 text-gray-700",
+  REMOVED: "bg-red-100 text-red-900",
+  UNKNOWN: "bg-gray-100 text-gray-500",
+};
+
 export default function GoogleAdsDraftsListPage() {
   const router = useRouter();
   const [drafts, setDrafts] = useState<DraftRow[]>([]);
@@ -78,6 +87,13 @@ export default function GoogleAdsDraftsListPage() {
     negativeKeywordCount?: number;
     error?: string;
   } | null>(null);
+
+  // Live Google Ads serving status (on-demand reconciliation read — never trusts
+  // the stored PUBLISHED badge alone)
+  const [liveStatus, setLiveStatus] = useState<Record<string, { liveLabel: string; liveCampaignStatus: string }>>({});
+  const [checkingLive, setCheckingLive] = useState(false);
+  const [liveCheckedAt, setLiveCheckedAt] = useState<string | null>(null);
+  const [liveError, setLiveError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -198,6 +214,25 @@ export default function GoogleAdsDraftsListPage() {
     }
   }, [refresh, router]);
 
+  const checkLiveStatus = useCallback(async () => {
+    setCheckingLive(true);
+    setLiveError(null);
+    try {
+      const res = await fetch("/api/admin/google-ads/drafts/live-status");
+      const data = await res.json();
+      if (!res.ok) {
+        setLiveError(data.details || data.error || "Live check failed");
+      } else {
+        setLiveStatus(data.statuses ?? {});
+        setLiveCheckedAt(data.checkedAt ?? new Date().toISOString());
+      }
+    } catch (err) {
+      setLiveError(String(err));
+    } finally {
+      setCheckingLive(false);
+    }
+  }, []);
+
   return (
     <div className="container mx-auto max-w-6xl p-6 space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -228,6 +263,15 @@ export default function GoogleAdsDraftsListPage() {
             className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
           >
             {creating ? "Generating…" : "Generate Coverage Campaign"}
+          </button>
+          <button
+            type="button"
+            onClick={checkLiveStatus}
+            disabled={checkingLive}
+            className="rounded border border-emerald-600 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-60"
+            title="Query Google Ads live for the real serving status of every published campaign"
+          >
+            {checkingLive ? "Checking…" : "Check live status"}
           </button>
         </div>
       </div>
@@ -351,6 +395,17 @@ export default function GoogleAdsDraftsListPage() {
         ))}
       </div>
 
+      {liveError && (
+        <p className="text-xs text-red-600">Live status check failed: {liveError}</p>
+      )}
+      {liveCheckedAt && !liveError && (
+        <p className="text-xs text-muted-foreground">
+          Live status from Google Ads · checked {new Date(liveCheckedAt).toLocaleTimeString()} ·
+          {" "}<span className="font-medium text-green-700">SERVING</span> = actually running,
+          {" "}<span className="font-medium text-amber-700">DORMANT</span> = ad group/ad paused (won&apos;t serve until enabled).
+        </p>
+      )}
+
       {loading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : drafts.length === 0 ? (
@@ -361,6 +416,7 @@ export default function GoogleAdsDraftsListPage() {
             <tr className="border-b text-left">
               <th className="py-2">Name</th>
               <th className="py-2">Status</th>
+              <th className="py-2">Live</th>
               <th className="py-2">Daily £</th>
               <th className="py-2">Bidding</th>
               <th className="py-2">Spend</th>
@@ -379,6 +435,18 @@ export default function GoogleAdsDraftsListPage() {
                   >
                     {d.status}
                   </span>
+                </td>
+                <td className="py-2">
+                  {liveStatus[d.id] ? (
+                    <span
+                      className={`rounded px-2 py-0.5 text-xs ${LIVE_COLORS[liveStatus[d.id].liveLabel] ?? "bg-gray-100"}`}
+                      title={`Google Ads campaign status: ${liveStatus[d.id].liveCampaignStatus}`}
+                    >
+                      {liveStatus[d.id].liveLabel}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-gray-400">—</span>
+                  )}
                 </td>
                 <td className="py-2">£{d.dailyBudget.toFixed(2)}</td>
                 <td className="py-2 text-xs">{d.biddingStrategy}</td>
