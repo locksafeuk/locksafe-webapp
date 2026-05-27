@@ -97,11 +97,29 @@ async function main() {
   const liveStatusById = new Map<string, string>();
   for (const r of liveRows) liveStatusById.set(r.campaign.id, r.campaign.status);
 
-  // ── Find rows where Locksafe says PUBLISHED but Google says REMOVED.
+  // Sanity: if GAQL returned zero rows for a non-empty input, the API
+  // is likely degraded (auth issue, partial 429 response, etc.). Don't
+  // infer drift from no-data — abort instead.
+  if (liveRows.length === 0) {
+    console.error("  ✗ GAQL returned zero campaign rows for a non-empty ID list — likely API failure. Aborting.");
+    process.exit(1);
+  }
+
+  // ── Find rows where Locksafe says PUBLISHED but Google says
+  // REMOVED — OR Google didn't return the campaign at all.
+  //
+  // Google purges removed campaigns from `FROM campaign` queries
+  // entirely after ~24-72h, at which point status="REMOVED" is no
+  // longer returned and the ID simply disappears. We treat both
+  // "explicitly REMOVED" and "missing from response" as the same
+  // drift case, because the operational outcome is identical: the
+  // campaign doesn't exist on Google Ads but Locksafe thinks it does.
   const toFix: typeof drafts = [];
   for (const d of drafts) {
     const live = liveStatusById.get(d.googleCampaignId!);
-    if (live === "REMOVED") toFix.push(d);
+    const isRemoved = live === "REMOVED";
+    const isPurged  = live === undefined;
+    if (isRemoved || isPurged) toFix.push(d);
   }
 
   if (toFix.length === 0) {
@@ -115,7 +133,11 @@ async function main() {
   const now = new Date();
   const noteStamp = now.toISOString().slice(0, 10);
   for (const d of toFix) {
-    const note = `[${noteStamp}] auto-remediation: Google Ads has REMOVED this campaign (ID ${d.googleCampaignId}); flipped Locksafe status from PUBLISHED to PAUSED to reflect reality.`;
+    const live = liveStatusById.get(d.googleCampaignId!);
+    const reasonShape = live === "REMOVED"
+      ? `Google Ads has REMOVED this campaign`
+      : `Google Ads has purged this campaign (no longer surfaces in GAQL — likely fully removed)`;
+    const note = `[${noteStamp}] auto-remediation: ${reasonShape} (ID ${d.googleCampaignId}); flipped Locksafe status from PUBLISHED to PAUSED to reflect reality.`;
     const newAdminNotes = d.adminNotes
       ? `${d.adminNotes}\n${note}`
       : note;
