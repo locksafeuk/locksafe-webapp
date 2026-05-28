@@ -284,7 +284,7 @@ export async function generateSocialVideo(req: VideoRequest): Promise<VideoResul
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ source: composition }),
+      body: JSON.stringify({ output_format: "mp4", source: composition }),
     });
 
     if (!res.ok) {

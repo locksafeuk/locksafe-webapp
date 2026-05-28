@@ -82,7 +82,7 @@ async function main() {
   // ── 2. D-ID ───────────────────────────────────────────────────────────────
   console.log(`${BOLD}── Test 2: D-ID (talking-head avatar) ────────────────────${RESET}`);
   log(`Pillar    : ${DID_TEST.pillar}  (human-trust format)`);
-  log(`Voice     : en-GB-RyanNeural (UK male, professional)`);
+  log(`Voice     : en-GB-SoniaNeural (UK female — matches presenter)`);
   log(`Script    : "${DID_TEST.script.slice(0, 80)}…"`);
   log(`(Full script with intro will be ~380 chars — approx 30s video)`);
   console.log();

@@ -41,8 +41,10 @@ const D_ID_API_BASE = "https://api.d-id.com";
 const POLL_INTERVAL_MS  = 3_000;
 const POLL_MAX_ATTEMPTS = 40;  // 40 × 3s = 120s max
 
-// Default UK male voice — professional, reassuring
-const DEFAULT_VOICE_ID = "en-GB-RyanNeural";
+// Default UK female voice — matches the Alice fallback presenter.
+// To use a male voice, set D_ID_VOICE_ID=en-GB-RyanNeural in .env
+// AND set D_ID_PRESENTER_URL to a male face image (e.g. your own branded headshot).
+const DEFAULT_VOICE_ID = "en-GB-SoniaNeural";
 
 // Default presenter — fetched live from D-ID's /presenters endpoint on first use.
 // Override with a branded headshot via D_ID_PRESENTER_URL env var.
@@ -56,25 +58,33 @@ async function getPresenterUrl(auth: string): Promise<string> {
   // Return cached value after first successful fetch
   if (_cachedPresenterUrl) return _cachedPresenterUrl;
 
-  try {
-    const res = await fetch(`${D_ID_API_BASE}/presenters`, {
-      headers: { Authorization: auth, Accept: "application/json" },
-    });
-    if (res.ok) {
-      const data = await res.json() as { presenters?: Array<{ image_url?: string; preview_url?: string }> };
-      const first = data.presenters?.[0];
-      const url   = first?.image_url ?? first?.preview_url;
-      if (url) {
-        _cachedPresenterUrl = url;
-        console.log(`[D-ID] Using presenter: ${url}`);
-        return url;
+  // Try D-ID's actors endpoint (Talks API)
+  for (const endpoint of ["/talks/actors", "/clips/presenters", "/presenters"]) {
+    try {
+      const res = await fetch(`${D_ID_API_BASE}${endpoint}`, {
+        headers: { Authorization: auth, Accept: "application/json" },
+      });
+      if (res.ok) {
+        const data = await res.json() as {
+          actors?: Array<{ image_url?: string; preview_url?: string; gender?: string }>;
+          presenters?: Array<{ image_url?: string; preview_url?: string; gender?: string }>;
+        };
+        const list = data.actors ?? data.presenters ?? [];
+        // Prefer female to match the Sonia voice default; fall back to first available
+        const pick = list.find((p) => p.gender === "female") ?? list[0];
+        const url  = pick?.image_url ?? pick?.preview_url;
+        if (url) {
+          _cachedPresenterUrl = url;
+          console.log(`[D-ID] Using presenter from ${endpoint}: ${url}`);
+          return url;
+        }
       }
+    } catch {
+      // try next endpoint
     }
-  } catch {
-    // fall through to static fallback
   }
 
-  // Static fallback — a public domain headshot that D-ID accepts
+  // Static fallback — Alice stock photo, matches Sonia (female) voice
   const fallback = "https://d-id-public-bucket.s3.us-east-1.amazonaws.com/alice.jpg";
   console.log(`[D-ID] Presenter list unavailable, using fallback: ${fallback}`);
   return fallback;
