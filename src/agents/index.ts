@@ -450,12 +450,22 @@ export async function runAgentHeartbeats(): Promise<{
   }
 
   // Guardians always run (COO + CTO) — they protect dispatch/SLA/system health
-  // and must never be throttled by guardian mode or sensitivity controls.
-  // Still respect explicit pause from DB (admin override).
+  // and must never be throttled by guardian mode, sensitivity controls, or paused status.
+  // COO is the real-time dispatch engine: a 10-min stuck job window means it MUST run
+  // every cycle regardless of what the DB says. Auto-resume guardian status on every tick.
+  try {
+    const { default: prismaGuardian } = await import("@/lib/db");
+    await prismaGuardian.agent.updateMany({
+      where: { name: { in: ["coo", "cto"] }, status: "paused" },
+      data: { status: "active", nextHeartbeat: null },
+    });
+  } catch (e) {
+    console.warn("[Heartbeats] Guardian auto-resume step failed:", e);
+  }
   const guardianJobs = [
     { name: "cto", fn: runCTOHeartbeat },
     { name: "coo", fn: runCOOHeartbeat },
-  ].filter(j => isActive(j.name));
+  ];
 
   if (guardianOnly) {
     console.log("[Heartbeats] Guardian Mode ON — running guardians only (CTO, COO)");

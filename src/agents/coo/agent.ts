@@ -177,19 +177,19 @@ export async function runCOOHeartbeat(): Promise<void> {
       return ctx;
     })
     .step("check-stuck-jobs", async (ctx) => {
-      // Jobs PENDING >30 min with no assigned locksmith
+      // Jobs PENDING >10 min with no assigned locksmith
       const stuckJobs = await prisma.job.findMany({
         where: {
           status: JobStatus.PENDING,
-          createdAt: { lt: new Date(Date.now() - 30 * 60_000) },
+          createdAt: { lt: new Date(Date.now() - 10 * 60_000) },
           locksmithId: null,
         },
         select: { id: true, problemType: true, createdAt: true },
         take: 20,
       });
       ctx.stuckJobCount = stuckJobs.length;
-      if (stuckJobs.length >= 3) {
-        ctx.alerts.push(`${stuckJobs.length} jobs stuck PENDING >30 min without locksmith assignment`);
+      if (stuckJobs.length >= 1) {
+        ctx.alerts.push(`${stuckJobs.length} job(s) stuck PENDING >10 min without locksmith assignment`);
       }
       return ctx;
     })
@@ -312,7 +312,7 @@ export async function getCOOStatus(): Promise<{
   const stuckJobs = await prisma.job.count({
     where: {
       status: JobStatus.PENDING,
-      createdAt: { lt: new Date(Date.now() - 30 * 60 * 1000) },
+      createdAt: { lt: new Date(Date.now() - 10 * 60 * 1000) },
     },
   });
 

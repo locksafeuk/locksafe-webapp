@@ -66,7 +66,7 @@ export const getJobStatsTool: AgentTool = {
       },
       needsAttention: jobs.filter(j =>
         j.status === JobStatus.PENDING &&
-        Date.now() - j.createdAt.getTime() > 30 * 60 * 1000
+        Date.now() - j.createdAt.getTime() > 10 * 60 * 1000
       ).length,
       totalValue: jobs
         .filter(j => j.status === JobStatus.COMPLETED && j.quote)
@@ -388,11 +388,11 @@ export const getAlertsTool: AgentTool = {
       data: Record<string, unknown>;
     }> = [];
 
-    // Stuck jobs (pending > 30 mins)
+    // Stuck jobs (pending > 10 mins)
     const stuckJobs = await prisma.job.findMany({
       where: {
         status: JobStatus.PENDING,
-        createdAt: { lt: new Date(Date.now() - 30 * 60 * 1000) },
+        createdAt: { lt: new Date(Date.now() - 10 * 60 * 1000) },
       },
       include: { customer: { select: { name: true } } },
     });
