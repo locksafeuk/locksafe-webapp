@@ -37,6 +37,10 @@
     "asc:resubmit:ios": "node scripts/asc-resubmit-ios.mjs",
     "health:llm-failover": "npx tsx --tsconfig tsconfig.scripts.json scripts/check-llm-failover.ts",
     "verify:agents-runtime": "npx tsx --tsconfig tsconfig.scripts.json scripts/verify-agents-runtime.ts",
+    "validate:source-prisma": "bash ./scripts/validate-source-and-prisma.sh",
+    "checks:daily:prod": "bash ./scripts/run-daily-local-checks.sh",
+    "checks:daily:install": "bash ./scripts/install-daily-local-checks-launchd.sh",
+    "checks:daily:telegram": "npx tsx --tsconfig tsconfig.scripts.json ./scripts/send-daily-checks-telegram-summary.ts",
     "postinstall": "npx prisma generate"
   },
   "prisma": {
