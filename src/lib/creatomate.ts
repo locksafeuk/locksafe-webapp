@@ -223,7 +223,9 @@ function buildComposition(req: VideoRequest): object {
 
 // ─── Render API ───────────────────────────────────────────────────────────────
 
-const CREATOMATE_API_URL = "https://api.creatomate.com/v1/renders";
+// v1 polls individual renders; v2 submits inline compositions
+const CREATOMATE_API_URL    = "https://api.creatomate.com/v1/renders";
+const CREATOMATE_API_URL_V2 = "https://api.creatomate.com/v2/renders";
 const POLL_INTERVAL_MS   = 3_000;
 const POLL_MAX_ATTEMPTS  = 40; // 40 × 3s = 120s max wait
 
@@ -275,13 +277,14 @@ export async function generateSocialVideo(req: VideoRequest): Promise<VideoResul
 
     const composition = buildComposition(req);
 
-    const res = await fetch(CREATOMATE_API_URL, {
+    // v2 API: send source composition directly (not wrapped in array)
+    const res = await fetch(CREATOMATE_API_URL_V2, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify([{ source: composition }]),
+      body: JSON.stringify({ source: composition }),
     });
 
     if (!res.ok) {
@@ -289,12 +292,13 @@ export async function generateSocialVideo(req: VideoRequest): Promise<VideoResul
       throw new Error(`Creatomate submit error ${res.status}: ${err}`);
     }
 
-    const renders = await res.json() as Array<{ id: string; status: string; url?: string }>;
-    const render  = renders[0];
-    if (!render) throw new Error("Creatomate returned empty renders array");
+    // v2 returns a single render object (not an array)
+    const render = await res.json() as { id: string; status: string; url?: string };
+    if (!render?.id) throw new Error("Creatomate returned no render ID");
 
-    // If already done (rare but possible for cached renders)
-    const url = render.url ?? await pollUntilDone(render.id, apiKey);
+    // Always poll via v1 GET /renders/{id} — the immediate v2 response url
+    // is a JPG preview frame, not the final MP4. Poll until status=succeeded.
+    const url = await pollUntilDone(render.id, apiKey);
 
     console.log(`[Creatomate] ✅ Video ready: ${url}`);
     return { url, renderId: render.id, format, durationSeconds: duration };

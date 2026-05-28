@@ -44,10 +44,41 @@ const POLL_MAX_ATTEMPTS = 40;  // 40 × 3s = 120s max
 // Default UK male voice — professional, reassuring
 const DEFAULT_VOICE_ID = "en-GB-RyanNeural";
 
-// Default presenter — professional stock photo (D-ID provides these for free trials)
-// Override with your own branded presenter via D_ID_PRESENTER_URL env var
-const DEFAULT_PRESENTER_URL =
-  "https://create-images-results.d-id.com/DefaultPresenters/Noelle_f/image.jpeg";
+// Default presenter — fetched live from D-ID's /presenters endpoint on first use.
+// Override with a branded headshot via D_ID_PRESENTER_URL env var.
+// D-ID's old DefaultPresenters URLs are deprecated as of 2025.
+let _cachedPresenterUrl: string | null = null;
+
+async function getPresenterUrl(auth: string): Promise<string> {
+  // Env override always wins
+  if (process.env.D_ID_PRESENTER_URL) return process.env.D_ID_PRESENTER_URL;
+
+  // Return cached value after first successful fetch
+  if (_cachedPresenterUrl) return _cachedPresenterUrl;
+
+  try {
+    const res = await fetch(`${D_ID_API_BASE}/presenters`, {
+      headers: { Authorization: auth, Accept: "application/json" },
+    });
+    if (res.ok) {
+      const data = await res.json() as { presenters?: Array<{ image_url?: string; preview_url?: string }> };
+      const first = data.presenters?.[0];
+      const url   = first?.image_url ?? first?.preview_url;
+      if (url) {
+        _cachedPresenterUrl = url;
+        console.log(`[D-ID] Using presenter: ${url}`);
+        return url;
+      }
+    }
+  } catch {
+    // fall through to static fallback
+  }
+
+  // Static fallback — a public domain headshot that D-ID accepts
+  const fallback = "https://d-id-public-bucket.s3.us-east-1.amazonaws.com/alice.jpg";
+  console.log(`[D-ID] Presenter list unavailable, using fallback: ${fallback}`);
+  return fallback;
+}
 
 // Content pillars that benefit most from talking-head format
 export const D_ID_PREFERRED_PILLARS = new Set([
@@ -78,23 +109,14 @@ export const PILLAR_SCRIPT_INTRO: Record<string, string> = {
 function getAuthHeader(): string {
   const key = process.env.D_ID_API_KEY ?? "";
 
-  // D-ID stores keys as base64(email):apikey — e.g. "Y29udGFjd...:34Kz8E9g..."
-  // We must decode the email part and re-encode the whole credential string.
-  // Format: <base64-email>:<api-key>  →  Basic base64(<email>:<api-key>)
-  const colonIdx = key.indexOf(":");
-  if (colonIdx !== -1) {
-    const emailB64 = key.slice(0, colonIdx);
-    const apiKey   = key.slice(colonIdx + 1);
-    try {
-      const email = Buffer.from(emailB64, "base64").toString("utf8");
-      return `Basic ${Buffer.from(`${email}:${apiKey}`).toString("base64")}`;
-    } catch {
-      // fall through to raw encoding
-    }
-  }
-
-  // Fallback: treat the whole key as a raw token
-  return `Basic ${Buffer.from(key).toString("base64")}`;
+  // D-ID displays keys in the Studio as: base64(email):apikey
+  // Their API docs say to use that string directly as the Basic auth value.
+  // i.e.  Authorization: Basic <the-key-as-shown-in-studio>
+  // The key is already in the correct format — no further encoding needed.
+  //
+  // If the key contains a colon it is in the studio display format.
+  // If it is a raw base64 string (no colon) it can be used directly too.
+  return `Basic ${key}`;
 }
 
 function buildScript(req: TalkingVideoRequest): string {
@@ -161,22 +183,20 @@ export async function generateTalkingVideo(
     return null;
   }
 
-  const presenterUrl =
-    req.presenterUrl ??
-    process.env.D_ID_PRESENTER_URL ??
-    DEFAULT_PRESENTER_URL;
-
-  const voiceId = req.voiceId ?? process.env.D_ID_VOICE_ID ?? DEFAULT_VOICE_ID;
-  const scriptText = buildScript(req);
+  const auth        = getAuthHeader();
+  const presenterUrl = req.presenterUrl ?? await getPresenterUrl(auth);
+  const voiceId      = req.voiceId ?? process.env.D_ID_VOICE_ID ?? DEFAULT_VOICE_ID;
+  const scriptText   = buildScript(req);
 
   try {
     console.log(`[D-ID] Creating talking video for pillar: ${req.pillar}`);
+    console.log(`[D-ID] Presenter: ${presenterUrl}`);
     console.log(`[D-ID] Script (${scriptText.length} chars): "${scriptText.slice(0, 60)}..."`);
 
     const res = await fetch(`${D_ID_API_BASE}/talks`, {
       method: "POST",
       headers: {
-        Authorization: getAuthHeader(),
+        Authorization: auth,
         "Content-Type": "application/json",
         Accept: "application/json",
       },
