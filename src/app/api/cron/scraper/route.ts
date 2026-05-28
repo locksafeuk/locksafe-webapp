@@ -5,7 +5,7 @@
  *   1. Loads coverage data from DB to identify which UK cities have no
  *      active locksmiths (highest priority targets).
  *   2. Loads or creates a ScraperProgress record for the current cycle.
- *   3. Scrapes the next N priority cities (Google Places + SerpAPI fallback)
+ *   3. Scrapes the next N priority cities (SERP.dev places)
  *      until approaching Vercel's 300-second function limit.
  *   4. Upserts discovered leads into LocksmithLead, updates progress in DB.
  *   5. When all cities are done the cycle resets automatically.
@@ -247,26 +247,6 @@ interface ScrapedLead {
   source: "google_places" | "serper";
 }
 
-interface PlaceResult {
-  place_id: string;
-  name: string;
-  formatted_address: string;
-  rating?: number;
-  user_ratings_total?: number;
-}
-
-interface PlaceDetails {
-  name: string;
-  formatted_address: string;
-  formatted_phone_number?: string;
-  international_phone_number?: string;
-  website?: string;
-  rating?: number;
-  user_ratings_total?: number;
-  business_status?: string;
-  types?: string[];
-}
-
 interface SerperPlace {
   title?: string;
   address?: string;
@@ -278,13 +258,9 @@ interface SerperPlace {
   placeId?: string;
 }
 
-/** Per-invocation engine state. Google Places is the primary engine; once it
- *  reports quota exhaustion (or is unavailable), `googleExhausted` flips and
- *  the run switches to SerpAPI for the remaining cities. */
+/** Per-invocation engine state for SERP.dev scraping with run-level caps. */
 interface ScrapeEngine {
-  googleKey: string;
   serpKey: string | null;
-  googleExhausted: boolean;
   serpCallsThisRun: number;
   serpCapPerRun: number;
   serpMinIntervalMs: number;
@@ -309,85 +285,6 @@ async function fetchJson<T>(url: string, timeoutMs = 12000): Promise<T | null> {
   } finally {
     clearTimeout(timer);
   }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Google Places API
-// ─────────────────────────────────────────────────────────────────────────────
-const PLACES_BASE = "https://maps.googleapis.com/maps/api/place";
-
-// Google Places statuses that mean "stop using Google for this run".
-const GOOGLE_EXHAUSTED_STATUSES = new Set([
-  "OVER_QUERY_LIMIT", // per-second / per-day quota hit
-  "OVER_DAILY_LIMIT",
-  "RESOURCE_EXHAUSTED",
-  "REQUEST_DENIED", // billing disabled / key restricted — Google effectively unavailable
-]);
-
-/** Flip the engine to SerpAPI if a Places response signals quota/auth failure. */
-function noteGoogleStatus(engine: ScrapeEngine, status: string | undefined): void {
-  if (status && GOOGLE_EXHAUSTED_STATUSES.has(status) && !engine.googleExhausted) {
-    engine.googleExhausted = true;
-    console.warn(
-      `[scraper-cron] Google Places returned ${status} — free quota exhausted/unavailable. Switching to Serper.dev for the rest of this run.`,
-    );
-  }
-}
-
-async function placesTextSearch(
-  query: string,
-  engine: ScrapeEngine,
-): Promise<PlaceResult[]> {
-  const url = new URL(`${PLACES_BASE}/textsearch/json`);
-  url.searchParams.set("query", query);
-  url.searchParams.set("key", engine.googleKey);
-  url.searchParams.set("type", "locksmith");
-  url.searchParams.set("region", "gb");
-
-  const data = await fetchJson<{
-    results: PlaceResult[];
-    status: string;
-  }>(url.toString());
-  noteGoogleStatus(engine, data?.status);
-  return data?.results ?? [];
-}
-
-async function placesNearbySearch(
-  lat: number,
-  lng: number,
-  engine: ScrapeEngine,
-): Promise<PlaceResult[]> {
-  const url = new URL(`${PLACES_BASE}/nearbysearch/json`);
-  url.searchParams.set("location", `${lat},${lng}`);
-  url.searchParams.set("radius", "5000");
-  url.searchParams.set("type", "locksmith");
-  url.searchParams.set("key", engine.googleKey);
-
-  const data = await fetchJson<{
-    results: PlaceResult[];
-    status: string;
-  }>(url.toString());
-  noteGoogleStatus(engine, data?.status);
-  return data?.results ?? [];
-}
-
-async function placesGetDetails(
-  placeId: string,
-  engine: ScrapeEngine,
-): Promise<PlaceDetails | null> {
-  const url = new URL(`${PLACES_BASE}/details/json`);
-  url.searchParams.set("place_id", placeId);
-  url.searchParams.set(
-    "fields",
-    "name,formatted_address,formatted_phone_number,international_phone_number,website,rating,user_ratings_total,business_status,types",
-  );
-  url.searchParams.set("key", engine.googleKey);
-
-  const data = await fetchJson<{ result?: PlaceDetails; status: string }>(
-    url.toString(),
-  );
-  noteGoogleStatus(engine, data?.status);
-  return data?.result ?? null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -520,7 +417,7 @@ function prioritizeCities(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// City scraper — Google Places + optional SerpAPI fallback
+// City scraper — SERP.dev only
 // ─────────────────────────────────────────────────────────────────────────────
 async function scrapeCity(
   city: string,
@@ -528,91 +425,10 @@ async function scrapeCity(
   engine: ScrapeEngine,
 ): Promise<ScrapedLead[]> {
   const leads: ScrapedLead[] = [];
-  let googleCount = 0;
 
-  // ── 1+2. Google Places (PRIMARY — uses the free quota first) ────────────
-  //    Skipped if no Google key, or once the run has flipped to SerpAPI.
-  if (engine.googleKey && !engine.googleExhausted) {
-    for (const buildQuery of SEARCH_QUERIES) {
-      if (engine.googleExhausted) break; // quota hit mid-city → stop Google now
-      const results = await placesTextSearch(buildQuery(city), engine);
-      for (const place of results) {
-        if (seen.has(place.place_id) || isChain(place.name)) continue;
-        seen.add(place.place_id);
-        await sleep(80);
-        const details = await placesGetDetails(place.place_id, engine);
-        if (!details || details.business_status === "CLOSED_PERMANENTLY") continue;
-        // Reject non-locksmith results (shoe shops, glaziers, cobblers etc.)
-        if (!isLocksmithBusiness(details.name, details.types)) {
-          console.log(`[scraper-cron] Skipping non-locksmith: "${details.name}" (types: ${details.types?.join(",") ?? "none"})`);
-          continue;
-        }
-        leads.push({
-          placeId: place.place_id,
-          name: details.name,
-          city,
-          address: details.formatted_address || place.formatted_address,
-          phone:
-            details.formatted_phone_number ||
-            details.international_phone_number ||
-            "",
-          website: details.website || "",
-          rating: details.rating || 0,
-          reviewCount: details.user_ratings_total || 0,
-          source: "google_places",
-        });
-        googleCount++;
-      }
-      await sleep(200);
-    }
-
-    // Nearby search (if we have coords for this city)
-    const coords = CITY_COORDS[city];
-    if (!engine.googleExhausted && coords) {
-      const nearby = await placesNearbySearch(coords.lat, coords.lng, engine);
-      for (const place of nearby) {
-        if (seen.has(place.place_id) || isChain(place.name)) continue;
-        seen.add(place.place_id);
-        await sleep(80);
-        const details = await placesGetDetails(place.place_id, engine);
-        if (!details || details.business_status === "CLOSED_PERMANENTLY") continue;
-        // Reject non-locksmith results
-        if (!isLocksmithBusiness(details.name, details.types)) {
-          console.log(`[scraper-cron] Skipping non-locksmith: "${details.name}" (types: ${details.types?.join(",") ?? "none"})`);
-          continue;
-        }
-        leads.push({
-          placeId: place.place_id,
-          name: details.name,
-          city,
-          address: details.formatted_address || place.formatted_address,
-          phone:
-            details.formatted_phone_number ||
-            details.international_phone_number ||
-            "",
-          website: details.website || "",
-          rating: details.rating || 0,
-          reviewCount: details.user_ratings_total || 0,
-          source: "google_places",
-        });
-        googleCount++;
-      }
-      await sleep(200);
-    }
-  }
-
-  // ── 3. SerpAPI (FALLBACK) — when Google is unavailable/exhausted, or the
-  //    city came back sparse. Hard-capped per run to respect 200 req/hour.
+  // ── SERP.dev source (hard-capped per run for credit control)
   const serpKey = engine.serpKey;
-  // Serper is a pure fallback: only when Google is absent or has exhausted its
-  // free quota. (Previously this also fired on `googleCount < 5`, which burned
-  // Serper credits on nearly every city — most return <5 NEW leads after dedup —
-  // even while Google was healthy. Google-first is the intended behaviour.)
-  const serpEligible =
-    !!serpKey &&
-    (!engine.googleKey || engine.googleExhausted);
-
-  if (serpKey && serpEligible && engine.serpCallsThisRun < engine.serpCapPerRun) {
+  if (serpKey && engine.serpCallsThisRun < engine.serpCapPerRun) {
     engine.serpCallsThisRun++;
     const serpLeads = await serpSearch(city, serpKey);
     for (const lead of serpLeads) {
@@ -665,32 +481,22 @@ export async function GET(request: NextRequest) {
   const startTime = Date.now();
   const elapsed = () => Date.now() - startTime;
 
-  const googleKey =
-    process.env.GOOGLE_PLACES_API_KEY ||
-    process.env.GOOGLE_MAPS_API_KEY ||
-    "";
-  const serpKey = process.env.SERPER_API_KEY || null;
+  const serpKey = process.env.SCRAPER_SERPER_API_KEY || process.env.SERPER_API_KEY || null;
 
-  // Serper.dev is a first-class fallback engine: run if EITHER key is present.
-  // Google Places calls are skipped when no Google key is set (see scrapeCity),
-  // so Serper alone is enough to source leads.
-  if (!googleKey && !serpKey) {
+  if (!serpKey) {
     return NextResponse.json(
-      { error: "No scraper API key configured — set SERPER_API_KEY and/or GOOGLE_PLACES_API_KEY" },
+      { error: "No scraper API key configured — set SCRAPER_SERPER_API_KEY or SERPER_API_KEY" },
       { status: 500 },
     );
   }
+
   const engine: ScrapeEngine = {
-    googleKey,
     serpKey,
-    googleExhausted: false,
     serpCallsThisRun: 0,
     serpCapPerRun: SERP_MAX_CALLS_PER_RUN,
     serpMinIntervalMs: SERP_MIN_INTERVAL_MS,
   };
-  console.log(
-    `[scraper-cron] Engines: ${[googleKey && "Google Places (primary)", serpKey && "Serper.dev (fallback)"].filter(Boolean).join(", ")}`,
-  );
+  console.log("[scraper-cron] Engine: Serper.dev (SERP-only mode)");
   const siteUrl =
     process.env.NEXT_PUBLIC_SITE_URL || "https://www.locksafe.uk";
   const cronSecret = process.env.CRON_SECRET || "dev-secret";
@@ -913,7 +719,6 @@ export async function GET(request: NextRequest) {
     elapsedSeconds: Math.round(elapsed() / 1000),
     uncoveredCities: prioritizedCities.length - coveredCities.size,
     recruitTargets: recruitTargets.size,
-    googleExhausted: engine.googleExhausted,
     serpCallsThisRun: engine.serpCallsThisRun,
   });
 }
