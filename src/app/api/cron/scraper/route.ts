@@ -42,6 +42,13 @@ const SERP_MIN_INTERVAL_MS = 400;
 /** Max website email lookups per invocation to keep runtime bounded. */
 const EMAIL_LOOKUPS_PER_RUN = 90;
 
+/** Credit-saver mode: scrape only uncovered/recruit-target cities by default. */
+const SCRAPER_GAP_ONLY_MODE =
+  (process.env.SCRAPER_GAP_ONLY_MODE ?? "true").toLowerCase() !== "false";
+
+/** If every city is covered, sample a few covered cities for light maintenance checks. */
+const MAINTENANCE_COVERED_CITY_SAMPLE = 6;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // UK cities — identical list to deep-locksmith-scraper.ts
 // ─────────────────────────────────────────────────────────────────────────────
@@ -563,6 +570,22 @@ function prioritizeCities(
   });
 }
 
+function buildCityQueue(
+  prioritizedCities: string[],
+  coveredCities: Set<string>,
+  recruitTargets: Set<string>,
+): string[] {
+  if (!SCRAPER_GAP_ONLY_MODE) return prioritizedCities;
+
+  const gapCities = prioritizedCities.filter(
+    (city) => recruitTargets.has(city) || !coveredCities.has(city),
+  );
+  if (gapCities.length > 0) return gapCities;
+
+  const coveredOnly = prioritizedCities.filter((city) => coveredCities.has(city));
+  return coveredOnly.slice(0, MAINTENANCE_COVERED_CITY_SAMPLE);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // City scraper — SERP.dev only
 // ─────────────────────────────────────────────────────────────────────────────
@@ -685,6 +708,7 @@ export async function GET(request: NextRequest) {
     coveredCities,
     recruitTargets,
   );
+  const cityQueue = buildCityQueue(prioritizedCities, coveredCities, recruitTargets);
 
   // ── Step 2: Load or create scraper progress ─────────────────────────────
   type ProgressRecord = {
@@ -719,14 +743,14 @@ export async function GET(request: NextRequest) {
     })) as ProgressRecord;
 
     console.log(
-      `[scraper-cron] New cycle started. ${prioritizedCities.length} cities queued. ` +
+      `[scraper-cron] New cycle started. ${cityQueue.length} cities queued. ` +
         `${recruitTargets.size} RECRUIT targets, ` +
         `${prioritizedCities.length - coveredCities.size} uncovered cities.`,
     );
   }
 
   const completedSet = new Set(progress.completedCities);
-  const remaining = prioritizedCities.filter((c) => !completedSet.has(c));
+  const remaining = cityQueue.filter((c) => !completedSet.has(c));
 
   if (remaining.length === 0) {
     // Cycle complete — mark done, next invocation starts fresh
@@ -742,7 +766,7 @@ export async function GET(request: NextRequest) {
     await sendAdminAlert({
       title: "🔁 Scraper Cycle Complete",
       message:
-        `All ${prioritizedCities.length} UK cities scraped.\n` +
+        `All ${cityQueue.length} queued cities scraped.\n` +
         `Leads found: ${progress.totalLeadsFound} | Saved: ${progress.totalLeadsSaved}\n` +
         `Starting fresh on next run.`,
       severity: "info",
@@ -750,7 +774,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       status: "cycle_complete",
-      citiesTotal: prioritizedCities.length,
+      citiesTotal: cityQueue.length,
       leadsFound: progress.totalLeadsFound,
       leadsSaved: progress.totalLeadsSaved,
     });
@@ -840,7 +864,7 @@ export async function GET(request: NextRequest) {
   ];
   const newTotal = progress.totalLeadsFound + leadsFoundThisRun;
   const newSaved = progress.totalLeadsSaved + leadsSavedThisRun;
-  const cycleComplete = newCompletedCities.length >= prioritizedCities.length;
+  const cycleComplete = newCompletedCities.length >= cityQueue.length;
 
   await (
     prisma as unknown as {
@@ -876,7 +900,7 @@ export async function GET(request: NextRequest) {
     await sendAdminAlert({
       title: "🔁 Scraper Cycle Complete",
       message:
-        `All ${prioritizedCities.length} UK cities scraped.\n` +
+        `All ${cityQueue.length} queued cities scraped.\n` +
         `Leads found: ${newTotal} | Saved: ${newSaved}`,
       severity: "info",
     });
@@ -887,12 +911,13 @@ export async function GET(request: NextRequest) {
     citiesProcessedThisRun: completedThisRun.length,
     citiesRemainingInCycle: remainingAfter,
     citiesCompletedInCycle: newCompletedCities.length,
-    citiesTotalInCycle: prioritizedCities.length,
+    citiesTotalInCycle: cityQueue.length,
     leadsFoundThisRun,
     leadsSavedThisRun,
     totalLeadsInCycle: newTotal,
     elapsedSeconds: Math.round(elapsed() / 1000),
     uncoveredCities: prioritizedCities.length - coveredCities.size,
+    scraperGapOnlyMode: SCRAPER_GAP_ONLY_MODE,
     recruitTargets: recruitTargets.size,
     serpCallsThisRun: engine.serpCallsThisRun,
     emailLookupsThisRun: engine.emailLookupsThisRun,
