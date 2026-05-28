@@ -306,17 +306,38 @@ export default function OpportunityScoutPage() {
         </div>
       )}
 
-      {/* Fallback CPC warning — shown when all data is using industry estimates */}
-      {!loading && rows.length > 0 && rows.every((o) => parseAgentNotes(o.agentNotes).usingFallbackCpc) && (
-        <div className="p-3 rounded text-sm bg-amber-50 border border-amber-300 text-amber-900">
-          <strong>⚠ CPC estimates are based on industry benchmarks</strong>, not live Keyword Planner bids.
-          This happens when your Google Ads developer token is in test mode (not yet production-approved)
-          or when the account lacks sufficient auction history for these geos.
-          CPCs shown reflect realistic UK locksmith ranges (LOW £1.20 · MEDIUM £2.80 · HIGH £5.00)
-          but may differ from actual auction prices.
-          {" "}<a href="https://developers.google.com/google-ads/api/docs/get-started/dev-token" target="_blank" rel="noopener" className="underline">Apply for production token →</a>
-        </div>
-      )}
+      {/* Fallback CPC warning — distinguishes token-level fallback from a filtered view
+          that just happens to contain only thin-data geos. We look at the FULL scan
+          (both tabs, unfiltered) to decide which message to show. */}
+      {!loading && rows.length > 0 && rows.every((o) => parseAgentNotes(o.agentNotes).usingFallbackCpc) && (() => {
+        const allRows = [...(data?.coverage ?? []), ...(data?.recruit ?? [])];
+        const scanHasAnyLiveCpc = allRows.some((o) => !parseAgentNotes(o.agentNotes).usingFallbackCpc);
+
+        if (scanHasAnyLiveCpc) {
+          // Token works — these specific filtered geos just lack auction history.
+          return (
+            <div className="p-3 rounded text-sm bg-amber-50 border border-amber-300 text-amber-900">
+              <strong>⚠ These specific cities have no Keyword Planner auction history yet</strong>{" "}
+              — falling back to industry-benchmark CPCs (LOW £1.20 · MEDIUM £2.80 · HIGH £5.00).
+              Other cities in this scan returned live bids, so your developer token is working.
+              Try the other tab or untoggle <em>Cheap Cities only</em> to see geos with live CPC data.
+            </div>
+          );
+        }
+
+        // Every row across the entire scan is fallback — likely token in test mode
+        // OR the whole account lacks auction history. Surface both possibilities.
+        return (
+          <div className="p-3 rounded text-sm bg-amber-50 border border-amber-300 text-amber-900">
+            <strong>⚠ CPC estimates are based on industry benchmarks</strong>, not live Keyword Planner bids.
+            Every geo in this scan returned 0 bids — this happens when your Google Ads developer token
+            is in test mode (not yet production-approved) or when the account lacks any auction history.
+            CPCs shown reflect realistic UK locksmith ranges (LOW £1.20 · MEDIUM £2.80 · HIGH £5.00)
+            but may differ from actual auction prices.
+            {" "}<a href="https://developers.google.com/google-ads/api/docs/get-started/dev-token" target="_blank" rel="noopener" className="underline">Apply for production token →</a>
+          </div>
+        );
+      })()}
 
       {/* Competitor domains panel — shown when auction insights are available */}
       {!loading && (() => {
@@ -518,7 +539,7 @@ export default function OpportunityScoutPage() {
                         {(() => {
                           const n = parseAgentNotes(opp.agentNotes);
                           if (n.usingFallbackCpc) {
-                            return <span className="ml-1 text-amber-600 text-xs" title="Estimated — Keyword Planner returned 0 bids (test token)">~est</span>;
+                            return <span className="ml-1 text-amber-600 text-xs" title="Estimated — Keyword Planner returned 0 bids for this geo (no auction history)">~est</span>;
                           }
                           if (opp.medianCpcGbp < 2.0) {
                             return <span className="ml-1 text-green-600 text-xs">✓</span>;
@@ -695,8 +716,9 @@ export default function OpportunityScoutPage() {
                               {notes.usingFallbackCpc && (
                                 <div className="rounded bg-amber-50 border border-amber-200 p-2 text-xs text-amber-800">
                                   <strong>Estimated CPC</strong><br />
-                                  Keyword Planner returned 0 bids — showing industry benchmarks instead.
-                                  Activate a production developer token to get live auction prices.
+                                  Keyword Planner returned 0 bids for this geo — falling back to industry
+                                  benchmarks. Usually because the city has no recent auction history
+                                  (low search volume or no active local advertisers).
                                 </div>
                               )}
                               {(notes.competitorDomains ?? []).length > 0 && (
@@ -782,7 +804,7 @@ export default function OpportunityScoutPage() {
         <span>🆕 = keyword first scan (heavily discounted) · ⚡ = building history · ✓ = stable (4+ scans)</span>
         <span>🌙 After-hours = competitors day-part after 20:00, 24/7 platform advantage</span>
         <span>🚨 = emergency intent keyword</span>
-        <span>~est CPC = industry benchmark (test token) · ⚠ CPC hotter = running &gt;30% above prediction</span>
+        <span>~est CPC = industry benchmark (no auction history yet) · ⚠ CPC hotter = running &gt;30% above prediction</span>
         <span>Live ✓ = published campaign · ~Clicks/day = £10/day budget estimate</span>
       </div>
     </div>

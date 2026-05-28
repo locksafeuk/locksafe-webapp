@@ -94,6 +94,15 @@ export default function GoogleAdsDraftsListPage() {
   const [checkingLive, setCheckingLive] = useState(false);
   const [liveCheckedAt, setLiveCheckedAt] = useState<string | null>(null);
   const [liveError, setLiveError] = useState<string | null>(null);
+  // Reconcile (forces DB writeback) result — shown briefly after the
+  // "Sync from Google" button is clicked so the operator can see what
+  // actually changed in the local DB.
+  const [reconcileResult, setReconcileResult] = useState<{
+    applied: Array<{ campaignName: string; was: string; now: string; liveLabel: string }>;
+    deferred: Array<{ campaignName: string; locksafeStatus: string; liveLabel: string; note: string }>;
+    syncedAt: string;
+  } | null>(null);
+  const [reconciling, setReconciling] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -233,6 +242,48 @@ export default function GoogleAdsDraftsListPage() {
     }
   }, []);
 
+  /**
+   * Force a DB writeback: query Google Ads live, apply the same drift
+   * reconciliation the morning cron applies (REMOVED→PAUSED, SERVING→
+   * PUBLISHED), and refresh the table. This is the "100% sync now"
+   * button — use when you suspect drift and don't want to wait for
+   * the 07:00 UTC cron.
+   */
+  const syncFromGoogle = useCallback(async () => {
+    if (
+      !confirm(
+        "Reconcile every published draft against live Google Ads state? This will UPDATE the local DB for any drafts that have drifted (e.g. PAUSED locally but SERVING on Google, or REMOVED on Google but PUBLISHED locally).",
+      )
+    )
+      return;
+    setReconciling(true);
+    setLiveError(null);
+    setReconcileResult(null);
+    try {
+      const res = await fetch("/api/admin/google-ads/drafts/live-status?reconcile=true", {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setLiveError(data.details || data.error || "Reconcile failed");
+      } else {
+        setLiveStatus(data.statuses ?? {});
+        setLiveCheckedAt(data.syncedAt ?? new Date().toISOString());
+        setReconcileResult({
+          applied: data.applied ?? [],
+          deferred: data.deferred ?? [],
+          syncedAt: data.syncedAt ?? new Date().toISOString(),
+        });
+        // Pull the refreshed draft rows so the table reflects the new statuses.
+        await refresh();
+      }
+    } catch (err) {
+      setLiveError(String(err));
+    } finally {
+      setReconciling(false);
+    }
+  }, [refresh]);
+
   return (
     <div className="container mx-auto max-w-6xl p-6 space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -267,14 +318,68 @@ export default function GoogleAdsDraftsListPage() {
           <button
             type="button"
             onClick={checkLiveStatus}
-            disabled={checkingLive}
+            disabled={checkingLive || reconciling}
             className="rounded border border-emerald-600 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-60"
-            title="Query Google Ads live for the real serving status of every published campaign"
+            title="Query Google Ads live for the real serving status of every published campaign (read-only — does not change local DB)"
           >
             {checkingLive ? "Checking…" : "Check live status"}
           </button>
+          <button
+            type="button"
+            onClick={syncFromGoogle}
+            disabled={checkingLive || reconciling}
+            className="rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+            title="Force a full DB↔Google Ads reconciliation now. Updates local draft.status for any drift detected (REMOVED→PAUSED, SERVING→PUBLISHED). Use when you suspect the local view is stale."
+          >
+            {reconciling ? "Syncing…" : "Sync from Google"}
+          </button>
         </div>
       </div>
+
+      {reconcileResult && (
+        <div className="rounded border border-emerald-300 bg-emerald-50/60 p-3 text-sm text-emerald-900">
+          <p className="font-semibold">
+            Reconciled at {new Date(reconcileResult.syncedAt).toLocaleString()}
+          </p>
+          {reconcileResult.applied.length === 0 && reconcileResult.deferred.length === 0 ? (
+            <p className="mt-1 text-xs">
+              No drift detected — local DB already matches Google Ads.
+            </p>
+          ) : (
+            <>
+              {reconcileResult.applied.length > 0 && (
+                <div className="mt-1 text-xs">
+                  <p className="font-medium">
+                    Applied {reconcileResult.applied.length} fix
+                    {reconcileResult.applied.length === 1 ? "" : "es"}:
+                  </p>
+                  <ul className="list-disc list-inside">
+                    {reconcileResult.applied.map((a, i) => (
+                      <li key={i}>
+                        <span className="font-mono">{a.campaignName}</span>: {a.was} → {a.now} (live={a.liveLabel})
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {reconcileResult.deferred.length > 0 && (
+                <div className="mt-1 text-xs">
+                  <p className="font-medium">
+                    Deferred {reconcileResult.deferred.length} for operator review:
+                  </p>
+                  <ul className="list-disc list-inside">
+                    {reconcileResult.deferred.map((d, i) => (
+                      <li key={i}>
+                        <span className="font-mono">{d.campaignName}</span>: local={d.locksafeStatus}, live={d.liveLabel} — {d.note}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {createResult && (
         <div

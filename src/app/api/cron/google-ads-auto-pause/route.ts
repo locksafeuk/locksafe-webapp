@@ -365,21 +365,37 @@ async function runAutoPause(request: NextRequest): Promise<Response> {
         pauses.push(verdict);
         continue;
       }
-      // 1. Update local row (GoogleAdsCampaignDraft uses "PAUSED" as a valid
-      //    status in its lifecycle: DRAFT|PENDING_APPROVAL|APPROVED|...|PUBLISHED|PAUSED|FAILED).
-      await prisma.googleAdsCampaignDraft.update({
-        where: { id: campaign.id },
-        data:  { status: "PAUSED" },
-      });
-      // 2. Pause remote on Google Ads (if account info present).
-      // customerId is the dash-stripped Google Ads account ID (e.g. "1234567890"),
-      // which is what the Ads API requires in the resource path.
+      // Order matters: pause Google FIRST, only mirror to local DB if
+      // Google confirmed. The previous ordering (local first, then Google)
+      // caused silent drift whenever the API call failed (quota, network,
+      // auth) — local said PAUSED while ads kept serving and burning budget.
+      //
+      // 1. Pause remote on Google Ads. customerId is the dash-stripped
+      //    Google Ads account ID (e.g. "1234567890"), which is what the
+      //    Ads API requires in the resource path.
       let pauseResult: { ok: boolean; error?: string } | undefined;
       if (campaign.googleCampaignId && campaign.account?.customerId) {
         pauseResult = await pauseRemoteCampaign(
           campaign.googleCampaignId,
           campaign.account.customerId,
         );
+      } else {
+        // No remote handle to call — record an explicit failure so the
+        // alert below makes clear we did NOT pause the campaign.
+        pauseResult = {
+          ok: false,
+          error: "No googleCampaignId or account.customerId on draft — cannot call Google Ads API",
+        };
+      }
+
+      // 2. ONLY mirror to local DB if Google confirmed the pause. Otherwise
+      //    keep local as PUBLISHED so the next cron run will retry, and
+      //    the Telegram alert below tells the operator we couldn't pause.
+      if (pauseResult.ok) {
+        await prisma.googleAdsCampaignDraft.update({
+          where: { id: campaign.id },
+          data:  { status: "PAUSED", pausedAt: new Date(), lastSyncAt: new Date() },
+        });
       }
       pauses.push({ ...verdict, pauseResult });
 
