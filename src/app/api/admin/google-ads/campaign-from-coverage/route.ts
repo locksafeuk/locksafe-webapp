@@ -41,7 +41,7 @@ const CAMPAIGN_PLAN = {
     "Locked Out? 15 Min Response",     // 27 chars
     "Verified UK Locksmiths",           // 22 chars
     "Anti-Fraud Booking Guarantee",     // 28 chars
-    "No Surprise Fees. Ever.",          // 22 chars
+    "Full Price Agreed Upfront",        // 25 chars
     "24/7 Emergency Locksmith",         // 24 chars
     "See Prices Before You Book",       // 26 chars
     "Vetted & Insured Locksmiths",      // 27 chars
@@ -49,9 +49,9 @@ const CAMPAIGN_PLAN = {
     "Money-Back Guarantee",             // 20 chars
     "Emergency Locksmith Near You",     // 28 chars
     "Book in 60 Seconds",               // 18 chars
-    "2,500+ Safe Jobs Completed",       // 26 chars
+    "Thousands of Jobs Protected",      // 29 chars
     "Fixed Price Lock Change",          // 23 chars
-    "LockSafe — UK's Safest",           // 22 chars
+    "LockSafe — Fraud-Protected",       // 26 chars
     "Get a Locksmith Now",              // 20 chars
   ],
 

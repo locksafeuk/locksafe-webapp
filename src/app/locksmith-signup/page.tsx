@@ -280,7 +280,7 @@ export default function LocksmithSignupPage() {
             </Link>
 
             <h1 className="text-4xl font-bold text-white mb-6">
-              Join the UK's fastest growing locksmith network
+              Join the UK's anti-fraud locksmith network
             </h1>
             <p className="text-lg text-slate-400 mb-12">
               Get instant access to high-quality job leads in your area. Set

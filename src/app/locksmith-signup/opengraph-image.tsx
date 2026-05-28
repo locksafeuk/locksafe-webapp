@@ -34,7 +34,7 @@ export default async function Image() {
           }}
         >
           <span style={{ fontSize: "20px", color: "white", fontWeight: "600" }}>
-            JOIN THE UK'S FASTEST GROWING NETWORK
+            JOIN THE UK'S ANTI-FRAUD LOCKSMITH NETWORK
           </span>
         </div>
 
