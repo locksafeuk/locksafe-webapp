@@ -499,25 +499,37 @@ export const updateCampaignStatusTool: AgentTool = {
 
     const newStatus = action === "pause" ? AdStatus.PAUSED : AdStatus.ACTIVE;
 
-    const campaign = await prisma.adCampaign.update({
-      where: { id: campaignId },
-      data: {
-        status: newStatus,
-        updatedAt: new Date(),
-      },
-    });
+    try {
+      const campaign = await prisma.adCampaign.update({
+        where: { id: campaignId },
+        data: {
+          status: newStatus,
+          updatedAt: new Date(),
+        },
+      });
 
-    return {
-      success: true,
-      data: {
-        campaignId,
-        campaignName: campaign.name,
-        previousStatus: action === "pause" ? "active" : "paused",
-        newStatus: campaign.status,
-        reason,
-        updatedAt: campaign.updatedAt,
-      },
-    };
+      return {
+        success: true,
+        data: {
+          campaignId,
+          campaignName: campaign.name,
+          previousStatus: action === "pause" ? "active" : "paused",
+          newStatus: campaign.status,
+          reason,
+          updatedAt: campaign.updatedAt,
+        },
+      };
+    } catch (err: unknown) {
+      // P2025 = record not found — campaign ID no longer exists in DB, treat as no-op
+      const code = (err as { code?: string })?.code;
+      if (code === "P2025") {
+        return {
+          success: false,
+          error: `Campaign ${campaignId} not found in database — it may have been deleted. No action taken.`,
+        };
+      }
+      throw err;
+    }
   },
 };
 
@@ -540,9 +552,14 @@ export const analyzeCampaignTool: AgentTool = {
   async execute(params, context): Promise<ToolResult> {
     const campaignId = params.campaignId as string;
 
-    const campaign = await prisma.adCampaign.findUnique({
-      where: { id: campaignId },
-    });
+    let campaign;
+    try {
+      campaign = await prisma.adCampaign.findUnique({
+        where: { id: campaignId },
+      });
+    } catch (err: unknown) {
+      return { success: false, error: `DB error looking up campaign ${campaignId}: ${(err as Error).message}` };
+    }
 
     if (!campaign) {
       return { success: false, error: `Campaign not found: ${campaignId}` };
