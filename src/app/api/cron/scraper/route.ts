@@ -11,8 +11,8 @@
  *   5. When all cities are done the cycle resets automatically.
  *   6. Notifies /api/admin/leads/intake so new leads enter the outreach pipeline.
  *
- * Email extraction is deliberately skipped here (too slow for 300s budget).
- * Run `npx ts-node scripts/deep-locksmith-scraper.ts --enrich` for enrichment.
+ * Leads are kept only when strict locksmith and UK checks pass, and when an
+ * email address can be extracted from the business website.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -38,6 +38,9 @@ const SERP_MAX_CALLS_PER_RUN = 150;
 
 /** Courtesy spacing between Serper.dev calls (ms). */
 const SERP_MIN_INTERVAL_MS = 400;
+
+/** Max website email lookups per invocation to keep runtime bounded. */
+const EMAIL_LOOKUPS_PER_RUN = 90;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // UK cities — identical list to deep-locksmith-scraper.ts
@@ -242,9 +245,10 @@ interface ScrapedLead {
   address: string;
   phone: string;
   website: string;
+  email: string;
   rating: number;
   reviewCount: number;
-  source: "google_places" | "serper";
+  source: "serper";
 }
 
 interface SerperPlace {
@@ -264,6 +268,8 @@ interface ScrapeEngine {
   serpCallsThisRun: number;
   serpCapPerRun: number;
   serpMinIntervalMs: number;
+  emailLookupsThisRun: number;
+  emailLookupCapPerRun: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -285,6 +291,146 @@ async function fetchJson<T>(url: string, timeoutMs = 12000): Promise<T | null> {
   } finally {
     clearTimeout(timer);
   }
+}
+
+const LOCKSMITH_STRONG_PATTERNS = [
+  /locksmith(s)?/i,
+  /lock/i,
+  /\blocks?\b/i,
+  /lock\s*(and|&)\s*key/i,
+  /\block\s*specialist\b/i,
+  /\block\s*safe\b/i,
+  /\bkey\s*cut(ting)?\b/i,
+  /\bauto\s*locksmith\b/i,
+  /\bcar\s*keys?\b/i,
+  /\bauto\s*key(s)?\b/i,
+  /\block\s*out\b/i,
+  /\block\s*change\b/i,
+  /\bupvc\b/i,
+];
+
+const NON_LOCKSMITH_PATTERNS = [
+  /\bplumb(er|ing)?\b/i,
+  /\belectric(ian|al)?\b/i,
+  /\bbathroom\b/i,
+  /\bkitchen\b/i,
+  /\bglazi(er|ng)?\b/i,
+  /\btil(e|ing)\b/i,
+  /\bcarpet\b/i,
+  /\bpainting\b/i,
+  /\bdecorat(or|ing)\b/i,
+  /\broof(ing|er)?\b/i,
+  /\bdentist\b/i,
+  /\bsurgery\b/i,
+];
+
+const UK_POSTCODE_PATTERN = /\b([A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2})\b/i;
+
+const NON_UK_COUNTRY_TERMS = [
+  /\baustralia\b/i,
+  /\bcanada\b/i,
+  /\busa\b/i,
+  /\bunited states\b/i,
+  /\bnew zealand\b/i,
+];
+
+const EMAIL_REGEX = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
+
+const EMAIL_BLOCKLIST = [
+  "example.com",
+  "sentry.io",
+  "wixpress.com",
+  "squarespace.com",
+  "wordpress.com",
+  "cloudflare.com",
+  "noreply",
+  "no-reply",
+  "postmaster",
+  "webmaster",
+];
+
+function hasStrongLocksmithSignal(text: string): boolean {
+  return LOCKSMITH_STRONG_PATTERNS.some((p) => p.test(text));
+}
+
+function hasNonLocksmithSignal(text: string): boolean {
+  return NON_LOCKSMITH_PATTERNS.some((p) => p.test(text));
+}
+
+function isDefinitelyNonUkPhone(phone: string): boolean {
+  const compact = phone.replace(/\s+/g, "").trim();
+  if (!compact) return false;
+  if (compact.startsWith("+")) return !compact.startsWith("+44");
+  if (compact.startsWith("00")) return !compact.startsWith("0044");
+  return false;
+}
+
+function looksUkEnough(city: string, address: string, phone: string, website: string): boolean {
+  const lowerAddress = address.toLowerCase();
+  const cityInAddress = city.length > 1 && lowerAddress.includes(city.toLowerCase());
+  const hasUkPostcode = UK_POSTCODE_PATTERN.test(address);
+  const hasUkDomain = /\.co\.uk\b|\.uk\b/i.test(website);
+  const isUkPhone = Boolean(phone) && !isDefinitelyNonUkPhone(phone);
+  const nonUkCountry = NON_UK_COUNTRY_TERMS.some((p) => p.test(address));
+
+  if (nonUkCountry || isDefinitelyNonUkPhone(phone)) return false;
+  return cityInAddress || hasUkPostcode || hasUkDomain || isUkPhone;
+}
+
+function looksLikeStrictLocksmith(lead: Pick<ScrapedLead, "name" | "address" | "website">): boolean {
+  const text = `${lead.name} ${lead.address} ${lead.website}`;
+  const positive = hasStrongLocksmithSignal(text);
+  const negative = hasNonLocksmithSignal(text);
+  return positive && !negative;
+}
+
+function sanitizeEmail(email: string): string {
+  return email.toLowerCase().trim().replace(/[),.;]+$/, "");
+}
+
+function extractEmailsFromHtml(html: string): string[] {
+  const matches = html.match(EMAIL_REGEX) ?? [];
+  const emails = matches
+    .map((m) => sanitizeEmail(m))
+    .filter((e) => e.includes("@") && !EMAIL_BLOCKLIST.some((b) => e.includes(b)));
+  return [...new Set(emails)];
+}
+
+async function fetchHtml(url: string, timeoutMs = 7000): Promise<string> {
+  try {
+    const normalized = url.startsWith("http") ? url : `https://${url}`;
+    new URL(normalized);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(normalized, {
+        signal: controller.signal,
+        headers: { "User-Agent": "LocksafeBot/1.0 (+https://www.locksafe.uk)" },
+      });
+      if (!res.ok) return "";
+      return (await res.text()).slice(0, 300_000);
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch {
+    return "";
+  }
+}
+
+async function extractEmailFromWebsite(websiteUrl: string): Promise<string> {
+  if (!websiteUrl) return "";
+
+  const base = (websiteUrl.startsWith("http") ? websiteUrl : `https://${websiteUrl}`).replace(/\/$/, "");
+  const pages = [base, `${base}/contact`, `${base}/contact-us`];
+
+  for (const page of pages) {
+    const html = await fetchHtml(page);
+    if (!html) continue;
+    const emails = extractEmailsFromHtml(html);
+    if (emails.length > 0) return emails[0];
+  }
+
+  return "";
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -340,6 +486,7 @@ async function serpSearch(
         address: p.address ?? "",
         phone: p.phoneNumber ?? "",
         website: p.website ?? "",
+        email: "",
         rating: p.rating ?? 0,
         reviewCount: p.ratingCount ?? 0,
         source: "serper",
@@ -433,11 +580,35 @@ async function scrapeCity(
     const serpLeads = await serpSearch(city, serpKey);
     for (const lead of serpLeads) {
       if (seen.has(lead.placeId) || isChain(lead.name)) continue;
-      // Serper has no types — use name-based locksmith check
-      if (!isLocksmithBusiness(lead.name, undefined)) {
+
+      if (!looksLikeStrictLocksmith(lead)) {
         console.log(`[scraper-cron] Serper: skipping non-locksmith "${lead.name}"`);
         continue;
       }
+
+      if (!looksUkEnough(city, lead.address, lead.phone, lead.website)) {
+        console.log(`[scraper-cron] Serper: skipping non-UK "${lead.name}"`);
+        continue;
+      }
+
+      if (!lead.website) {
+        console.log(`[scraper-cron] Serper: skipping without website "${lead.name}"`);
+        continue;
+      }
+
+      if (engine.emailLookupsThisRun >= engine.emailLookupCapPerRun) {
+        console.warn("[scraper-cron] Email lookup cap reached; skipping remaining candidates this run.");
+        break;
+      }
+
+      engine.emailLookupsThisRun++;
+      const email = await extractEmailFromWebsite(lead.website);
+      if (!email) {
+        console.log(`[scraper-cron] Serper: skipping without email "${lead.name}"`);
+        continue;
+      }
+
+      lead.email = email;
       seen.add(lead.placeId);
       leads.push(lead);
     }
@@ -495,6 +666,8 @@ export async function GET(request: NextRequest) {
     serpCallsThisRun: 0,
     serpCapPerRun: SERP_MAX_CALLS_PER_RUN,
     serpMinIntervalMs: SERP_MIN_INTERVAL_MS,
+    emailLookupsThisRun: 0,
+    emailLookupCapPerRun: EMAIL_LOOKUPS_PER_RUN,
   };
   console.log("[scraper-cron] Engine: Serper.dev (SERP-only mode)");
   const siteUrl =
@@ -630,6 +803,7 @@ export async function GET(request: NextRequest) {
             address: lead.address,
             phone: lead.phone || null,
             website: lead.website || null,
+            email: lead.email || null,
             rating: lead.rating,
             reviewCount: lead.reviewCount,
           },
@@ -640,6 +814,7 @@ export async function GET(request: NextRequest) {
             address: lead.address,
             phone: lead.phone || null,
             website: lead.website || null,
+            email: lead.email || null,
             rating: lead.rating,
             reviewCount: lead.reviewCount,
             status: "new",
@@ -720,5 +895,6 @@ export async function GET(request: NextRequest) {
     uncoveredCities: prioritizedCities.length - coveredCities.size,
     recruitTargets: recruitTargets.size,
     serpCallsThisRun: engine.serpCallsThisRun,
+    emailLookupsThisRun: engine.emailLookupsThisRun,
   });
 }
