@@ -33,7 +33,7 @@ const DEFAULT_HEADLINES = [
 
 const DEFAULT_DESCRIPTIONS = [
   "Vetted, insured locksmiths to your door in under 30 minutes.",
-  "Fixed price. No surprise call-out fees. Book in 60 seconds.",
+  "Fixed upfront price agreed before any work starts. Book in 60 seconds.",
 ];
 
 export default function ManualCreateGoogleAdsDraftPage() {

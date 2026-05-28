@@ -3270,10 +3270,10 @@ export const generateCityFAQ = (city: CityData) => [
 export const generateCitySchema = (city: CityData, siteUrl: string) => ({
   "@context": "https://schema.org",
   "@type": "LocalBusiness",
-  "@id": `${siteUrl}/locksmith-${city.slug}#business`,
+  "@id": `${siteUrl}/locksmith-city/${city.slug}#business`,
   name: `LockSafe Emergency Locksmith ${city.name}`,
   description: `24/7 Emergency Locksmith Service in ${city.name}, ${city.region}. Verified, insured locksmiths with transparent pricing, GPS tracking, and anti-fraud protection.`,
-  url: `${siteUrl}/locksmith-${city.slug}`,
+  url: `${siteUrl}/locksmith-city/${city.slug}`,
   telephone: "+44-20-4577-1989",
   priceRange: "££",
   image: `${siteUrl}/og-locksmith-${city.slug}.jpg`,
@@ -3315,7 +3315,6 @@ export const generateCitySchema = (city: CityData, siteUrl: string) => ({
   aggregateRating: {
     "@type": "AggregateRating",
     ratingValue: "4.9",
-    reviewCount: "1247",
     bestRating: "5",
     worstRating: "1",
   },
@@ -3362,7 +3361,7 @@ export const generateCityBreadcrumbSchema = (
       "@type": "ListItem",
       position: 3,
       name: `Locksmith ${city.name}`,
-      item: `${siteUrl}/locksmith-${city.slug}`,
+      item: `${siteUrl}/locksmith-city/${city.slug}`,
     },
   ],
 });
@@ -3375,7 +3374,7 @@ export const generateCityServiceSchema = (city: CityData, siteUrl: string) => ({
   provider: {
     "@type": "LocalBusiness",
     name: `LockSafe ${city.name}`,
-    url: `${siteUrl}/locksmith-${city.slug}`,
+    url: `${siteUrl}/locksmith-city/${city.slug}`,
   },
   areaServed: {
     "@type": "City",

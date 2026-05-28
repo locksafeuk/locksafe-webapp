@@ -209,7 +209,7 @@ export default async function AdminSeoCoveragePage() {
                     <td className="px-4 py-2 text-right text-slate-700">{c.avgResponseTime}</td>
                     <td className="px-4 py-2 text-right">
                       <a
-                        href={`/locksmith-${c.slug}`}
+                        href={`/locksmith-city/${c.slug}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-amber-700 hover:text-amber-800 inline-flex items-center gap-1 text-xs"

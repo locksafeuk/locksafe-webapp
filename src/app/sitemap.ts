@@ -162,7 +162,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // City-specific pages - all major UK cities
   const cityPages: MetadataRoute.Sitemap = getAllCitySlugs().map((citySlug) => ({
-    url: `${baseUrl}/locksmith-${citySlug}`,
+    url: `${baseUrl}/locksmith-city/${citySlug}`,
     lastModified: new Date(),
     changeFrequency: "weekly" as const,
     priority: 0.85, // High priority for local SEO
@@ -274,7 +274,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   for (const cityData of Object.values(ukCitiesData)) {
     for (const area of cityData.areas) {
       cityAreaPages.push({
-        url: `${baseUrl}/locksmith-${cityData.slug}/${slugify(area)}`,
+        url: `${baseUrl}/locksmith-city/${cityData.slug}/${slugify(area)}`,
         lastModified: new Date(),
         changeFrequency: "weekly" as const,
         priority: 0.7,

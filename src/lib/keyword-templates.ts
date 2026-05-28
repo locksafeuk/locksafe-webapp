@@ -76,17 +76,17 @@ export const KEYWORD_TEMPLATES: KeywordTemplate[] = [
         "Looking for a locksmith near you in {city}? LockSafe UK connects you with vetted, insured local locksmiths across {region}. {response} response. Get a free quote now.",
       h1: "Locksmith Near Me in {city}",
       intro:
-        "Need a locksmith near you in {city}? LockSafe UK matches you with vetted, fully-insured local locksmiths covering {areas} and surrounding areas. Transparent pricing, no call-out fee, and a {response} response on emergency jobs.",
+        "Need a locksmith near you in {city}? LockSafe UK matches you with vetted, fully-insured local locksmiths covering {areas} and surrounding areas. Transparent upfront pricing with an assessment fee shown before you commit, and a {response} response on emergency jobs.",
       emotionalHook:
         "Locked out in {city}? Help is closer than you think — vetted locksmiths near you, on-site fast.",
       heroSubcopy:
         "Real locksmiths from {city}. No middlemen, no inflated quotes. Just a fast, fair fix.",
       seoCopy:
-        "When you search for a locksmith near me in {city}, you need someone who can actually get to you fast — not a national call-centre that subcontracts to whoever is cheapest. LockSafe UK takes a different approach. Every locksmith on our network covers a specific patch of {region} ({areas} and beyond), so the technician you book is genuinely local. They know the streets, the landmarks ({landmarks}), and the typical lock setups in {city} properties. Whether you're locked out of your home or car, need a lock changed after a break-in, or want fresh keys cut on the spot, our {city} locksmiths can usually be on-site within {response}. Pricing is transparent — you'll see a fair fixed quote before any work begins, with no hidden call-out charge.",
+        "When you search for a locksmith near me in {city}, you need someone who can actually get to you fast — not a national call-centre that subcontracts to whoever is cheapest. LockSafe UK takes a different approach. Every locksmith on our network covers a specific patch of {region} ({areas} and beyond), so the technician you book is genuinely local. They know the streets, the landmarks ({landmarks}), and the typical lock setups in {city} properties. Whether you're locked out of your home or car, need a lock changed after a break-in, or want fresh keys cut on the spot, our {city} locksmiths can usually be on-site within {response}. Pricing is transparent — you'll see a fair fixed quote before any work begins, with no hidden extras.",
       trustBullets: [
         "Vetted & DBS-checked locksmiths covering {city}",
         "{response} average response across {region}",
-        "Fixed pricing — no call-out fee, no surprise add-ons",
+        "Fixed upfront pricing — assessment fee shown before you commit",
         "Fully insured, 12-month workmanship guarantee",
         "Serving {areas} and surrounding postcodes",
       ],
@@ -99,7 +99,7 @@ export const KEYWORD_TEMPLATES: KeywordTemplate[] = [
         {
           question: "How much does a locksmith cost in {city}?",
           answer:
-            "Typical lockouts in {city} cost £65–£120 depending on the lock type and time of day. You'll see a fair fixed quote up-front — no hidden call-out fee.",
+            "Typical lockouts in {city} cost £65–£120 depending on the lock type and time of day. An upfront assessment fee applies (typically £25–£49), then a fixed quote before any work begins — no hidden extras.",
         },
         {
           question: "Are your {city} locksmiths insured and vetted?",
@@ -122,7 +122,7 @@ export const KEYWORD_TEMPLATES: KeywordTemplate[] = [
     content: {
       metaTitle: "Emergency Locksmith Near Me in {city} | 24/7 Callout | LockSafe UK",
       metaDescription:
-        "24/7 emergency locksmith near you in {city}. Locked out, broken key, or break-in? Vetted local locksmiths, {response} response, no call-out fee. Call now.",
+        "24/7 emergency locksmith near you in {city}. Locked out, broken key, or break-in? Vetted local locksmiths, {response} response, upfront pricing. Call now.",
       h1: "Emergency Locksmith Near Me in {city}",
       intro:
         "Locked out, broken key, or post-burglary lock-change in {city}? An emergency locksmith near you is one tap away. LockSafe UK dispatches the closest vetted locksmith — {response} response, 24/7, across {areas}.",
@@ -151,9 +151,9 @@ export const KEYWORD_TEMPLATES: KeywordTemplate[] = [
             "No — our {city} locksmiths use non-destructive entry techniques wherever possible. Drilling is a last resort and you'll be told before any work begins.",
         },
         {
-          question: "Is there a call-out fee for emergency locksmiths in {city}?",
+          question: "What does an emergency locksmith cost in {city}?",
           answer:
-            "No call-out fee. You'll see a fixed all-in quote before the locksmith starts work, including any out-of-hours surcharge.",
+            "An assessment fee applies (set by each locksmith, typically £25–£49) and is shown upfront before you commit. You'll see the full all-in quote before any work begins, including any out-of-hours surcharge.",
         },
       ],
       ctaLabel: "Get an emergency locksmith in {city}",
@@ -171,7 +171,7 @@ export const KEYWORD_TEMPLATES: KeywordTemplate[] = [
     content: {
       metaTitle: "24 Hour Locksmith Near Me in {city} | Round-the-Clock Cover | LockSafe UK",
       metaDescription:
-        "24 hour locksmith service in {city}. Day, night, weekend, bank holiday. {response} response. Vetted local locksmiths across {region}. No call-out fee.",
+        "24 hour locksmith service in {city}. Day, night, weekend, bank holiday. {response} response. Vetted local locksmiths across {region}. Upfront assessment fee.",
       h1: "24 Hour Locksmith Near Me in {city}",
       intro:
         "Lock problems don't keep office hours — and neither do we. A 24 hour locksmith near you in {city} is on duty right now, with a {response} average response across {areas}.",
@@ -311,7 +311,7 @@ export const KEYWORD_TEMPLATES: KeywordTemplate[] = [
         "Same-day lock changes in {city}",
         "BS3621 & TS007 3-star — insurance-approved",
         "Covers {areas} and surrounding postcodes",
-        "Fixed pricing, no call-out fee",
+        "Fixed upfront pricing — assessment fee shown before you commit",
         "12-month workmanship guarantee",
       ],
       faqs: [
@@ -398,7 +398,7 @@ export const KEYWORD_TEMPLATES: KeywordTemplate[] = [
     content: {
       metaTitle: "Locked Out Locksmith Near Me in {city} | Fast Entry | LockSafe UK",
       metaDescription:
-        "Locked out in {city}? A locksmith near you is {response} away. Non-destructive entry, no call-out fee. Covers {region}.",
+        "Locked out in {city}? A locksmith near you is {response} away. Non-destructive entry, upfront assessment fee. Covers {region}.",
       h1: "Locked Out in {city}? Locksmith Near Me",
       intro:
         "Locked out of your home in {city}? Don't panic and don't kick the door — a locksmith near you can be on-site in {response} with non-destructive entry tools.",
@@ -410,7 +410,7 @@ export const KEYWORD_TEMPLATES: KeywordTemplate[] = [
       trustBullets: [
         "Non-destructive entry first — door stays intact",
         "{response} response in {city}",
-        "Fixed price, no call-out fee",
+        "Fixed upfront price — assessment fee shown before you commit",
         "DBS-checked, fully insured locksmiths",
       ],
       faqs: [

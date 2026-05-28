@@ -1,0 +1,5 @@
+FAIL | Reliability daily prod | exit=1
+PASS | Agents runtime verify
+FAIL | System test prod | exit=1
+FAIL | Source + Prisma fast validation | exit=1
+RESULT | FAIL | count=3

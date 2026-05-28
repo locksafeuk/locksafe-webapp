@@ -235,7 +235,7 @@ export default async function KeywordLandingPage({ params }: Props) {
           Ready for a locksmith in {match.city.name}?
         </h2>
         <p className="text-slate-600 mb-6">
-          Get a free fixed quote in under a minute. No call-out fee, no obligation.
+          Get a quote in under a minute. Upfront assessment fee shown before you commit — no hidden extras.
         </p>
         <Link
           href={`/request?city=${match.city.slug}&intent=${match.template.slug}`}

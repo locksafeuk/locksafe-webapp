@@ -685,11 +685,11 @@ export default function LocksmithRickmansworthPage() {
             <div className="mt-12 flex flex-wrap justify-center items-center gap-8 opacity-60">
               <div className="flex items-center gap-2">
                 <Award className="w-6 h-6 text-slate-600" />
-                <span className="text-slate-600 font-medium">MLA Approved</span>
+                <span className="text-slate-600 font-medium">Anti-Fraud Protected</span>
               </div>
               <div className="flex items-center gap-2">
                 <BadgeCheck className="w-6 h-6 text-slate-600" />
-                <span className="text-slate-600 font-medium">Which? Trusted Trader</span>
+                <span className="text-slate-600 font-medium">GPS Tracked</span>
               </div>
               <div className="flex items-center gap-2">
                 <Shield className="w-6 h-6 text-slate-600" />

@@ -10,9 +10,9 @@ export const intentGeoUrl = (slug: string, citySlug: string) =>
 export const serviceUrl = (service: string) => `/services/${service}`;
 export const serviceGeoUrl = (service: string, citySlug: string) =>
   `/services/${service}/in/${citySlug}`;
-export const cityUrl = (citySlug: string) => `/locksmith-${citySlug}`;
+export const cityUrl = (citySlug: string) => `/locksmith-city/${citySlug}`;
 export const cityAreaUrl = (citySlug: string, areaSlug: string) =>
-  `/locksmith-${citySlug}/${areaSlug}`;
+  `/locksmith-city/${citySlug}/${areaSlug}`;
 export const postcodeUrl = (postcodeSlug: string) =>
   `/emergency-locksmith-${postcodeSlug}`;
 export const postcodeServiceUrl = (postcodeSlug: string, service: string) =>

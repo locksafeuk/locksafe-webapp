@@ -58,7 +58,7 @@ const CAMPAIGN_PLAN = {
   /** 4 RSA descriptions (≤ 90 chars each) */
   descriptions: [
     "Locked out? LockSafe connects you with vetted, insured locksmiths in under 30 minutes.",
-    "Anti-fraud protection built in. See upfront prices with no surprise call-out fees.",
+    "Anti-fraud protection built in. Full price agreed upfront — no hidden extras.",
     "All LockSafe locksmiths are background-checked, GPS-tracked & fully insured. Book now.",
     "Emergency lockout service. Transparent pricing. Money-back guarantee available 24/7.",
   ],

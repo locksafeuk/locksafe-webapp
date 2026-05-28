@@ -75,7 +75,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     openGraph: {
       title: `Emergency Locksmith ${cityData.name} | LockSafe UK`,
       description: `24/7 verified locksmiths in ${cityData.name}. ${cityData.avgResponseTime} response, transparent pricing, GPS tracking & anti-fraud protection.`,
-      url: `${SITE_URL}/locksmith-${city}`,
+      url: `${SITE_URL}/locksmith-city/${city}`,
       siteName: "LockSafe UK",
       type: "website",
       locale: "en_GB",
@@ -86,7 +86,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       description: `24/7 verified locksmiths in ${cityData.name}. ${cityData.avgResponseTime} response time.`,
     },
     alternates: {
-      canonical: `${SITE_URL}/locksmith-${city}`,
+      canonical: `${SITE_URL}/locksmith-city/${city}`,
     },
     robots: {
       index: true,
@@ -158,7 +158,7 @@ export default async function CityPage({ params }: Props) {
     {
       icon: Wrench,
       title: "Lock Repair",
-      description: "UPVC mechanism repairs, euro cylinder replacement, multipoint lock fixes.",
+      description: "uPVC mechanism repairs, euro cylinder replacement, multipoint lock fixes.",
     },
     {
       icon: Shield,
@@ -184,7 +184,7 @@ export default async function CityPage({ params }: Props) {
     { icon: Banknote, text: "No hidden fees - transparent pricing" },
     { icon: Navigation, text: "GPS tracked for your safety" },
     { icon: FileText, text: "Digital job reports provided" },
-    { icon: Users, text: "4.9/5 from 1,200+ reviews" },
+    { icon: Users, text: "Rated 4.9/5 by customers" },
   ];
 
   return (
@@ -416,10 +416,9 @@ export default async function CityPage({ params }: Props) {
                 <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
                   <Clock className="w-8 h-8 text-orange-600" />
                 </div>
-                <h3 className="font-bold text-xl mb-3">Fastest Response in {cityData.name}</h3>
+                <h3 className="font-bold text-xl mb-3">Fast Response in {cityData.name}</h3>
                 <p className="text-slate-600 leading-relaxed">
                   Our network of verified locksmiths across {cityData.name} ensures you get help within {cityData.avgResponseTime}, day or night.
-                  {cityData.localTips[0]}.
                 </p>
               </article>
 
@@ -556,7 +555,7 @@ export default async function CityPage({ params }: Props) {
                 {nearbyCities.map((nearbyCity) => (
                   <Link
                     key={nearbyCity.slug}
-                    href={`/locksmith-${nearbyCity.slug}`}
+                    href={`/locksmith-city/${nearbyCity.slug}`}
                     className="bg-white px-4 py-2 rounded-full text-sm font-medium text-slate-700 hover:text-orange-600 hover:bg-orange-50 transition-colors border border-slate-200"
                   >
                     Locksmith {nearbyCity.name}

@@ -248,7 +248,7 @@ Return as JSON array with: headline, body, cta, framework, emotionalAngle`;
     variants = [
       {
         headline: "Locked Out? Help Arrives in 30 Minutes",
-        body: "Verified, insured locksmiths available 24/7 across the UK. No call-out fees, transparent pricing.",
+        body: "Verified, insured locksmiths available 24/7 across the UK. Upfront assessment fee. Transparent pricing throughout.",
         cta: "Get Help Now",
         framework: "PAS",
         emotionalAngle: "relief",
