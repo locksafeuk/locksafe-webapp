@@ -455,8 +455,10 @@ export async function runAgentHeartbeats(): Promise<{
   // every cycle regardless of what the DB says. Auto-resume guardian status on every tick.
   try {
     const { default: prismaGuardian } = await import("@/lib/db");
+    // COO + CTO = operational guardians (dispatch + infra)
+    // CMO = marketing guardian — 429s and API hiccups must not silence it
     await prismaGuardian.agent.updateMany({
-      where: { name: { in: ["coo", "cto"] }, status: "paused" },
+      where: { name: { in: ["coo", "cto", "cmo"] }, status: "paused" },
       data: { status: "active", nextHeartbeat: null },
     });
   } catch (e) {

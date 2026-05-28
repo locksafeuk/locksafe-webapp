@@ -112,8 +112,11 @@ export async function runCMOHeartbeat(): Promise<void> {
 
   const result = await executeHeartbeat("cmo");
 
+  // Log errors but never throw — tool-level failures (429s, missing records, API
+  // hiccups) are non-fatal. Throwing here counts as a failed execution in the DB
+  // and triggers the CEO's auto-pause after 3 failures, silencing the CMO entirely.
   if (result.errors.length > 0) {
-    throw new Error(`[CMO] Heartbeat errors: ${result.errors.join("; ")}`);
+    console.warn(`[CMO] Heartbeat completed with non-fatal errors: ${result.errors.join("; ")}`);
   }
 
   console.log(`[CMO] Heartbeat completed:
