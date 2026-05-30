@@ -225,6 +225,11 @@ export async function POST(
       for (const adSet of campaign.adSets) {
         const productSetId = productSetIdByAdSetId.get(adSet.id);
         const isCatalog = adSet.isCatalogAdset && Boolean(productSetId);
+        // Catalog retargeting adsets must pass `catalogRetargetEvent` so Meta
+        // builds the audience from past pixel events on items in the product
+        // set. Without it, the adset has no audience source and Meta rejects
+        // publish with subcode 2446395 ("configured audience is not valid").
+        const isCatalogRetargeting = isCatalog && adSet.catalogMode === 'retargeting';
 
         const metaAdSet = await metaClient.createAdSet({
           campaignId: metaCampaignId,
@@ -242,6 +247,7 @@ export async function POST(
           endTime: adSet.endDate || campaign.endDate || undefined,
           status: 'PAUSED',
           ...(isCatalog && productSetId ? { productSetId } : {}),
+          ...(isCatalogRetargeting ? { catalogRetargetEvent: 'ViewContent' as const } : {}),
         });
         metaAdSetIds.push(metaAdSet.id);
 
