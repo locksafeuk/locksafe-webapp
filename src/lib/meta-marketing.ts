@@ -79,6 +79,13 @@ export interface MetaTargeting {
   publisher_platforms?: string[];
   facebook_positions?: string[];
   instagram_positions?: string[];
+  /**
+   * Advantage+ Audience flag. When set to 1, Meta treats detailed targeting
+   * (interests/behaviors) as suggestions and is allowed to deliver to users
+   * outside the literal audience when that helps performance. Resolves
+   * subcode 2446395 ("audience too narrow") for most local-service ads.
+   */
+  targeting_automation?: { advantage_audience?: 0 | 1 };
 }
 
 export interface MetaAdCreative {
@@ -339,8 +346,8 @@ export class MetaMarketingClient {
       }
     }
 
-    // Path B: fall back to regex on the message (Meta sometimes only puts the
-    // JSON inside error_user_msg, which is already concatenated into err.message)
+    // Path B: regex fallback on the message (Meta sometimes only puts the
+    // JSON inside error_user_msg, which is already concatenated into message)
     if (Object.keys(remap).length === 0) {
       const re =
         /"deprecated_interest_id":"(\d+)"[^}]*?(?:"alternative_interest_id":"(\d+)"[^}]*?"alternative_interest_name":"([^"]+)")?/g;
@@ -386,11 +393,13 @@ export class MetaMarketingClient {
    *   • Names without `id` are resolved via Targeting Search; unresolved
    *     terms are dropped (empty interests array is valid, an invalid one
    *     fails the whole publish).
-   *   • Known deprecated interests are swapped via DEPRECATED_INTEREST_REMAP
-   *     so we don't trip subcode 1870247.
+   *   • Known deprecated interests are swapped via DEPRECATED_INTEREST_REMAP.
    *   • Unknown fields (e.g. AI-generated `description`) are stripped — Meta
    *     rejects the whole adset with subcode 1487079 if any non-spec field
    *     is present.
+   *   • Advantage+ Audience (`targeting_automation.advantage_audience = 1`)
+   *     is enabled by default so Meta can broaden beyond literal targeting
+   *     when the audience would otherwise be too narrow (subcode 2446395).
    */
   private async sanitizeTargeting(targeting: MetaTargeting): Promise<MetaTargeting> {
     // Only fields Meta accepts on a targeting spec. Anything else (e.g. an
@@ -407,6 +416,7 @@ export class MetaMarketingClient {
       'publisher_platforms',
       'facebook_positions',
       'instagram_positions',
+      'targeting_automation',
     ];
     const cleaned: MetaTargeting = {};
     for (const key of ALLOWED_KEYS) {
@@ -452,7 +462,6 @@ export class MetaMarketingClient {
           resolved = replacement;
         }
 
-        // Avoid duplicates after remap
         if (!out.some((existing) => existing.id === resolved!.id)) {
           out.push(resolved);
         }
@@ -478,6 +487,15 @@ export class MetaMarketingClient {
       cleaned.behaviors = behaviors;
     } else {
       delete cleaned.behaviors;
+    }
+
+    // Enable Advantage+ Audience by default. Meta uses our interests/geo as
+    // suggestions and can deliver outside them when that improves results —
+    // this is the recommended default for local-service LEADS adsets and
+    // resolves the "audience too narrow" publish error (subcode 2446395).
+    // Caller can override by passing targeting_automation explicitly.
+    if (!cleaned.targeting_automation) {
+      cleaned.targeting_automation = { advantage_audience: 1 };
     }
 
     return cleaned;
@@ -613,10 +631,9 @@ export class MetaMarketingClient {
     catalogRetargetEvent?: 'ViewContent' | 'AddToCart' | 'InitiateCheckout';
   }): Promise<{ id: string }> {
     // Meta requires interests/behaviors to be objects with `id`. The AI
-    // generator stores names only ([{ name: "Home Security" }] or even raw
-    // strings), so we must resolve them via the Targeting Search API. Any
-    // term that can't be resolved is dropped silently — empty interests is
-    // valid, an unresolved name is a publish-killing (#100) error.
+    // generator stores names only, so sanitizeTargeting resolves them via
+    // the Targeting Search API. It also remaps known deprecated interests
+    // and enables Advantage+ Audience by default.
     const sanitizedTargeting = await this.sanitizeTargeting(params.targeting);
 
     const body: Record<string, unknown> = {
@@ -682,8 +699,7 @@ export class MetaMarketingClient {
     }
 
     // First attempt. If Meta tells us a targeted interest is deprecated
-    // (subcode 1870247), parse the alternatives out of the error, learn them
-    // for the rest of this process, and retry once.
+    // (subcode 1870247), parse the alternatives, learn them, and retry once.
     try {
       return await this.request<{ id: string }>(`/${this.adAccountId}/adsets`, 'POST', body);
     } catch (err) {
