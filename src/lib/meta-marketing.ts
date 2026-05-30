@@ -163,6 +163,69 @@ export const CTA_TYPES = [
   'SUBSCRIBE',
 ] as const;
 
+/**
+ * Parse Meta's subcode 1870247 error_user_msg into a list of interest
+ * substitutions. The msg is typically a JSON-encoded array like:
+ *   [{"deprecated_interest_id":"6003093197417",
+ *     "deprecated_interest_name":"Consumer protection",
+ *     "alternative_interest_id":"6866302901418",
+ *     "alternative_interest_name":"Business and Finance"}]
+ * but Meta occasionally wraps it in prose, so we extract the first JSON array.
+ */
+function extractDeprecatedInterestAlternatives(
+  msg: string | undefined
+): Array<{ from: string; toId: string; toName: string }> {
+  if (!msg) return [];
+  const match = msg.match(/\[\s*\{[\s\S]*\}\s*\]/);
+  if (!match) return [];
+  try {
+    const parsed = JSON.parse(match[0]) as Array<{
+      deprecated_interest_id?: string;
+      alternative_interest_id?: string;
+      alternative_interest_name?: string;
+    }>;
+    return parsed
+      .filter((p) => p.deprecated_interest_id && p.alternative_interest_id)
+      .map((p) => ({
+        from: String(p.deprecated_interest_id),
+        toId: String(p.alternative_interest_id),
+        toName: String(p.alternative_interest_name || 'Alternative interest'),
+      }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Apply Meta-suggested interest substitutions to a targeting spec.
+ * Deprecated IDs without an alternative are dropped. Duplicates that result
+ * from a swap are collapsed (Meta rejects duplicates).
+ */
+function applyInterestAlternatives(
+  targeting: MetaTargeting,
+  alts: Array<{ from: string; toId: string; toName: string }>
+): MetaTargeting {
+  if (!targeting.interests || targeting.interests.length === 0) return targeting;
+  const altById = new Map(alts.map((a) => [a.from, a]));
+  const swapped: Array<{ id: string; name: string }> = [];
+  for (const interest of targeting.interests) {
+    const alt = altById.get(String(interest.id));
+    if (alt) {
+      swapped.push({ id: alt.toId, name: alt.toName });
+    } else {
+      swapped.push(interest);
+    }
+  }
+  // Dedupe by id (Meta rejects duplicates after a swap collapses two into one).
+  const seen = new Set<string>();
+  const deduped = swapped.filter((i) => {
+    if (seen.has(i.id)) return false;
+    seen.add(i.id);
+    return true;
+  });
+  return { ...targeting, interests: deduped };
+}
+
 // Main API Client Class
 export class MetaMarketingClient {
   private accessToken: string;
@@ -305,8 +368,7 @@ export class MetaMarketingClient {
    *     is present.
    *   • Empty `custom_audiences` / `excluded_custom_audiences` arrays are
    *     dropped — Meta treats `custom_audiences: []` as "audience specified
-   *     but empty" and fails publish with subcode 2446395 ("The configured
-   *     audience is not valid").
+   *     but empty" and fails publish with subcode 2446395.
    */
   private async sanitizeTargeting(targeting: MetaTargeting): Promise<MetaTargeting> {
     // Only fields Meta accepts on a targeting spec. Anything else (e.g. an
@@ -332,9 +394,8 @@ export class MetaMarketingClient {
       }
     }
 
-    // Drop empty custom-audience arrays. Meta interprets `custom_audiences: []`
-    // as "audience explicitly specified" and rejects publish with subcode
-    // 2446395. The field must be absent (not empty) when no CA is targeted.
+    // Drop empty custom-audience arrays (subcode 2446395 — "configured
+    // audience is not valid").
     for (const key of ['custom_audiences', 'excluded_custom_audiences'] as const) {
       const value = cleaned[key];
       if (Array.isArray(value) && value.length === 0) {
@@ -521,69 +582,85 @@ export class MetaMarketingClient {
     // valid, an unresolved name is a publish-killing (#100) error.
     const sanitizedTargeting = await this.sanitizeTargeting(params.targeting);
 
-    const body: Record<string, unknown> = {
-      campaign_id: params.campaignId,
-      name: params.name,
-      status: params.status || 'PAUSED',
-      targeting: sanitizedTargeting,
-      optimization_goal: OPTIMIZATION_GOALS[params.objective],
-      billing_event: 'IMPRESSIONS',
-    };
-    // bid_strategy belongs on the campaign when CBO is active. Setting it on
-    // the adset triggers Meta subcode 1815857 ("Bid amount required") even
-    // for LOWEST_COST_WITHOUT_CAP. Omit unless caller passed an explicit
-    // bidAmount (true bid cap).
-    if (params.bidAmount) {
-      body.bid_amount = Math.round(params.bidAmount * 100);
-      body.bid_strategy = 'LOWEST_COST_WITH_BID_CAP';
-    }
-
-    // Add promoted object for conversion tracking
-    if (params.productSetId) {
-      // Catalog mode: bind the adset to a product set so Meta can render
-      // dynamic creatives. For retargeting flows, custom_event_type drives
-      // the audience (e.g. ViewContent in last 180d).
-      body.promoted_object = {
-        product_set_id: params.productSetId,
-        ...(params.catalogRetargetEvent
-          ? { custom_event_type: params.catalogRetargetEvent }
-          : {}),
-        ...(this.pixelId ? { pixel_id: this.pixelId } : {}),
+    const buildBody = (targeting: MetaTargeting): Record<string, unknown> => {
+      const body: Record<string, unknown> = {
+        campaign_id: params.campaignId,
+        name: params.name,
+        status: params.status || 'PAUSED',
+        targeting,
+        optimization_goal: OPTIMIZATION_GOALS[params.objective],
+        billing_event: 'IMPRESSIONS',
       };
-    } else if (params.objective === 'LEADS') {
-      // LEAD_GENERATION optimization (Facebook lead form) requires the
-      // promoting Page, NOT a pixel event. Sending custom_event_type here
-      // triggers (#100) Invalid parameter on the adset.
-      if (this.pageId) {
-        body.promoted_object = { page_id: this.pageId };
+      // bid_strategy belongs on the campaign when CBO is active. Setting it
+      // on the adset triggers Meta subcode 1815857 ("Bid amount required")
+      // even for LOWEST_COST_WITHOUT_CAP. Omit unless caller passed an
+      // explicit bidAmount (true bid cap).
+      if (params.bidAmount) {
+        body.bid_amount = Math.round(params.bidAmount * 100);
+        body.bid_strategy = 'LOWEST_COST_WITH_BID_CAP';
       }
-    } else if (params.objective === 'SALES') {
-      // OFFSITE_CONVERSIONS optimization → pixel + uppercase event name.
-      if (this.pixelId) {
+
+      // Add promoted object for conversion tracking
+      if (params.productSetId) {
+        // Catalog mode: bind the adset to a product set so Meta can render
+        // dynamic creatives. For retargeting flows, custom_event_type drives
+        // the audience (e.g. ViewContent in last 180d).
         body.promoted_object = {
-          pixel_id: this.pixelId,
-          custom_event_type: PIXEL_EVENT_MAP[params.objective],
+          product_set_id: params.productSetId,
+          ...(params.catalogRetargetEvent
+            ? { custom_event_type: params.catalogRetargetEvent }
+            : {}),
+          ...(this.pixelId ? { pixel_id: this.pixelId } : {}),
         };
+      } else if (params.objective === 'LEADS') {
+        // LEAD_GENERATION optimization (Facebook lead form) requires the
+        // promoting Page, NOT a pixel event. Sending custom_event_type here
+        // triggers (#100) Invalid parameter on the adset.
+        if (this.pageId) {
+          body.promoted_object = { page_id: this.pageId };
+        }
+      } else if (params.objective === 'SALES') {
+        // OFFSITE_CONVERSIONS optimization → pixel + uppercase event name.
+        if (this.pixelId) {
+          body.promoted_object = {
+            pixel_id: this.pixelId,
+            custom_event_type: PIXEL_EVENT_MAP[params.objective],
+          };
+        }
       }
-    }
 
-    if (params.dailyBudget) {
-      body.daily_budget = Math.round(params.dailyBudget * 100);
-    }
-    if (params.lifetimeBudget) {
-      body.lifetime_budget = Math.round(params.lifetimeBudget * 100);
-    }
-    if (params.startTime) {
-      body.start_time = params.startTime.toISOString();
-    }
-    if (params.endTime) {
-      body.end_time = params.endTime.toISOString();
-    }
-    if (params.bidAmount) {
-      body.bid_amount = Math.round(params.bidAmount * 100);
-    }
+      if (params.dailyBudget) body.daily_budget = Math.round(params.dailyBudget * 100);
+      if (params.lifetimeBudget) body.lifetime_budget = Math.round(params.lifetimeBudget * 100);
+      if (params.startTime) body.start_time = params.startTime.toISOString();
+      if (params.endTime) body.end_time = params.endTime.toISOString();
+      return body;
+    };
 
-    return this.request(`/${this.adAccountId}/adsets`, 'POST', body);
+    try {
+      return await this.request(`/${this.adAccountId}/adsets`, 'POST', buildBody(sanitizedTargeting));
+    } catch (err) {
+      // Subcode 1870247 = "Some detailed targeting options have been
+      // combined". Meta deprecated one of our interest IDs and (usually)
+      // tells us the replacement inside error_user_msg as a JSON-encoded
+      // array of { deprecated_interest_id, alternative_interest_id, ... }.
+      // Swap them in-place and retry ONCE. If no alternative is provided
+      // for an ID, drop that interest.
+      if (!(err instanceof MetaAPIError) || err.subcode !== 1870247) throw err;
+
+      const alts = extractDeprecatedInterestAlternatives(err.errorUserMsg);
+      if (alts.length === 0) {
+        console.warn('[Meta API] subcode 1870247 with no parseable alternatives — rethrowing');
+        throw err;
+      }
+
+      const swappedTargeting = applyInterestAlternatives(sanitizedTargeting, alts);
+      console.warn('[Meta API] Swapping deprecated interests and retrying createAdSet', { alts });
+      return await this.request(
+        `/${this.adAccountId}/adsets`,
+        'POST',
+        buildBody(swappedTargeting),
+      );
+    }
   }
 
   async getAdSets(campaignId?: string): Promise<{ data: MetaAdSet[] }> {
@@ -1032,17 +1109,26 @@ export class MetaAPIError extends Error {
   code?: number;
   type?: string;
   fbTraceId?: string;
+  subcode?: number;
+  errorData?: Record<string, unknown>;
+  errorUserMsg?: string;
 
   constructor(message: string, errorData?: {
     code?: number;
     type?: string;
     fbtrace_id?: string;
+    error_subcode?: number;
+    error_data?: Record<string, unknown>;
+    error_user_msg?: string;
   }) {
     super(message);
     this.name = 'MetaAPIError';
     this.code = errorData?.code;
     this.type = errorData?.type;
     this.fbTraceId = errorData?.fbtrace_id;
+    this.subcode = errorData?.error_subcode;
+    this.errorData = errorData?.error_data;
+    this.errorUserMsg = errorData?.error_user_msg;
   }
 }
 
