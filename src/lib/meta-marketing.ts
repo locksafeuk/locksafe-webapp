@@ -14,6 +14,20 @@ import { createHash, createHmac } from "node:crypto";
 const META_API_VERSION = 'v25.0';
 const META_BASE_URL = `https://graph.facebook.com/${META_API_VERSION}`;
 
+/**
+ * Known deprecated Meta detailed-targeting interests and their suggested
+ * replacements. Meta returns subcode 1870247 with an `alternative_interest_id`
+ * in the error payload when a deprecated interest is used — we proactively
+ * swap the ones we've already seen here, and fall back to the runtime
+ * error-parse retry for anything new.
+ *
+ * Format: deprecatedId -> replacement | null  (null = just drop it)
+ */
+const DEPRECATED_INTEREST_REMAP: Record<string, { id: string; name: string } | null> = {
+  // "Consumer protection" → "Business and Finance" (per Meta subcode 1870247)
+  '6003093197417': { id: '6866302901418', name: 'Business and Finance' },
+};
+
 // Types
 export interface MetaAdAccount {
   id: string;
@@ -294,12 +308,86 @@ export class MetaMarketingClient {
   }
 
   /**
+   * Parse a Meta `1870247` (deprecated interest) error and return a map of
+   * deprecatedInterestId -> replacement (or null to drop). Returns null when
+   * the error isn't a deprecated-interest error.
+   */
+  private extractDeprecatedInterestRemap(
+    err: unknown
+  ): Record<string, { id: string; name: string } | null> | null {
+    if (!(err instanceof MetaAPIError)) return null;
+    if (err.subcode !== 1870247) return null;
+
+    const remap: Record<string, { id: string; name: string } | null> = {};
+
+    // Path A: structured error_data.blame_field_specs
+    const data = err.errorData as
+      | {
+          blame_field_specs?: Array<{
+            deprecated_interest_id?: string;
+            alternative_interest_id?: string;
+            alternative_interest_name?: string;
+          }>;
+        }
+      | undefined;
+    for (const spec of data?.blame_field_specs ?? []) {
+      if (spec.deprecated_interest_id) {
+        remap[spec.deprecated_interest_id] =
+          spec.alternative_interest_id && spec.alternative_interest_name
+            ? { id: spec.alternative_interest_id, name: spec.alternative_interest_name }
+            : null;
+      }
+    }
+
+    // Path B: fall back to regex on the message (Meta sometimes only puts the
+    // JSON inside error_user_msg, which is already concatenated into err.message)
+    if (Object.keys(remap).length === 0) {
+      const re =
+        /"deprecated_interest_id":"(\d+)"[^}]*?(?:"alternative_interest_id":"(\d+)"[^}]*?"alternative_interest_name":"([^"]+)")?/g;
+      for (const m of err.message.matchAll(re)) {
+        const [, depId, altId, altName] = m;
+        remap[depId] = altId && altName ? { id: altId, name: altName } : null;
+      }
+    }
+
+    return Object.keys(remap).length > 0 ? remap : null;
+  }
+
+  /**
+   * Apply a deprecated-interest remap to a targeting spec. Returns a new
+   * object — never mutates the input.
+   */
+  private applyInterestRemap(
+    targeting: MetaTargeting,
+    remap: Record<string, { id: string; name: string } | null>
+  ): MetaTargeting {
+    if (!targeting.interests || targeting.interests.length === 0) return targeting;
+    const next: Array<{ id: string; name: string }> = [];
+    for (const interest of targeting.interests) {
+      if (Object.prototype.hasOwnProperty.call(remap, interest.id)) {
+        const replacement = remap[interest.id];
+        if (replacement && !next.some((i) => i.id === replacement.id)) {
+          next.push(replacement);
+        }
+        // null replacement → drop it
+        continue;
+      }
+      if (!next.some((i) => i.id === interest.id)) {
+        next.push(interest);
+      }
+    }
+    return { ...targeting, interests: next.length > 0 ? next : undefined };
+  }
+
+  /**
    * Normalize a targeting spec for the Marketing API:
    *   • interests / behaviors must be `{ id, name }` — names alone or raw
    *     strings cause `(#100) Missing required key "id"`.
    *   • Names without `id` are resolved via Targeting Search; unresolved
    *     terms are dropped (empty interests array is valid, an invalid one
    *     fails the whole publish).
+   *   • Known deprecated interests are swapped via DEPRECATED_INTEREST_REMAP
+   *     so we don't trip subcode 1870247.
    *   • Unknown fields (e.g. AI-generated `description`) are stripped — Meta
    *     rejects the whole adset with subcode 1487079 if any non-spec field
    *     is present.
@@ -336,13 +424,37 @@ export class MetaMarketingClient {
       const out: Array<{ id: string; name: string }> = [];
       for (const raw of list) {
         const item = typeof raw === 'string' ? { name: raw } : raw;
+
+        // Resolve to { id, name } first
+        let resolved: { id: string; name: string } | null = null;
         if (item.id && item.name) {
-          out.push({ id: item.id, name: item.name });
-          continue;
+          resolved = { id: item.id, name: item.name };
+        } else if (item.name) {
+          resolved = await this.searchInterest(item.name, type);
         }
-        if (item.name) {
-          const resolved = await this.searchInterest(item.name, type);
-          if (resolved) out.push(resolved);
+        if (!resolved) continue;
+
+        // Swap out deprecated interests we already know about
+        if (
+          type === 'adinterest' &&
+          Object.prototype.hasOwnProperty.call(DEPRECATED_INTEREST_REMAP, resolved.id)
+        ) {
+          const replacement = DEPRECATED_INTEREST_REMAP[resolved.id];
+          if (!replacement) {
+            console.warn(
+              `[Meta API] Dropping deprecated interest ${resolved.name} (${resolved.id})`
+            );
+            continue;
+          }
+          console.warn(
+            `[Meta API] Remapping deprecated interest ${resolved.name} (${resolved.id}) → ${replacement.name} (${replacement.id})`
+          );
+          resolved = replacement;
+        }
+
+        // Avoid duplicates after remap
+        if (!out.some((existing) => existing.id === resolved!.id)) {
+          out.push(resolved);
         }
       }
       return out.length > 0 ? out : undefined;
@@ -569,7 +681,25 @@ export class MetaMarketingClient {
       body.bid_amount = Math.round(params.bidAmount * 100);
     }
 
-    return this.request(`/${this.adAccountId}/adsets`, 'POST', body);
+    // First attempt. If Meta tells us a targeted interest is deprecated
+    // (subcode 1870247), parse the alternatives out of the error, learn them
+    // for the rest of this process, and retry once.
+    try {
+      return await this.request<{ id: string }>(`/${this.adAccountId}/adsets`, 'POST', body);
+    } catch (err) {
+      const remap = this.extractDeprecatedInterestRemap(err);
+      if (!remap) throw err;
+
+      for (const [depId, replacement] of Object.entries(remap)) {
+        DEPRECATED_INTEREST_REMAP[depId] = replacement;
+      }
+      console.warn(
+        '[Meta API] Retrying adset create after remapping deprecated interests',
+        remap
+      );
+      body.targeting = this.applyInterestRemap(sanitizedTargeting, remap);
+      return await this.request<{ id: string }>(`/${this.adAccountId}/adsets`, 'POST', body);
+    }
   }
 
   async getAdSets(campaignId?: string): Promise<{ data: MetaAdSet[] }> {
@@ -597,7 +727,22 @@ export class MetaMarketingClient {
     if (params.dailyBudget) body.daily_budget = Math.round(params.dailyBudget * 100);
     if (params.targeting) body.targeting = await this.sanitizeTargeting(params.targeting);
 
-    return this.request(`/${adSetId}`, 'POST', body);
+    try {
+      return await this.request<{ success: boolean }>(`/${adSetId}`, 'POST', body);
+    } catch (err) {
+      const remap = this.extractDeprecatedInterestRemap(err);
+      if (!remap || !body.targeting) throw err;
+
+      for (const [depId, replacement] of Object.entries(remap)) {
+        DEPRECATED_INTEREST_REMAP[depId] = replacement;
+      }
+      console.warn(
+        '[Meta API] Retrying adset update after remapping deprecated interests',
+        remap
+      );
+      body.targeting = this.applyInterestRemap(body.targeting as MetaTargeting, remap);
+      return await this.request<{ success: boolean }>(`/${adSetId}`, 'POST', body);
+    }
   }
 
   // ===================
@@ -1016,19 +1161,25 @@ export class MetaMarketingClient {
 // Error class
 export class MetaAPIError extends Error {
   code?: number;
+  subcode?: number;
   type?: string;
   fbTraceId?: string;
+  errorData?: unknown;
 
   constructor(message: string, errorData?: {
     code?: number;
+    error_subcode?: number;
     type?: string;
     fbtrace_id?: string;
+    error_data?: unknown;
   }) {
     super(message);
     this.name = 'MetaAPIError';
     this.code = errorData?.code;
+    this.subcode = errorData?.error_subcode;
     this.type = errorData?.type;
     this.fbTraceId = errorData?.fbtrace_id;
+    this.errorData = errorData?.error_data;
   }
 }
 
