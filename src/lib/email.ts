@@ -997,12 +997,6 @@ export async function sendLocksmithAssignmentEmail(
             <p style="margin:4px 0 0 0;"><strong>Location:</strong> ${data.address}, ${data.postcode}</p>
           </div>
 
-          <div class="box">
-            <p style="margin:0;color:#64748b;font-size:12px;">YOUR ASSESSMENT FEE</p>
-            <p style="margin:4px 0 0 0;font-size:24px;font-weight:bold;color:#16a34a;">£${data.defaultAssessmentFee.toFixed(2)}</p>
-            <p style="margin:4px 0 0 0;font-size:14px;color:#64748b;">Pre-filled from your profile settings</p>
-          </div>
-
           <p style="text-align:center;margin-top:24px;">
             <a href="${data.jobDetailsUrl}" class="button" style="font-size:16px;font-weight:bold;">View Job & Respond</a>
           </p>
