@@ -936,6 +936,7 @@ export const createGoogleAdsDraftTool: AgentTool = {
         impressions: recentGooglePerformance._sum.impressions ?? 0,
         clicks: recentGooglePerformance._sum.clicks ?? 0,
         conversions: recentGooglePerformance._sum.conversions ?? 0,
+        daysRunning: 30,
       },
       expectedImpact: {
         confidence: "MEDIUM",
