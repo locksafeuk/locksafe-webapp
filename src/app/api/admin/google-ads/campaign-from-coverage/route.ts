@@ -19,6 +19,7 @@ import { cookies } from "next/headers";
 import prisma from "@/lib/db";
 import { verifyToken } from "@/lib/auth";
 import { getActiveCoverageGeoTargets } from "@/lib/google-ads-locations";
+import { enforceDistrictLandingForDraft } from "@/lib/google-ads-district-enforcer";
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
@@ -159,6 +160,41 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const anchorLocksmith = await prisma.locksmith.findFirst({
+    where: {
+      isActive: true,
+      isVerified: true,
+      onboardingCompleted: true,
+      stripeConnectVerified: true,
+      baseAddress: { not: null },
+    },
+    orderBy: [{ totalJobs: "desc" }, { rating: "desc" }],
+    select: { id: true, name: true, companyName: true, baseAddress: true },
+  });
+
+  if (!anchorLocksmith?.baseAddress) {
+    return NextResponse.json(
+      {
+        error:
+          "No eligible locksmith with a valid UK base address was found to anchor district landing URL generation.",
+      },
+      { status: 422 },
+    );
+  }
+
+  let enforcedLanding;
+  try {
+    enforcedLanding = await enforceDistrictLandingForDraft({
+      locksmithBaseAddress: anchorLocksmith.baseAddress,
+      contextLabel: "coverage-campaign",
+    });
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : String(err) },
+      { status: 422 },
+    );
+  }
+
   // 2. Get or create stub Google Ads account
   const account = await prisma.googleAdsAccount.findFirst({
     orderBy: { createdAt: "asc" },
@@ -238,7 +274,7 @@ export async function POST(request: NextRequest) {
       languageTargets: ["1000"], // English
       headlines: CAMPAIGN_PLAN.headlines,
       descriptions: CAMPAIGN_PLAN.descriptions,
-      finalUrl: CAMPAIGN_PLAN.finalUrl,
+      finalUrl: enforcedLanding.finalUrl,
       keywords: CAMPAIGN_PLAN.keywords,
       negativeKeywords: CAMPAIGN_PLAN.negativeKeywords,
       aiGenerated: false,
@@ -258,6 +294,7 @@ export async function POST(request: NextRequest) {
       message:
         `Campaign draft created targeting ${activeLocksmithCount} coverage area(s): ` +
         `${coverageSummary.join(", ")}. ` +
+        `Landing anchored to ${enforcedLanding.district}. ` +
         `Review and approve at /admin/integrations/google-ads/drafts/${draft.id}.`,
     },
     { status: 201 },

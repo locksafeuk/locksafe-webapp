@@ -21,6 +21,7 @@ import { verifyToken } from "@/lib/auth";
 import { generateDraftPlanForLocksmith } from "@/lib/google-ads-onboarding";
 import { extractDefaultAccountLearnings } from "@/lib/google-ads-learnings";
 import { extractUkPostcode } from "@/lib/location-display";
+import { enforceDistrictLandingForDraft } from "@/lib/google-ads-district-enforcer";
 
 async function verifyAdmin() {
   const cookieStore = await cookies();
@@ -166,10 +167,16 @@ export async function POST(request: NextRequest) {
         });
 
     // 4. Build the plan
+    const enforcedLanding = await enforceDistrictLandingForDraft({
+      explicitFinalUrl: body.finalUrl,
+      locksmithBaseAddress: locksmith.baseAddress,
+      contextLabel: "from-locksmith",
+    });
+
     const { plan, geoTargets, cityLabel, usedLearnings } =
       await generateDraftPlanForLocksmith(locksmith, {
         dailyBudget: body.dailyBudget,
-        finalUrl: body.finalUrl,
+        finalUrl: enforcedLanding.finalUrl,
         learnings,
       });
 
@@ -216,6 +223,7 @@ export async function POST(request: NextRequest) {
               bestPerformingAds: learnings.bestPerformingAds.length,
             }
           : null,
+        district: enforcedLanding.district,
         message: `Draft created for ${locksmith.companyName || locksmith.name}${cityLabel ? ` (${cityLabel})` : ""}. Review at /admin/integrations/google-ads/drafts/${draft.id}.`,
       },
       { status: 201 },

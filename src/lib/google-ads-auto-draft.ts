@@ -21,6 +21,7 @@
 import prisma from "@/lib/db";
 import { generateDraftPlanForLocksmith } from "@/lib/google-ads-onboarding";
 import type { GoogleKeyword } from "@/lib/openai-google-ads";
+import { enforceDistrictLandingForDraft } from "@/lib/google-ads-district-enforcer";
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 
@@ -236,10 +237,34 @@ export async function autoCreateOnboardingCampaignDraft(
     // Non-fatal: no learnings for first locksmith
   }
 
-  // 5. Generate the plan via the existing onboarding generator
+  // 5. Enforce district landing URL + generation
+  let enforcedLanding;
+  try {
+    enforcedLanding = await enforceDistrictLandingForDraft({
+      locksmithBaseAddress: locksmith.baseAddress,
+      contextLabel: `auto-onboarding:${locksmith.id}`,
+    });
+  } catch (err) {
+    return {
+      success: false,
+      locksmithId,
+      locksmithName: locksmith.name,
+      cityLabel: null,
+      outwardPostcode: extractOutwardPostcode(locksmith.baseAddress),
+      confidence: 0,
+      skipped: true,
+      skipReason: err instanceof Error ? err.message : String(err),
+    };
+  }
+
+  // 6. Generate the plan via the existing onboarding generator
   let build;
   try {
-    build = await generateDraftPlanForLocksmith(locksmith, { dailyBudget, learnings });
+    build = await generateDraftPlanForLocksmith(locksmith, {
+      dailyBudget,
+      learnings,
+      finalUrl: enforcedLanding.finalUrl,
+    });
   } catch (err) {
     return {
       success: false,
@@ -254,7 +279,7 @@ export async function autoCreateOnboardingCampaignDraft(
 
   const { plan, geoTargets, cityLabel } = build;
 
-  // 6. Build postcode-level keywords and prepend them (postcode first = highest weight)
+  // 7. Build postcode-level keywords and prepend them (postcode first = highest weight)
   const outwardPostcode = extractOutwardPostcode(locksmith.baseAddress);
   const postcodeKeywords = outwardPostcode
     ? buildPostcodeKeywords(outwardPostcode, cityLabel)
@@ -271,7 +296,7 @@ export async function autoCreateOnboardingCampaignDraft(
     if (mergedKeywords.length >= 60) break;
   }
 
-  // 7. Score confidence and decide initial status
+  // 8. Score confidence and decide initial status
   const confidence = scoreDraftConfidence({
     hasPostcode:      !!outwardPostcode,
     hasCityLabel:     !!cityLabel,
@@ -282,14 +307,14 @@ export async function autoCreateOnboardingCampaignDraft(
 
   const draftStatus = confidence >= CONFIDENCE_THRESHOLD ? "PENDING_APPROVAL" : "DRAFT";
 
-  // 8. Build the final campaign name (postcode badge makes it instantly recognisable)
+  // 9. Build the final campaign name (postcode badge makes it instantly recognisable)
   const campaignLabel = [
     locksmith.companyName || locksmith.name,
     outwardPostcode ? `(${outwardPostcode})` : cityLabel ? `(${cityLabel})` : null,
   ].filter(Boolean).join(" ");
   const campaignName = `Locksmith — ${campaignLabel}`.slice(0, 60);
 
-  // 9. Write to DB (skip in dry-run)
+  // 10. Write to DB (skip in dry-run)
   if (dryRun) {
     return {
       success: true,
@@ -332,7 +357,7 @@ export async function autoCreateOnboardingCampaignDraft(
     select: { id: true, name: true, status: true },
   });
 
-  // 10. Telegram alert (non-fatal)
+  // 11. Telegram alert (non-fatal)
   try {
     const { sendAdminAlert } = await import("@/lib/telegram");
     const icon = draftStatus === "PENDING_APPROVAL" ? "✅" : "📝";

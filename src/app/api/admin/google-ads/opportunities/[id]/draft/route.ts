@@ -16,6 +16,7 @@ import prisma from "@/lib/db";
 import { verifyToken } from "@/lib/auth";
 import { generateDraftPlanForLocksmith } from "@/lib/google-ads-onboarding";
 import { extractDefaultAccountLearnings } from "@/lib/google-ads-learnings";
+import { enforceDistrictLandingForDraft } from "@/lib/google-ads-district-enforcer";
 
 async function verifyAdmin() {
   const cookieStore = await cookies();
@@ -86,9 +87,15 @@ export async function POST(
   }
 
   const learnings = await extractDefaultAccountLearnings().catch(() => null);
+  const enforcedLanding = await enforceDistrictLandingForDraft({
+    locksmithBaseAddress: picked.baseAddress,
+    contextLabel: "opportunity-draft",
+  });
+
   const build = await generateDraftPlanForLocksmith(picked, {
     learnings,
     dailyBudget: body.dailyBudget ?? 5,
+    finalUrl: enforcedLanding.finalUrl,
   });
 
   const draft = await prisma.googleAdsCampaignDraft.create({
@@ -127,6 +134,7 @@ export async function POST(
     negativeKeywordCount: build.plan.negativeKeywords.length,
     geoTarget: opp.geoTargetId,
     cityLabel: opp.geoLabel,
+    district: enforcedLanding.district,
   });
 }
 

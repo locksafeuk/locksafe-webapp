@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import prisma from "@/lib/db";
 import { verifyToken } from "@/lib/auth";
+import { enforceDistrictLandingForDraft } from "@/lib/google-ads-district-enforcer";
 
 async function verifyAdmin() {
   const cookieStore = await cookies();
@@ -116,9 +117,19 @@ export async function POST(request: NextRequest) {
   if (!Number.isFinite(dailyBudget) || dailyBudget <= 0) {
     return bad("dailyBudget must be a positive number (GBP)");
   }
-  const finalUrl = body.finalUrl?.trim();
-  if (!finalUrl || !/^https?:\/\//i.test(finalUrl)) {
+  const finalUrlRaw = body.finalUrl?.trim();
+  if (!finalUrlRaw || !/^https?:\/\//i.test(finalUrlRaw)) {
     return bad("finalUrl must be a valid http(s) URL");
+  }
+
+  let enforcedLanding;
+  try {
+    enforcedLanding = await enforceDistrictLandingForDraft({
+      explicitFinalUrl: finalUrlRaw,
+      contextLabel: "manual-draft",
+    });
+  } catch (err) {
+    return bad(err instanceof Error ? err.message : String(err), 422);
   }
   const headlines = (body.headlines ?? []).map((h) => h.trim()).filter(Boolean);
   if (headlines.length < 3) return bad("At least 3 headlines are required (Google Ads RSA minimum)");
@@ -189,7 +200,7 @@ export async function POST(request: NextRequest) {
       languageTargets,
       headlines,
       descriptions,
-      finalUrl,
+      finalUrl: enforcedLanding.finalUrl,
       keywords: keywords as unknown as object,
       negativeKeywords,
       // Phase 2 fields

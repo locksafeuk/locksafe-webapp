@@ -320,31 +320,37 @@ export async function generateDiscoveryDrafts(
     const detectedDistrict = detectPostcodeDistrict(seed.keyword);
     let draftFinalUrl = finalUrl;
 
-    if (detectedDistrict) {
-      // In dry-run we don't actually call ensure() — it does LLM work +
-      // DB writes which we want gated behind --live.
-      if (options.dryRun) {
-        draftFinalUrl = `${SITE_URL}/locksmith-in/${districtSlug(detectedDistrict)}`;
-      } else {
-        try {
-          const ensured = await ensureOrSkip(detectedDistrict);
-          if (!ensured.ok) {
-            districtErrors.push(
-              `${seed.keyword}: ${ensured.skipReason ?? "no coverage"} — draft skipped`,
-            );
-            result.quotaFiltered++;
-            continue;
-          }
-          draftFinalUrl = `${SITE_URL}/locksmith-in/${ensured.result!.slug}`;
-        } catch (err) {
-          // LLM/network failure — block this draft and surface the
-          // error rather than ship a campaign with a missing page.
-          const message = err instanceof Error ? err.message : String(err);
+    if (!detectedDistrict) {
+      districtErrors.push(
+        `${seed.keyword}: no postcode district detected — draft skipped (district landing required)`,
+      );
+      result.quotaFiltered++;
+      continue;
+    }
+
+    // In dry-run we don't actually call ensure() — it does LLM work +
+    // DB writes which we want gated behind --live.
+    if (options.dryRun) {
+      draftFinalUrl = `${SITE_URL}/locksmith-in/${districtSlug(detectedDistrict)}`;
+    } else {
+      try {
+        const ensured = await ensureOrSkip(detectedDistrict);
+        if (!ensured.ok) {
           districtErrors.push(
-            `${seed.keyword} (${detectedDistrict}): landing-page generation failed — ${message}`,
+            `${seed.keyword}: ${ensured.skipReason ?? "no coverage"} — draft skipped`,
           );
+          result.quotaFiltered++;
           continue;
         }
+        draftFinalUrl = `${SITE_URL}/locksmith-in/${ensured.result!.slug}`;
+      } catch (err) {
+        // LLM/network failure — block this draft and surface the
+        // error rather than ship a campaign with a missing page.
+        const message = err instanceof Error ? err.message : String(err);
+        districtErrors.push(
+          `${seed.keyword} (${detectedDistrict}): landing-page generation failed — ${message}`,
+        );
+        continue;
       }
     }
 
