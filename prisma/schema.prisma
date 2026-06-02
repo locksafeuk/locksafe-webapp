@@ -1402,6 +1402,25 @@ model GoogleAdsSharedNegativeList {
 }
 
 // =========================================================================
+// Google Ads Automation Rules
+// Evaluate every 4 hours via cron. Condition → Action mappings.
+// =========================================================================
+model GoogleAdsAutomationRule {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  name       String
+  enabled    Boolean  @default(true)
+  condition  String   // SPEND_NO_CONV | CTR_DROP | BUDGET_80PCT
+  thresholdSpend      Float?
+  thresholdPeriodDays Int?
+  thresholdCtr        Float?
+  action     String   // PAUSE_CAMPAIGN | ALERT_TELEGRAM
+  campaignIds String[] // ["*"] = all
+  lastTriggeredAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+// =========================================================================
 // Google Ads Opportunity Scout
 // =========================================================================
 // One row per (geoTargetId, computedAt) cell, produced weekly by the

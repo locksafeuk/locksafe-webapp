@@ -1,0 +1,175 @@
+============================================
+LockSafe Local Daily Checks
+Root: /Users/piks/Locksafe Project/locksafe-webapp
+Time: 2026-05-29 06:00:03 BST
+Summary: /Users/piks/Locksafe Project/locksafe-webapp/reports/daily-checks/daily-checks-2026-05-29T06-00-03.summary.txt
+Log: /Users/piks/Locksafe Project/locksafe-webapp/reports/daily-checks/daily-checks-2026-05-29T06-00-03.log
+============================================
+
+[CHECK] Reliability daily prod
+[CMD]   npm run reliability:daily:prod
+FAIL | Reliability daily prod | exit=1
+[FAIL] Reliability daily prod (exit 1)
+
+[CHECK] Agents runtime verify
+[CMD]   npm run verify:agents-runtime
+PASS | Agents runtime verify
+[PASS] Agents runtime verify
+
+[CHECK] System test prod
+[CMD]   npm run test:system:prod
+PASS | System test prod
+[PASS] System test prod
+
+[CHECK] Source + Prisma fast validation
+[CMD]   bash ./scripts/validate-source-and-prisma.sh
+FAIL | Source + Prisma fast validation | exit=1
+[FAIL] Source + Prisma fast validation (exit 1)
+
+[CHECK] Single Telegram summary
+[PASS] Single Telegram summary sent
+
+============================================
+Daily checks FAILED: 2 check(s)
+RESULT | FAIL | count=2
+============================================
+============================================
+LockSafe Local Daily Checks
+Root: /Users/piks/Locksafe Project/locksafe-webapp
+Time: 2026-05-30 06:00:03 BST
+Summary: /Users/piks/Locksafe Project/locksafe-webapp/reports/daily-checks/daily-checks-2026-05-30T06-00-03.summary.txt
+Log: /Users/piks/Locksafe Project/locksafe-webapp/reports/daily-checks/daily-checks-2026-05-30T06-00-03.log
+============================================
+
+[CHECK] Reliability daily prod
+[CMD]   npm run reliability:daily:prod
+FAIL | Reliability daily prod | exit=1
+[FAIL] Reliability daily prod (exit 1)
+
+[CHECK] Agents runtime verify
+[CMD]   npm run verify:agents-runtime
+PASS | Agents runtime verify
+[PASS] Agents runtime verify
+
+[CHECK] System test prod
+[CMD]   npm run test:system:prod
+PASS | System test prod
+[PASS] System test prod
+
+[CHECK] Source + Prisma fast validation
+[CMD]   bash ./scripts/validate-source-and-prisma.sh
+FAIL | Source + Prisma fast validation | exit=1
+[FAIL] Source + Prisma fast validation (exit 1)
+
+[CHECK] Single Telegram summary
+[PASS] Single Telegram summary sent
+
+============================================
+Daily checks FAILED: 2 check(s)
+RESULT | FAIL | count=2
+============================================
+============================================
+LockSafe Local Daily Checks
+Root: /Users/piks/Locksafe Project/locksafe-webapp
+Time: 2026-05-31 06:00:03 BST
+Summary: /Users/piks/Locksafe Project/locksafe-webapp/reports/daily-checks/daily-checks-2026-05-31T06-00-03.summary.txt
+Log: /Users/piks/Locksafe Project/locksafe-webapp/reports/daily-checks/daily-checks-2026-05-31T06-00-03.log
+============================================
+
+[CHECK] Reliability daily prod
+[CMD]   npm run reliability:daily:prod
+FAIL | Reliability daily prod | exit=1
+[FAIL] Reliability daily prod (exit 1)
+
+[CHECK] Agents runtime verify
+[CMD]   npm run verify:agents-runtime
+PASS | Agents runtime verify
+[PASS] Agents runtime verify
+
+[CHECK] System test prod
+[CMD]   npm run test:system:prod
+PASS | System test prod
+[PASS] System test prod
+
+[CHECK] Source + Prisma fast validation
+[CMD]   bash ./scripts/validate-source-and-prisma.sh
+FAIL | Source + Prisma fast validation | exit=1
+[FAIL] Source + Prisma fast validation (exit 1)
+
+[CHECK] Single Telegram summary
+[PASS] Single Telegram summary sent
+
+============================================
+Daily checks FAILED: 2 check(s)
+RESULT | FAIL | count=2
+============================================
+============================================
+LockSafe Local Daily Checks
+Root: /Users/piks/Locksafe Project/locksafe-webapp
+Time: 2026-06-01 06:00:03 BST
+Summary: /Users/piks/Locksafe Project/locksafe-webapp/reports/daily-checks/daily-checks-2026-06-01T06-00-03.summary.txt
+Log: /Users/piks/Locksafe Project/locksafe-webapp/reports/daily-checks/daily-checks-2026-06-01T06-00-03.log
+============================================
+
+[CHECK] Reliability daily prod
+[CMD]   npm run reliability:daily:prod
+FAIL | Reliability daily prod | exit=1
+[FAIL] Reliability daily prod (exit 1)
+
+[CHECK] Agents runtime verify
+[CMD]   npm run verify:agents-runtime
+PASS | Agents runtime verify
+[PASS] Agents runtime verify
+
+[CHECK] System test prod
+[CMD]   npm run test:system:prod
+PASS | System test prod
+[PASS] System test prod
+
+[CHECK] Source + Prisma fast validation
+[CMD]   bash ./scripts/validate-source-and-prisma.sh
+FAIL | Source + Prisma fast validation | exit=1
+[FAIL] Source + Prisma fast validation (exit 1)
+
+[CHECK] Single Telegram summary
+[PASS] Single Telegram summary sent
+
+============================================
+Daily checks FAILED: 2 check(s)
+RESULT | FAIL | count=2
+============================================
+============================================
+LockSafe Local Daily Checks
+Root: /Users/piks/Locksafe Project/locksafe-webapp
+Time: 2026-06-02 06:00:03 BST
+Summary: /Users/piks/Locksafe Project/locksafe-webapp/reports/daily-checks/daily-checks-2026-06-02T06-00-03.summary.txt
+Log: /Users/piks/Locksafe Project/locksafe-webapp/reports/daily-checks/daily-checks-2026-06-02T06-00-03.log
+============================================
+
+[CHECK] Reliability daily prod
+[CMD]   npm run reliability:daily:prod
+FAIL | Reliability daily prod | exit=1
+[FAIL] Reliability daily prod (exit 1)
+
+[CHECK] Agents runtime verify
+[CMD]   npm run verify:agents-runtime
+PASS | Agents runtime verify
+[PASS] Agents runtime verify
+
+[CHECK] System test prod
+[CMD]   npm run test:system:prod
+PASS | System test prod
+[PASS] System test prod
+
+[CHECK] Source + Prisma fast validation
+[CMD]   bash ./scripts/validate-source-and-prisma.sh
+FAIL | Source + Prisma fast validation | exit=1
+[FAIL] Source + Prisma fast validation (exit 1)
+
+[CHECK] Single Telegram summary
+[PASS] Single Telegram summary sent
+
+============================================
+Daily checks FAILED: 2 check(s)
+RESULT | FAIL | count=2
+============================================

@@ -159,10 +159,19 @@ function GoogleAdsIntegrationPageInner() {
         </p>
         <p className="text-sm mt-2 flex flex-wrap gap-x-4 gap-y-1">
           <Link href="/admin/integrations/google-ads/drafts" className="text-blue-600 hover:underline">
-            → View AI-generated campaign drafts
+            → Campaign Drafts
+          </Link>
+          <Link href="/admin/integrations/google-ads/search-terms" className="text-blue-600 hover:underline">
+            → Search Terms
+          </Link>
+          <Link href="/admin/integrations/google-ads/performance" className="text-blue-600 hover:underline">
+            → Performance Dashboard
+          </Link>
+          <Link href="/admin/integrations/google-ads/negative-lists" className="text-blue-600 hover:underline">
+            → Negative Lists
           </Link>
           <Link href="/admin/integrations/google-ads/opportunities" className="text-blue-600 hover:underline">
-            → Opportunity Scout (cheap UK markets)
+            → Opportunity Scout
           </Link>
           <a
             href="https://ads.google.com/aw/campaigns"

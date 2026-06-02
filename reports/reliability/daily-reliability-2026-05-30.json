@@ -1,0 +1,111 @@
+{
+  "timestamp": "2026-05-30T05:00:10.725Z",
+  "baseUrl": "https://www.locksafe.uk",
+  "score": {
+    "score": 76,
+    "overall": "RED",
+    "pass": 8,
+    "warn": 1,
+    "fail": 2
+  },
+  "results": [
+    {
+      "id": "website_home",
+      "category": "website",
+      "name": "Homepage reachable",
+      "critical": true,
+      "status": "PASS",
+      "httpStatus": 200,
+      "details": "Homepage returned 200"
+    },
+    {
+      "id": "website_admin",
+      "category": "website",
+      "name": "Admin agents page reachable",
+      "critical": true,
+      "status": "PASS",
+      "httpStatus": 200,
+      "details": "Admin page returned 200"
+    },
+    {
+      "id": "api_health",
+      "category": "code",
+      "name": "API health endpoint and DB connectivity",
+      "critical": true,
+      "status": "PASS",
+      "httpStatus": 200,
+      "details": "health=healthy, database=ok"
+    },
+    {
+      "id": "workflow_marketing_session",
+      "category": "workflow",
+      "name": "Marketing session endpoint",
+      "critical": false,
+      "status": "PASS",
+      "httpStatus": 200,
+      "details": "Session tracking accepted"
+    },
+    {
+      "id": "workflow_marketing_track",
+      "category": "workflow",
+      "name": "Marketing track endpoint",
+      "critical": false,
+      "status": "PASS",
+      "httpStatus": 200,
+      "details": "Event tracking accepted"
+    },
+    {
+      "id": "workflow_locksmiths",
+      "category": "workflow",
+      "name": "Public locksmith listing endpoint",
+      "critical": true,
+      "status": "PASS",
+      "httpStatus": 200,
+      "details": "Locksmith listing available"
+    },
+    {
+      "id": "agents_overview",
+      "category": "agents",
+      "name": "Agents API and heartbeat freshness",
+      "critical": true,
+      "status": "FAIL",
+      "httpStatus": 401,
+      "details": "active=0, stale>30m=0"
+    },
+    {
+      "id": "agents_tasks_queue",
+      "category": "agents",
+      "name": "Agents task queue load",
+      "critical": false,
+      "status": "FAIL",
+      "httpStatus": 401,
+      "details": "pending=0, in_progress=0"
+    },
+    {
+      "id": "integrations_telegram_webhook",
+      "category": "integrations",
+      "name": "Telegram webhook endpoint",
+      "critical": false,
+      "status": "PASS",
+      "httpStatus": 200,
+      "details": "Telegram webhook endpoint reachable"
+    },
+    {
+      "id": "integrations_whatsapp_webhook",
+      "category": "integrations",
+      "name": "WhatsApp webhook verification endpoint",
+      "critical": false,
+      "status": "PASS",
+      "httpStatus": 200,
+      "details": "WhatsApp verify endpoint reachable"
+    },
+    {
+      "id": "integrations_ollama",
+      "category": "integrations",
+      "name": "Ollama/Hermes endpoint",
+      "critical": true,
+      "status": "WARN",
+      "details": "OLLAMA_BASE_URL not set"
+    }
+  ]
+}

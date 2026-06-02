@@ -61,3 +61,4 @@ backups/
 playwright-report/
 test-results/
 test-reports/
+.env.vercel.prod

@@ -84,6 +84,10 @@
     {
       "path": "/api/cron/enrich-leads",
       "schedule": "0 */4 * * *"
+    },
+    {
+      "path": "/api/cron/google-ads-automation-rules",
+      "schedule": "0 */4 * * *"
     }
   ],
   "functions": {
