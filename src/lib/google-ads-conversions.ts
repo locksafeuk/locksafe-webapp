@@ -63,6 +63,12 @@ export interface ClickConversionInput {
    * by Google's docs — guarantees idempotency across retries.
    */
   orderId: string;
+  /**
+   * Optional: override the default conversion action resource. Used by
+   * uploadAssessmentFeeConversion() to fire to a separate action from the
+   * main job-completion conversion.
+   */
+  conversionActionOverride?: string;
 }
 
 export interface ConversionUploadResult {
@@ -77,6 +83,66 @@ export interface ConversionUploadResult {
   googleResponse?:     unknown;
 }
 
+// ── Assessment fee conversion upload ────────────────────────────────────────
+
+/**
+ * Fire an "Assessment Fee Paid" conversion to Google Ads when a customer
+ * pays the call-out / assessment fee via Stripe.
+ *
+ * Uses a separate conversion action resource
+ * (`GOOGLE_ADS_ASSESSMENT_FEE_CONVERSION_ACTION_RESOURCE`) so Google can
+ * treat this as a micro-conversion — a strong intent signal that feeds the
+ * auction algorithm even before the final job is completed.
+ *
+ * Safe to call from the Stripe webhook (`checkout.session.completed` where
+ * `metadata.type === "assessment_fee" | "callout"`). Idempotent via orderId.
+ */
+export async function uploadAssessmentFeeConversion(
+  jobId: string,
+  amount: number,
+  stripeCheckoutId: string,
+): Promise<ConversionUploadResult> {
+  const conversionAction =
+    process.env["GOOGLE_ADS_ASSESSMENT_FEE_CONVERSION_ACTION_RESOURCE"];
+  if (!conversionAction) {
+    // Not fatal — just means the assessment fee conversion action isn't
+    // configured yet. Log and move on; we never want to block the payment flow.
+    console.warn(
+      "[conversions] GOOGLE_ADS_ASSESSMENT_FEE_CONVERSION_ACTION_RESOURCE not set — " +
+        "assessment fee conversion skipped. Set this env to a " +
+        "customers/{id}/conversionActions/{id} resource name.",
+    );
+    return { ok: true, status: "skipped_no_config" };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const prismaAny = _prisma as any;
+  const job = await prismaAny.job.findUnique({
+    where: { id: jobId },
+    select: { jobNumber: true, gclid: true, createdAt: true },
+  });
+  if (!job) return { ok: false, status: "failed", error: `Job ${jobId} not found` };
+
+  // Resolve gclid — same fallback to CallIntent as the job-completion uploader.
+  let gclid: string | undefined = job.gclid ?? undefined;
+  if (!gclid) {
+    const intent = await findCallIntentForJob(jobId);
+    if (intent?.gclid) gclid = intent.gclid;
+  }
+  if (!gclid) {
+    return { ok: true, status: "skipped_no_gclid" };
+  }
+
+  return uploadClickConversion({
+    gclid,
+    conversionDateTime: toGoogleDateString(new Date()),
+    conversionValue: amount,
+    currencyCode: "GBP",
+    orderId: `AF-${job.jobNumber}-${stripeCheckoutId.slice(-8)}`,
+    conversionActionOverride: conversionAction,
+  });
+}
+
 // ── Upload primitive ─────────────────────────────────────────────────────────
 
 /**
@@ -89,7 +155,9 @@ export interface ConversionUploadResult {
 export async function uploadClickConversion(
   input: ClickConversionInput,
 ): Promise<ConversionUploadResult> {
-  const conversionAction = process.env["GOOGLE_ADS_CONVERSION_ACTION_RESOURCE"];
+  const conversionAction =
+    input.conversionActionOverride ||
+    process.env["GOOGLE_ADS_CONVERSION_ACTION_RESOURCE"];
   if (!conversionAction) {
     return {
       ok: false,

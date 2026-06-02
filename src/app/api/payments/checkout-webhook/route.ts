@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { stripe, verifyWebhookSignature, getCheckoutSession } from "@/lib/stripe";
 import { handlePaymentCompleted } from "@/lib/job-service";
 import prisma from "@/lib/db";
+import {
+  uploadJobConversionIfEligible,
+  uploadAssessmentFeeConversion,
+} from "@/lib/google-ads-conversions";
 
 /**
  * POST /api/payments/checkout-webhook
@@ -73,6 +77,40 @@ export async function POST(request: NextRequest) {
               `[Checkout Webhook] Payment completion handler failed:`,
               result.error
             );
+          }
+
+          // ── Server-side Google Ads conversion tracking ──────────────────────
+          // Fire AFTER payment is confirmed by Stripe — never from the browser.
+          // Two separate conversion actions feed Google's auction differently:
+          //   • assessment_fee / callout → micro-conversion (high volume, fast
+          //     learning signal, flat value)
+          //   • work_quote → macro-conversion (real revenue, actual job value,
+          //     feeds Target ROAS once volume is sufficient)
+          const jobId = session.metadata?.jobId;
+          const paymentType = session.metadata?.type as string | undefined;
+          const amountPaid = (session.amount_total ?? 0) / 100; // pence → pounds
+
+          if (jobId) {
+            if (paymentType === "work_quote") {
+              // Primary conversion — job completed, real money, actual value
+              uploadJobConversionIfEligible(jobId).then((r) => {
+                console.log(
+                  `[Checkout Webhook] Google Ads job conversion: ${r.status}`,
+                  r.error ?? "",
+                );
+              }).catch(() => {});
+            } else if (
+              paymentType === "assessment_fee" ||
+              paymentType === "callout"
+            ) {
+              // Micro-conversion — assessment fee paid, strong intent signal
+              uploadAssessmentFeeConversion(jobId, amountPaid, session.id).then((r) => {
+                console.log(
+                  `[Checkout Webhook] Google Ads assessment fee conversion: ${r.status}`,
+                  r.error ?? "",
+                );
+              }).catch(() => {});
+            }
           }
         } else {
           console.log(

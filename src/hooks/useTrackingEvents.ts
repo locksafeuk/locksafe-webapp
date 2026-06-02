@@ -189,12 +189,17 @@ export function useTrackingEvents(config: TrackingConfig = defaultConfig) {
           case "postcode_entered":
             if (leadLabel) fireConversion(leadLabel, value || 50);
             break;
-          // Purchase / job completed — locksmith finishes the job
+          // Purchase / job completed — server-side Stripe webhook fires the
+          // real conversion. These client-side cases are a dev/staging fallback
+          // only; in production the webhook is the source of truth.
           case "purchase":
           case "job_completed":
-          case "assessment_paid":
             if (purchaseLabel) fireConversion(purchaseLabel, value);
             break;
+          // assessment_paid is intentionally excluded from Google Ads here.
+          // It fires server-side as a separate micro-conversion from the
+          // Stripe webhook (GOOGLE_ADS_ASSESSMENT_FEE_CONVERSION_ACTION_RESOURCE).
+          // Double-firing client-side would corrupt attribution data.
           // Signup conversions
           case "customer_signup":
           case "locksmith_signup":
