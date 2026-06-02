@@ -529,6 +529,53 @@ export class GoogleAdsClient {
   }
 
   /**
+   * Generic POST helper for Google Ads API endpoints that are NOT `:mutate`
+   * (e.g. `:uploadClickConversions`, `:uploadCallConversions`).
+   *
+   * Usage:
+   *   client.request(`customers/${cid}:uploadClickConversions`, "POST", body)
+   *
+   * The path is appended to API_BASE. The caller is responsible for the full
+   * path segment (e.g. `customers/123:uploadClickConversions`).
+   */
+  async request<T = unknown>(
+    path: string,
+    method: string,
+    body: Record<string, unknown>,
+  ): Promise<T> {
+    const cfg = await getGoogleAdsApiConfig().catch(() => null);
+    const developerToken = cfg?.developerToken || process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
+    if (!developerToken) {
+      throw new Error("GOOGLE_ADS_DEVELOPER_TOKEN not configured");
+    }
+    const accessToken = await this.getAccessToken();
+    const url = `${API_BASE}/${path}`;
+
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${accessToken}`,
+      "developer-token": developerToken,
+      "Content-Type": "application/json",
+    };
+    if (this.loginCustomerId) {
+      headers["login-customer-id"] = this.loginCustomerId;
+    }
+
+    const res = await fetch(url, {
+      method,
+      headers,
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(
+        `Google Ads ${path} ${method} failed (${res.status}): ${text}`,
+      );
+    }
+    return (await res.json()) as T;
+  }
+
+  /**
    * Call KeywordPlanIdeaService.generateKeywordIdeas — Google's free keyword
    * research endpoint. Used by the Opportunity Scout to compare CPC /
    * competition / search volume across UK geos without spending a penny.
