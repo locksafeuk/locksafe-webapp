@@ -179,8 +179,10 @@ export async function uploadClickConversion(
       error: `Google Ads client unavailable: ${(client as { error: string }).error}`,
     };
   }
+  // getDefaultGoogleAdsClient() returns { client, accountId, customerId } —
+  // the actual GoogleAdsClient instance is on the .client property.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const c = client as any;
+  const c = (client as any).client;
 
   // Extract customer ID from the conversion-action resource name —
   // saves the caller having to thread it through.

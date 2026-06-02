@@ -61,8 +61,9 @@ export async function GET(request: NextRequest) {
     if (customerMatch) {
       const customerId = customerMatch[1];
       try {
+        // getDefaultGoogleAdsClient returns { client, accountId, customerId }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const c = client as any;
+        const c = (client as any).client;
         const validateBody = {
           conversions: [
             {
@@ -116,8 +117,9 @@ export async function GET(request: NextRequest) {
     if (customerMatch) {
       const customerId = customerMatch[1];
       try {
+        // getDefaultGoogleAdsClient returns { client, accountId, customerId }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const c = client as any;
+        const c = (client as any).client;
         const validateBody = {
           conversions: [
             {
