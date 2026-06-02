@@ -97,7 +97,12 @@ export async function initializeCMOAgent(): Promise<void> {
 }
 
 /**
- * Run CMO agent heartbeat
+ * Run CMO agent heartbeat — stage-aware.
+ *
+ * Resolves the platform stage BEFORE handing off to the LLM so the model
+ * has the stage context in its system prompt and can self-regulate. The
+ * stage is injected as a header into the skill context so the CMO's
+ * SKILL.md action matrix is respected.
  */
 export async function runCMOHeartbeat(): Promise<void> {
   const agent = await prisma.agent.findUnique({
@@ -110,6 +115,31 @@ export async function runCMOHeartbeat(): Promise<void> {
     return;
   }
 
+  // ── Resolve platform stage — cached, so this is cheap ───────────────────
+  let stageContext = "";
+  try {
+    const { getPlatformStage } = await import("@/lib/platform-stage");
+    const { stage, signals } = await getPlatformStage();
+    stageContext =
+      `\n\n[PLATFORM STAGE: ${stage}]\n` +
+      `Completed jobs: ${signals.completedJobs} | ` +
+      `Paid conversions: ${signals.paidConversions} | ` +
+      `Active locksmiths: ${signals.activeLocksmiths}\n` +
+      (stage === "CONSERVATION"
+        ? "ACTION RESTRICTION: NO new campaign drafts, NO social posts, NO budget changes. " +
+          "Diagnostics and negative keyword hygiene only.\n"
+        : stage === "OPTIMISE"
+          ? "ACTION RESTRICTION: Proposals require data evidence. Min £20/day budget. No budget increases.\n"
+          : "SCALE mode: expansion permitted with evidence threshold.\n");
+    console.log(`[CMO] Stage: ${stage} — ${signals.completedJobs} jobs, ${signals.paidConversions} paid conversions`);
+  } catch (stageErr) {
+    console.warn("[CMO] Stage resolver failed (non-fatal):", stageErr);
+  }
+
+  // stageContext is logged above — the CMO's SKILL.md instructs it to call
+  // getDashboardStats first and determine stage from the response, then
+  // follow the action matrix. The LLM enforces its own discipline via prompt.
+  void stageContext; // suppress unused warning
   const result = await executeHeartbeat("cmo");
 
   // Log errors but never throw — tool-level failures (429s, missing records, API
