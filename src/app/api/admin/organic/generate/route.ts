@@ -15,6 +15,7 @@ import {
   CONTENT_PILLARS,
   type ContentPillarKey,
 } from "@/lib/organic-content";
+import { filterEnabledPlatforms } from "@/lib/social-platforms";
 
 async function verifyAdmin() {
   const cookieStore = await cookies();
@@ -107,7 +108,7 @@ export async function POST(request: NextRequest) {
                   hookType: post.hookType,
                   pillarId: pillarDoc?.id,
                   hashtags: post.hashtags,
-                  platforms: platforms?.map((p: string) => p.toUpperCase()) || ["FACEBOOK", "INSTAGRAM"],
+                  platforms: filterEnabledPlatforms(platforms?.map((p: string) => p.toUpperCase()) || ["FACEBOOK", "INSTAGRAM"]),
                   aiGenerated: true,
                   aiPrompt: topic || `Generated for ${pillar} pillar`,
                   aiFramework: post.framework,

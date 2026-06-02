@@ -19,6 +19,7 @@ import { generateTikTokScript } from "@/lib/tiktok";
 import { generateSocialVideo } from "@/lib/creatomate";
 import { generateTalkingVideo, preferredVideoProvider } from "@/lib/d-id";
 import type { AgentConfig } from "@/agents/core/types";
+import { filterEnabledPlatforms } from "@/lib/social-platforms";
 
 export const SOCIAL_MEDIA_AGENT_CONFIG: AgentConfig = {
   name: "social-media",
@@ -121,8 +122,16 @@ export async function runSocialMediaHeartbeat(): Promise<void> {
     return;
   }
 
-  const activePlatforms = [...new Set(activeAccounts.map((a) => a.platform))];
+  // Instagram is currently paused org-wide (see @/lib/social-platforms);
+  // exclude any disabled platforms even if an account is still connected.
+  const activePlatforms = filterEnabledPlatforms([...new Set(activeAccounts.map((a) => a.platform))]);
   console.log(`[SocialMedia] Generating for pillar: ${pillar}, platforms: ${activePlatforms.join(", ")}`);
+
+  if (!activePlatforms.length) {
+    console.log("[SocialMedia] No enabled social platforms after filtering — skipping");
+    await markHeartbeat();
+    return;
+  }
 
   // Get recent completed jobs for success story content
   const recentJobs = await prisma.job.findMany({

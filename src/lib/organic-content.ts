@@ -523,9 +523,40 @@ export async function generateStatPost(): Promise<OrganicPost[]> {
 // CONTENT CALENDAR GENERATION
 // ==========================================
 
+/** Options for shaping the cadence of a generated content calendar. */
+export interface ContentCalendarOptions {
+  /**
+   * Fallback number of posts per day, used only for weekdays that have no
+   * entry in `publishTimes`. Defaults to 1.
+   */
+  postsPerDay?: number;
+  /**
+   * Per-weekday publish times, e.g. `{ monday: ["09:00", "18:00"], ... }`.
+   * When a weekday has one or more times listed, those times are the source
+   * of truth for both how many posts that day gets and when they fire. Keys
+   * are lowercase weekday names (sunday..saturday).
+   */
+  publishTimes?: Record<string, string[]>;
+}
+
+/** Lowercase weekday names indexed by Date.getDay() (0 = Sunday). */
+const WEEKDAY_NAMES = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+] as const;
+
+/** 4 PM UK (BST = UTC+1); 3 PM UTC — the historical default slot. */
+const DEFAULT_PUBLISH_TIME = "15:00";
+
 export function generateContentCalendar(
   startDate: Date,
-  days: number = 7
+  days: number = 7,
+  options: ContentCalendarOptions = {}
 ): ContentCalendarSlot[] {
   const slots: ContentCalendarSlot[] = [];
   const pillars = Object.values(CONTENT_PILLARS);
@@ -541,18 +572,25 @@ export function generateContentCalendar(
   // Shuffle for variety
   const shuffledPillars = pillarRotation.sort(() => Math.random() - 0.5);
 
-  const publishTimes = ['15:00']; // 4 PM UK (BST = UTC+1); 3 PM UTC
+  const fallbackPostsPerDay = Math.max(1, options.postsPerDay ?? 1);
   let pillarIndex = 0;
 
   for (let d = 0; d < days; d++) {
     const date = new Date(startDate);
     date.setDate(date.getDate() + d);
 
-    // 1 post per day at 4 PM UK
-    const postsPerDay = 1;
-    for (let p = 0; p < postsPerDay; p++) {
+    // Resolve the publish times for this weekday. Priority:
+    //   1. Configured publishTimes for this weekday (controls count + timing)
+    //   2. `postsPerDay` copies of the default time (legacy behaviour)
+    const weekday = WEEKDAY_NAMES[date.getDay()];
+    const configured = options.publishTimes?.[weekday];
+    const times =
+      configured && configured.length > 0
+        ? configured
+        : Array<string>(fallbackPostsPerDay).fill(DEFAULT_PUBLISH_TIME);
+
+    for (const time of times) {
       const pillar = shuffledPillars[pillarIndex % shuffledPillars.length];
-      const time = publishTimes[0];
 
       slots.push({
         date: new Date(date),

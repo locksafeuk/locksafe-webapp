@@ -24,6 +24,7 @@ import { isTwitterConfigured, postTweet, postThread } from "@/lib/twitter";
 import { isLinkedInConfigured, postToLinkedIn } from "@/lib/linkedin";
 import { isTikTokApiConfigured, generateTikTokScript } from "@/lib/tiktok";
 import { sendAdminAlert } from "@/lib/telegram";
+import { isPlatformEnabled } from "@/lib/social-platforms";
 
 /** Facebook errors that indicate a permanently invalid token (not transient) */
 const FB_TOKEN_EXPIRED_ERRORS = [
@@ -84,7 +85,10 @@ export async function GET(request: NextRequest) {
 
     const publishablePlatforms: SocialPlatform[] = [];
     if (facebookAccount) publishablePlatforms.push(SocialPlatform.FACEBOOK);
-    if (instagramAccount) publishablePlatforms.push(SocialPlatform.INSTAGRAM);
+    // Instagram is currently paused org-wide (see @/lib/social-platforms).
+    if (instagramAccount && isPlatformEnabled(SocialPlatform.INSTAGRAM)) {
+      publishablePlatforms.push(SocialPlatform.INSTAGRAM);
+    }
     if (twitterEnabled) publishablePlatforms.push(SocialPlatform.TWITTER);
     if (linkedinEnabled) publishablePlatforms.push(SocialPlatform.LINKEDIN);
     // TikTok posts are considered publishable because we can at least generate
@@ -199,8 +203,8 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Publish to Instagram if platform is selected and has image
-      if (post.platforms.includes("INSTAGRAM") && instagramAccount && post.imageUrl) {
+      // Publish to Instagram if platform is selected, enabled, and has image
+      if (post.platforms.includes("INSTAGRAM") && isPlatformEnabled("INSTAGRAM") && instagramAccount && post.imageUrl) {
         const igContent = formatPostForPlatform(
           {
             content: post.content,

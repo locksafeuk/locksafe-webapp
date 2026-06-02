@@ -109,7 +109,8 @@ const organizationSchema = {
   sameAs: [
     "https://facebook.com/locksafeuk",
     "https://twitter.com/locksafeuk",
-    "https://instagram.com/locksafeuk",
+    // Instagram paused (see @/lib/social-platforms) — restore if you keep the IG profile live:
+    // "https://instagram.com/locksafeuk",
     "https://linkedin.com/company/locksafeuk",
   ],
   slogan: "The UK's First Anti-Fraud Locksmith Platform",

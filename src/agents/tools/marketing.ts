@@ -19,6 +19,7 @@ import { checkAutoAction, getEffectivePolicy } from "@/lib/spend-guard";
 import { gateApproval } from "@/lib/platform-stage";
 import { isServiceSlug } from "@/lib/services-catalog";
 import { optimiseMetaCampaigns } from "@/lib/meta-optimiser";
+import { isPlatformEnabled } from "@/lib/social-platforms";
 
 /**
  * Generate social post content using AI
@@ -368,13 +369,24 @@ export const scheduleSocialPostTool: AgentTool = {
     const scheduledFor = new Date(params.scheduledFor as string);
     const imageUrl = params.imageUrl as string;
 
+    const targetPlatform = platform === "facebook" ? "FACEBOOK" : "INSTAGRAM";
+
+    // Instagram is currently paused (see @/lib/social-platforms). Don't create
+    // a post that would only ever sit unpublished on a disabled platform.
+    if (!isPlatformEnabled(targetPlatform)) {
+      return {
+        success: false,
+        error: `${targetPlatform} posting is currently disabled. Re-enable it in src/lib/social-platforms.ts or target a different platform.`,
+      };
+    }
+
     const post = await prisma.socialPost.create({
       data: {
         content,
         imageUrl,
         status: PostStatus.SCHEDULED,
         scheduledFor,
-        platforms: platform === "facebook" ? ["FACEBOOK"] : ["INSTAGRAM"],
+        platforms: [targetPlatform],
       },
     });
 

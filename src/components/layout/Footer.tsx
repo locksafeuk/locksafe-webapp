@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Facebook, Instagram, Linkedin, Twitter, Mail, Phone, MapPin } from "lucide-react";
+// Instagram icon import removed while IG is paused (see @/lib/social-platforms)
+import { Facebook, Linkedin, Twitter, Mail, Phone, MapPin } from "lucide-react";
 import { SUPPORT_PHONE, SUPPORT_PHONE_TEL } from "@/lib/config";
 
 const footerLinks = {
@@ -32,7 +33,8 @@ const footerLinks = {
 
 const socialLinks = [
   { icon: Facebook, href: "https://facebook.com/locksafeuk", label: "Facebook" },
-  { icon: Instagram, href: "https://instagram.com/locksafeuk", label: "Instagram" },
+  // Instagram paused (see @/lib/social-platforms) — restore to re-show the footer link:
+  // { icon: Instagram, href: "https://instagram.com/locksafeuk", label: "Instagram" },
   { icon: Twitter, href: "https://twitter.com/locksafeuk", label: "Twitter" },
   { icon: Linkedin, href: "https://linkedin.com/company/locksafeuk", label: "LinkedIn" },
 ];

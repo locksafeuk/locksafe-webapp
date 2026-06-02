@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth";
+import { filterEnabledPlatforms } from "@/lib/social-platforms";
 
 async function verifyAdmin() {
   const cookieStore = await cookies();
@@ -161,7 +162,7 @@ export async function POST(request: NextRequest) {
         carouselImages: carouselImages || [],
         pillarId,
         hashtags: hashtags || [],
-        platforms: platforms || ["FACEBOOK", "INSTAGRAM"],
+        platforms: filterEnabledPlatforms(platforms || ["FACEBOOK", "INSTAGRAM"]),
         aiGenerated: aiGenerated || false,
         aiPrompt,
         aiFramework,

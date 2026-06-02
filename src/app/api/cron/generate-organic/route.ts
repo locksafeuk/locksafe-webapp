@@ -19,6 +19,7 @@ import {
   CONTENT_PILLARS,
   type ContentPillarKey,
 } from "@/lib/organic-content";
+import { filterEnabledPlatforms } from "@/lib/social-platforms";
 
 async function verifyAccess(request: NextRequest): Promise<boolean> {
   if (verifyCronAuth(request)) return true;
@@ -86,10 +87,16 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Calculate how many posts we need
+    // Build the content calendar from the admin-configured cadence. The
+    // calendar itself is now the source of truth for how many posts we want
+    // (publishTimes can vary the count per weekday); postsPerDay is the
+    // per-day fallback for any weekday without configured times.
     const daysAhead = config.generateAheadDays;
-    const postsPerDay = config.postsPerDay;
-    const targetPosts = daysAhead * postsPerDay;
+    const calendar = generateContentCalendar(new Date(), daysAhead, {
+      postsPerDay: config.postsPerDay,
+      publishTimes: (config.publishTimes as Record<string, string[]> | null) ?? undefined,
+    });
+    const targetPosts = calendar.length;
 
     // Count existing pending/scheduled posts
     const existingPosts = await prisma.socialPost.count({
@@ -114,9 +121,6 @@ export async function GET(request: NextRequest) {
         generated: 0,
       });
     }
-
-    // Generate content calendar
-    const calendar = generateContentCalendar(new Date(), daysAhead);
 
     // Get or create pillars in DB
     const pillarMap = new Map<string, string>();
@@ -174,9 +178,11 @@ export async function GET(request: NextRequest) {
           // Determine platforms from active social accounts
           const activeAccounts = await prisma.socialAccount.findMany({ where: { isActive: true } });
           const activePlatforms = [...new Set(activeAccounts.map((a) => a.platform))] as ("FACEBOOK" | "INSTAGRAM" | "TWITTER" | "LINKEDIN" | "TIKTOK")[];
-          // If no accounts connected yet, fall back to config flags
+          // If no accounts connected yet, fall back to config flags.
+          // Disabled platforms (e.g. Instagram — see @/lib/social-platforms)
+          // are filtered out centrally so re-enabling is a single flag flip.
           const platforms = activePlatforms.length > 0
-            ? activePlatforms.filter((p) => p !== "INSTAGRAM") // Instagram suspended
+            ? filterEnabledPlatforms(activePlatforms)
             : ([] as typeof activePlatforms).concat(
                 config.publishToFacebook ? ["FACEBOOK"] : [],
               );
