@@ -40,7 +40,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyCronAuth } from "@/lib/cron-auth";
 import { prisma as _prisma } from "@/lib/db";
 import { sendAdminAlert } from "@/lib/telegram";
-import { getDefaultGoogleAdsClient } from "@/lib/google-ads";
+import { getGoogleAdsClientForAccount } from "@/lib/google-ads";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const prisma = _prisma as any;
@@ -248,25 +248,23 @@ async function evaluateCampaign(
 // ── Pause the remote campaign on Google Ads ─────────────────────────────────
 
 async function pauseRemoteCampaign(
+  accountId:            string,
   googleAdsCampaignId: string,
-  customerId:          string,
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    const c = await getDefaultGoogleAdsClient();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const client = c as any;
+    const client = await getGoogleAdsClientForAccount(accountId);
+    if (!client) {
+      return { ok: false, error: `No active Google Ads client for account ${accountId}` };
+    }
     await client.mutate(
-      `customers/${customerId}/campaigns:mutate`,
-      "POST",
-      {
-        operations: [{
-          update: {
-            resourceName: `customers/${customerId}/campaigns/${googleAdsCampaignId}`,
-            status: "PAUSED",
-          },
-          updateMask: "status",
-        }],
-      },
+      "campaigns",
+      [{
+        update: {
+          resourceName: `customers/${client.customerIdPlain}/campaigns/${googleAdsCampaignId}`,
+          status: "PAUSED",
+        },
+        updateMask: "status",
+      }],
     );
     return { ok: true };
   } catch (err) {
@@ -317,6 +315,7 @@ async function runAutoPause(request: NextRequest): Promise<Response> {
     },
     select: {
       id:                true,
+      accountId:         true,
       name:              true,
       status:            true,
       googleCampaignId:  true,
@@ -370,21 +369,20 @@ async function runAutoPause(request: NextRequest): Promise<Response> {
       // caused silent drift whenever the API call failed (quota, network,
       // auth) — local said PAUSED while ads kept serving and burning budget.
       //
-      // 1. Pause remote on Google Ads. customerId is the dash-stripped
-      //    Google Ads account ID (e.g. "1234567890"), which is what the
-      //    Ads API requires in the resource path.
+      // 1. Pause remote on Google Ads using the draft's own account binding
+      //    so multi-account setups cannot pick the wrong active client.
       let pauseResult: { ok: boolean; error?: string } | undefined;
-      if (campaign.googleCampaignId && campaign.account?.customerId) {
+      if (campaign.googleCampaignId && campaign.accountId) {
         pauseResult = await pauseRemoteCampaign(
+          campaign.accountId,
           campaign.googleCampaignId,
-          campaign.account.customerId,
         );
       } else {
         // No remote handle to call — record an explicit failure so the
         // alert below makes clear we did NOT pause the campaign.
         pauseResult = {
           ok: false,
-          error: "No googleCampaignId or account.customerId on draft — cannot call Google Ads API",
+          error: "No googleCampaignId or accountId on draft — cannot call Google Ads API",
         };
       }
 

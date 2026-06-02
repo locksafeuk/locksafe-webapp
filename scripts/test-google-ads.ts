@@ -57,6 +57,7 @@ const days = parseInt(args.find((a) => a.startsWith("--days="))?.split("=")[1] ?
 const topN = parseInt(args.find((a) => a.startsWith("--top="))?.split("=")[1] ?? "20", 10);
 const strict = args.includes("--strict");
 const productionUrl = args.find((a) => a.startsWith("--production-url="))?.split("=")[1];
+const requestedCustomerId = args.find((a) => a.startsWith("--customer="))?.split("=")[1]?.replace(/[^0-9]/g, "");
 
 function buildAdminCookieHeader(cookieValue: string): string {
   const trimmed = cookieValue.trim();
@@ -113,10 +114,20 @@ async function main() {
   console.log(`  Top terms  : ${topN}`);
   hr("─", 80);
 
-  const account = await prisma.googleAdsAccount.findFirst({
+  const activeAccounts = await prisma.googleAdsAccount.findMany({
     where: { isActive: true },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ lastSyncAt: "desc" }, { createdAt: "asc" }],
   });
+
+  let account = requestedCustomerId
+    ? activeAccounts.find((a) => a.customerId.replace(/[^0-9]/g, "") === requestedCustomerId) ?? null
+    : null;
+
+  if (!account) {
+    // Prefer an account with sync history so strict diagnostics don't default to
+    // a newly connected manager account that can't return campaign metrics.
+    account = activeAccounts.find((a) => !!a.lastSyncAt) ?? activeAccounts[0] ?? null;
+  }
 
   if (!account) {
     if (strict) {
@@ -131,6 +142,9 @@ async function main() {
   }
 
   console.log(`\n✅  Account found:`);
+  if (activeAccounts.length > 1) {
+    console.log(`     Active accounts available: ${activeAccounts.length}`);
+  }
   console.log(`     Customer ID  : ${account.customerId}`);
   console.log(`     Name         : ${account.name}`);
   console.log(`     Currency     : ${account.currency}`);

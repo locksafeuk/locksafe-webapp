@@ -1014,10 +1014,23 @@ export async function getDefaultGoogleAdsClient(): Promise<{
   accountId: string;
   customerId: string;
 } | null> {
-  const account = await prisma.googleAdsAccount.findFirst({
-    where: { isActive: true },
-    orderBy: { createdAt: "asc" },
-  });
+  const preferredRaw = process.env.GOOGLE_ADS_DEFAULT_CUSTOMER_ID?.trim() || "";
+  const preferredCustomerId = preferredRaw.replace(/[^0-9]/g, "");
+
+  let account = preferredCustomerId
+    ? await prisma.googleAdsAccount.findFirst({
+        where: { isActive: true, customerId: preferredCustomerId },
+      })
+    : null;
+
+  if (!account) {
+    account = await prisma.googleAdsAccount.findFirst({
+      where: { isActive: true },
+      // Prefer the account that has proven sync activity, then oldest stable fallback.
+      orderBy: [{ lastSyncAt: "desc" }, { createdAt: "asc" }],
+    });
+  }
+
   if (!account) return null;
   const client = new GoogleAdsClient({
     customerId: account.customerId,
