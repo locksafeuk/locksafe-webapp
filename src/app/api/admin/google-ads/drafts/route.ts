@@ -42,21 +42,55 @@ interface KeywordIn {
   matchType: "EXACT" | "PHRASE" | "BROAD";
 }
 
+interface AdGroupIn {
+  name: string;
+  keywords: KeywordIn[];
+  headlines: string[];
+  descriptions: string[];
+}
+
+interface AssetIn {
+  type: "CALLOUT" | "SITELINK" | "CALL" | "STRUCTURED_SNIPPET" | "PRICE";
+  text?: string;
+  linkText?: string;
+  finalUrl?: string;
+  description1?: string;
+  description2?: string;
+  phoneNumber?: string;
+  countryCode?: string;
+  header?: string;
+  values?: string[];
+}
+
 interface ManualDraftBody {
   accountId?: string;
   name?: string;
   dailyBudget?: number;
   biddingStrategy?: string;
   targetCpa?: number | null;
+  targetRoas?: number | null;
   channel?: string;
+  // Location targeting
   geoTargets?: string[];
+  geoExclusions?: string[];
+  locationMatchType?: "PRESENCE_ONLY" | "PRESENCE_OR_INTEREST";
   languageTargets?: string[];
+  // Creative
   headlines?: string[];
   descriptions?: string[];
   finalUrl?: string;
+  // Keywords
   keywords?: KeywordIn[];
   negativeKeywords?: string[];
-  approveImmediately?: boolean; // skip the PENDING_APPROVAL stage
+  sharedNegativeListId?: string;
+  // Advanced campaign settings
+  adGroups?: AdGroupIn[];
+  assets?: AssetIn[];
+  deviceBidAdjustments?: { mobile?: number; tablet?: number; desktop?: number };
+  adScheduleAdjustments?: Array<{ dayOfWeek: string; hourStart: number; hourEnd: number; bidModifier: number }>;
+  startDate?: string;
+  endDate?: string;
+  approveImmediately?: boolean;
   notes?: string;
 }
 
@@ -141,7 +175,8 @@ export async function POST(request: NextRequest) {
 
   const status = body.approveImmediately ? "APPROVED" : "PENDING_APPROVAL";
 
-  const draft = await prisma.googleAdsCampaignDraft.create({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const draft = await (prisma.googleAdsCampaignDraft as any).create({
     data: {
       accountId,
       status,
@@ -157,6 +192,17 @@ export async function POST(request: NextRequest) {
       finalUrl,
       keywords: keywords as unknown as object,
       negativeKeywords,
+      // Phase 2 fields
+      geoExclusions: Array.isArray(body.geoExclusions) ? body.geoExclusions.map(String) : [],
+      locationMatchType: body.locationMatchType ?? "PRESENCE_ONLY",
+      targetRoas: body.targetRoas != null ? Number(body.targetRoas) : null,
+      adGroups: body.adGroups ? (body.adGroups as unknown as object) : undefined,
+      assets: body.assets ? (body.assets as unknown as object) : undefined,
+      deviceBidAdjustments: body.deviceBidAdjustments ? (body.deviceBidAdjustments as unknown as object) : undefined,
+      adScheduleAdjustments: body.adScheduleAdjustments ? (body.adScheduleAdjustments as unknown as object) : undefined,
+      sharedNegativeListId: body.sharedNegativeListId ?? undefined,
+      startDate: body.startDate ? new Date(body.startDate) : undefined,
+      endDate: body.endDate ? new Date(body.endDate) : undefined,
       aiGenerated: false,
       aiPrompt: body.notes ?? null,
       aiReasoning: "Manually authored via admin UI.",

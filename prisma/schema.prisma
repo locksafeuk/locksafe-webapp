@@ -1345,6 +1345,37 @@ model GoogleAdsCampaignDraft {
   snapshotAt        DateTime?
   templateId        String?  @db.ObjectId
 
+  // ── Phase 2 campaign settings ─────────────────────────────────────────────
+  // Location targeting precision
+  geoExclusions     String[] @default([])
+  // PRESENCE_ONLY = only people physically in the target area (recommended)
+  // PRESENCE_OR_INTEREST = also people searching about the area from anywhere
+  locationMatchType String   @default("PRESENCE_ONLY")
+
+  // Bid adjustments (applied at publish time)
+  // deviceBidAdjustments: { mobile: 25, tablet: 0, desktop: 0 } — percentage modifiers
+  deviceBidAdjustments  Json?
+  // adScheduleAdjustments: [{ dayOfWeek: "MONDAY", hourStart: 18, hourEnd: 23, bidModifier: 20 }]
+  adScheduleAdjustments Json?
+
+  // Ad group structure — if set, creates multiple ad groups instead of one flat group
+  // [{ name: "Locked Out", keywords: [{text, matchType}], headlines: string[], descriptions: string[] }]
+  adGroups Json?
+
+  // Ad assets (callouts, sitelinks, call extension, structured snippets, price)
+  // [{ type: "CALLOUT"|"SITELINK"|"CALL"|"STRUCTURED_SNIPPET"|"PRICE", ...data }]
+  assets Json?
+
+  // Shared negative keyword list (applied in addition to campaign-level negatives)
+  sharedNegativeListId String? @db.ObjectId
+
+  // Extended bidding
+  targetRoas Float?
+
+  // Flight dates (optional)
+  startDate DateTime?
+  endDate   DateTime?
+
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   lastSyncAt DateTime?
@@ -1353,6 +1384,21 @@ model GoogleAdsCampaignDraft {
 
   @@index([accountId])
   @@index([status])
+}
+
+// =========================================================================
+// Google Ads Shared Negative Keyword List
+// One list → applied to multiple campaigns. Edit once, updates everywhere.
+// =========================================================================
+
+model GoogleAdsSharedNegativeList {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  keywords     String[] // negative keywords in this list
+  googleListId String?  // resource ID once created in Google Ads
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // =========================================================================
