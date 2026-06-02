@@ -173,7 +173,10 @@ export default function GoogleAdsDraftDetailPage() {
   }
 
   async function deleteDraft() {
-    if (!confirm("Delete this draft? This cannot be undone.")) return;
+    const message = draft?.googleCampaignId
+      ? "Delete this draft and remove the linked campaign from Google Ads? This cannot be undone."
+      : "Delete this draft? This cannot be undone.";
+    if (!confirm(message)) return;
     setBusy(true);
     try {
       const res = await fetch(`/api/admin/google-ads/drafts/${id}`, { method: "DELETE" });
@@ -196,7 +199,7 @@ export default function GoogleAdsDraftDetailPage() {
   const canApprove = draft.status === "PENDING_APPROVAL" || draft.status === "DRAFT";
   const canPublish = draft.status === "APPROVED" && !draft.googleCampaignId;
   const canPause = draft.status === "PUBLISHED" && !!draft.googleCampaignId;
-  const canDelete = !draft.googleCampaignId && draft.status !== "PUBLISHED";
+  const canDelete = draft.status !== "PUBLISHING";
 
   return (
     <div className="container mx-auto max-w-4xl p-6 space-y-6">
@@ -431,7 +434,7 @@ export default function GoogleAdsDraftDetailPage() {
             disabled={busy}
             className="rounded border px-4 py-2 text-sm hover:bg-red-50 disabled:opacity-50"
           >
-            Delete draft
+            {draft.googleCampaignId ? "Remove from Google + Delete draft" : "Delete draft"}
           </button>
         )}
       </section>

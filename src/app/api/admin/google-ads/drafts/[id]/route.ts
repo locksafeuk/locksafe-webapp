@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import prisma from "@/lib/db";
 import { verifyToken } from "@/lib/auth";
+import { buildResourceName, getGoogleAdsClientForAccount } from "@/lib/google-ads";
 
 async function verifyAdmin() {
   const cookieStore = await cookies();
@@ -48,15 +49,52 @@ export async function DELETE(
   const { id } = await params;
   const draft = await prisma.googleAdsCampaignDraft.findUnique({ where: { id } });
   if (!draft) return NextResponse.json({ error: "Draft not found" }, { status: 404 });
-  if (draft.status === "PUBLISHED" || draft.googleCampaignId) {
-    return NextResponse.json(
-      {
-        error:
-          "Cannot delete a published draft. Pause the campaign in Google Ads first, or use the pause endpoint.",
-      },
-      { status: 400 },
+
+  if (draft.googleCampaignId) {
+    const client = await getGoogleAdsClientForAccount(draft.accountId);
+    if (!client) {
+      return NextResponse.json(
+        {
+          error:
+            "Cannot delete because no active Google Ads account is connected for this draft.",
+        },
+        { status: 400 },
+      );
+    }
+
+    const campaignResourceName = buildResourceName(
+      client.customerIdPlain,
+      "campaigns",
+      draft.googleCampaignId,
     );
+
+    try {
+      // Best effort check: if campaign is already removed/missing, we skip mutate.
+      const rows = await client.query<{ campaign: { id: string; status: string } }>(`
+        SELECT campaign.id, campaign.status
+        FROM campaign
+        WHERE campaign.id = ${draft.googleCampaignId}
+      `);
+
+      const live = rows[0]?.campaign;
+      if (live && live.status !== "REMOVED") {
+        await client.mutate("campaigns", [{ remove: campaignResourceName }]);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const missing = /NOT_FOUND|RESOURCE_NOT_FOUND|not\s+found/i.test(message);
+      if (!missing) {
+        return NextResponse.json(
+          {
+            error: "Failed to remove linked Google Ads campaign before delete.",
+            details: message,
+          },
+          { status: 500 },
+        );
+      }
+    }
   }
+
   await prisma.googleAdsCampaignDraft.delete({ where: { id } });
   return NextResponse.json({ success: true });
 }
