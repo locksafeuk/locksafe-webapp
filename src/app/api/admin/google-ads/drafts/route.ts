@@ -12,6 +12,7 @@ import { cookies } from "next/headers";
 import prisma from "@/lib/db";
 import { verifyToken } from "@/lib/auth";
 import { enforceDistrictLandingForDraft } from "@/lib/google-ads-district-enforcer";
+import { normalizeLocationMatchType } from "@/lib/google-ads-location-match-type";
 
 async function verifyAdmin() {
   const cookieStore = await cookies();
@@ -74,7 +75,7 @@ interface ManualDraftBody {
   // Location targeting
   geoTargets?: string[];
   geoExclusions?: string[];
-  locationMatchType?: "PRESENCE" | "PRESENCE_ONLY" | "PRESENCE_OR_INTEREST";
+  locationMatchType?: "PRESENCE" | "PRESENCE_OR_INTEREST" | "PRESENCE_ONLY";
   languageTargets?: string[];
   // Creative
   headlines?: string[];
@@ -205,10 +206,7 @@ export async function POST(request: NextRequest) {
       negativeKeywords,
       // Phase 2 fields
       geoExclusions: Array.isArray(body.geoExclusions) ? body.geoExclusions.map(String) : [],
-      locationMatchType:
-        body.locationMatchType === "PRESENCE_OR_INTEREST"
-          ? "PRESENCE_OR_INTEREST"
-          : "PRESENCE",
+      locationMatchType: normalizeLocationMatchType(body.locationMatchType),
       targetRoas: body.targetRoas != null ? Number(body.targetRoas) : null,
       adGroups: body.adGroups ? (body.adGroups as unknown as object) : undefined,
       assets: body.assets ? (body.assets as unknown as object) : undefined,

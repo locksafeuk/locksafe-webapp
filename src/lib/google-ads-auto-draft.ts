@@ -337,6 +337,7 @@ export async function autoCreateOnboardingCampaignDraft(
       dailyBudget:      dailyBudget,
       biddingStrategy:  "MANUAL_CPC",
       channel:          "SEARCH",
+      locationMatchType: "PRESENCE",
       geoTargets,
       languageTargets:  ["1000"], // English
       headlines:        plan.headlines,

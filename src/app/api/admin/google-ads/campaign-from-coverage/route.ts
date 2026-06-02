@@ -270,6 +270,7 @@ export async function POST(request: NextRequest) {
       biddingStrategy: CAMPAIGN_PLAN.biddingStrategy,
       targetCpa: null,
       channel: "SEARCH",
+      locationMatchType: "PRESENCE",
       geoTargets,          // Only cities where we have locksmiths
       languageTargets: ["1000"], // English
       headlines: CAMPAIGN_PLAN.headlines,

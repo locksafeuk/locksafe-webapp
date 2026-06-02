@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
         data: {
           isEnabled: false, // Disabled by default
           postsPerDay: 1,
-          generateAheadDays: 7,
+          generateAheadDays: 3,
           requireApproval: false,
           publishToFacebook: true,
           publishToInstagram: false,

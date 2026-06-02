@@ -95,6 +95,7 @@ export interface CampaignDraftPayload {
     biddingStrategy: string;
     targetCpa?:      number;
     channel:         string;
+    locationMatchType: "PRESENCE" | "PRESENCE_OR_INTEREST";
     geoTargets:      string[];
     languageTargets: string[];
     headlines:       string[];
@@ -442,6 +443,7 @@ export function buildDiscoveryCampaignDraft(
       // targetCpa undefined — we let conversions tuning learn it; the CPC
       // cap is applied at the keyword level via the bidding strategy max.
       channel:         "SEARCH",
+      locationMatchType: "PRESENCE",
       geoTargets:      ["2826"],  // United Kingdom
       languageTargets: ["1000"],  // English
       headlines,

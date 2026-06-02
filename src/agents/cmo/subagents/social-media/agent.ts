@@ -106,7 +106,7 @@ export async function runSocialMediaHeartbeat(): Promise<void> {
     },
   });
 
-  if (existingToday >= 3) {
+  if (existingToday >= 1) {
     console.log(`[SocialMedia] ${existingToday} posts already generated today — skipping`);
     await markHeartbeat();
     return;

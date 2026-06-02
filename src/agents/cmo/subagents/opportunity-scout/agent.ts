@@ -723,6 +723,7 @@ async function maybeAutoDraft(args: {
       dailyBudget: plan.plan.recommendedDailyBudget,
       biddingStrategy: "MANUAL_CPC",
       channel: "SEARCH",
+      locationMatchType: "PRESENCE",
       // Override the locksmith's home geo with the OPPORTUNITY geo we want to test.
       geoTargets: [opportunity.geoId],
       languageTargets: ["1000"],

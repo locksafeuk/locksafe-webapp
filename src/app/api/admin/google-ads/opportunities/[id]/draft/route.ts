@@ -106,6 +106,7 @@ export async function POST(
       dailyBudget: build.plan.recommendedDailyBudget,
       biddingStrategy: "MANUAL_CPC",
       channel: "SEARCH",
+      locationMatchType: "PRESENCE",
       geoTargets: [opp.geoTargetId], // override — target the opportunity geo
       languageTargets: ["1000"],
       headlines: build.plan.headlines,

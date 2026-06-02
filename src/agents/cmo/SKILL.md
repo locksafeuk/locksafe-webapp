@@ -105,7 +105,7 @@ These are already PENDING_APPROVAL and ready to publish:
 3. LockSafe | North East | Final — £20/day
 4. LockSafe | Midlands | Final — £25/day
 
-Each has: 54 keywords, 128 negatives, 5 ad groups, 12 assets, PRESENCE_ONLY geo,
+Each has: 54 keywords, 128 negatives, 5 ad groups, 12 assets, PRESENCE geo,
 mobile +25% bid, evening/weekend +20% bid.
 
 **Do not create variants or copies of these. They are complete.**

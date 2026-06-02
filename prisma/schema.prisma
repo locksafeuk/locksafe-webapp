@@ -1348,9 +1348,9 @@ model GoogleAdsCampaignDraft {
   // ── Phase 2 campaign settings ─────────────────────────────────────────────
   // Location targeting precision
   geoExclusions     String[] @default([])
-  // PRESENCE_ONLY = only people physically in the target area (recommended)
+  // PRESENCE = only people physically in the target area (recommended)
   // PRESENCE_OR_INTEREST = also people searching about the area from anywhere
-  locationMatchType String   @default("PRESENCE_ONLY")
+  locationMatchType String   @default("PRESENCE")
 
   // Bid adjustments (applied at publish time)
   // deviceBidAdjustments: { mobile: 25, tablet: 0, desktop: 0 } — percentage modifiers

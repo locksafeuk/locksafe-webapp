@@ -956,6 +956,7 @@ export const createGoogleAdsDraftTool: AgentTool = {
         biddingStrategy,
         targetCpa,
         channel: "SEARCH",
+        locationMatchType: "PRESENCE",
         geoTargets: activeCoverageGeoTargets,
         languageTargets: ["1000"], // English
         headlines: plan.headlines,

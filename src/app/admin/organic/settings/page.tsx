@@ -88,8 +88,8 @@ export default function AutopilotSettingsPage() {
 
   // Form state
   const [isEnabled, setIsEnabled] = useState(false);
-  const [postsPerDay, setPostsPerDay] = useState(2);
-  const [generateAheadDays, setGenerateAheadDays] = useState(7);
+  const [postsPerDay, setPostsPerDay] = useState(1);
+  const [generateAheadDays, setGenerateAheadDays] = useState(3);
   const [requireApproval, setRequireApproval] = useState(true);
   const [publishToFacebook, setPublishToFacebook] = useState(true);
 
@@ -200,6 +200,8 @@ export default function AutopilotSettingsPage() {
         setNotificationEmail(cfg.notificationEmail || "");
       } else {
         // Set defaults
+        setPostsPerDay(1);
+        setGenerateAheadDays(3);
         setPublishTimes({
           monday: ["09:00", "18:00"],
           tuesday: ["09:00", "18:00"],

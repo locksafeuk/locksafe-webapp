@@ -22,6 +22,7 @@ import type { GoogleKeyword, GoogleKeywordMatchType } from "./openai-google-ads"
 import { captureAndStoreSnapshot } from "./google-ads-snapshot";
 import { assertLandingPageReady } from "./google-ads-landing-preflight";
 import { assertAdCopyClean } from "./google-ads-copy-guard";
+import { normalizeLocationMatchType } from "@/lib/google-ads-location-match-type";
 
 interface PublishResult {
   draftId: string;
@@ -126,6 +127,73 @@ function parseKeywords(raw: unknown): GoogleKeyword[] {
       return { text, matchType };
     })
     .filter((k) => k.text.length > 0);
+}
+
+const RSA_HEADLINE_MAX = 30;
+const RSA_DESCRIPTION_MAX = 90;
+
+function clipText(text: string, max: number): string {
+  if (text.length <= max) return text;
+  return text.slice(0, max).trim();
+}
+
+function dedupeByNormalizedText(items: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+
+  for (const raw of items) {
+    const value = String(raw ?? "").trim();
+    if (!value) continue;
+
+    const key = value.replace(/\s+/g, " ").toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+  }
+
+  return out;
+}
+
+function buildUniqueRsaAssets(
+  input: { headlines: string[]; descriptions: string[] },
+): { headlines: string[]; descriptions: string[] } {
+  const headlineFallbacks = [
+    "LockSafe Vetted Locksmiths",
+    "Emergency Locksmith Help",
+    "Trusted Local Locksmith UK",
+  ];
+  const descriptionFallbacks = [
+    "Book a vetted locksmith with anti-fraud protection and live tracking.",
+    "Fast response and clear pricing from trusted UK locksmith professionals.",
+  ];
+
+  const headlines = dedupeByNormalizedText(
+    (input.headlines || []).map((h) => clipText(String(h).trim(), RSA_HEADLINE_MAX)),
+  ).slice(0, 15);
+
+  const descriptions = dedupeByNormalizedText(
+    (input.descriptions || []).map((d) => clipText(String(d).trim(), RSA_DESCRIPTION_MAX)),
+  ).slice(0, 4);
+
+  for (const fallback of headlineFallbacks) {
+    if (headlines.length >= 3) break;
+    const candidate = clipText(fallback, RSA_HEADLINE_MAX);
+    const alreadyExists = headlines.some(
+      (h) => h.replace(/\s+/g, " ").toLowerCase() === candidate.replace(/\s+/g, " ").toLowerCase(),
+    );
+    if (!alreadyExists) headlines.push(candidate);
+  }
+
+  for (const fallback of descriptionFallbacks) {
+    if (descriptions.length >= 2) break;
+    const candidate = clipText(fallback, RSA_DESCRIPTION_MAX);
+    const alreadyExists = descriptions.some(
+      (d) => d.replace(/\s+/g, " ").toLowerCase() === candidate.replace(/\s+/g, " ").toLowerCase(),
+    );
+    if (!alreadyExists) descriptions.push(candidate);
+  }
+
+  return { headlines, descriptions };
 }
 
 /**
@@ -237,11 +305,9 @@ export async function publishGoogleAdsDraft(draftId: string): Promise<PublishRes
 
     // Location match type: Google Ads v24 expects PRESENCE (legacy drafts may
     // still store PRESENCE_ONLY, which we map for backwards compatibility).
-    const locationMatchType = draft.locationMatchType ?? "PRESENCE";
+    const locationMatchType = normalizeLocationMatchType(draft.locationMatchType);
     const geoTargetTypeSetting = {
-      positiveGeoTargetType: (locationMatchType === "PRESENCE_ONLY" || locationMatchType === "PRESENCE")
-        ? "PRESENCE"
-        : "PRESENCE_OR_INTEREST",
+      positiveGeoTargetType: locationMatchType,
       negativeGeoTargetType: "PRESENCE",
     };
 
@@ -345,7 +411,8 @@ export async function publishGoogleAdsDraft(draftId: string): Promise<PublishRes
         });
       }
       if (bidModOps.length > 0) {
-        await client.mutate("campaignBidModifiers", bidModOps).catch((e) => {
+        // Device bid modifiers are campaign criteria with bidModifier.
+        await client.mutate("campaignCriteria", bidModOps).catch((e) => {
           console.warn("[publish] Device bid adjustments failed (non-fatal):", e);
         });
       }
@@ -369,7 +436,8 @@ export async function publishGoogleAdsDraft(draftId: string): Promise<PublishRes
           bidModifier: 1 + (s.bidModifier / 100),
         },
       }));
-      await client.mutate("campaignBidModifiers", schedOps).catch((e) => {
+      // Ad schedule bid modifiers are campaign criteria with bidModifier.
+      await client.mutate("campaignCriteria", schedOps).catch((e) => {
         console.warn("[publish] Ad schedule bid adjustments failed (non-fatal):", e);
       });
     }
@@ -458,6 +526,11 @@ export async function publishGoogleAdsDraft(draftId: string): Promise<PublishRes
       }
 
       // ----- 6. RSA ad (single group path) -----
+      const { headlines, descriptions } = buildUniqueRsaAssets({
+        headlines: draft.headlines,
+        descriptions: draft.descriptions,
+      });
+
       const adRes = await client.mutate<{
         results?: { resourceName: string }[];
       }>("adGroupAds", [
@@ -468,8 +541,8 @@ export async function publishGoogleAdsDraft(draftId: string): Promise<PublishRes
             ad: {
               finalUrls: [draft.finalUrl],
               responsiveSearchAd: {
-                headlines: draft.headlines.map((text) => ({ text })),
-                descriptions: draft.descriptions.map((text) => ({ text })),
+                headlines: headlines.map((text) => ({ text })),
+                descriptions: descriptions.map((text) => ({ text })),
               },
             },
           },
@@ -595,9 +668,9 @@ async function publishAssets(
         case "SITELINK":
           if (!asset.linkText || !asset.finalUrl) continue;
           assetPayload = {
+            finalUrls: [asset.finalUrl],
             sitelinkAsset: {
               linkText: asset.linkText,
-              finalUrls: [asset.finalUrl],
               ...(asset.description1 ? { description1: asset.description1 } : {}),
               ...(asset.description2 ? { description2: asset.description2 } : {}),
             },
@@ -688,21 +761,57 @@ async function publishAdGroups(
 
     // Add keywords for this group
     if (group.keywords?.length) {
-      const kwOps = group.keywords.map((k) => ({
+      const normalizedKeywords = group.keywords.map((k) => ({
+        text: k.text.toLowerCase().trim(),
+        matchType: k.matchType,
+      }));
+
+      const kwOps = normalizedKeywords.map((k) => ({
         create: {
           adGroup: agResource,
           status: "ENABLED",
-          keyword: { text: k.text.toLowerCase().trim(), matchType: k.matchType },
+          keyword: { text: k.text, matchType: k.matchType },
         },
       }));
-      await client.mutate("adGroupCriteria", kwOps).catch((e) =>
-        console.warn(`[publish] Keywords for group "${group.name}" failed:`, e),
-      );
+      try {
+        await client.mutate("adGroupCriteria", kwOps);
+      } catch (e) {
+        const exemptions = extractExemptiblePolicyViolationKeys(e);
+        if (exemptions && exemptions.length > 0) {
+          const exemptionMap = new Map(
+            exemptions.map((x) => [x.violatingText.toLowerCase(), x.policyName]),
+          );
+          const kwOpsWithExemptions = normalizedKeywords.map((k) => {
+            const policyName = exemptionMap.get(k.text);
+            const op: Record<string, unknown> = {
+              create: {
+                adGroup: agResource,
+                status: "ENABLED",
+                keyword: { text: k.text, matchType: k.matchType },
+              },
+            };
+            if (policyName) {
+              op.exemptPolicyViolationKeys = [{ policyName, violatingText: k.text }];
+            }
+            return op;
+          });
+          await client.mutate("adGroupCriteria", kwOpsWithExemptions).catch((retryErr) =>
+            console.warn(
+              `[publish] Keywords for group "${group.name}" failed after exemption retry:`,
+              retryErr,
+            ),
+          );
+        } else {
+          console.warn(`[publish] Keywords for group "${group.name}" failed:`, e);
+        }
+      }
     }
 
     // Create RSA for this group
-    const headlines = group.headlines?.length ? group.headlines : [];
-    const descriptions = group.descriptions?.length ? group.descriptions : [];
+    const { headlines, descriptions } = buildUniqueRsaAssets({
+      headlines: group.headlines?.length ? group.headlines : [],
+      descriptions: group.descriptions?.length ? group.descriptions : [],
+    });
     if (headlines.length >= 3 && descriptions.length >= 2) {
       const adRes = await client.mutate<{ results?: { resourceName: string }[] }>(
         "adGroupAds",

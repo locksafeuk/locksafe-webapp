@@ -189,6 +189,7 @@ export async function POST(request: NextRequest) {
         dailyBudget: plan.recommendedDailyBudget,
         biddingStrategy: "MANUAL_CPC", // safer default for per-locksmith pilots
         channel: "SEARCH",
+        locationMatchType: "PRESENCE",
         geoTargets,
         languageTargets: ["1000"],
         headlines: plan.headlines,
