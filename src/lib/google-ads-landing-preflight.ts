@@ -6,7 +6,7 @@
  *   2. (for district pages) backed by a published DistrictLandingPage row
  *      whose content is clean — no LLM placeholders, junk regions, or known
  *      false claims, and the required copy blocks are present,
- *   3. LIVE — returns HTTP 200,
+ *   3. LIVE — resolves to HTTP 200 (redirects allowed if the final page is 200),
  * BEFORE we hand the URL to Google. Otherwise Google disapproves the campaign
  * for a broken or policy-violating destination ("Destination not working").
  *
@@ -163,18 +163,24 @@ export async function assertLandingPageReady(finalUrl: string): Promise<void> {
     }
   }
 
-  // ── Liveness check: the URL must return HTTP 200 ────────────────────────
+  // ── Liveness check: the URL must resolve to HTTP 200 ─────────────────────
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), LIVENESS_TIMEOUT_MS);
   let status: number;
+  let resolvedUrl = finalUrl;
+  let wasRedirected = false;
   try {
     const res = await fetch(finalUrl, {
       method: "GET",
-      redirect: "manual", // a redirect is NOT a clean 200 destination
+      // Google accepts landing URLs that redirect to a working destination.
+      // We only block when the resolved destination fails to load as 200.
+      redirect: "follow",
       headers: { "User-Agent": "LockSafe-AdsPreflight/1.0" },
       signal: controller.signal,
     });
     status = res.status;
+    resolvedUrl = res.url || finalUrl;
+    wasRedirected = res.redirected;
   } catch (err) {
     throw new LandingPagePreflightError(
       "not_live",
@@ -189,7 +195,9 @@ export async function assertLandingPageReady(finalUrl: string): Promise<void> {
     throw new LandingPagePreflightError(
       "not_live",
       finalUrl,
-      `Final URL ${finalUrl} returned HTTP ${status} (must be 200). Google rejects campaigns whose destination doesn't load cleanly.`,
+      wasRedirected
+        ? `Final URL ${finalUrl} redirected to ${resolvedUrl} but returned HTTP ${status} (must resolve to 200). Google rejects campaigns whose destination doesn't load cleanly.`
+        : `Final URL ${finalUrl} returned HTTP ${status} (must resolve to 200). Google rejects campaigns whose destination doesn't load cleanly.`,
     );
   }
 }
