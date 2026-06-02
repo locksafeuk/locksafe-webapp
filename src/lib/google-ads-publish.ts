@@ -2,18 +2,17 @@
  * Google Ads draft publisher.
  *
  * Takes a `GoogleAdsCampaignDraft` row and creates the matching live
- * resources via the Google Ads REST mutation endpoints. Always creates the
- * campaign in PAUSED state — the admin (or Phase-3 spend-guard) must enable
- * it explicitly afterwards.
+ * resources via the Google Ads REST mutation endpoints. Creates the campaign
+ * and ad entities in ENABLED state so APPROVED -> Publish is one-click live.
  *
  * Order of operations (each step writes the returned resource ID back to the
  * draft so a partial failure can be diagnosed and re-run safely):
  *   1. campaignBudgets:mutate (create)
- *   2. campaigns:mutate (create, status=PAUSED, advertisingChannelType=SEARCH)
+ *   2. campaigns:mutate (create, status=ENABLED, advertisingChannelType=SEARCH)
  *   3. campaignCriteria:mutate (geo + language targeting + negative keywords)
- *   4. adGroups:mutate (create, status=PAUSED)
+ *   4. adGroups:mutate (create, status=ENABLED)
  *   5. adGroupCriteria:mutate (positive keywords)
- *   6. adGroupAds:mutate (create RSA, status=PAUSED)
+ *   6. adGroupAds:mutate (create RSA, status=ENABLED)
  */
 
 import prisma from "@/lib/db";
@@ -295,7 +294,7 @@ export async function publishGoogleAdsDraft(draftId: string): Promise<PublishRes
     if (!budgetResource) throw new Error("Campaign budget creation returned no resourceName");
     const googleBudgetId = extractId(budgetResource);
 
-    // ----- 2. Campaign (PAUSED) -----
+    // ----- 2. Campaign -----
     const biddingPayload =
       draft.biddingStrategy === "TARGET_CPA" && draft.targetCpa
         ? { targetCpa: { targetCpaMicros: gbpToMicros(draft.targetCpa) } }
@@ -317,7 +316,7 @@ export async function publishGoogleAdsDraft(draftId: string): Promise<PublishRes
       {
         create: {
           name: draft.name,
-          status: "PAUSED",
+          status: "ENABLED",
           advertisingChannelType: draft.channel || "SEARCH",
           campaignBudget: budgetResource,
           containsEuPoliticalAdvertising: "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
@@ -477,7 +476,7 @@ export async function publishGoogleAdsDraft(draftId: string): Promise<PublishRes
         {
           create: {
             name: `${draft.name} — All Keywords`,
-            status: "PAUSED",
+            status: "ENABLED",
             campaign: campaignResource,
             type: "SEARCH_STANDARD",
             cpcBidMicros: gbpToMicros(2),
@@ -537,7 +536,7 @@ export async function publishGoogleAdsDraft(draftId: string): Promise<PublishRes
         {
           create: {
             adGroup: adGroupResource,
-            status: "PAUSED",
+            status: "ENABLED",
             ad: {
               finalUrls: [draft.finalUrl],
               responsiveSearchAd: {
@@ -747,7 +746,7 @@ async function publishAdGroups(
       [{
         create: {
           name: group.name,
-          status: "PAUSED",
+          status: "ENABLED",
           campaign: campaignResource,
           type: "SEARCH_STANDARD",
           cpcBidMicros: gbpToMicros(2),
@@ -818,7 +817,7 @@ async function publishAdGroups(
         [{
           create: {
             adGroup: agResource,
-            status: "PAUSED",
+            status: "ENABLED",
             ad: {
               finalUrls: [campaignFinalUrl],
               responsiveSearchAd: {

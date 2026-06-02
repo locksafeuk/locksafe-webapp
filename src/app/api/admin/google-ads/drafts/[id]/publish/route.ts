@@ -1,9 +1,8 @@
 /**
  * POST /api/admin/google-ads/drafts/[id]/publish
  *
- * Pushes an APPROVED draft to Google Ads. Always creates resources in PAUSED
- * state — admin must explicitly enable the campaign in Google Ads UI (or via
- * the Phase-3 spend-guard) afterwards.
+ * Pushes an APPROVED draft to Google Ads. Publishes live in one click by
+ * creating campaign and ad entities in ENABLED state.
  *
  * Refuses to publish unless draft.status === "APPROVED".
  */
