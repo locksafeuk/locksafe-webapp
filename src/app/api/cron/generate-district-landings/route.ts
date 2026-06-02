@@ -25,16 +25,18 @@ export async function POST(request: NextRequest) {
 
   const start = Date.now();
 
-  // ── 1. Find all districts with at least one active coverage row ─────
-  const coverageRows: Array<{ district: string }> =
+  // ── 1. Find all districts with at least one unpaused coverage row ───
+  const coverageRows: Array<{ postcodeDistrict: string }> =
     await prisma.locksmithCoverage.findMany({
-      where:    { isActive: true },
-      select:   { district: true },
-      distinct: ["district"],
-      orderBy:  { district: "asc" },
+      where:    { isPaused: false },
+      select:   { postcodeDistrict: true },
+      distinct: ["postcodeDistrict"],
+      orderBy:  { postcodeDistrict: "asc" },
     });
 
-  const districts = coverageRows.map((r: { district: string }) => r.district.trim().toUpperCase());
+  const districts = coverageRows.map((r: { postcodeDistrict: string }) =>
+    r.postcodeDistrict.trim().toUpperCase(),
+  );
 
   if (districts.length === 0) {
     return NextResponse.json({
