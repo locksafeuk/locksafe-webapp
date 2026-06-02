@@ -16,6 +16,7 @@ import {
 import { generateGoogleAdsDraftPlan } from "@/lib/openai-google-ads";
 import { getActiveCoverageGeoTargets } from "@/lib/google-ads-locations";
 import { checkAutoAction, getEffectivePolicy } from "@/lib/spend-guard";
+import { gateApproval } from "@/lib/platform-stage";
 import { isServiceSlug } from "@/lib/services-catalog";
 import { optimiseMetaCampaigns } from "@/lib/meta-optimiser";
 
@@ -912,10 +913,43 @@ export const createGoogleAdsDraftTool: AgentTool = {
     const { geoTargets: activeCoverageGeoTargets, coverageSummary } =
       await getActiveCoverageGeoTargets();
 
+    // Pull recent Google signal so evidence gating can distinguish between
+    // brand-new/no-signal proposals and data-backed expansions.
+    const maturityWindowStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const recentGooglePerformance = await prisma.adPerformanceSnapshot.aggregate({
+      where: {
+        platform: "google",
+        date: { gte: maturityWindowStart },
+      },
+      _sum: {
+        impressions: true,
+        clicks: true,
+        conversions: true,
+      },
+    });
+
+    const approvalGate = await gateApproval({
+      actionType: "NEW_CAMPAIGN_DRAFT",
+      proposedBudget: dailyBudget,
+      coverageSufficient: activeCoverageGeoTargets.length > 0,
+      dataMaturity: {
+        impressions: recentGooglePerformance._sum.impressions ?? 0,
+        clicks: recentGooglePerformance._sum.clicks ?? 0,
+        conversions: recentGooglePerformance._sum.conversions ?? 0,
+      },
+      expectedImpact: {
+        confidence: "MEDIUM",
+        basis: plan.reasoning || `AI plan for ${plan.campaignName}`,
+      },
+    });
+
+    const gateRejected = Boolean(!approvalGate.valid && approvalGate.rejectionReason);
+    const draftInitialStatus = gateRejected ? "REJECTED" : "PENDING_APPROVAL";
+
     const draft = await prisma.googleAdsCampaignDraft.create({
       data: {
         accountId: handle.accountId,
-        status: "PENDING_APPROVAL",
+        status: draftInitialStatus,
         name: plan.campaignName,
         dailyBudget,
         biddingStrategy,
@@ -932,6 +966,7 @@ export const createGoogleAdsDraftTool: AgentTool = {
         aiPrompt: String(params.prompt).slice(0, 2000),
         aiReasoning: plan.reasoning,
         agentId: context?.agentId,
+        ...(gateRejected ? { rejectedReason: approvalGate.rejectionReason } : {}),
       },
     });
 
@@ -977,11 +1012,21 @@ export const createGoogleAdsDraftTool: AgentTool = {
             reasoning: plan.reasoning,
             geoTargets: activeCoverageGeoTargets,
             coverageSummary,
+            approvalGate,
           }).slice(0, 8000),
-          reason: `New AI-generated Google Ads campaign "${plan.campaignName}" — £${dailyBudget}/day, ${plan.keywords.length} keywords. Review at /admin/integrations/google-ads/drafts/${draft.id} before publishing.`,
+          reason: gateRejected
+            ? `[AUTO-REJECTED] ${approvalGate.rejectionReason}`
+            : `New AI-generated Google Ads campaign "${plan.campaignName}" — £${dailyBudget}/day, ${plan.keywords.length} keywords. Review at /admin/integrations/google-ads/drafts/${draft.id} before publishing.`,
           targetType: "google_ads_draft",
           targetId: draft.id,
-          status: "pending",
+          status: gateRejected ? "rejected" : "pending",
+          ...(gateRejected
+            ? {
+                resolvedAt: new Date(),
+                resolvedBy: "system:platform-discipline",
+                resolution: approvalGate.rejectionReason,
+              }
+            : {}),
         },
       });
       approvalId = approval.id;
@@ -994,30 +1039,32 @@ export const createGoogleAdsDraftTool: AgentTool = {
       // immediately and flip the draft to APPROVED so a follow-up auto-publish
       // step (CMO heartbeat) can take over without human input. Anything
       // outside the auto-approve envelope stays PENDING_APPROVAL for review.
-      const guard = await checkAutoAction({
-        platform: "google",
-        action: "auto_approve_draft",
-        proposedDailyBudget: dailyBudget,
-        initiator: "agent",
-      });
-      if (guard.allowed) {
-        await prisma.agentApproval.update({
-          where: { id: approval.id },
-          data: {
-            status: "approved",
-            resolvedAt: new Date(),
-            resolvedBy: "system:auto-approve",
-            resolution: `Auto-approved under policy (today £${guard.spendUsed.today.toFixed(2)} / cap £${guard.policy.maxDailySpend}, max-budget £${guard.policy.autoApproveMaxBudget}/day).`,
-          },
+      if (!gateRejected) {
+        const guard = await checkAutoAction({
+          platform: "google",
+          action: "auto_approve_draft",
+          proposedDailyBudget: dailyBudget,
+          initiator: "agent",
         });
-        await prisma.googleAdsCampaignDraft.update({
-          where: { id: draft.id },
-          data: {
-            status: "APPROVED",
-            approvedBy: "system:auto-approve",
-            approvedAt: new Date(),
-          },
-        });
+        if (guard.allowed) {
+          await prisma.agentApproval.update({
+            where: { id: approval.id },
+            data: {
+              status: "approved",
+              resolvedAt: new Date(),
+              resolvedBy: "system:auto-approve",
+              resolution: `Auto-approved under policy (today £${guard.spendUsed.today.toFixed(2)} / cap £${guard.policy.maxDailySpend}, max-budget £${guard.policy.autoApproveMaxBudget}/day).`,
+            },
+          });
+          await prisma.googleAdsCampaignDraft.update({
+            where: { id: draft.id },
+            data: {
+              status: "APPROVED",
+              approvedBy: "system:auto-approve",
+              approvedAt: new Date(),
+            },
+          });
+        }
       }
     }
 

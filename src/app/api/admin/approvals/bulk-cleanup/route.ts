@@ -27,16 +27,6 @@ const SAFELIST_TYPES = [
   "REFUND_REQUEST",
 ];
 
-// Low-value types that are safe to auto-reject when stale
-const BULK_REJECTABLE_TYPES = [
-  "NEW_CAMPAIGN_DRAFT",
-  "SOCIAL_POST",
-  "KEYWORD_CHANGE",
-  "BID_ADJUSTMENT_SUGGESTION",
-  "CONTENT_GENERATION",
-  "REPORT",
-];
-
 async function verifyAdmin() {
   const cookieStore = await cookies();
   const token = cookieStore.get("auth_token")?.value;
@@ -65,12 +55,12 @@ export async function POST(request: NextRequest) {
     where: {
       status: "pending",
       createdAt: { lt: cutoff },
-      ...(typesFilter ? { type: { in: typesFilter } } : {}),
+      ...(typesFilter ? { actionType: { in: typesFilter } } : {}),
     },
     select: {
       id: true,
-      type: true,
-      title: true,
+      actionType: true,
+      reason: true,
       agentId: true,
       createdAt: true,
     },
@@ -79,11 +69,11 @@ export async function POST(request: NextRequest) {
   });
 
   // Split into protected vs rejectable
-  const toReject = stale.filter((a: { type: string }) =>
-    !SAFELIST_TYPES.includes(a.type)
+  const toReject = stale.filter((a: { actionType: string }) =>
+    !SAFELIST_TYPES.includes(a.actionType)
   );
-  const protected_ = stale.filter((a: { type: string }) =>
-    SAFELIST_TYPES.includes(a.type)
+  const protected_ = stale.filter((a: { actionType: string }) =>
+    SAFELIST_TYPES.includes(a.actionType)
   );
 
   if (!dryRun && toReject.length > 0) {
@@ -91,7 +81,7 @@ export async function POST(request: NextRequest) {
       where: { id: { in: toReject.map((a: { id: string }) => a.id) } },
       data: {
         status: "rejected",
-        rejectedReason:
+        resolution:
           `Auto-rejected by bulk cleanup: stale approval older than ${olderThanDays} days ` +
           `with no human review. Platform discipline policy (see /admin/agents/policy).`,
         resolvedAt: new Date(),
@@ -108,16 +98,16 @@ export async function POST(request: NextRequest) {
     wouldReject: toReject.length,
     protected: protected_.length,
     details: {
-      toReject: toReject.map((a: { id: string; type: string; title: string; createdAt: Date }) => ({
+      toReject: toReject.map((a: { id: string; actionType: string; reason: string; createdAt: Date }) => ({
         id: a.id,
-        type: a.type,
-        title: a.title,
+        actionType: a.actionType,
+        reason: a.reason,
         age: `${Math.floor((Date.now() - a.createdAt.getTime()) / 86_400_000)}d`,
       })),
-      protected: protected_.map((a: { id: string; type: string; title: string }) => ({
+      protected: protected_.map((a: { id: string; actionType: string; reason: string }) => ({
         id: a.id,
-        type: a.type,
-        title: a.title,
+        actionType: a.actionType,
+        reason: a.reason,
       })),
     },
     message: dryRun
@@ -137,15 +127,15 @@ export async function GET(request: NextRequest) {
   const [total, byType, oldest] = await Promise.all([
     prismaAny.agentApproval.count({ where: { status: "pending" } }),
     prismaAny.agentApproval.groupBy({
-      by: ["type"],
+      by: ["actionType"],
       where: { status: "pending" },
       _count: { _all: true },
-      orderBy: { _count: { type: "desc" } },
+      orderBy: { _count: { actionType: "desc" } },
     }),
     prismaAny.agentApproval.findFirst({
       where: { status: "pending" },
       orderBy: { createdAt: "asc" },
-      select: { createdAt: true, type: true, title: true },
+      select: { createdAt: true, actionType: true, reason: true },
     }),
   ]);
 
@@ -154,7 +144,7 @@ export async function GET(request: NextRequest) {
     where: {
       status: "pending",
       createdAt: { lt: sevenDaysAgo },
-      type: { notIn: SAFELIST_TYPES },
+      actionType: { notIn: SAFELIST_TYPES },
     },
   });
 
@@ -162,16 +152,16 @@ export async function GET(request: NextRequest) {
     total,
     staleCount,
     safelistTypes: SAFELIST_TYPES,
-    byType: byType.map((b: { type: string; _count: { _all: number } }) => ({
-      type: b.type,
+    byType: byType.map((b: { actionType: string; _count: { _all: number } }) => ({
+      actionType: b.actionType,
       count: b._count._all,
-      safelist: SAFELIST_TYPES.includes(b.type),
+      safelist: SAFELIST_TYPES.includes(b.actionType),
     })),
     oldest: oldest
       ? {
           age: `${Math.floor((Date.now() - oldest.createdAt.getTime()) / 86_400_000)}d`,
-          type: oldest.type,
-          title: oldest.title,
+          actionType: oldest.actionType,
+          reason: oldest.reason,
         }
       : null,
     hint: staleCount > 0
