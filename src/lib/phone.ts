@@ -37,3 +37,12 @@ export function toZadarmaNumber(phone: string): string {
   const e164 = normalizePhoneNumber(phone);
   return e164.replace(/^\+/, "");
 }
+
+/**
+ * Returns true when a number is a UK mobile in common formats.
+ * Supports +447..., 447..., and 07... representations.
+ */
+export function isUkMobileNumber(phone: string): boolean {
+  const e164 = normalizePhoneNumber(phone);
+  return /^\+447\d{9}$/.test(e164);
+}

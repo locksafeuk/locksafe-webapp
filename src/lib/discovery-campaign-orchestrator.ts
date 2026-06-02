@@ -45,6 +45,7 @@ import {
   buildDiscoveryCampaignDraft,
   type CampaignDraftPayload,
 } from "@/lib/discovery-campaign-generator";
+import { isUkMobileNumber } from "@/lib/phone";
 import { ensureOrSkip, districtSlug } from "@/lib/district-landing/ensure-landing";
 import { SITE_URL } from "@/lib/config";
 import type { SeedCategory } from "@/agents/core/seed-bank";
@@ -63,7 +64,7 @@ export interface OrchestratorOptions {
   accountId:        string;
   /** Landing page URL. Default: https://locksafe.uk/request */
   finalUrl?:        string;
-  /** Shared website phone in E.164. Default reads LOCKSAFE_WEBSITE_PHONE env. */
+  /** Shared website phone in E.164. Defaults: LOCKSAFE_WEBSITE_PHONE -> RETELL_PHONE_NUMBER. */
   websitePhoneE164?: string;
 
   /**
@@ -222,9 +223,18 @@ export async function generateDiscoveryDrafts(
   const finalUrl  = options.finalUrl  ?? DEFAULT_FINAL_URL;
   const phone     = options.websitePhoneE164
     ?? process.env["LOCKSAFE_WEBSITE_PHONE"]
+    ?? process.env["RETELL_PHONE_NUMBER"]
     ?? "+441234567890";
   const maxDrafts = options.maxDrafts ?? DEFAULT_MAX_DRAFTS;
   const quota     = { ...DEFAULT_FAMILY_QUOTA, ...(options.perFamilyQuota ?? {}) };
+
+  if (isUkMobileNumber(phone)) {
+    result.errors.push(
+      `Refusing to generate Google Ads drafts with a UK mobile phone (${phone}). ` +
+      "Use your Zadarma/Retell landline via LOCKSAFE_WEBSITE_PHONE or RETELL_PHONE_NUMBER.",
+    );
+    return result;
+  }
 
   // ── 1. Pull active KeywordSeeds ─────────────────────────────────────
   const seeds: Array<{

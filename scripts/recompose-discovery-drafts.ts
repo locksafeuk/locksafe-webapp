@@ -37,6 +37,7 @@ import {
   buildCampaignName,
 } from "../src/lib/discovery-campaign-generator";
 import { scorePhoneLeadIntent, detectPostcodeDistrict } from "../src/lib/phone-lead-intent-score";
+import { isUkMobileNumber } from "../src/lib/phone";
 import { ensureOrSkip, districtSlug }   from "../src/lib/district-landing/ensure-landing";
 import { SITE_URL }                      from "../src/lib/config";
 import type { SeedCategory } from "../src/agents/core/seed-bank";
@@ -122,6 +123,11 @@ async function main() {
   console.log(`  Phone:   ${phone}`);
   if (phone === "+441234567890" && LIVE) {
     console.error("✗ Refusing to LIVE-write with placeholder phone.");
+    process.exit(1);
+  }
+  if (isUkMobileNumber(phone)) {
+    console.error("✗ Refusing to run with a UK mobile phone number for Google Ads drafts.");
+    console.error("  Use your Zadarma/Retell landline in LOCKSAFE_WEBSITE_PHONE or RETELL_PHONE_NUMBER.");
     process.exit(1);
   }
   console.log("");

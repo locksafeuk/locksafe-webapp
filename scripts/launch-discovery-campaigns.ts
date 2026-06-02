@@ -29,6 +29,7 @@ require("tsconfig-paths").register({
 
 import { prisma as _prisma } from "../src/lib/db";
 import { generateDiscoveryDrafts } from "../src/lib/discovery-campaign-orchestrator";
+import { isUkMobileNumber } from "../src/lib/phone";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const prisma = _prisma as any;
@@ -90,6 +91,12 @@ async function main() {
     console.error("✗ Refusing to LIVE-write campaigns with the placeholder phone.");
     console.error("  Set RETELL_PHONE_NUMBER in .env (it should already be there) ");
     console.error("  or pass LOCKSAFE_WEBSITE_PHONE in the environment.");
+    process.exit(1);
+  }
+  if (isUkMobileNumber(phone)) {
+    console.error("");
+    console.error("✗ Refusing to run with a UK mobile phone number for Google Ads drafts.");
+    console.error("  Use your Zadarma/Retell landline in LOCKSAFE_WEBSITE_PHONE or RETELL_PHONE_NUMBER.");
     process.exit(1);
   }
   console.log("");
