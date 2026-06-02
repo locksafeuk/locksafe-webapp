@@ -74,7 +74,7 @@ interface ManualDraftBody {
   // Location targeting
   geoTargets?: string[];
   geoExclusions?: string[];
-  locationMatchType?: "PRESENCE_ONLY" | "PRESENCE_OR_INTEREST";
+  locationMatchType?: "PRESENCE" | "PRESENCE_ONLY" | "PRESENCE_OR_INTEREST";
   languageTargets?: string[];
   // Creative
   headlines?: string[];
@@ -205,7 +205,10 @@ export async function POST(request: NextRequest) {
       negativeKeywords,
       // Phase 2 fields
       geoExclusions: Array.isArray(body.geoExclusions) ? body.geoExclusions.map(String) : [],
-      locationMatchType: body.locationMatchType ?? "PRESENCE_ONLY",
+      locationMatchType:
+        body.locationMatchType === "PRESENCE_OR_INTEREST"
+          ? "PRESENCE_OR_INTEREST"
+          : "PRESENCE",
       targetRoas: body.targetRoas != null ? Number(body.targetRoas) : null,
       adGroups: body.adGroups ? (body.adGroups as unknown as object) : undefined,
       assets: body.assets ? (body.assets as unknown as object) : undefined,

@@ -257,7 +257,7 @@ export default function ManualCreateGoogleAdsDraftPage() {
   // Location targeting
   const [geoTargets, setGeoTargets] = useState<string[]>(["2826"]);
   const [geoExclusions, setGeoExclusions] = useState<string[]>(DEFAULT_EXCLUSIONS);
-  const [locationMatchType, setLocationMatchType] = useState<"PRESENCE_ONLY" | "PRESENCE_OR_INTEREST">("PRESENCE_ONLY");
+  const [locationMatchType, setLocationMatchType] = useState<"PRESENCE" | "PRESENCE_OR_INTEREST">("PRESENCE");
 
   // Ad groups
   const [adGroups, setAdGroups] = useState<AdGroup[]>([
@@ -485,9 +485,9 @@ export default function ManualCreateGoogleAdsDraftPage() {
             <input
               type="radio"
               name="locMatch"
-              value="PRESENCE_ONLY"
-              checked={locationMatchType === "PRESENCE_ONLY"}
-              onChange={() => setLocationMatchType("PRESENCE_ONLY")}
+              value="PRESENCE"
+              checked={locationMatchType === "PRESENCE"}
+              onChange={() => setLocationMatchType("PRESENCE")}
             />
             <span>Presence Only <span className="text-green-600 font-medium">(Recommended)</span></span>
           </label>

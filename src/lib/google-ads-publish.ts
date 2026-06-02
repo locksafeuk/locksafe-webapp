@@ -235,12 +235,12 @@ export async function publishGoogleAdsDraft(draftId: string): Promise<PublishRes
           ? { targetRoas: { targetRoas: draft.targetRoas / 100 } }
           : { maximizeConversions: {} };
 
-    // Location match type: PRESENCE_ONLY prevents serving to people searching
-    // ABOUT a location from elsewhere. Critical for coverage-based campaigns.
-    const locationMatchType = draft.locationMatchType ?? "PRESENCE_ONLY";
+    // Location match type: Google Ads v24 expects PRESENCE (legacy drafts may
+    // still store PRESENCE_ONLY, which we map for backwards compatibility).
+    const locationMatchType = draft.locationMatchType ?? "PRESENCE";
     const geoTargetTypeSetting = {
-      positiveGeoTargetType: locationMatchType === "PRESENCE_ONLY"
-        ? "PRESENCE_ONLY"
+      positiveGeoTargetType: (locationMatchType === "PRESENCE_ONLY" || locationMatchType === "PRESENCE")
+        ? "PRESENCE"
         : "PRESENCE_OR_INTEREST",
       negativeGeoTargetType: "PRESENCE",
     };
