@@ -62,36 +62,9 @@ export async function GET(request: NextRequest) {
   try {
     const now = new Date();
 
-    // Reset any posts stuck in PUBLISHING for >10 minutes (from a previous crashed run)
-    const staleThreshold = new Date(now.getTime() - 10 * 60_000);
-    await prisma.socialPost.updateMany({
-      where: { status: "PUBLISHING", updatedAt: { lt: staleThreshold } },
-      data: { status: "SCHEDULED", publishError: null },
-    });
-
-    // Find posts that are scheduled and ready to publish
-    const postsToPublish = await prisma.socialPost.findMany({
-      where: {
-        status: "SCHEDULED",
-        scheduledFor: {
-          lte: now,
-        },
-      },
-      include: {
-        pillar: true,
-      },
-      take: 10, // Process up to 10 posts per run
-    });
-
-    if (postsToPublish.length === 0) {
-      return NextResponse.json({
-        success: true,
-        message: "No posts to publish",
-        processed: 0,
-      });
-    }
-
-    // Get social accounts
+    // Get social accounts first so we can avoid queue starvation: if the
+    // oldest scheduled posts target only inactive platforms, repeatedly
+    // picking them blocks publishable posts behind them forever.
     const accounts = await prisma.socialAccount.findMany({
       where: { isActive: true },
     });
@@ -107,6 +80,47 @@ export async function GET(request: NextRequest) {
     const linkedinDbAccount = accounts.find((a: AccountType) => a.platform === "LINKEDIN");
     const linkedinEnabled  = !!(linkedinDbAccount || isLinkedInConfigured());
     const tiktokApiEnabled = isTikTokApiConfigured();
+
+    const publishablePlatforms: string[] = [];
+    if (facebookAccount) publishablePlatforms.push("FACEBOOK");
+    if (instagramAccount) publishablePlatforms.push("INSTAGRAM");
+    if (twitterEnabled) publishablePlatforms.push("TWITTER");
+    if (linkedinEnabled) publishablePlatforms.push("LINKEDIN");
+    // TikTok posts are considered publishable because we can at least generate
+    // script output even without direct API posting configured.
+    publishablePlatforms.push("TIKTOK");
+
+    // Reset any posts stuck in PUBLISHING for >10 minutes (from a previous crashed run)
+    const staleThreshold = new Date(now.getTime() - 10 * 60_000);
+    await prisma.socialPost.updateMany({
+      where: { status: "PUBLISHING", updatedAt: { lt: staleThreshold } },
+      data: { status: "SCHEDULED", publishError: null },
+    });
+
+    // Find posts that are scheduled and ready to publish
+    const postsToPublish = await prisma.socialPost.findMany({
+      where: {
+        status: "SCHEDULED",
+        scheduledFor: {
+          lte: now,
+        },
+        platforms: {
+          hasSome: publishablePlatforms,
+        },
+      },
+      include: {
+        pillar: true,
+      },
+      take: 10, // Process up to 10 posts per run
+    });
+
+    if (postsToPublish.length === 0) {
+      return NextResponse.json({
+        success: true,
+        message: "No posts to publish",
+        processed: 0,
+      });
+    }
 
     const results: Array<{
       postId: string;
