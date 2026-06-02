@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyCronAuth } from "@/lib/cron-auth";
 import { TwitterApi } from "twitter-api-v2";
+import { SocialPlatform } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth";
@@ -81,14 +82,14 @@ export async function GET(request: NextRequest) {
     const linkedinEnabled  = !!(linkedinDbAccount || isLinkedInConfigured());
     const tiktokApiEnabled = isTikTokApiConfigured();
 
-    const publishablePlatforms: string[] = [];
-    if (facebookAccount) publishablePlatforms.push("FACEBOOK");
-    if (instagramAccount) publishablePlatforms.push("INSTAGRAM");
-    if (twitterEnabled) publishablePlatforms.push("TWITTER");
-    if (linkedinEnabled) publishablePlatforms.push("LINKEDIN");
+    const publishablePlatforms: SocialPlatform[] = [];
+    if (facebookAccount) publishablePlatforms.push(SocialPlatform.FACEBOOK);
+    if (instagramAccount) publishablePlatforms.push(SocialPlatform.INSTAGRAM);
+    if (twitterEnabled) publishablePlatforms.push(SocialPlatform.TWITTER);
+    if (linkedinEnabled) publishablePlatforms.push(SocialPlatform.LINKEDIN);
     // TikTok posts are considered publishable because we can at least generate
     // script output even without direct API posting configured.
-    publishablePlatforms.push("TIKTOK");
+    publishablePlatforms.push(SocialPlatform.TIKTOK);
 
     // Reset any posts stuck in PUBLISHING for >10 minutes (from a previous crashed run)
     const staleThreshold = new Date(now.getTime() - 10 * 60_000);
