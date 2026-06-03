@@ -13,6 +13,7 @@
 import prisma from "@/lib/db";
 import { chat } from "@/lib/llm-router";
 import { storeMemory } from "@/agents/core/memory";
+import { applyReflectionToPlaybook } from "@/lib/google-ads-playbook";
 
 export type ReflectionOutcome = "WIN" | "LOSS" | "INCONCLUSIVE" | "NEUTRAL";
 export type ReflectionMetric =
@@ -221,6 +222,19 @@ export async function recordReflection(input: RecordReflectionInput) {
       subjectLabel: input.subjectLabel,
       outcome: input.graded.outcome,
     });
+
+    // Self-update the campaign playbook from this measured outcome. No-ops for
+    // anything that isn't an ads-specialist campaign WIN/LOSS, and never throws.
+    await applyReflectionToPlaybook({
+      agentName: input.agentName,
+      subjectType: input.subjectType,
+      subjectId: input.subjectId,
+      subjectLabel: input.subjectLabel,
+      outcome: input.graded.outcome,
+      metric: input.metric,
+      lessons,
+    });
+
     await prisma.agentReflection.update({
       where: { id: reflection.id },
       data: { appliedAt: new Date() },

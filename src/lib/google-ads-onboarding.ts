@@ -29,6 +29,7 @@ import type { Locksmith } from "@prisma/client";
 
 import { BUSINESS_CONTEXT, getBusinessSummary } from "@/lib/business-context";
 import { chat, Models } from "@/lib/llm-router";
+import { renderPlaybookForPrompt } from "@/lib/google-ads-playbook";
 import {
   BASELINE_LOCKSMITH_KEYWORDS,
   BASELINE_NEGATIVE_KEYWORDS,
@@ -198,6 +199,17 @@ async function generateRsaCopy(
     ? `\n\nALREADY-PROVEN DESCRIPTIONS:\n${input.provenDescriptions.slice(0, 6).map((d) => `• ${d}`).join("\n")}`
     : "";
 
+  // Read the self-learning playbook so the agent applies accumulated, measured
+  // best-practice to this campaign. DB-backed and fully guarded: any failure
+  // leaves `playbookBlock` empty and copy generation proceeds unchanged.
+  let playbookBlock = "";
+  try {
+    const rendered = await renderPlaybookForPrompt();
+    if (rendered) playbookBlock = `\n\n${rendered}`;
+  } catch (err) {
+    console.warn("[google-ads-onboarding] playbook read failed (continuing without it):", err instanceof Error ? err.message : err);
+  }
+
   const systemPrompt = `You are a senior Google Ads strategist for LockSafe UK.
 You write Responsive Search Ad copy for ONE specific vetted locksmith on the
 LockSafe platform. The ad MUST:
@@ -214,7 +226,7 @@ ${businessContext}
 
 PROOF POINTS:
 ${BUSINESS_CONTEXT.killerDifferentiators.slice(0, 3).map((d) => `• ${d.headline}`).join("\n")}
-${provenSamples}${provenDescSamples}`;
+${provenSamples}${provenDescSamples}${playbookBlock}`;
 
   const userPrompt = `Write RSA copy for this locksmith:
 
