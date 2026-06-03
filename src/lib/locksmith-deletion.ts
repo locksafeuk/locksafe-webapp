@@ -119,6 +119,9 @@ export async function deleteLocksmithCascade(locksmithId: string): Promise<Delet
     prisma.baseLocationReminderLog.deleteMany({
       where: { locksmithId },
     }),
+    prisma.appInstallReminderLog.deleteMany({
+      where: { locksmithId },
+    }),
     prisma.locksmith.delete({
       where: { id: locksmithId },
     }),
