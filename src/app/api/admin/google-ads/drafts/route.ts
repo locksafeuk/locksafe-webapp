@@ -13,6 +13,7 @@ import prisma from "@/lib/db";
 import { verifyToken } from "@/lib/auth";
 import { enforceDistrictLandingForDraft } from "@/lib/google-ads-district-enforcer";
 import { normalizeLocationMatchType } from "@/lib/google-ads-location-match-type";
+import { enforceDraftGuardrails } from "@/lib/google-ads-draft-enforcement";
 
 async function verifyAdmin() {
   const cookieStore = await cookies();
@@ -187,42 +188,61 @@ export async function POST(request: NextRequest) {
 
   const status = body.approveImmediately ? "APPROVED" : "PENDING_APPROVAL";
 
+  const enforced = enforceDraftGuardrails({
+    accountId,
+    status,
+    name,
+    dailyBudget,
+    biddingStrategy,
+    targetCpa,
+    channel,
+    geoTargets,
+    languageTargets,
+    headlines,
+    descriptions,
+    finalUrl: enforcedLanding.finalUrl,
+    keywords: keywords as unknown as object[],
+    negativeKeywords,
+    // Phase 2 fields
+    geoExclusions: Array.isArray(body.geoExclusions) ? body.geoExclusions.map(String) : [],
+    locationMatchType: normalizeLocationMatchType(body.locationMatchType),
+    targetRoas: body.targetRoas != null ? Number(body.targetRoas) : null,
+    adGroups: body.adGroups ? (body.adGroups as unknown as object) : undefined,
+    assets: body.assets ? (body.assets as unknown as object) : undefined,
+    deviceBidAdjustments: body.deviceBidAdjustments ? (body.deviceBidAdjustments as unknown as object) : undefined,
+    adScheduleAdjustments: body.adScheduleAdjustments ? (body.adScheduleAdjustments as unknown as object) : undefined,
+    sharedNegativeListId: body.sharedNegativeListId ?? undefined,
+    startDate: body.startDate ? new Date(body.startDate) : undefined,
+    endDate: body.endDate ? new Date(body.endDate) : undefined,
+    aiGenerated: false,
+    aiPrompt: body.notes ?? null,
+    aiReasoning: "Manually authored via admin UI.",
+    createdBy: "admin",
+    createdByAdminId: admin.id,
+    approvedBy: body.approveImmediately ? admin.id : null,
+    approvedAt: body.approveImmediately ? new Date() : null,
+  });
+  if (!enforced.ok) {
+    return NextResponse.json(
+      {
+        error: "guardrail_violation",
+        message:
+          "Manual draft does not meet the Liverpool playbook guardrails. Adjust copy / keywords / negatives / landing page and retry.",
+        violations: enforced.violations,
+      },
+      { status: 422 },
+    );
+  }
+  if (enforced.appliedFixes.length > 0) {
+    console.warn(
+      "[drafts/manual] draft auto-corrected by playbook guardrails",
+      { adminId: admin.id, appliedFixes: enforced.appliedFixes },
+    );
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const draft = await (prisma.googleAdsCampaignDraft as any).create({
-    data: {
-      accountId,
-      status,
-      name,
-      dailyBudget,
-      biddingStrategy,
-      targetCpa,
-      channel,
-      geoTargets,
-      languageTargets,
-      headlines,
-      descriptions,
-      finalUrl: enforcedLanding.finalUrl,
-      keywords: keywords as unknown as object,
-      negativeKeywords,
-      // Phase 2 fields
-      geoExclusions: Array.isArray(body.geoExclusions) ? body.geoExclusions.map(String) : [],
-      locationMatchType: normalizeLocationMatchType(body.locationMatchType),
-      targetRoas: body.targetRoas != null ? Number(body.targetRoas) : null,
-      adGroups: body.adGroups ? (body.adGroups as unknown as object) : undefined,
-      assets: body.assets ? (body.assets as unknown as object) : undefined,
-      deviceBidAdjustments: body.deviceBidAdjustments ? (body.deviceBidAdjustments as unknown as object) : undefined,
-      adScheduleAdjustments: body.adScheduleAdjustments ? (body.adScheduleAdjustments as unknown as object) : undefined,
-      sharedNegativeListId: body.sharedNegativeListId ?? undefined,
-      startDate: body.startDate ? new Date(body.startDate) : undefined,
-      endDate: body.endDate ? new Date(body.endDate) : undefined,
-      aiGenerated: false,
-      aiPrompt: body.notes ?? null,
-      aiReasoning: "Manually authored via admin UI.",
-      createdBy: "admin",
-      createdByAdminId: admin.id,
-      approvedBy: body.approveImmediately ? admin.id : null,
-      approvedAt: body.approveImmediately ? new Date() : null,
-    },
+    data: enforced.data,
   });
 
   return NextResponse.json({ success: true, draftId: draft.id, status: draft.status }, { status: 201 });

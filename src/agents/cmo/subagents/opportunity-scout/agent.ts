@@ -49,6 +49,10 @@ import {
   getDualSourceCompetitorSeeds,
   getCompetitorGeoFactor,
 } from "@/agents/cmo/subagents/competitor-intel/agent";
+import {
+  assertDraftGuardrails,
+  PLAYBOOK_GUARDRAILS,
+} from "@/lib/google-ads-draft-enforcement";
 
 // =========================================================================
 // Known UK locksmith competitor domains
@@ -715,29 +719,38 @@ async function maybeAutoDraft(args: {
     select: { id: true },
   });
 
+  const enforced = assertDraftGuardrails({
+    accountId,
+    name: `${plan.plan.campaignName} · scout:${opportunity.label}`,
+    status: "PENDING_APPROVAL",
+    dailyBudget: plan.plan.recommendedDailyBudget,
+    biddingStrategy: PLAYBOOK_GUARDRAILS.BIDDING_STRATEGY,
+    channel: "SEARCH",
+    locationMatchType: "PRESENCE",
+    // Override the locksmith's home geo with the OPPORTUNITY geo we want to test.
+    geoTargets: [opportunity.geoId],
+    languageTargets: ["1000"],
+    headlines: plan.plan.headlines,
+    descriptions: plan.plan.descriptions,
+    finalUrl: plan.plan.finalUrl,
+    keywords: plan.plan.keywords as unknown as object[],
+    negativeKeywords: plan.plan.negativeKeywords,
+    aiGenerated: true,
+    aiPrompt: `opportunity-scout:${opportunity.geoId}:${picked.id}`,
+    aiReasoning: `Opportunity Scout auto-draft for ${opportunity.label}. Score ${opportunity.score}, median CPC £${opportunity.medianCpcGbp}, ${opportunity.competitionTier} competition. Anchor locksmith: ${picked.companyName ?? picked.name} (${picked.totalJobs} jobs, ${(picked.rating ?? 0).toFixed(1)}★). ${plan.plan.reasoning}`,
+    agentId: scoutAgent?.id,
+    createdBy: "ai",
+  });
+  if (enforced.appliedFixes.length > 0) {
+    console.warn(
+      "[opportunity-scout] auto-draft auto-corrected by playbook guardrails",
+      { opportunityGeo: opportunity.geoId, appliedFixes: enforced.appliedFixes },
+    );
+  }
   const created = await prisma.googleAdsCampaignDraft.create({
-    data: {
-      accountId,
-      name: `${plan.plan.campaignName} · scout:${opportunity.label}`,
-      status: "PENDING_APPROVAL",
-      dailyBudget: plan.plan.recommendedDailyBudget,
-      biddingStrategy: "MANUAL_CPC",
-      channel: "SEARCH",
-      locationMatchType: "PRESENCE",
-      // Override the locksmith's home geo with the OPPORTUNITY geo we want to test.
-      geoTargets: [opportunity.geoId],
-      languageTargets: ["1000"],
-      headlines: plan.plan.headlines,
-      descriptions: plan.plan.descriptions,
-      finalUrl: plan.plan.finalUrl,
-      keywords: plan.plan.keywords as unknown as object[],
-      negativeKeywords: plan.plan.negativeKeywords,
-      aiGenerated: true,
-      aiPrompt: `opportunity-scout:${opportunity.geoId}:${picked.id}`,
-      aiReasoning: `Opportunity Scout auto-draft for ${opportunity.label}. Score ${opportunity.score}, median CPC £${opportunity.medianCpcGbp}, ${opportunity.competitionTier} competition. Anchor locksmith: ${picked.companyName ?? picked.name} (${picked.totalJobs} jobs, ${(picked.rating ?? 0).toFixed(1)}★). ${plan.plan.reasoning}`,
-      agentId: scoutAgent?.id,
-      createdBy: "ai",
-    },
+    data: enforced.data as Parameters<
+      typeof prisma.googleAdsCampaignDraft.create
+    >[0]["data"],
   });
 
   // Link the opportunity to the draft.

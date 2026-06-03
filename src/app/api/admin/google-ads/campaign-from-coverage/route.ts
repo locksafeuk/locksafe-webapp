@@ -20,6 +20,7 @@ import prisma from "@/lib/db";
 import { verifyToken } from "@/lib/auth";
 import { getActiveCoverageGeoTargets } from "@/lib/google-ads-locations";
 import { enforceDistrictLandingForDraft } from "@/lib/google-ads-district-enforcer";
+import { enforceDraftGuardrails } from "@/lib/google-ads-draft-enforcement";
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
@@ -260,28 +261,48 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // 5. Create new draft
+  // 5. Create new draft (gated by structural guardrails)
+  const enforced = enforceDraftGuardrails({
+    accountId: account.id,
+    status: "PENDING_APPROVAL",
+    name: CAMPAIGN_PLAN.campaignName,
+    dailyBudget,
+    biddingStrategy: CAMPAIGN_PLAN.biddingStrategy,
+    targetCpa: null,
+    channel: "SEARCH",
+    locationMatchType: "PRESENCE",
+    geoTargets,          // Only cities where we have locksmiths
+    languageTargets: ["1000"], // English
+    headlines: CAMPAIGN_PLAN.headlines,
+    descriptions: CAMPAIGN_PLAN.descriptions,
+    finalUrl: enforcedLanding.finalUrl,
+    keywords: CAMPAIGN_PLAN.keywords as unknown as object[],
+    negativeKeywords: CAMPAIGN_PLAN.negativeKeywords,
+    aiGenerated: false,
+    aiPrompt: "Coverage-based campaign created via admin UI",
+    aiReasoning: CAMPAIGN_PLAN.aiReasoning,
+  });
+  if (!enforced.ok) {
+    return NextResponse.json(
+      {
+        error: "guardrail_violation",
+        message:
+          "Coverage-based draft does not meet the Liverpool playbook guardrails.",
+        violations: enforced.violations,
+      },
+      { status: 422 },
+    );
+  }
+  if (enforced.appliedFixes.length > 0) {
+    console.warn(
+      "[campaign-from-coverage] draft auto-corrected by playbook guardrails",
+      { appliedFixes: enforced.appliedFixes },
+    );
+  }
   const draft = await prisma.googleAdsCampaignDraft.create({
-    data: {
-      accountId: account.id,
-      status: "PENDING_APPROVAL",
-      name: CAMPAIGN_PLAN.campaignName,
-      dailyBudget,
-      biddingStrategy: CAMPAIGN_PLAN.biddingStrategy,
-      targetCpa: null,
-      channel: "SEARCH",
-      locationMatchType: "PRESENCE",
-      geoTargets,          // Only cities where we have locksmiths
-      languageTargets: ["1000"], // English
-      headlines: CAMPAIGN_PLAN.headlines,
-      descriptions: CAMPAIGN_PLAN.descriptions,
-      finalUrl: enforcedLanding.finalUrl,
-      keywords: CAMPAIGN_PLAN.keywords,
-      negativeKeywords: CAMPAIGN_PLAN.negativeKeywords,
-      aiGenerated: false,
-      aiPrompt: "Coverage-based campaign created via admin UI",
-      aiReasoning: CAMPAIGN_PLAN.aiReasoning,
-    },
+    data: enforced.data as Parameters<
+      typeof prisma.googleAdsCampaignDraft.create
+    >[0]["data"],
   });
 
   return NextResponse.json(

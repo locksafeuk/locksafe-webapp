@@ -50,6 +50,7 @@ import { ensureOrSkip, districtSlug } from "@/lib/district-landing/ensure-landin
 import { SITE_URL } from "@/lib/config";
 import type { SeedCategory } from "@/agents/core/seed-bank";
 import type { IntelKeyword } from "@/lib/competitor-cross-validate";
+import { enforceDraftGuardrails } from "@/lib/google-ads-draft-enforcement";
 
 // Prisma schema includes new fields not always in the generated client
 // during DB schema-drift windows — keep the prisma reference loose so
@@ -408,7 +409,22 @@ export async function generateDiscoveryDrafts(
         continue;
       }
 
-      await prisma.googleAdsCampaignDraft.create({ data: payload.data });
+      const enforced = enforceDraftGuardrails(payload.data);
+      if (!enforced.ok) {
+        const message = `guardrail_violation: ${enforced.violations
+          .map((v) => `${v.field}=${v.actual} (expected ${v.expected})`)
+          .join("; ")}`;
+        result.errors.push(`${payload.data.name}: ${message}`);
+        result.drafts.push({ ...entry, error: message });
+        continue;
+      }
+      if (enforced.appliedFixes.length > 0) {
+        console.warn(
+          "[discovery-orchestrator] draft auto-corrected by playbook guardrails",
+          { name: payload.data.name, appliedFixes: enforced.appliedFixes },
+        );
+      }
+      await prisma.googleAdsCampaignDraft.create({ data: enforced.data });
       result.draftsCreated++;
       result.drafts.push(entry);
     } catch (err) {

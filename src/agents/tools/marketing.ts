@@ -20,6 +20,7 @@ import { gateApproval } from "@/lib/platform-stage";
 import { isServiceSlug } from "@/lib/services-catalog";
 import { optimiseMetaCampaigns } from "@/lib/meta-optimiser";
 import { isPlatformEnabled } from "@/lib/social-platforms";
+import { assertDraftGuardrails } from "@/lib/google-ads-draft-enforcement";
 
 /**
  * Generate social post content using AI
@@ -959,29 +960,39 @@ export const createGoogleAdsDraftTool: AgentTool = {
     const gateRejected = Boolean(!approvalGate.valid && approvalGate.rejectionReason);
     const draftInitialStatus = gateRejected ? "REJECTED" : "PENDING_APPROVAL";
 
+    const enforced = assertDraftGuardrails({
+      accountId: handle.accountId,
+      status: draftInitialStatus,
+      name: plan.campaignName,
+      dailyBudget,
+      biddingStrategy,
+      targetCpa,
+      channel: "SEARCH",
+      locationMatchType: "PRESENCE",
+      geoTargets: activeCoverageGeoTargets,
+      languageTargets: ["1000"], // English
+      headlines: plan.headlines,
+      descriptions: plan.descriptions,
+      finalUrl: plan.finalUrl,
+      keywords: plan.keywords as unknown as object[],
+      negativeKeywords: plan.negativeKeywords,
+      aiGenerated: true,
+      aiPrompt: String(params.prompt).slice(0, 2000),
+      aiReasoning: plan.reasoning,
+      agentId: context?.agentId,
+      ...(gateRejected ? { rejectedReason: approvalGate.rejectionReason } : {}),
+    });
+    if (enforced.appliedFixes.length > 0) {
+      console.warn(
+        "[createGoogleAdsDraft] draft auto-corrected by playbook guardrails",
+        { agentId: context?.agentId, appliedFixes: enforced.appliedFixes },
+      );
+    }
+
     const draft = await prisma.googleAdsCampaignDraft.create({
-      data: {
-        accountId: handle.accountId,
-        status: draftInitialStatus,
-        name: plan.campaignName,
-        dailyBudget,
-        biddingStrategy,
-        targetCpa,
-        channel: "SEARCH",
-        locationMatchType: "PRESENCE",
-        geoTargets: activeCoverageGeoTargets,
-        languageTargets: ["1000"], // English
-        headlines: plan.headlines,
-        descriptions: plan.descriptions,
-        finalUrl: plan.finalUrl,
-        keywords: plan.keywords as unknown as object,
-        negativeKeywords: plan.negativeKeywords,
-        aiGenerated: true,
-        aiPrompt: String(params.prompt).slice(0, 2000),
-        aiReasoning: plan.reasoning,
-        agentId: context?.agentId,
-        ...(gateRejected ? { rejectedReason: approvalGate.rejectionReason } : {}),
-      },
+      data: enforced.data as Parameters<
+        typeof prisma.googleAdsCampaignDraft.create
+      >[0]["data"],
     });
 
     // File approval row (only if we have a context agentId — admins running
