@@ -214,12 +214,28 @@ export default function AdminLocksmithsPage() {
   const [sendingWelcomeEmails, setSendingWelcomeEmails] = useState(false);
   const [sendingStripeReminders, setSendingStripeReminders] = useState(false);
   const [sendingBaseLocationReminders, setSendingBaseLocationReminders] = useState(false);
+  const [sendingAppInstallReminders, setSendingAppInstallReminders] = useState(false);
   const [reminderLog, setReminderLog] = useState<{ sentAt: string; adminEmail: string }[]>([]);
   const [loadingReminderLog, setLoadingReminderLog] = useState(false);
   const [sendingStripeReminder, setSendingStripeReminder] = useState(false);
   const [baseLocationReminderLog, setBaseLocationReminderLog] = useState<{ sentAt: string; adminEmail: string }[]>([]);
   const [loadingBaseLocationReminderLog, setLoadingBaseLocationReminderLog] = useState(false);
   const [sendingBaseLocationReminder, setSendingBaseLocationReminder] = useState(false);
+  const [appInstallReminderLog, setAppInstallReminderLog] = useState<Array<{
+    sentAt: string;
+    adminEmail: string;
+    status?: string;
+    deliveredAt?: string | null;
+    openedAt?: string | null;
+    openCount?: number;
+    clickedAt?: string | null;
+    clickCount?: number;
+    bouncedAt?: string | null;
+    bounceReason?: string | null;
+    complainedAt?: string | null;
+  }>>([]);
+  const [loadingAppInstallReminderLog, setLoadingAppInstallReminderLog] = useState(false);
+  const [sendingAppInstallReminder, setSendingAppInstallReminder] = useState(false);
   const locksmithIdFromUrlRef = useRef<string | null>(null);
 
   // Profile editing state
@@ -559,6 +575,12 @@ export default function AdminLocksmithsPage() {
     return !hasCoords || !address || isCoordinatePair(address) || !hasPostcode;
   }, [postcodeMap]);
 
+  const locksmithNeedsAppInstallReminder = useCallback((locksmith: Locksmith) => {
+    const hasNative = locksmith.nativeTokenPlatform === "ios" || locksmith.nativeTokenPlatform === "android";
+    const hasPwa = locksmith.onPwa;
+    return !hasNative && !hasPwa;
+  }, []);
+
   const fetchBaseLocationReminderLog = useCallback(async (locksmithId: string) => {
     setLoadingBaseLocationReminderLog(true);
     try {
@@ -573,6 +595,23 @@ export default function AdminLocksmithsPage() {
       setBaseLocationReminderLog([]);
     } finally {
       setLoadingBaseLocationReminderLog(false);
+    }
+  }, []);
+
+  const fetchAppInstallReminderLog = useCallback(async (locksmithId: string) => {
+    setLoadingAppInstallReminderLog(true);
+    try {
+      const res = await fetch(`/api/admin/locksmiths/app-install-reminder-log?locksmithId=${locksmithId}`);
+      const data = await res.json();
+      if (data.success) {
+        setAppInstallReminderLog(data.log);
+      } else {
+        setAppInstallReminderLog([]);
+      }
+    } catch {
+      setAppInstallReminderLog([]);
+    } finally {
+      setLoadingAppInstallReminderLog(false);
     }
   }, []);
 
@@ -607,6 +646,37 @@ export default function AdminLocksmithsPage() {
     }
   };
 
+  const handleSendAppInstallReminders = async () => {
+    const eligibleCount = locksmiths.filter((ls) => locksmithNeedsAppInstallReminder(ls)).length;
+    if (eligibleCount === 0) {
+      alert("All locksmiths currently have at least one app channel (native or PWA).");
+      return;
+    }
+
+    if (!confirm(`Send app install reminders to ${eligibleCount} locksmith${eligibleCount === 1 ? "" : "s"} with no active app channel?`)) {
+      return;
+    }
+
+    setSendingAppInstallReminders(true);
+    try {
+      const response = await fetch("/api/admin/locksmiths/send-app-install-reminders", {
+        method: "POST",
+      });
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        alert(`✅ Successfully sent app install reminders to ${data.totalSent} locksmiths!\n\nEligible: ${data.totalEligible}\nSent: ${data.totalSent}\nFailed: ${data.failed}${data.failed > 0 ? `\n\nFailed emails: ${data.failedEmails.join(", ")}` : ""}`);
+      } else {
+        alert(`❌ ${data.error || "Failed to send app install reminders"}`);
+      }
+    } catch (error) {
+      console.error("Error sending app install reminders:", error);
+      alert("❌ An error occurred while sending app install reminders");
+    } finally {
+      setSendingAppInstallReminders(false);
+    }
+  };
+
   const handleSendBaseLocationReminder = async (locksmithId: string) => {
     if (!confirm("Send a base location reminder to this locksmith?")) {
       return;
@@ -635,6 +705,34 @@ export default function AdminLocksmithsPage() {
     }
   };
 
+  const handleSendAppInstallReminder = async (locksmithId: string) => {
+    if (!confirm("Send an app install reminder to this locksmith?")) {
+      return;
+    }
+
+    setSendingAppInstallReminder(true);
+    try {
+      const response = await fetch("/api/admin/locksmiths/send-app-install-reminder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ locksmithId }),
+      });
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        alert("App install reminder sent!");
+        fetchAppInstallReminderLog(locksmithId);
+      } else {
+        alert(data.error || "Failed to send reminder");
+      }
+    } catch (error) {
+      console.error("Error sending app install reminder:", error);
+      alert("Error sending reminder");
+    } finally {
+      setSendingAppInstallReminder(false);
+    }
+  };
+
   useEffect(() => {
     if (selectedLocksmith && locksmithNeedsBaseLocationReminder(selectedLocksmith)) {
       fetchBaseLocationReminderLog(selectedLocksmith.id);
@@ -642,6 +740,14 @@ export default function AdminLocksmithsPage() {
       setBaseLocationReminderLog([]);
     }
   }, [selectedLocksmith, locksmithNeedsBaseLocationReminder, fetchBaseLocationReminderLog]);
+
+  useEffect(() => {
+    if (selectedLocksmith && locksmithNeedsAppInstallReminder(selectedLocksmith)) {
+      fetchAppInstallReminderLog(selectedLocksmith.id);
+    } else {
+      setAppInstallReminderLog([]);
+    }
+  }, [selectedLocksmith, locksmithNeedsAppInstallReminder, fetchAppInstallReminderLog]);
 
   const handleSendStripeReminder = async (locksmithId: string) => {
     if (!confirm("Send Stripe onboarding reminder to this locksmith?")) {
@@ -1030,7 +1136,11 @@ export default function AdminLocksmithsPage() {
   const selectedNeedsBaseLocationReminder = selectedLocksmith
     ? locksmithNeedsBaseLocationReminder(selectedLocksmith)
     : false;
+  const selectedNeedsAppInstallReminder = selectedLocksmith
+    ? locksmithNeedsAppInstallReminder(selectedLocksmith)
+    : false;
   const baseLocationReminderEligibleCount = locksmiths.filter((ls) => locksmithNeedsBaseLocationReminder(ls)).length;
+  const appInstallReminderEligibleCount = locksmiths.filter((ls) => locksmithNeedsAppInstallReminder(ls)).length;
   const totalLocksmithsCount = locksmiths.length;
   const verifiedCount = locksmiths.filter((ls) => ls.isVerified).length;
   const availableCount = locksmiths.filter((ls) => ls.isAvailable).length;
@@ -1243,6 +1353,26 @@ export default function AdminLocksmithsPage() {
                     <MapPin className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline">Send Base Location Reminders</span>
                     <span className="sm:hidden">Location</span>
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={handleSendAppInstallReminders}
+                disabled={sendingAppInstallReminders || appInstallReminderEligibleCount === 0}
+                className={isMapView ? "px-2 py-1.5 flex items-center gap-1 text-[10px] lg:text-[11px] font-medium bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" : "px-2.5 lg:px-3 py-1.5 flex items-center gap-1.5 text-[11px] lg:text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"}
+                title="Send app install reminders to locksmiths with no native/PWA app channel"
+              >
+                {sendingAppInstallReminders ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span className="hidden sm:inline">Sending...</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Send App Install Reminders</span>
+                    <span className="sm:hidden">Install</span>
                   </>
                 )}
               </button>
@@ -1958,6 +2088,73 @@ export default function AdminLocksmithsPage() {
                                 <tr key={`${log.sentAt}-${idx}`}>
                                   <td className="px-3 py-2">{new Date(log.sentAt).toLocaleString()}</td>
                                   <td className="px-3 py-2">{log.adminEmail}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {selectedNeedsAppInstallReminder && (
+                  <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <h3 className="text-sm font-semibold text-slate-900">App install reminder</h3>
+                        <p className="mt-1 text-sm text-slate-600">
+                          Send a follow-up email asking this locksmith to install or open the LockSafe app.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleSendAppInstallReminder(selectedLocksmith.id)}
+                        disabled={sendingAppInstallReminder}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
+                      >
+                        {sendingAppInstallReminder ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Send className="w-4 h-4" />
+                        )}
+                        {sendingAppInstallReminder ? "Sending..." : "Send App Install Reminder"}
+                      </button>
+                    </div>
+
+                    <div className="mt-4">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Reminder Log</div>
+                      {loadingAppInstallReminderLog ? (
+                        <div className="mt-2 text-sm text-slate-500">Loading...</div>
+                      ) : appInstallReminderLog.length === 0 ? (
+                        <div className="mt-2 text-sm text-slate-500">No reminders sent yet.</div>
+                      ) : (
+                        <div className="mt-2 overflow-hidden rounded-lg border border-slate-200 bg-white">
+                          <table className="w-full text-sm">
+                            <thead className="bg-slate-50 text-slate-600">
+                              <tr>
+                                <th className="px-3 py-2 text-left font-medium">Date/Time</th>
+                                <th className="px-3 py-2 text-left font-medium">Sent By</th>
+                                <th className="px-3 py-2 text-left font-medium">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {appInstallReminderLog.map((log, idx) => (
+                                <tr key={`${log.sentAt}-${idx}`}>
+                                  <td className="px-3 py-2">{new Date(log.sentAt).toLocaleString()}</td>
+                                  <td className="px-3 py-2">{log.adminEmail}</td>
+                                  <td className="px-3 py-2">
+                                    <div className="font-medium capitalize text-slate-700">{log.status || "sent"}</div>
+                                    {(log.openCount || 0) > 0 && (
+                                      <div className="text-xs text-slate-500">Opens: {log.openCount}</div>
+                                    )}
+                                    {(log.clickCount || 0) > 0 && (
+                                      <div className="text-xs text-slate-500">Clicks: {log.clickCount}</div>
+                                    )}
+                                    {log.bounceReason && (
+                                      <div className="text-xs text-red-600">{log.bounceReason}</div>
+                                    )}
+                                  </td>
                                 </tr>
                               ))}
                             </tbody>
