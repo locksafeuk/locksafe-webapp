@@ -22,6 +22,11 @@ import { generateDraftPlanForLocksmith } from "@/lib/google-ads-onboarding";
 import { extractDefaultAccountLearnings } from "@/lib/google-ads-learnings";
 import { extractUkPostcode } from "@/lib/location-display";
 import { enforceDistrictLandingForDraft } from "@/lib/google-ads-district-enforcer";
+import {
+  enforceDraftGuardrails,
+  isAutoPerLocksmithGenerationEnabled,
+  PLAYBOOK_GUARDRAILS,
+} from "@/lib/google-ads-draft-enforcement";
 
 async function verifyAdmin() {
   const cookieStore = await cookies();
@@ -77,6 +82,21 @@ export async function POST(request: NextRequest) {
   const admin = await verifyAdmin();
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Feature flag — auto-per-locksmith draft generation is DISABLED until the
+  // click-to-locksmith attribution layer exists. Re-enable by setting
+  // ENABLE_AUTO_PER_LOCKSMITH_DRAFTS=true in the environment.
+  // Decision date: 2026-06-03 (see HANDOFF-self-learning-playbook §6).
+  if (!isAutoPerLocksmithGenerationEnabled()) {
+    return NextResponse.json(
+      {
+        error: "auto_per_locksmith_disabled",
+        message:
+          "Per-locksmith draft generation is currently disabled. Use the manual draft form at /admin/integrations/google-ads/drafts/new instead. To re-enable, set ENABLE_AUTO_PER_LOCKSMITH_DRAFTS=true.",
+      },
+      { status: 503 },
+    );
   }
 
   let body: {
@@ -180,29 +200,51 @@ export async function POST(request: NextRequest) {
         learnings,
       });
 
-    // 5. Persist as PENDING_APPROVAL draft
+    // 5. Persist as PENDING_APPROVAL draft (gated by structural guardrails)
+    const enforced = enforceDraftGuardrails({
+      accountId: account.id,
+      status: "PENDING_APPROVAL",
+      name: plan.campaignName,
+      dailyBudget: plan.recommendedDailyBudget,
+      // Use playbook-enforced bidding strategy — Liverpool Test loss showed
+      // MANUAL_CPC at this scale converts at 0%. See google-ads-campaign-playbook.md §9.
+      biddingStrategy: PLAYBOOK_GUARDRAILS.BIDDING_STRATEGY,
+      channel: "SEARCH",
+      locationMatchType: "PRESENCE",
+      geoTargets,
+      languageTargets: ["1000"],
+      headlines: plan.headlines,
+      descriptions: plan.descriptions,
+      finalUrl: plan.finalUrl,
+      keywords: plan.keywords as unknown as object[],
+      negativeKeywords: plan.negativeKeywords,
+      aiGenerated: true,
+      aiPrompt: `from-locksmith:${locksmith.id} ${locksmith.companyName || locksmith.name}`,
+      aiReasoning: plan.reasoning,
+      createdBy: "admin",
+      createdByAdminId: typeof admin.id === "string" ? admin.id : undefined,
+    });
+    if (!enforced.ok) {
+      return NextResponse.json(
+        {
+          error: "guardrail_violation",
+          message:
+            "Draft does not meet the Liverpool playbook guardrails. Fix the generator before retrying.",
+          violations: enforced.violations,
+        },
+        { status: 422 },
+      );
+    }
+    if (enforced.appliedFixes.length > 0) {
+      console.warn(
+        "[from-locksmith] draft auto-corrected by playbook guardrails",
+        { locksmithId: locksmith.id, appliedFixes: enforced.appliedFixes },
+      );
+    }
     const draft = await prisma.googleAdsCampaignDraft.create({
-      data: {
-        accountId: account.id,
-        status: "PENDING_APPROVAL",
-        name: plan.campaignName,
-        dailyBudget: plan.recommendedDailyBudget,
-        biddingStrategy: "MANUAL_CPC", // safer default for per-locksmith pilots
-        channel: "SEARCH",
-        locationMatchType: "PRESENCE",
-        geoTargets,
-        languageTargets: ["1000"],
-        headlines: plan.headlines,
-        descriptions: plan.descriptions,
-        finalUrl: plan.finalUrl,
-        keywords: plan.keywords as unknown as object[],
-        negativeKeywords: plan.negativeKeywords,
-        aiGenerated: true,
-        aiPrompt: `from-locksmith:${locksmith.id} ${locksmith.companyName || locksmith.name}`,
-        aiReasoning: plan.reasoning,
-        createdBy: "admin",
-        createdByAdminId: typeof admin.id === "string" ? admin.id : undefined,
-      },
+      data: enforced.data as Parameters<
+        typeof prisma.googleAdsCampaignDraft.create
+      >[0]["data"],
     });
 
     return NextResponse.json(

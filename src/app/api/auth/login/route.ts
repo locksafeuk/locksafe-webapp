@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { generateToken, verifyPassword, AUTH_COOKIE_OPTIONS, getRedirectPath } from "@/lib/auth";
 import { enforceAuthRateLimit } from "@/lib/auth-rate-limit";
+import { sendLocksmithFirstLoginInstallOptionsEmail } from "@/lib/email";
 
 export async function POST(request: NextRequest) {
   try {
@@ -78,6 +79,19 @@ export async function POST(request: NextRequest) {
         select: { id: true },
       });
 
+      const firstLoginUpdate = await prisma.locksmith.updateMany({
+        where: {
+          id: locksmith.id,
+          OR: [
+            { firstLocksmithLoginAt: null },
+            { firstLocksmithLoginAt: { isSet: false } },
+          ],
+        },
+        data: {
+          firstLocksmithLoginAt: new Date(),
+        },
+      });
+
       // Sanitize string fields before generating token
       const sanitizedLocksmithName = locksmith.name?.trim() || "";
       const sanitizedLocksmithEmail = locksmith.email?.trim().toLowerCase() || "";
@@ -105,6 +119,16 @@ export async function POST(request: NextRequest) {
       });
 
       response.cookies.set("auth_token", token, AUTH_COOKIE_OPTIONS);
+
+      // Send one-time post-first-login setup email (non-blocking).
+      if (firstLoginUpdate.count > 0) {
+        sendLocksmithFirstLoginInstallOptionsEmail(sanitizedLocksmithEmail, {
+          locksmithName: sanitizedLocksmithName,
+        }).catch((error) => {
+          console.error("Failed to send first-login locksmith email:", error);
+        });
+      }
+
       return response;
     }
 

@@ -8,7 +8,18 @@ import prisma from "@/lib/db";
 import { AdStatus, AdObjective } from "@prisma/client";
 import { executeHeartbeat } from "@/agents/core/orchestrator";
 import { storeDecision, storePattern } from "@/agents/core/memory";
+import { seedPlaybook } from "@/lib/google-ads-playbook";
 import type { AgentConfig } from "@/agents/core/types";
+
+/** Seed the campaign playbook once the agent row exists. Never throws. */
+async function ensurePlaybookSeeded(): Promise<void> {
+  try {
+    const res = await seedPlaybook();
+    console.log(`[AdsSpecialist] Playbook seeded (created ${res.created}, updated ${res.updated}, skipped ${res.skipped}).`);
+  } catch (err) {
+    console.warn("[AdsSpecialist] Playbook seed failed:", err instanceof Error ? err.message : err);
+  }
+}
 
 // Agent configuration
 export const ADS_SPECIALIST_AGENT_CONFIG: AgentConfig = {
@@ -56,6 +67,7 @@ export async function initializeAdsSpecialistAgent(): Promise<void> {
         parentAgentId,
       },
     });
+    await ensurePlaybookSeeded();
     return;
   }
 
@@ -107,6 +119,8 @@ export async function initializeAdsSpecialistAgent(): Promise<void> {
       0.8
     );
   }
+
+  await ensurePlaybookSeeded();
 }
 
 /**

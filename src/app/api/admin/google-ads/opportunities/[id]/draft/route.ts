@@ -17,6 +17,10 @@ import { verifyToken } from "@/lib/auth";
 import { generateDraftPlanForLocksmith } from "@/lib/google-ads-onboarding";
 import { extractDefaultAccountLearnings } from "@/lib/google-ads-learnings";
 import { enforceDistrictLandingForDraft } from "@/lib/google-ads-district-enforcer";
+import {
+  enforceDraftGuardrails,
+  PLAYBOOK_GUARDRAILS,
+} from "@/lib/google-ads-draft-enforcement";
 
 async function verifyAdmin() {
   const cookieStore = await cookies();
@@ -98,28 +102,48 @@ export async function POST(
     finalUrl: enforcedLanding.finalUrl,
   });
 
+  const enforced = enforceDraftGuardrails({
+    accountId: account.id,
+    status: "PENDING_APPROVAL",
+    name: `${build.plan.campaignName} · scout:${opp.geoLabel}`,
+    dailyBudget: build.plan.recommendedDailyBudget,
+    biddingStrategy: PLAYBOOK_GUARDRAILS.BIDDING_STRATEGY,
+    channel: "SEARCH",
+    locationMatchType: "PRESENCE",
+    geoTargets: [opp.geoTargetId], // override — target the opportunity geo
+    languageTargets: ["1000"],
+    headlines: build.plan.headlines,
+    descriptions: build.plan.descriptions,
+    finalUrl: build.plan.finalUrl,
+    keywords: build.plan.keywords as unknown as object[],
+    negativeKeywords: build.plan.negativeKeywords,
+    aiGenerated: true,
+    aiPrompt: `opportunity:${opp.id} geo:${opp.geoTargetId}`,
+    aiReasoning: `Manual scout draft for ${opp.geoLabel}. Score ${opp.score}, median CPC £${opp.medianCpcGbp}, ${opp.competitionTier} competition. Anchor: ${picked.companyName ?? picked.name} (${picked.totalJobs ?? 0} jobs). ${build.plan.reasoning}`,
+    createdBy: "admin",
+    createdByAdminId: typeof admin.id === "string" ? admin.id : undefined,
+  });
+  if (!enforced.ok) {
+    return NextResponse.json(
+      {
+        error: "guardrail_violation",
+        message:
+          "Opportunity draft does not meet the Liverpool playbook guardrails.",
+        violations: enforced.violations,
+      },
+      { status: 422 },
+    );
+  }
+  if (enforced.appliedFixes.length > 0) {
+    console.warn(
+      "[opportunities/draft] draft auto-corrected by playbook guardrails",
+      { opportunityId: opp.id, appliedFixes: enforced.appliedFixes },
+    );
+  }
   const draft = await prisma.googleAdsCampaignDraft.create({
-    data: {
-      accountId: account.id,
-      status: "PENDING_APPROVAL",
-      name: `${build.plan.campaignName} · scout:${opp.geoLabel}`,
-      dailyBudget: build.plan.recommendedDailyBudget,
-      biddingStrategy: "MANUAL_CPC",
-      channel: "SEARCH",
-      locationMatchType: "PRESENCE",
-      geoTargets: [opp.geoTargetId], // override — target the opportunity geo
-      languageTargets: ["1000"],
-      headlines: build.plan.headlines,
-      descriptions: build.plan.descriptions,
-      finalUrl: build.plan.finalUrl,
-      keywords: build.plan.keywords as unknown as object[],
-      negativeKeywords: build.plan.negativeKeywords,
-      aiGenerated: true,
-      aiPrompt: `opportunity:${opp.id} geo:${opp.geoTargetId}`,
-      aiReasoning: `Manual scout draft for ${opp.geoLabel}. Score ${opp.score}, median CPC £${opp.medianCpcGbp}, ${opp.competitionTier} competition. Anchor: ${picked.companyName ?? picked.name} (${picked.totalJobs ?? 0} jobs). ${build.plan.reasoning}`,
-      createdBy: "admin",
-      createdByAdminId: typeof admin.id === "string" ? admin.id : undefined,
-    },
+    data: enforced.data as Parameters<
+      typeof prisma.googleAdsCampaignDraft.create
+    >[0]["data"],
   });
 
   await prisma.googleAdsOpportunity.update({

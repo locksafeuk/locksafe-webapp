@@ -27,6 +27,28 @@ model BaseLocationReminderLog {
   sentAt      DateTime  @default(now())
 }
 
+model AppInstallReminderLog {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  locksmithId String    @db.ObjectId
+  locksmith   Locksmith @relation(fields: [locksmithId], references: [id])
+  adminEmail  String
+  resendEmailId String?
+  status      String    @default("sent") // sent | delivered | opened | clicked | bounced | complained
+  deliveredAt DateTime?
+  openedAt    DateTime?
+  openCount   Int       @default(0)
+  clickedAt   DateTime?
+  clickCount  Int       @default(0)
+  clickedLinks String[] @default([])
+  bouncedAt   DateTime?
+  bounceReason String?
+  complainedAt DateTime?
+  sentAt      DateTime  @default(now())
+
+  @@index([locksmithId, sentAt])
+  @@index([resendEmailId])
+}
+
 // Audit log for admin WhatsApp click-to-chat button clicks.
 // One row per click; non-blocking — admin still gets to WhatsApp if the
 // log call fails. Used for "who contacted whom about what" reporting.
@@ -310,6 +332,7 @@ model Locksmith {
   termsAcceptedAt          DateTime? // When locksmith accepted T&C
   onboardingCompleted      Boolean   @default(false)
   onboardingLastInteractionAt DateTime? // Last interaction relevant to onboarding reminders
+  firstLocksmithLoginAt    DateTime? // First successful locksmith login (for one-time post-login onboarding email)
   insuranceDocumentUrl     String? // Uploaded insurance document
   certificationDocumentUrl String? // Uploaded locksmith certification
   additionalDocumentUrls   String[] // Any additional supporting documents
@@ -377,6 +400,7 @@ model Locksmith {
   // Stripe onboarding reminder log relation
   stripeReminderLogs StripeReminderLog[]
   baseLocationReminderLogs BaseLocationReminderLog[]
+  appInstallReminderLogs AppInstallReminderLog[]
 
   // Performance indexes for dispatch / matcher queries (Locksmith lookups by
   // active+available status combined with base location). MongoDB B-tree

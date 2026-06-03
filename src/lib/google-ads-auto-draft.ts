@@ -22,6 +22,11 @@ import prisma from "@/lib/db";
 import { generateDraftPlanForLocksmith } from "@/lib/google-ads-onboarding";
 import type { GoogleKeyword } from "@/lib/openai-google-ads";
 import { enforceDistrictLandingForDraft } from "@/lib/google-ads-district-enforcer";
+import {
+  assertDraftGuardrails,
+  isAutoPerLocksmithGenerationEnabled,
+  PLAYBOOK_GUARDRAILS,
+} from "@/lib/google-ads-draft-enforcement";
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 
@@ -157,6 +162,22 @@ export async function autoCreateOnboardingCampaignDraft(
   dailyBudget = AUTO_DRAFT_DAILY_BUDGET_GBP,
   dryRun = false,
 ): Promise<AutoDraftResult> {
+  // 0. Feature flag — auto-per-locksmith generation is disabled until the
+  //    click-to-locksmith attribution layer exists (decision 2026-06-03).
+  //    Re-enable by setting ENABLE_AUTO_PER_LOCKSMITH_DRAFTS=true.
+  if (!isAutoPerLocksmithGenerationEnabled()) {
+    return {
+      success: false,
+      locksmithId,
+      locksmithName: "unknown",
+      cityLabel: null,
+      outwardPostcode: null,
+      confidence: 0,
+      skipped: true,
+      skipReason: "auto_per_locksmith_disabled",
+    };
+  }
+
   // 1. Fetch the locksmith
   const locksmith = await prisma.locksmith.findUnique({
     where: { id: locksmithId },
@@ -329,32 +350,41 @@ export async function autoCreateOnboardingCampaignDraft(
     };
   }
 
+  const enforced = assertDraftGuardrails({
+    accountId:        account.id,
+    status:           draftStatus,
+    name:             campaignName,
+    dailyBudget:      dailyBudget,
+    biddingStrategy:  PLAYBOOK_GUARDRAILS.BIDDING_STRATEGY,
+    channel:          "SEARCH",
+    locationMatchType: "PRESENCE",
+    geoTargets,
+    languageTargets:  ["1000"], // English
+    headlines:        plan.headlines,
+    descriptions:     plan.descriptions,
+    finalUrl:         plan.finalUrl,
+    keywords:         mergedKeywords as unknown as object[],
+    negativeKeywords: plan.negativeKeywords,
+    aiGenerated:      true,
+    aiPrompt:         `auto-onboarding:${locksmithId}`,
+    aiReasoning:      [
+      plan.reasoning,
+      outwardPostcode
+        ? `Postcode-level keywords added for ${outwardPostcode} (${postcodeKeywords.length} terms) — uncontested by national chains.`
+        : "No outward postcode found in baseAddress — postcode-level keywords skipped.",
+      `Confidence score: ${(confidence * 100).toFixed(0)}% → status: ${draftStatus}.`,
+    ].join(" "),
+  });
+  if (enforced.appliedFixes.length > 0) {
+    console.warn(
+      "[auto-onboarding] draft auto-corrected by playbook guardrails",
+      { locksmithId, appliedFixes: enforced.appliedFixes },
+    );
+  }
   const draft = await prisma.googleAdsCampaignDraft.create({
-    data: {
-      accountId:        account.id,
-      status:           draftStatus,
-      name:             campaignName,
-      dailyBudget:      dailyBudget,
-      biddingStrategy:  "MANUAL_CPC",
-      channel:          "SEARCH",
-      locationMatchType: "PRESENCE",
-      geoTargets,
-      languageTargets:  ["1000"], // English
-      headlines:        plan.headlines,
-      descriptions:     plan.descriptions,
-      finalUrl:         plan.finalUrl,
-      keywords:         mergedKeywords as unknown as object[],
-      negativeKeywords: plan.negativeKeywords,
-      aiGenerated:      true,
-      aiPrompt:         `auto-onboarding:${locksmithId}`,
-      aiReasoning:      [
-        plan.reasoning,
-        outwardPostcode
-          ? `Postcode-level keywords added for ${outwardPostcode} (${postcodeKeywords.length} terms) — uncontested by national chains.`
-          : "No outward postcode found in baseAddress — postcode-level keywords skipped.",
-        `Confidence score: ${(confidence * 100).toFixed(0)}% → status: ${draftStatus}.`,
-      ].join(" "),
-    },
+    data: enforced.data as Parameters<
+      typeof prisma.googleAdsCampaignDraft.create
+    >[0]["data"],
     select: { id: true, name: true, status: true },
   });
 

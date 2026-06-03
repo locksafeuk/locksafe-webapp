@@ -78,6 +78,101 @@ export async function sendStripeOnboardingReminderEmail(
     html,
   });
 }
+
+export async function sendAppInstallReminderEmail(
+  locksmithEmail: string,
+  data: {
+    locksmithName: string;
+  },
+) {
+  const dashboardUrl = `${SITE_URL}/locksmith/dashboard`;
+  const iosAppUrl = process.env.NEXT_PUBLIC_LOCKSAFE_IOS_APP_URL || dashboardUrl;
+  const androidAppUrl = process.env.NEXT_PUBLIC_LOCKSAFE_ANDROID_APP_URL || dashboardUrl;
+  const pwaInstallUrl = process.env.NEXT_PUBLIC_LOCKSAFE_PWA_URL || dashboardUrl;
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>Install the LockSafe App</title>
+      <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f8fafc; color: #0f172a; margin: 0; padding: 0; }
+        .container { max-width: 560px; margin: 40px auto; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 28px; }
+        h1 { margin: 0 0 12px 0; color: #ea580c; font-size: 24px; }
+        p { margin: 0 0 12px 0; line-height: 1.6; }
+        ul { margin: 0 0 16px 18px; }
+        li { margin-bottom: 8px; }
+        .button {
+          display: inline-block;
+          margin-top: 8px;
+          background: #ea580c;
+          color: #fff !important;
+          text-decoration: none;
+          font-weight: 600;
+          padding: 12px 20px;
+          border-radius: 8px;
+        }
+        .channels {
+          margin: 14px 0 8px 0;
+          padding: 14px;
+          border: 1px solid #e2e8f0;
+          border-radius: 10px;
+          background: #f8fafc;
+        }
+        .channel-item {
+          margin: 0 0 10px 0;
+          line-height: 1.5;
+        }
+        .channel-item:last-child { margin-bottom: 0; }
+        .footer { margin-top: 22px; color: #64748b; font-size: 13px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>Quick Reminder: install the LockSafe app</h1>
+        <p>Hi ${data.locksmithName},</p>
+        <p>
+          We noticed your account does not currently have an active app installation.
+          Installing the app helps you respond faster and win more jobs.
+        </p>
+        <ul>
+          <li>Get instant job alerts on your phone</li>
+          <li>Accept and manage jobs without delays</li>
+          <li>Stay visible for urgent nearby work</li>
+        </ul>
+        <div class="channels">
+          <p class="channel-item"><strong>iOS app (iPhone):</strong> Install from the App Store, then sign in with your locksmith account.</p>
+          <p class="channel-item"><strong>Android app:</strong> Install from Google Play, then sign in with your locksmith account.</p>
+          <p class="channel-item"><strong>PWA (web app):</strong> Open the dashboard in your mobile browser and tap <strong>Add to Home Screen</strong> / <strong>Install App</strong>.</p>
+        </div>
+
+        <p>Use any of these options:</p>
+        <p>
+          <a class="button" href="${iosAppUrl}" target="_blank">Open iOS Option</a>
+        </p>
+        <p>
+          <a class="button" href="${androidAppUrl}" target="_blank">Open Android Option</a>
+        </p>
+        <p>
+          <a class="button" href="${pwaInstallUrl}" target="_blank">Open PWA Option</a>
+        </p>
+        <p>
+          If links open the dashboard instead of a store page, use the install prompt there and we will still register your app channel.
+        </p>
+        <div class="footer">
+          LockSafe UK Operations
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to: locksmithEmail,
+    subject: "Reminder: install the LockSafe app to receive jobs faster",
+    html,
+  });
+}
 import { Resend } from "resend";
 import {
   LOCKSMITH_ADMIN_PHONE,
@@ -256,6 +351,9 @@ export async function sendLocksmithWelcomeEmail(
   const dashboardUrl = `${SITE_URL}/locksmith/dashboard`;
   const settingsUrl = `${SITE_URL}/locksmith/settings`;
   const faqUrl = `${SITE_URL}/locksmith/faq`;
+  const iosAppUrl = process.env.NEXT_PUBLIC_LOCKSAFE_IOS_APP_URL || dashboardUrl;
+  const androidAppUrl = process.env.NEXT_PUBLIC_LOCKSAFE_ANDROID_APP_URL || dashboardUrl;
+  const pwaInstallUrl = process.env.NEXT_PUBLIC_LOCKSAFE_PWA_URL || dashboardUrl;
 
   const html = `
     <!DOCTYPE html>
@@ -325,6 +423,21 @@ export async function sendLocksmithWelcomeEmail(
               <div class="step-content">
                 <p style="margin:0;font-weight:600;color:#1e293b;">Connect Stripe for Payments</p>
                 <p style="margin:4px 0 0 0;color:#64748b;font-size:14px;">Set up your Stripe account to receive automatic payouts for completed jobs.</p>
+              </div>
+            </div>
+
+            <div class="step">
+              <div class="step-number">5</div>
+              <div class="step-content">
+                <p style="margin:0;font-weight:600;color:#1e293b;">Install App Channel (iOS / Android / PWA)</p>
+                <p style="margin:4px 0 0 0;color:#64748b;font-size:14px;">Use any channel below so job alerts reach you instantly.</p>
+                <p style="margin:8px 0 0 0;color:#334155;font-size:13px;">
+                  <a href="${iosAppUrl}" style="color:#ea580c;font-weight:600;">iOS option</a>
+                  &nbsp;|&nbsp;
+                  <a href="${androidAppUrl}" style="color:#ea580c;font-weight:600;">Android option</a>
+                  &nbsp;|&nbsp;
+                  <a href="${pwaInstallUrl}" style="color:#ea580c;font-weight:600;">PWA option</a>
+                </p>
               </div>
             </div>
           </div>
@@ -403,6 +516,63 @@ export async function sendLocksmithWelcomeEmail(
   return sendEmail({
     to: locksmithEmail,
     subject: `Welcome to LockSafe UK! Get Started as a Partner Locksmith`,
+    html,
+  });
+}
+
+export async function sendLocksmithFirstLoginInstallOptionsEmail(
+  locksmithEmail: string,
+  data: {
+    locksmithName: string;
+  },
+) {
+  const dashboardUrl = `${SITE_URL}/locksmith/dashboard`;
+  const iosAppUrl = process.env.NEXT_PUBLIC_LOCKSAFE_IOS_APP_URL || dashboardUrl;
+  const androidAppUrl = process.env.NEXT_PUBLIC_LOCKSAFE_ANDROID_APP_URL || dashboardUrl;
+  const pwaInstallUrl = process.env.NEXT_PUBLIC_LOCKSAFE_PWA_URL || dashboardUrl;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>Set Up Your LockSafe App Channel</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6; color: #1e293b; margin: 0; padding: 0; background: #f8fafc; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #0f172a, #1e293b); color: #fff; padding: 24px; border-radius: 12px 12px 0 0; }
+        .content { background: #fff; padding: 24px; border-radius: 0 0 12px 12px; border: 1px solid #e2e8f0; border-top: none; }
+        .box { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 16px; margin: 16px 0; }
+        .cta { display: inline-block; background: #ea580c; color: #fff !important; text-decoration: none; font-weight: 700; padding: 12px 20px; border-radius: 8px; }
+        .link { color: #c2410c; font-weight: 700; text-decoration: none; }
+        .footer { margin-top: 18px; color: #64748b; font-size: 12px; text-align: center; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1 style="margin:0;font-size:24px;">Welcome back, ${data.locksmithName}</h1>
+          <p style="margin:8px 0 0 0;opacity:0.9;">One quick setup to avoid missing jobs</p>
+        </div>
+        <div class="content">
+          <p>To receive job alerts faster, please set up at least one app channel now:</p>
+          <div class="box">
+            <p style="margin:0 0 8px 0;"><strong>iOS:</strong> <a class="link" href="${iosAppUrl}" target="_blank">Open iOS option</a></p>
+            <p style="margin:0 0 8px 0;"><strong>Android:</strong> <a class="link" href="${androidAppUrl}" target="_blank">Open Android option</a></p>
+            <p style="margin:0;"><strong>PWA:</strong> <a class="link" href="${pwaInstallUrl}" target="_blank">Open PWA option</a> and tap Add to Home Screen / Install App</p>
+          </div>
+          <p>If these links open your dashboard, use the install prompt there and the system will register your app channel.</p>
+          <p style="margin-top:20px;"><a href="${dashboardUrl}" class="cta">Go to Dashboard</a></p>
+        </div>
+        <div class="footer">LockSafe UK - Locksmith Partner Portal</div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to: locksmithEmail,
+    subject: "Complete your app setup: iOS / Android / PWA",
     html,
   });
 }
@@ -1031,6 +1201,11 @@ export async function sendAccountVerifiedEmail(
     accountId: string;
   },
 ) {
+  const dashboardUrl = `${SITE_URL}/locksmith/dashboard`;
+  const iosAppUrl = process.env.NEXT_PUBLIC_LOCKSAFE_IOS_APP_URL || dashboardUrl;
+  const androidAppUrl = process.env.NEXT_PUBLIC_LOCKSAFE_ANDROID_APP_URL || dashboardUrl;
+  const pwaInstallUrl = process.env.NEXT_PUBLIC_LOCKSAFE_PWA_URL || dashboardUrl;
+
   const html = `
     <!DOCTYPE html>
     <html>
@@ -1072,8 +1247,20 @@ export async function sendAccountVerifiedEmail(
             <p style="margin:4px 0 0 0;color:#64748b;">You can change this in your Stripe dashboard</p>
           </div>
 
+          <div class="box" style="background:#fff7ed;border:1px solid #fed7aa;">
+            <p style="margin:0 0 8px 0;color:#9a3412;font-size:12px;font-weight:700;">RECOMMENDED: INSTALL AN APP CHANNEL</p>
+            <p style="margin:0 0 10px 0;color:#7c2d12;">To avoid missing urgent jobs, install one of these now:</p>
+            <p style="margin:0;color:#7c2d12;line-height:1.8;">
+              <a href="${iosAppUrl}" style="color:#c2410c;font-weight:700;">iOS option</a>
+              &nbsp;|&nbsp;
+              <a href="${androidAppUrl}" style="color:#c2410c;font-weight:700;">Android option</a>
+              &nbsp;|&nbsp;
+              <a href="${pwaInstallUrl}" style="color:#c2410c;font-weight:700;">PWA option</a>
+            </p>
+          </div>
+
           <p style="text-align:center;margin-top:24px;">
-            <a href="${SITE_URL}/locksmith/dashboard" class="button">Start Taking Jobs</a>
+            <a href="${dashboardUrl}" class="button">Start Taking Jobs</a>
           </p>
         </div>
         <div class="footer">
