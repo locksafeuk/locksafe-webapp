@@ -53,6 +53,7 @@ import {
   assertDraftGuardrails,
   PLAYBOOK_GUARDRAILS,
 } from "@/lib/google-ads-draft-enforcement";
+import { shouldCreateAutonomousDraft } from "@/lib/google-ads-draft-throttle";
 
 // =========================================================================
 // Known UK locksmith competitor domains
@@ -667,6 +668,17 @@ async function maybeAutoDraft(args: {
 }): Promise<boolean> {
   const { opportunity, accountId, minLocksmithJobs, maxAutoDraftCpcGbp, skipHighCompetition, learnings } = args;
   if (opportunity.locksmithIds.length === 0) return false;
+
+  // Throttle — global gate against agent over-creation. See decision 2026-06-03.
+  const throttle = await shouldCreateAutonomousDraft({
+    agentName: "opportunity-scout",
+  });
+  if (!throttle.allowed) {
+    console.log(
+      `[opportunity-scout] auto-draft skipped (${throttle.reason}): ${throttle.message}`,
+    );
+    return false;
+  }
 
   // Hard-block London boroughs — the two existing UK-wide campaigns already
   // cover London via phrase-match; competing in London auctions burns budget.

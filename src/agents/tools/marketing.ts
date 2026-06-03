@@ -21,6 +21,7 @@ import { isServiceSlug } from "@/lib/services-catalog";
 import { optimiseMetaCampaigns } from "@/lib/meta-optimiser";
 import { isPlatformEnabled } from "@/lib/social-platforms";
 import { assertDraftGuardrails } from "@/lib/google-ads-draft-enforcement";
+import { shouldCreateAutonomousDraft } from "@/lib/google-ads-draft-throttle";
 
 /**
  * Generate social post content using AI
@@ -860,6 +861,22 @@ export const createGoogleAdsDraftTool: AgentTool = {
     },
   ],
   async execute(params, context: AgentContext): Promise<ToolResult> {
+    // Throttle — global gate against agent over-creation. See decision 2026-06-03
+    // (139-approval backlog from CMO + Ads Specialist looping every ~30min).
+    const throttle = await shouldCreateAutonomousDraft({
+      agentName: context?.agentName ?? "unknown",
+    });
+    if (!throttle.allowed) {
+      console.log(
+        `[createGoogleAdsDraft] throttled: ${throttle.reason} — ${throttle.message}`,
+      );
+      return {
+        success: false,
+        error: throttle.message,
+        data: { throttled: true, reason: throttle.reason, ...(throttle.meta ?? {}) },
+      };
+    }
+
     const handle = await getDefaultGoogleAdsClient();
     if (!handle) {
       return {
