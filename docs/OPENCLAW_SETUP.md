@@ -84,8 +84,14 @@ AGENT_API_KEY="your-secure-api-key-here"
 # TELEGRAM BOT
 # ============================================
 
-# Bot token from @BotFather
-TELEGRAM_BOT_TOKEN="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+# Admin bot token from @BotFather
+TELEGRAM_ADMIN_BOT_TOKEN="<admin-bot-token>"
+
+# Locksmith bot token from @BotFather (optional but recommended)
+TELEGRAM_LOCKSMITH_BOT_TOKEN="<locksmith-bot-token>"
+
+# Backward-compatible fallback token (optional)
+TELEGRAM_BOT_TOKEN="<fallback-bot-token>"
 
 # Chat ID for main admin notifications
 TELEGRAM_CHAT_ID="-1001234567890"
@@ -107,7 +113,7 @@ TELEGRAM_ADMIN_CHAT_IDS="-1001234567890,123456789"
 1. Open Telegram and message [@BotFather](https://t.me/BotFather)
 2. Send `/newbot`
 3. Choose a name: `LockSafe Admin`
-4. Choose a username: `locksafe_admin_bot`
+4. Choose a username for your admin bot (example: `locksafe_ai_bot`)
 5. Copy the API token
 
 ### Step 2: Configure Commands

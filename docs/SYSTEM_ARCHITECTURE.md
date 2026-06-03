@@ -220,7 +220,7 @@ Job Notification → Review & Apply → Customer Selects → Travel
 
 ### 4. Telegram Admin Bot
 
-Real-time operations via @Locksafeukbot:
+Real-time operations via the admin bot (currently @LocksafeAI_BOT):
 
 | Command | Description |
 |---------|-------------|
@@ -232,6 +232,10 @@ Real-time operations via @Locksafeukbot:
 | `/dispatch <job>` | Find best locksmith match |
 | `/assign <job> <ls>` | Assign job to specific locksmith |
 | `/availability <id> <on/off>` | Toggle locksmith availability |
+
+Note: admin and locksmith chat experiences are intentionally separated. Admin
+commands run through `/api/agent/telegram`, while locksmith interactions run
+through `/api/locksmith/bot`.
 
 ---
 

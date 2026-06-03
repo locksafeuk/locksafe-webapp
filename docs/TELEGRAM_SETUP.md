@@ -16,16 +16,17 @@ LockSafe UK uses two Telegram bots:
 1. Open Telegram and search for [@BotFather](https://t.me/BotFather)
 2. Send `/newbot`
 3. Enter bot name: `LockSafe Admin`
-4. Enter username: `locksafe_admin_bot` (must be unique)
+4. Enter username: your preferred admin handle (example: `locksafe_ai_bot`)
 5. **Save the API token** provided
 
 ### Create Locksmith Bot (Optional - Same Bot)
 
-You can use the same bot for both admin and locksmith features, or create a separate one:
+You can use the same bot for both admin and locksmith features, or create a separate one.
+Recommended production setup: keep a separate locksmith bot identity.
 
 1. Send `/newbot` to BotFather again
 2. Enter bot name: `LockSafe Locksmith`
-3. Enter username: `locksafe_locksmith_bot`
+3. Enter username: your preferred locksmith handle (example: `locksafe_locksmith_bot`)
 4. **Save the API token**
 
 ---
@@ -88,22 +89,29 @@ Add to your `.env`:
 
 ```env
 # Telegram Bot Configuration
-TELEGRAM_BOT_TOKEN="8751497268:AAGFHuAUplfHM6AFoFkVn_-QbYz3vGRlBN0"
-TELEGRAM_CHAT_ID="-1002198420159"
-TELEGRAM_ADMIN_CHAT_IDS="-1002198420159"
+TELEGRAM_ADMIN_BOT_TOKEN="<admin-bot-token>"
+TELEGRAM_LOCKSMITH_BOT_TOKEN="<locksmith-bot-token>"
+TELEGRAM_BOT_TOKEN="<legacy-fallback-bot-token>"
+TELEGRAM_CHAT_ID="<alerts-chat-id>"
+TELEGRAM_ADMIN_CHAT_IDS="<alerts-chat-id>,<your-dm-chat-id>"
 TELEGRAM_ADMIN_USER_IDS="123456789"
 TELEGRAM_REQUIRE_CONFIRM="true"
 TELEGRAM_NOTIFICATIONS_ENABLED="true"
+TELEGRAM_TOPIC_AGENTS=""
+TELEGRAM_TOPIC_SOCIAL=""
 ```
 
 | Variable | Description |
 |----------|-------------|
-| `TELEGRAM_BOT_TOKEN` | Bot API token from BotFather |
+| `TELEGRAM_ADMIN_BOT_TOKEN` | Admin command bot token (preferred) |
+| `TELEGRAM_LOCKSMITH_BOT_TOKEN` | Locksmith bot token (preferred) |
+| `TELEGRAM_BOT_TOKEN` | Backward-compatible fallback token |
 | `TELEGRAM_CHAT_ID` | Admin group/chat ID for notifications |
 | `TELEGRAM_ADMIN_CHAT_IDS` | Comma-separated admin chat IDs allowed to run commands |
 | `TELEGRAM_ADMIN_USER_IDS` | Optional comma-separated Telegram user IDs (if set, user and chat must both match) |
 | `TELEGRAM_REQUIRE_CONFIRM` | Require `confirm` for protected commands (`/agent_run`, `/assign`, `/availability`) |
 | `TELEGRAM_NOTIFICATIONS_ENABLED` | Enable/disable notifications |
+| `TELEGRAM_TOPIC_SOCIAL` | Dedicated topic thread for social scheduling summaries |
 
 ---
 

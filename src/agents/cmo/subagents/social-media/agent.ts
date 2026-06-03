@@ -229,12 +229,17 @@ export async function runSocialMediaHeartbeat(): Promise<void> {
 
   // Send Telegram summary only when policy allows low/info non-guardian alerts.
   if (postsCreated > 0) {
+    const socialTopicThreadId = process.env.TELEGRAM_TOPIC_SOCIAL
+      ? Number.parseInt(process.env.TELEGRAM_TOPIC_SOCIAL, 10)
+      : undefined;
     const policy = await getOperationalPolicy();
     if (shouldEmitAlert("social-media", "info", policy.alertSensitivity)) {
       await sendAdminAlert({
         title: `📱 Social Posts Scheduled`,
         message: `${postsCreated} posts generated for today's ${pillar} pillar.\nPlatforms: ${activePlatforms.join(", ")}\nSlots: ${POSTING_SLOTS.slice(0, postsCreated).join(", ")} UK time`,
         severity: "info",
+        topic: "social",
+        topicThreadId: Number.isFinite(socialTopicThreadId) ? socialTopicThreadId : undefined,
       });
     }
   }

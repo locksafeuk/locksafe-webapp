@@ -32,7 +32,7 @@ import { getCMOStatus } from "@/agents/cmo/agent";
 import { getCEOStatus, generateWeeklySummary } from "@/agents/ceo/agent";
 import { getAllBudgetStatus } from "@/agents/core/budget";
 
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_ADMIN_BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://locksafe.uk";
 const AGENTS_ENABLED = process.env.AGENTS_ENABLED === "true";
 const REQUIRE_CONFIRM_FOR_MUTATIONS =

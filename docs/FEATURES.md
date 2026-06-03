@@ -232,7 +232,7 @@ Full admin panel at `/admin`:
 
 ### Telegram Admin Bot
 
-Manage operations via chat with @Locksafeukbot:
+Manage operations via the active admin bot (currently @LocksafeAI_BOT):
 
 | Command | Description |
 |---------|-------------|
@@ -350,8 +350,8 @@ Transactional emails for all events:
 
 | Bot | Audience | Purpose |
 |-----|----------|---------|
-| @Locksafeukbot | Admins | Operations management |
-| (Locksmith bot) | Locksmiths | Job notifications |
+| Admin bot (e.g. @LocksafeAI_BOT) | Admins | Operations management, alerts, approvals |
+| Locksmith bot (separate identity) | Locksmiths | Job notifications and self-service commands |
 
 ---
 
@@ -590,7 +590,7 @@ All jobs produce legally-admissible documentation:
 | Resource | Location |
 |----------|----------|
 | Admin Panel | locksafe.uk/admin |
-| Telegram Bot | @Locksafeukbot |
+| Telegram Admin Bot | @LocksafeAI_BOT |
 | Docs | This documentation |
 
 ---

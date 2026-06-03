@@ -16,7 +16,7 @@ import { LOCKSMITH_ADMIN_PHONE } from "@/lib/config";
 import { formatBaseLocationLabel } from "@/lib/location-display";
 import { prisma } from "@/lib/prisma";
 
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_ADMIN_BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 const TELEGRAM_ENABLED = process.env.TELEGRAM_NOTIFICATIONS_ENABLED === "true";
 const TELEGRAM_SEND_RETRY_ATTEMPTS = Math.max(
@@ -197,6 +197,7 @@ const TOPIC_CUSTOMERS = process.env.TELEGRAM_TOPIC_CUSTOMERS ? parseInt(process.
 const TOPIC_JOB_UPDATES = process.env.TELEGRAM_TOPIC_JOB_UPDATES ? parseInt(process.env.TELEGRAM_TOPIC_JOB_UPDATES) : undefined;
 const TOPIC_PAYMENTS = process.env.TELEGRAM_TOPIC_PAYMENTS ? parseInt(process.env.TELEGRAM_TOPIC_PAYMENTS) : undefined;
 const TOPIC_AGENTS = process.env.TELEGRAM_TOPIC_AGENTS ? parseInt(process.env.TELEGRAM_TOPIC_AGENTS) : undefined;
+const TOPIC_SOCIAL = process.env.TELEGRAM_TOPIC_SOCIAL ? parseInt(process.env.TELEGRAM_TOPIC_SOCIAL) : undefined;
 const TOPIC_APPLICATIONS = process.env.TELEGRAM_TOPIC_APPLICATIONS ? parseInt(process.env.TELEGRAM_TOPIC_APPLICATIONS) : undefined;
 const TOPIC_QUOTES = process.env.TELEGRAM_TOPIC_QUOTES ? parseInt(process.env.TELEGRAM_TOPIC_QUOTES) : undefined;
 const TOPIC_REVIEWS = process.env.TELEGRAM_TOPIC_REVIEWS ? parseInt(process.env.TELEGRAM_TOPIC_REVIEWS) : undefined;
@@ -923,6 +924,8 @@ export async function sendAdminAlert(data: {
   bypassPolicyGate?: boolean;
   dedupeKey?: string;
   cooldownMsOverride?: number;
+  topic?: "agents" | "social";
+  topicThreadId?: number;
 }): Promise<boolean> {
   // Runtime alert-sensitivity gate for admin/agent topic noise control.
   // Defaults are handled by operational policy module if DB fields are null.
@@ -983,7 +986,9 @@ ${escapeHtml(data.message)}
 🕐 <b>Time:</b> ${formatDate(new Date())}
 `;
 
-  const sentToTelegram = await sendTelegramMessage(message, "HTML", TOPIC_AGENTS);
+  const resolvedThreadId = data.topicThreadId
+    ?? (data.topic === "social" ? TOPIC_SOCIAL : TOPIC_AGENTS);
+  const sentToTelegram = await sendTelegramMessage(message, "HTML", resolvedThreadId);
   if (sentToTelegram) {
     await recordAdminAlertSent(dedupeKey, {
       title: data.title,

@@ -45,7 +45,9 @@ OPENAI_API_KEY=sk-your-openai-key
 CRON_SECRET=your-secure-random-string
 
 # Optional - for Telegram notifications
-TELEGRAM_BOT_TOKEN=your-bot-token
+TELEGRAM_ADMIN_BOT_TOKEN=your-admin-bot-token
+TELEGRAM_LOCKSMITH_BOT_TOKEN=your-locksmith-bot-token
+TELEGRAM_BOT_TOKEN=your-fallback-bot-token
 TELEGRAM_CHAT_ID=your-chat-id
 ```
 
