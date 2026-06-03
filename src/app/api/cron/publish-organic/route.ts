@@ -20,7 +20,7 @@ import {
   publishToInstagram,
 } from "@/lib/social-publisher";
 import { formatPostForPlatform } from "@/lib/organic-content";
-import { isTwitterConfigured, postTweet, postThread } from "@/lib/twitter";
+import { isTwitterConfigured, postTweet, postThread, postTweetWithImage } from "@/lib/twitter";
 import { isLinkedInConfigured, postToLinkedIn } from "@/lib/linkedin";
 import { isTikTokApiConfigured, generateTikTokScript } from "@/lib/tiktok";
 import { sendAdminAlert } from "@/lib/telegram";
@@ -106,6 +106,7 @@ export async function GET(request: NextRequest) {
     const postsToPublish = await prisma.socialPost.findMany({
       where: {
         status: "SCHEDULED",
+        imageUrl: { not: null },
         scheduledFor: {
           lte: now,
         },
@@ -243,7 +244,15 @@ export async function GET(request: NextRequest) {
 
           // Prefer OAuth 1.0a env vars (permanent, never expire) over DB OAuth 2.0 token (expires every 2h)
           if (isTwitterConfigured()) {
-            if (threadParts && threadParts.length > 1) {
+            if (post.imageUrl) {
+              const imageResponse = await fetch(post.imageUrl);
+              if (!imageResponse.ok) {
+                throw new Error(`Failed to fetch Twitter image: ${imageResponse.status}`);
+              }
+              const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+              const result = await postTweetWithImage(tweetText.slice(0, 280), imageBuffer, "image/png");
+              platformResults.twitter = { success: true, postId: result.id };
+            } else if (threadParts && threadParts.length > 1) {
               const result = await postThread(threadParts);
               platformResults.twitter = { success: true, postId: result.ids[0] };
             } else {
@@ -253,7 +262,20 @@ export async function GET(request: NextRequest) {
           } else if (twitterDbAccount) {
             // Fallback: OAuth 2.0 DB token (may expire — reconnect via /admin/social-connect)
             const twitterClient = new TwitterApi(twitterDbAccount.accessToken);
-            if (threadParts && threadParts.length > 1) {
+            if (post.imageUrl) {
+              const imageResponse = await fetch(post.imageUrl);
+              if (!imageResponse.ok) {
+                throw new Error(`Failed to fetch Twitter image: ${imageResponse.status}`);
+              }
+                const imageMimeType = imageResponse.headers.get("content-type")?.split(";")[0] || "image/png";
+              const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+                const mediaId = await twitterClient.v1.uploadMedia(imageBuffer, { mimeType: imageMimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp" });
+              const { data } = await twitterClient.v2.tweet({
+                text: tweetText.slice(0, 280),
+                media: { media_ids: [mediaId] },
+              });
+              platformResults.twitter = { success: true, postId: data.id };
+            } else if (threadParts && threadParts.length > 1) {
               const tweets = await twitterClient.v2.tweetThread(threadParts);
               platformResults.twitter = { success: true, postId: tweets[0]?.data?.id };
             } else {
@@ -275,39 +297,16 @@ export async function GET(request: NextRequest) {
           const linkedinText = (post as Record<string, unknown>).linkedinContent as string | undefined || post.content;
           // Use DB account if available (from OAuth connect), else fall back to env vars
           if (linkedinDbAccount) {
-            const orgId  = linkedinDbAccount.accountId;
+            const accountId = linkedinDbAccount.accountId;
             const token  = linkedinDbAccount.accessToken;
-            // accountId may be a full URN (urn:li:person:X or urn:li:organization:X) or a bare org ID
-            const author = orgId.startsWith("urn:li:") ? orgId : `urn:li:organization:${orgId}`;
-            const body = {
-              author,
-              lifecycleState: "PUBLISHED",
-              specificContent: {
-                "com.linkedin.ugc.ShareContent": {
-                  shareCommentary: { text: linkedinText },
-                  shareMediaCategory: "NONE",
-                },
-              },
-              visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" },
-            };
-            const res = await fetch("https://api.linkedin.com/v2/ugcPosts", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-                "X-Restli-Protocol-Version": "2.0.0",
-              },
-              body: JSON.stringify(body),
-            });
-            if (!res.ok) {
-              const errText = await res.text();
-              platformResults.linkedin = { success: false, error: `LinkedIn API ${res.status}: ${errText}` };
-            } else {
-              const postId = res.headers.get("x-restli-id")?.split(":").pop() || "unknown";
-              platformResults.linkedin = { success: true, postId };
-            }
+            const orgId = accountId.startsWith("urn:li:") ? accountId.split(":").pop() ?? accountId : accountId;
+            const result = await postToLinkedIn(
+              { text: linkedinText, imageUrl: post.imageUrl ?? undefined },
+              { token, orgId, authorUrn: accountId.startsWith("urn:li:") ? accountId : `urn:li:organization:${accountId}` }
+            );
+            platformResults.linkedin = { success: true, postId: result.id };
           } else {
-            const result = await postToLinkedIn({ text: linkedinText });
+            const result = await postToLinkedIn({ text: linkedinText, imageUrl: post.imageUrl ?? undefined });
             platformResults.linkedin = { success: true, postId: result.id };
           }
         } catch (err) {

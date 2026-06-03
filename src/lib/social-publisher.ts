@@ -33,6 +33,17 @@ export interface MediaUploadResult {
   error?: string;
 }
 
+function toMetaFormBody(params: Record<string, string | number | boolean | undefined>): URLSearchParams {
+  const form = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined) continue;
+    form.set(key, String(value));
+  }
+
+  return form;
+}
+
 // ==========================================
 // FACEBOOK PAGE PUBLISHING
 // ==========================================
@@ -49,7 +60,7 @@ export async function publishToFacebook(params: {
     const { pageId, pageAccessToken, message, link, imageUrl, scheduledTime } = params;
 
     let endpoint = `${META_BASE_URL}/${pageId}`;
-    const body: Record<string, unknown> = {
+    const body: Record<string, string | number | boolean | undefined> = {
       message,
       access_token: pageAccessToken,
     };
@@ -78,9 +89,9 @@ export async function publishToFacebook(params: {
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: JSON.stringify(body),
+      body: toMetaFormBody(body),
     });
 
     const data = await response.json();
@@ -145,9 +156,9 @@ export async function publishToInstagram(params: {
       {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: JSON.stringify({
+        body: toMetaFormBody({
           creation_id: containerId,
           access_token: accessToken,
         }),
@@ -189,9 +200,9 @@ async function createInstagramMediaContainer(params: {
     {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: JSON.stringify({
+      body: toMetaFormBody({
         image_url: imageUrl,
         caption,
         access_token: accessToken,
@@ -228,9 +239,9 @@ async function createInstagramCarousel(params: {
       {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: JSON.stringify({
+        body: toMetaFormBody({
           image_url: imageUrl,
           is_carousel_item: true,
           access_token: accessToken,
@@ -254,9 +265,9 @@ async function createInstagramCarousel(params: {
     {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: JSON.stringify({
+      body: toMetaFormBody({
         media_type: 'CAROUSEL',
         caption,
         children: childContainers.join(','),

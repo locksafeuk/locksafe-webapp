@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth";
+import { proofreadOrganicPost } from "@/lib/organic-content";
 
 async function verifyAdmin() {
   const cookieStore = await cookies();
@@ -129,6 +130,27 @@ export async function PUT(
     if (approvedBy !== undefined) updateData.approvedBy = approvedBy;
     if (approvedAt !== undefined) updateData.approvedAt = approvedAt ? new Date(approvedAt) : null;
     if (rejectionReason !== undefined) updateData.rejectionReason = rejectionReason;
+
+    if (content !== undefined || headline !== undefined || hook !== undefined || hashtags !== undefined) {
+      const proofread = await proofreadOrganicPost({
+        content: (content ?? existingPost.content) as string,
+        headline: (headline ?? existingPost.headline ?? "") as string,
+        hook: (hook ?? existingPost.hook ?? "") as string,
+        hookType: (hookType ?? existingPost.hookType ?? "") as string,
+        hashtags: (hashtags ?? existingPost.hashtags) as string[],
+        framework: (existingPost.aiFramework ?? "") as string,
+        emotionalAngle: (emotionalAngle ?? existingPost.emotionalAngle ?? "") as string,
+        pillar: (existingPost.contentPillar as any) || "tips",
+        reasoning: "",
+        imagePrompt: existingPost.imagePrompt || undefined,
+      });
+
+      updateData.content = proofread.content;
+      updateData.headline = proofread.headline;
+      updateData.hook = proofread.hook;
+      updateData.hookType = proofread.hookType;
+      updateData.hashtags = proofread.hashtags;
+    }
 
     const post = await prisma.socialPost.update({
       where: { id },

@@ -12,6 +12,8 @@ import {
   generateOrganicPost,
   generateHooks,
   generateContentCalendar,
+  generateImagePrompt,
+  proofreadOrganicPost,
   CONTENT_PILLARS,
   type ContentPillarKey,
 } from "@/lib/organic-content";
@@ -68,6 +70,7 @@ export async function POST(request: NextRequest) {
           platforms,
           includeCallToAction,
           maxLength,
+          count: 1,
         });
 
         // Optionally save as drafts
@@ -99,8 +102,9 @@ export async function POST(request: NextRequest) {
 
           // Save posts as drafts
           const savedPosts = await Promise.all(
-            posts.map(post =>
-              prisma.socialPost.create({
+            posts.map(async (post) => {
+              const imagePrompt = post.imagePrompt || await generateImagePrompt(post);
+              return prisma.socialPost.create({
                 data: {
                   content: post.content,
                   headline: post.headline,
@@ -114,9 +118,10 @@ export async function POST(request: NextRequest) {
                   aiFramework: post.framework,
                   emotionalAngle: post.emotionalAngle,
                   status: "DRAFT",
+                  imagePrompt,
                 },
-              })
-            )
+              });
+            })
           );
 
           return NextResponse.json({
@@ -167,8 +172,9 @@ export async function POST(request: NextRequest) {
               pillar: p,
               framework: "mixed",
               includeCallToAction: true,
+              count: 1,
             });
-            batchResults[p] = posts;
+            batchResults[p] = await Promise.all(posts.map((post) => proofreadOrganicPost(post)));
           } catch (error) {
             console.error(`Error generating for ${p}:`, error);
             batchResults[p] = [];

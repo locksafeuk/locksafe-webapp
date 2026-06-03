@@ -20,6 +20,7 @@ import { generateSocialVideo } from "@/lib/creatomate";
 import { generateTalkingVideo, preferredVideoProvider } from "@/lib/d-id";
 import type { AgentConfig } from "@/agents/core/types";
 import { filterEnabledPlatforms } from "@/lib/social-platforms";
+import { SOCIAL_MEDIA_HEARTBEAT_CRON } from "@/agents/heartbeat-schedules";
 
 export const SOCIAL_MEDIA_AGENT_CONFIG: AgentConfig = {
   name: "social-media",
@@ -27,7 +28,7 @@ export const SOCIAL_MEDIA_AGENT_CONFIG: AgentConfig = {
   role: "Multi-platform content generation and scheduling",
   skillsPath: "cmo/subagents/social-media/SKILL.md",
   monthlyBudgetUsd: 15,
-  heartbeatCronExpr: "0 5 * * *",
+  heartbeatCronExpr: SOCIAL_MEDIA_HEARTBEAT_CRON,
   permissions: ["create_content", "schedule_posts"],
   governanceLevel: "autonomous",
 };

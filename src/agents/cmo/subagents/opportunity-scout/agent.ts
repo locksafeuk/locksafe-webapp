@@ -25,6 +25,7 @@
 import prisma from "@/lib/db";
 import type { Prisma } from "@prisma/client";
 import type { AgentConfig } from "@/agents/core/types";
+import { OPPORTUNITY_SCOUT_HEARTBEAT_CRON } from "@/agents/heartbeat-schedules";
 
 import { getDefaultGoogleAdsClient } from "@/lib/google-ads";
 import { getCoverageUniverse, type CoverageUniverseEntry } from "@/lib/google-ads-geo-universe";
@@ -77,7 +78,7 @@ export const OPPORTUNITY_SCOUT_AGENT_CONFIG: AgentConfig = {
   role: "Geo Opportunity Scout — weekly Google Keyword Planner scan; finds cheaper / less competitive UK cities to spin up Search campaigns and flags where to recruit next.",
   skillsPath: "cmo/subagents/opportunity-scout/SKILL.md",
   monthlyBudgetUsd: 5, // small — does not call paid LLMs in the default path
-  heartbeatCronExpr: "0 4 * * 1", // Monday 04:00 UTC
+  heartbeatCronExpr: OPPORTUNITY_SCOUT_HEARTBEAT_CRON,
   permissions: ["opportunity-scout", "ads-specialist"],
   governanceLevel: "supervised",
 };

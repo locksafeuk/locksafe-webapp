@@ -31,12 +31,13 @@ Each agent has a scheduled "heartbeat" - a periodic execution cycle where the ag
 5. Stores memories for future reference
 
 **Heartbeat Schedules:**
-- CEO: Every 4 hours
-- CMO: Every 2 hours
+- CEO: Every 12 hours
+- CMO: Every 8 hours
 - COO: Every 30 minutes (operations monitoring)
-- CTO: Every 4 hours
-- Copywriter: Every 2 hours
-- Ads Specialist: Every 2 hours
+- CTO: Every 15 minutes
+- Copywriter: Every 24 hours (task-driven; skips idle cycles when no tasks are pending)
+- Ads Specialist: Every 8 hours
+- Social Media: Every 24 hours
 
 ### 2. Task System
 Tasks are the primary way to give agents work:

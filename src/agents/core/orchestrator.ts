@@ -28,6 +28,7 @@ import {
   shouldEmitAlert,
   GUARDIAN_AGENT_NAMES,
 } from './operational-policy';
+import { getNextHeartbeatAt } from '@/agents/heartbeat-schedules';
 
 export { GUARDIAN_AGENT_NAMES };
 
@@ -253,7 +254,7 @@ export async function syncAgentStateWithDB(agentId: string): Promise<void> {
         agentId,
         status: dbAgent.status as AgentStatus,
         lastHeartbeat: dbAgent.lastHeartbeat,
-        nextHeartbeat: dbAgent.nextHeartbeat || new Date(Date.now() + 3600000),
+        nextHeartbeat: dbAgent.nextHeartbeat || getNextHeartbeatAt(agentId, dbAgent.lastHeartbeat ?? new Date()),
       };
       agentStates.set(agentId, newState);
     }
@@ -275,7 +276,7 @@ export async function syncAllAgentsFromDB(): Promise<number> {
         agentId: dbAgent.name,
         status: dbAgent.status as AgentStatus,
         lastHeartbeat: dbAgent.lastHeartbeat,
-        nextHeartbeat: dbAgent.nextHeartbeat || new Date(Date.now() + 3600000),
+        nextHeartbeat: dbAgent.nextHeartbeat || getNextHeartbeatAt(dbAgent.name, dbAgent.lastHeartbeat ?? new Date()),
       };
       agentStates.set(dbAgent.name, state);
       synced++;
@@ -293,12 +294,21 @@ export async function syncAllAgentsFromDB(): Promise<number> {
  * Execute heartbeats for all registered agents (with parallel execution)
  */
 export async function runAllHeartbeats(): Promise<HeartbeatResult[]> {
-  // Sort agents by priority (higher first)
-  const sortedAgents = [...agentStates.entries()].sort((a, b) => {
-    const priA = agentPriorities.get(a[0]) || 5;
-    const priB = agentPriorities.get(b[0]) || 5;
-    return priB - priA;
-  });
+  const dueAgents = await getAgentsDueForHeartbeat();
+  if (dueAgents.length === 0) {
+    return [];
+  }
+
+  const dueSet = new Set(dueAgents);
+
+  // Sort only agents that are actually due (higher priority first)
+  const sortedAgents = [...agentStates.entries()]
+    .filter(([agentId]) => dueSet.has(agentId))
+    .sort((a, b) => {
+      const priA = agentPriorities.get(a[0]) || 5;
+      const priB = agentPriorities.get(b[0]) || 5;
+      return priB - priA;
+    });
 
   // Group agents by dependency level for parallel execution
   const independentAgents: string[] = [];
@@ -326,7 +336,7 @@ export async function runAllHeartbeats(): Promise<HeartbeatResult[]> {
       actionsExecuted: 0,
       costUsd: 0,
       errors: [r.reason instanceof Error ? r.reason.message : 'Unknown error'],
-      nextHeartbeat: new Date(Date.now() + 3600000),
+      nextHeartbeat: getNextHeartbeatAt(independentAgents[i]),
     };
   });
 
@@ -342,7 +352,7 @@ export async function runAllHeartbeats(): Promise<HeartbeatResult[]> {
         actionsExecuted: 0,
         costUsd: 0,
         errors: [error instanceof Error ? error.message : 'Unknown error'],
-        nextHeartbeat: new Date(Date.now() + 3600000),
+        nextHeartbeat: getNextHeartbeatAt(agentId),
       });
     }
   }
@@ -380,7 +390,7 @@ export async function executeHeartbeat(agentId: string): Promise<HeartbeatResult
         actionsExecuted: 0,
         costUsd: 0,
         errors: [`Agent ${agentId} not found in database`],
-        nextHeartbeat: new Date(now.getTime() + 3_600_000),
+        nextHeartbeat: getNextHeartbeatAt(agentId, now),
       };
     }
 
@@ -400,7 +410,7 @@ export async function executeHeartbeat(agentId: string): Promise<HeartbeatResult
         actionsExecuted: 0,
         costUsd: 0,
         errors: [],
-        nextHeartbeat: dbAgent.nextHeartbeat || state?.nextHeartbeat || new Date(now.getTime() + 3_600_000),
+        nextHeartbeat: dbAgent.nextHeartbeat || state?.nextHeartbeat || getNextHeartbeatAt(agentId, now),
       };
     }
 
@@ -413,7 +423,7 @@ export async function executeHeartbeat(agentId: string): Promise<HeartbeatResult
         actionsExecuted: 0,
         costUsd: 0,
         errors: ['Monthly budget exhausted'],
-        nextHeartbeat: new Date(now.getTime() + 3_600_000),
+        nextHeartbeat: getNextHeartbeatAt(agentId, now),
       };
     }
 
@@ -699,7 +709,7 @@ export async function executeHeartbeat(agentId: string): Promise<HeartbeatResult
   // ── Update in-memory state ──────────────────────────────────────────────
   if (state) {
     state.lastHeartbeat = now;
-    state.nextHeartbeat = new Date(now.getTime() + 3_600_000);
+    state.nextHeartbeat = getNextHeartbeatAt(agentId, now);
   }
 
   await syncAgentStateWithDB(agentId);
@@ -721,7 +731,7 @@ export async function executeHeartbeat(agentId: string): Promise<HeartbeatResult
     actionsExecuted,
     costUsd: totalCost,
     errors,
-    nextHeartbeat: new Date(now.getTime() + 3_600_000),
+    nextHeartbeat: getNextHeartbeatAt(agentId, now),
   };
 }
 
@@ -871,7 +881,7 @@ export async function initializeAgentState(agentId: string): Promise<AgentRuntim
     agentId,
     status: 'active',
     lastHeartbeat: null,
-    nextHeartbeat: new Date(Date.now() + 3600000),
+    nextHeartbeat: getNextHeartbeatAt(agentId),
   };
   agentStates.set(agentId, state);
   return state;
@@ -926,7 +936,7 @@ export async function resumeAgent(agentId: string): Promise<boolean> {
   const state = agentStates.get(agentId);
   if (!state) return false;
   state.status = 'active';
-  state.nextHeartbeat = new Date(Date.now() + 60000); // Schedule immediate heartbeat
+  state.nextHeartbeat = getNextHeartbeatAt(agentId);
   try {
     const { prisma } = await import('@/lib/prisma');
     await prisma.agent.update({
