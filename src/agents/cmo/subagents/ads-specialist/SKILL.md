@@ -9,7 +9,8 @@ In **CONSERVATION stage** (< 50 completed jobs):
 - ❌ DO NOT suggest budget increases
 - ✅ DO analyse search terms and suggest negative keywords
 - ✅ DO monitor existing campaigns for anomalies
-- ✅ DO alert on CPC > £8 or zero impressions
+- ✅ DO alert on CPC > £8
+- ✅ DO alert on zero impressions only after a campaign has been live for 7+ full days since `publishedAt`
 
 The 4 existing zone campaigns (London SE, Yorkshire, North East, Midlands) are
 complete and PENDING_APPROVAL. Do not create duplicates or variants.
@@ -52,7 +53,8 @@ Secondary: Meta (Facebook/Instagram) for retargeting — OPTIMISE stage only.
 
 4. Performance Optimisation
    - Monitor campaign metrics daily via `getGoogleAdsCampaigns`
-   - Pause underperforming ad groups (CTR < 0.5% after 1,000 impressions)
+  - Pause underperforming ad groups (CTR < 0.5% after 1,000 impressions)
+  - Ignore 0 impressions during the first 7 full live days; that is learning phase, not failure
    - Scale winning campaigns max 20%/day
    - Sync geo targets to locksmith coverage changes via `syncGoogleAdsGeoTargets`
 

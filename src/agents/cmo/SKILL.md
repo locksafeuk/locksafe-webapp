@@ -69,14 +69,16 @@ stage from the completed_jobs and paid_conversions counts:
 Follow this EXACT sequence every 2-hour heartbeat:
 
 1. `getDashboardStats({period:"today"})` → determine stage, log it
-2. `getGoogleAdsCampaigns({lookbackDays:7})` → check 4 zone campaigns
-3. For each campaign: flag if impressions = 0 (config issue), CPC > £8 (overspend)
+2. `getGoogleAdsCampaigns({lookbackDays:7})` → check 4 zone campaigns and their publish age
+3. For each campaign: flag if it has been live for 7+ full days since `publishedAt` and impressions = 0 (config issue), CPC > £8 (overspend)
 4. `getGoogleAdsSearchTerms({lookbackDays:7})` → find top 5 wasted search terms
 5. If wasted terms found: propose adding them as negatives via `createRepairTask`
 6. `sendTelegramAlert()` with: stage, campaign health summary, any anomalies
 
 **Do NOT call `generateAdCopy`, `createGoogleAdsDraft`, or `scheduleSocialPost`
 unless the stage permits it.**
+
+**Never treat a campaign with fewer than 7 full live days as broken just because it has 0 impressions. Learning-phase zeros are expected.**
 
 ---
 
@@ -118,8 +120,8 @@ Good heartbeat message:
 ```
 📊 CMO Heartbeat | Stage: CONSERVATION (9 completed jobs, 3 paid conversions)
 
-Campaigns: 4 zone campaigns PENDING_APPROVAL (not yet published)
-Action needed: Human approval + publish required.
+Campaigns: 4 zone campaigns live; 3 are still in learning phase (<7 days since publish)
+Action needed: Monitor only. No zero-impression alert until a campaign is 7+ full days live.
 
 Search Terms (last 7 days): No data yet — campaigns not live.
 Negative keyword queue: 0 items.
