@@ -90,6 +90,9 @@ Add to your `.env`:
 # Telegram Bot Configuration
 TELEGRAM_BOT_TOKEN="8751497268:AAGFHuAUplfHM6AFoFkVn_-QbYz3vGRlBN0"
 TELEGRAM_CHAT_ID="-1002198420159"
+TELEGRAM_ADMIN_CHAT_IDS="-1002198420159"
+TELEGRAM_ADMIN_USER_IDS="123456789"
+TELEGRAM_REQUIRE_CONFIRM="true"
 TELEGRAM_NOTIFICATIONS_ENABLED="true"
 ```
 
@@ -97,6 +100,9 @@ TELEGRAM_NOTIFICATIONS_ENABLED="true"
 |----------|-------------|
 | `TELEGRAM_BOT_TOKEN` | Bot API token from BotFather |
 | `TELEGRAM_CHAT_ID` | Admin group/chat ID for notifications |
+| `TELEGRAM_ADMIN_CHAT_IDS` | Comma-separated admin chat IDs allowed to run commands |
+| `TELEGRAM_ADMIN_USER_IDS` | Optional comma-separated Telegram user IDs (if set, user and chat must both match) |
+| `TELEGRAM_REQUIRE_CONFIRM` | Require `confirm` for protected commands (`/agent_run`, `/assign`, `/availability`) |
 | `TELEGRAM_NOTIFICATIONS_ENABLED` | Enable/disable notifications |
 
 ---
@@ -185,12 +191,19 @@ curl -X POST "https://YOUR_DOMAIN/api/admin/telegram/test" \
 
 | Command | Description |
 |---------|-------------|
-| `/status` | Platform statistics (jobs, earnings, locksmiths) |
+| `/mobile` | Mobile control center shortcuts + safety guidance |
+| `/stats` | Platform statistics (jobs, revenue, locksmiths) |
 | `/jobs` | List recent jobs with status |
-| `/jobs active` | Active jobs only |
-| `/alerts` | Manage alert settings |
-| `/dispatch <jobId>` | Manually dispatch a job |
-| `/locksmith <id>` | View locksmith details |
+| `/pending` | Pending jobs only |
+| `/alerts` | Alert snapshot |
+| `/dispatch <jobNumber>` | Recommend best locksmith matches |
+| `/assign <jobId> <locksmithId> [confirm]` | Assign locksmith (protected command) |
+| `/availability <locksmithId> <on|off> [confirm]` | Toggle locksmith availability (protected command) |
+| `/agents` | Agent status summary |
+| `/agent_run [confirm]` | Trigger all due heartbeats (protected command) |
+| `/agent_ceo`, `/agent_coo`, `/agent_cmo`, `/agent_budget` | Agent details |
+| `/weekly` | Weekly strategic summary |
+| `/confirm <command...>` | Confirm a protected command |
 | `/help` | Show all commands |
 
 ### Admin Bot Callback Buttons
@@ -198,7 +211,7 @@ curl -X POST "https://YOUR_DOMAIN/api/admin/telegram/test" \
 | Action | Description |
 |--------|-------------|
 | `view_job_<id>` | View job details |
-| `assign_<jobId>_<locksmithId>` | Assign locksmith to job |
+| `assign_<jobId>_<locksmithId>` | Prompts confirmation for assignment |
 | `toggle_alerts` | Toggle notifications |
 | `refresh_status` | Refresh dashboard |
 
