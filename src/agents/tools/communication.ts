@@ -7,6 +7,8 @@
 
 import { sendSMS } from "@/lib/sms";
 import { sendAdminAlert } from "@/lib/telegram";
+import prisma from "@/lib/db";
+import { getDefaultGoogleAdsClient } from "@/lib/google-ads";
 import type { AgentTool, ToolResult, AgentContext } from "@/agents/core/types";
 import {
   delegateTask,
@@ -38,6 +40,47 @@ function getAgentAlertCooldownMs(priority: string, isGuardian: boolean): number 
   return minutes * 60 * 1000;
 }
 
+async function getZeroImpression7PlusDayCampaigns(): Promise<string[]> {
+  const handle = await getDefaultGoogleAdsClient();
+  if (!handle) return [];
+
+  const until = new Date();
+  const since = new Date(until.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const range = {
+    since: since.toISOString().slice(0, 10),
+    until: until.toISOString().slice(0, 10),
+  };
+
+  const rows = await handle.client.getCampaignMetrics(range);
+  const drafts = await prisma.googleAdsCampaignDraft.findMany({
+    where: {
+      googleCampaignId: { in: rows.map((row) => row.campaignId) },
+    },
+    select: {
+      googleCampaignId: true,
+      publishedAt: true,
+    },
+  });
+
+  const draftByCampaignId = new Map(
+    drafts.map((draft) => [draft.googleCampaignId ?? "", draft]),
+  );
+
+  return rows
+    .filter((row) => row.status === "ENABLED" && row.impressions === 0)
+    .filter((row) => row.campaignName.startsWith("LockSafe | "))
+    .filter((row) => {
+      const draft = draftByCampaignId.get(row.campaignId);
+      if (!draft?.publishedAt) return false;
+      const daysSincePublished = Math.max(
+        0,
+        Math.floor((Date.now() - draft.publishedAt.getTime()) / (24 * 60 * 60 * 1000)),
+      );
+      return daysSincePublished >= 7;
+    })
+    .map((row) => row.campaignName);
+}
+
 /**
  * Send a Telegram notification to admin
  */
@@ -66,6 +109,35 @@ export const sendTelegramAlertTool: AgentTool = {
     const message = params.message as string;
     const priority = (params.priority as string) || "medium";
     let isGuardian = false;
+
+    // Guard against false-positive CMO campaign outages. A critical alert that
+    // claims "7+ days with 0 impressions" is only valid when live metrics and
+    // publishedAt timestamps confirm it.
+    if (context.agentName.toLowerCase() === "cmo" && priority === "critical") {
+      const lower = message.toLowerCase();
+      const claimsZeroImpressions = lower.includes("0 impressions");
+      const claimsSevenPlusDays = lower.includes("7+") || lower.includes("7 days");
+      if (claimsZeroImpressions && claimsSevenPlusDays) {
+        try {
+          const staleZeroImpressionCampaigns = await getZeroImpression7PlusDayCampaigns();
+          if (staleZeroImpressionCampaigns.length === 0) {
+            console.log(
+              "[Telegram][guard] Suppressed false-positive CMO critical alert: no ENABLED LockSafe zone campaigns are 7+ days old with 0 impressions.",
+            );
+            return {
+              success: true,
+              data: {
+                sent: false,
+                suppressed: true,
+                reason: "no-verified-7plus-zero-impression-campaigns",
+              },
+            };
+          }
+        } catch (e) {
+          console.warn("[Telegram][guard] Campaign outage verification failed, allowing alert:", e);
+        }
+      }
+    }
 
     // Sensitivity gating — non-workflow agents (CEO/CMO/copywriter/ads/social)
     // are noisy. Only let them through to Telegram if their priority meets the
