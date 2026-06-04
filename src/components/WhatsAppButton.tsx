@@ -45,11 +45,11 @@ const ICON_ONLY_SIZE_CLASSES: Record<
 /**
  * Click-to-chat WhatsApp button.
  *
- * Opens `https://wa.me/<phone>?text=<message>` in a new tab. Works on
- * desktop (WhatsApp Web) and mobile (deep-links into the WhatsApp app).
- * Outbound identity is whichever WhatsApp account is logged into the
- * admin's device — operational policy is the LockSafe business number
- * +447818333989 logged into WhatsApp Business on the admin device.
+ * Opens an explicit WhatsApp Web chat URL in a new tab.
+ *
+ * Outbound identity is whichever WhatsApp account is logged into the browser
+ * session, so admin operations stay on the LockSafe Business account when
+ * WhatsApp Web is logged in.
  *
  * If `phone` cannot be normalised, the button renders disabled with a
  * tooltip explaining why (so Ops can spot missing data).
@@ -117,7 +117,7 @@ export function WhatsAppButton({
       target="_blank"
       rel="noopener noreferrer"
       onClick={handleClick}
-      title={iconOnly ? `${label}${message ? `: ${message.slice(0, 60)}` : ""}` : undefined}
+      title={iconOnly ? `${label} (Web)${message ? `: ${message.slice(0, 60)}` : ""}` : undefined}
       className={`${baseClass} bg-[#25D366] hover:bg-[#1ebe57] text-white`}
     >
       <MessageCircle className="w-4 h-4" aria-hidden="true" />

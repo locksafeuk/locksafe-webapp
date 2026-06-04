@@ -2,8 +2,10 @@
  * WhatsApp click-to-chat link helpers.
  *
  * Pure utility — no React, no I/O. Used by `<WhatsAppButton>` to construct
- * `https://wa.me/<intlphone>?text=<message>` URLs that deep-link into
- * WhatsApp Web (desktop) or the WhatsApp app (mobile).
+ * `https://web.whatsapp.com/send?phone=<intlphone>&text=<message>` URLs.
+ *
+ * We prefer explicit WhatsApp Web URLs for admin flows so clicks stay in the
+ * browser session that is logged into the LockSafe Business account.
  *
  * Outbound identity is the LockSafe business number (+447818333989), enforced
  * operationally by the admin device being logged into WhatsApp Business
@@ -12,7 +14,7 @@
 
 /**
  * Normalise a phone number into the digits-only international form that
- * `wa.me` expects (no `+`, no leading zero, no spaces, no punctuation).
+ * WhatsApp chat links expect (no `+`, no leading zero, no spaces, no punctuation).
  *
  * Rules (applied in order):
  *  1. Strip spaces and any non-digit / non-`+` characters.
@@ -45,18 +47,29 @@ export function normalisePhoneForWa(
 }
 
 /**
- * Build a `https://wa.me/...` URL with an optional pre-filled message.
+ * Build a `https://web.whatsapp.com/send?...` URL with an optional pre-filled
+ * message.
  * Returns `null` if the phone cannot be normalised.
  */
-export function buildWhatsAppUrl(
+export function buildWhatsAppWebUrl(
   phone: string | null | undefined,
   message?: string,
 ): string | null {
   const normalised = normalisePhoneForWa(phone);
   if (!normalised) return null;
 
-  const base = `https://wa.me/${normalised}`;
-  if (!message) return base;
+  const query = new URLSearchParams({ phone: normalised });
+  if (message) query.set("text", message);
 
-  return `${base}?text=${encodeURIComponent(message)}`;
+  return `https://web.whatsapp.com/send?${query.toString()}`;
+}
+
+/**
+ * Backward-compatible alias used by existing callsites.
+ */
+export function buildWhatsAppUrl(
+  phone: string | null | undefined,
+  message?: string,
+): string | null {
+  return buildWhatsAppWebUrl(phone, message);
 }
