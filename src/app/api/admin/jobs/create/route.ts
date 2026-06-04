@@ -8,6 +8,7 @@ import { sendSMS } from "@/lib/sms";
 import { notifyNearbyLocksmiths } from "@/lib/job-notifications";
 import { notifyNewJob } from "@/lib/telegram";
 import { generateJobNumber } from "@/lib/job-number";
+import { isCoordinatePair, normalizeUkPostcode } from "@/lib/location-display";
 import crypto from "crypto";
 
 // Generate onboarding token
@@ -57,6 +58,21 @@ export async function POST(request: NextRequest) {
     }
 
     if (!customerId && (!customerName || !customerPhone)) {
+          if (isCoordinatePair(String(postcode))) {
+            return NextResponse.json(
+              { error: "Postcode must be a UK postcode format (e.g., SW1A 1AA), not coordinates" },
+              { status: 400 },
+            );
+          }
+
+          const normalizedPostcode = normalizeUkPostcode(String(postcode));
+          if (!normalizedPostcode) {
+            return NextResponse.json(
+              { error: "Invalid UK postcode format" },
+              { status: 400 },
+            );
+          }
+
       return NextResponse.json(
         { error: "Customer name and phone are required for new customers" },
         { status: 400 }
@@ -121,7 +137,7 @@ export async function POST(request: NextRequest) {
     let longitude: number | null = null;
 
     try {
-      const cleanPostcode = postcode.replace(/\s/g, "").toUpperCase();
+      const cleanPostcode = normalizedPostcode.replace(/\s/g, "").toUpperCase();
       const postcodeResponse = await fetch(
         `https://api.postcodes.io/postcodes/${cleanPostcode}`
       );
@@ -144,13 +160,13 @@ export async function POST(request: NextRequest) {
     // Create the job
     const job = await prisma.job.create({
       data: {
-        jobNumber: await generateJobNumber(postcode),
+        jobNumber: await generateJobNumber(normalizedPostcode),
         status: initialStatus,
         createdVia: "admin",
         customerId: customer.id,
         problemType,
         propertyType,
-        postcode: postcode.toUpperCase(),
+        postcode: normalizedPostcode,
         address,
         description: description || null,
         latitude,

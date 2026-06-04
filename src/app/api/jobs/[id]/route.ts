@@ -3,6 +3,7 @@ import prisma from "@/lib/db";
 import { sendLocksmithArrivedEmail } from "@/lib/email";
 import { appendJobActivity } from "@/lib/job-activity";
 import { geocodePostcode } from "@/lib/locksmith-matcher";
+import { isCoordinatePair, normalizeUkPostcode } from "@/lib/location-display";
 
 // GET - Get a single job by ID
 export async function GET(
@@ -229,6 +230,31 @@ export async function PATCH(
       updateData.longitude = null;
     }
 
+    let normalizedIncomingPostcode: string | undefined;
+    if (typeof postcode === "string") {
+      if (isCoordinatePair(postcode)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Postcode must be a UK postcode format (e.g., SW1A 1AA), not coordinates.",
+          },
+          { status: 400 },
+        );
+      }
+
+      const normalized = normalizeUkPostcode(postcode);
+      if (!normalized) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Invalid UK postcode format.",
+          },
+          { status: 400 },
+        );
+      }
+      normalizedIncomingPostcode = normalized;
+    }
+
     // Handle different actions
     if (action === "arrive") {
       // Update job status to ARRIVED with GPS data
@@ -319,7 +345,7 @@ export async function PATCH(
         updateData.propertyType = propertyType;
       }
       if (typeof postcode === "string") {
-        updateData.postcode = postcode;
+        updateData.postcode = normalizedIncomingPostcode;
       }
       if (typeof address === "string") {
         updateData.address = address;
@@ -397,7 +423,7 @@ export async function PATCH(
         updateData.propertyType = propertyType;
       }
       if (typeof postcode === "string") {
-        updateData.postcode = postcode;
+        updateData.postcode = normalizedIncomingPostcode;
       }
       if (typeof address === "string") {
         updateData.address = address;

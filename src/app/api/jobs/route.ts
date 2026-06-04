@@ -8,6 +8,7 @@ import { generateJobNumber } from "@/lib/job-number";
 import { shouldTriggerAuction, createAuction } from "@/lib/job-auction";
 import { calculateSurgeFee } from "@/lib/surge-pricing";
 import { getJobSourceLabel, getJobSourceType, sourceMatchesFilter, type JobSourceFilter } from "@/lib/job-source";
+import { isCoordinatePair, normalizeUkPostcode } from "@/lib/location-display";
 
 // Geocode postcode to coordinates
 async function geocodePostcode(postcode: string): Promise<{ lat: number; lng: number } | null> {
@@ -77,6 +78,21 @@ export async function POST(request: NextRequest) {
       landingPage: bodyLandingPage,
     } = body;
 
+    if (isCoordinatePair(String(postcode))) {
+      return NextResponse.json(
+        { success: false, error: "Postcode must be a UK postcode format (e.g., SW1A 1AA), not coordinates." },
+        { status: 400 },
+      );
+    }
+
+    const normalizedPostcode = normalizeUkPostcode(String(postcode));
+    if (!normalizedPostcode) {
+      return NextResponse.json(
+        { success: false, error: "Invalid UK postcode format." },
+        { status: 400 },
+      );
+    }
+
     let customerIdToUse = customerId;
 
     // If no customerId provided, create or find customer by phone
@@ -106,7 +122,7 @@ export async function POST(request: NextRequest) {
       longitude = requestGps.lng;
     } else {
       // Geocode the postcode
-      const coords = await geocodePostcode(postcode);
+      const coords = await geocodePostcode(normalizedPostcode);
       if (coords) {
         latitude = coords.lat;
         longitude = coords.lng;
@@ -124,7 +140,7 @@ export async function POST(request: NextRequest) {
     }
     const surge = contractedRate
       ? { fee: contractedRate, multiplier: 1, reasons: ["Contracted rate"], isSurge: false }
-      : await calculateSurgeFee(postcode);
+      : await calculateSurgeFee(normalizedPostcode);
 
     // Resolve marketing attribution — prefer explicit body fields, otherwise
     // look up the visitor's most recent session for UTM + gclid. This is
@@ -163,11 +179,11 @@ export async function POST(request: NextRequest) {
     // Create job
     const job = await prisma.job.create({
       data: {
-        jobNumber: await generateJobNumber(postcode),
+        jobNumber: await generateJobNumber(normalizedPostcode),
         customerId: customerIdToUse,
         problemType,
         propertyType,
-        postcode: postcode.toUpperCase(),
+        postcode: normalizedPostcode,
         address,
         description,
         assessmentFee: surge.fee,
