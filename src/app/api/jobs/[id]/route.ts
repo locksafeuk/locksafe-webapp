@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { sendLocksmithArrivedEmail } from "@/lib/email";
 import { appendJobActivity } from "@/lib/job-activity";
+import { geocodePostcode } from "@/lib/locksmith-matcher";
 
 // GET - Get a single job by ID
 export async function GET(
@@ -198,6 +199,36 @@ export async function PATCH(
       );
     }
 
+    const postcodeChanged =
+      typeof postcode === "string" &&
+      postcode.trim().toUpperCase() !== existingJob.postcode.trim().toUpperCase();
+    const addressChanged =
+      typeof address === "string" &&
+      address.trim() !== (existingJob.address || "").trim();
+
+    async function maybeAttachRecomputedCoordinates(updateData: Record<string, unknown>) {
+      if (!postcodeChanged && !addressChanged) return;
+
+      const effectivePostcode =
+        typeof updateData.postcode === "string"
+          ? updateData.postcode
+          : existingJob.postcode;
+
+      if (typeof effectivePostcode === "string" && effectivePostcode.trim()) {
+        const coords = await geocodePostcode(effectivePostcode);
+        if (coords) {
+          updateData.latitude = coords.latitude;
+          updateData.longitude = coords.longitude;
+          return;
+        }
+      }
+
+      // Ensure stale coordinates don't survive a postcode/address edit.
+      // The admin UI can then geocode using the latest address as fallback.
+      updateData.latitude = null;
+      updateData.longitude = null;
+    }
+
     // Handle different actions
     if (action === "arrive") {
       // Update job status to ARRIVED with GPS data
@@ -294,6 +325,8 @@ export async function PATCH(
         updateData.address = address;
       }
 
+      await maybeAttachRecomputedCoordinates(updateData);
+
       // Preserve the admin's semantic "No Locksmith Available" status marker.
       if (status === "NO_LOCKSMITH_AVAILABLE") {
         if (!existingJob.noLocksmithNotifiedAt) {
@@ -369,6 +402,8 @@ export async function PATCH(
       if (typeof address === "string") {
         updateData.address = address;
       }
+
+      await maybeAttachRecomputedCoordinates(updateData);
 
       const updatedJob = await prisma.job.update({
         where: { id },
