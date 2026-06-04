@@ -1,9 +1,116 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyCronAuth } from "@/lib/cron-auth";
 import { sendAdminAlert } from "@/lib/telegram";
+import { prisma } from "@/lib/prisma";
+import { getActiveSmsProvider, isSmsProviderConfigured, sendSMS } from "@/lib/sms";
 
 type Track = "independent" | "manager";
 type Style = "direct" | "benefit";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SMS outreach (gated) — the email sequence only reaches leads with an email,
+// and ~99% of scraped `new` leads are phone-only. This phase contacts the
+// phone-reachable backlog via SMS. It is OFF by default; set
+// SMS_OUTREACH_ENABLED=true to turn it on. Per-run cap bounds spend; opt-out
+// text is included; only UK mobiles with no email are targeted.
+// ─────────────────────────────────────────────────────────────────────────────
+const SMS_OUTREACH_ENABLED =
+  (process.env.SMS_OUTREACH_ENABLED ?? "false").toLowerCase() === "true";
+const SMS_OUTREACH_MAX_PER_RUN = Math.max(
+  1,
+  Math.min(500, Number(process.env.SMS_OUTREACH_MAX_PER_RUN ?? "40") || 40),
+);
+
+/** Returns true for UK mobile numbers (07xxx / +447xxx / 00447xxx). */
+function isUKMobile(phone: string): boolean {
+  const clean = phone.replace(/[\s\-().]/g, "");
+  return (
+    /^07\d{9}$/.test(clean) ||
+    /^\+447\d{9}$/.test(clean) ||
+    /^00447\d{9}$/.test(clean)
+  );
+}
+
+function buildLeadSms(name: string, city: string): string {
+  const firstName = name.split(/\s+/)[0];
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://www.locksafe.uk";
+  const signupUrl = `${baseUrl}/for-locksmiths?utm_source=sms&utm_medium=outreach&utm_campaign=locksmith-invite`;
+  return (
+    `Hi ${firstName}, I'm Alex from LockSafe UK. ` +
+    `We're looking for trusted locksmiths in ${city} — we send you paid jobs, you keep 100% of the call-out fee. ` +
+    `Join free here: ${signupUrl}\n\nReply STOP to opt out.`
+  );
+}
+
+type SmsOutreachSummary = {
+  enabled: boolean;
+  attempted: number;
+  sent: number;
+  failed: number;
+  message?: string;
+};
+
+/**
+ * Contact phone-only `new` leads via SMS. Targets UK-mobile leads with no email
+ * (the segment the email sequence cannot reach), capped per run. Marks each as
+ * `contacted` / `contactedBy: "sms-seq"` so it is not re-messaged.
+ */
+async function runSmsOutreach(): Promise<SmsOutreachSummary> {
+  if (!SMS_OUTREACH_ENABLED) {
+    return { enabled: false, attempted: 0, sent: 0, failed: 0, message: "SMS_OUTREACH_ENABLED is not true" };
+  }
+
+  const provider = getActiveSmsProvider();
+  if (!isSmsProviderConfigured(provider)) {
+    return { enabled: true, attempted: 0, sent: 0, failed: 0, message: `SMS provider (${provider}) not configured` };
+  }
+
+  // Pull phone-only new leads; over-fetch a little then strict-validate the
+  // mobile format before sending.
+  const candidates = (await (prisma as unknown as {
+    locksmithLead: { findMany: (a: unknown) => Promise<Array<{ id: string; name: string; city: string; phone: string | null }>> };
+  }).locksmithLead.findMany({
+    where: {
+      status: "new",
+      email: null,
+      OR: [
+        { phone: { startsWith: "07" } },
+        { phone: { startsWith: "+447" } },
+        { phone: { startsWith: "00447" } },
+      ],
+    },
+    select: { id: true, name: true, city: true, phone: true },
+    orderBy: { createdAt: "desc" },
+    take: SMS_OUTREACH_MAX_PER_RUN * 2,
+  }));
+
+  const leads = candidates
+    .filter((l) => l.phone && isUKMobile(l.phone))
+    .slice(0, SMS_OUTREACH_MAX_PER_RUN);
+
+  let sent = 0;
+  let failed = 0;
+  for (const lead of leads) {
+    try {
+      const result = await sendSMS(lead.phone!, buildLeadSms(lead.name, lead.city), {
+        logContext: `lead-outreach-sms-seq:${lead.id}`,
+      });
+      if (!result.success) { failed++; continue; }
+      await (prisma as unknown as {
+        locksmithLead: { update: (a: unknown) => Promise<unknown> };
+      }).locksmithLead.update({
+        where: { id: lead.id },
+        data: { status: "contacted", contactedAt: new Date(), contactedBy: "sms-seq" },
+      });
+      sent++;
+      await new Promise((r) => setTimeout(r, 300));
+    } catch {
+      failed++;
+    }
+  }
+
+  return { enabled: true, attempted: leads.length, sent, failed };
+}
 
 type SequenceResult = {
   touch: number;
@@ -143,10 +250,19 @@ export async function GET(request: NextRequest) {
     await new Promise((resolve) => setTimeout(resolve, 150));
   }
 
+  // SMS phase — reaches the phone-only backlog the email touches cannot.
+  const sms = await runSmsOutreach();
+
   const summary = {
-    attempted: results.reduce((sum, r) => sum + r.attempted, 0),
-    sent: results.reduce((sum, r) => sum + r.sent, 0),
-    failed: results.reduce((sum, r) => sum + r.failed, 0),
+    attempted: results.reduce((sum, r) => sum + r.attempted, 0) + sms.attempted,
+    sent: results.reduce((sum, r) => sum + r.sent, 0) + sms.sent,
+    failed: results.reduce((sum, r) => sum + r.failed, 0) + sms.failed,
+    email: {
+      attempted: results.reduce((sum, r) => sum + r.attempted, 0),
+      sent: results.reduce((sum, r) => sum + r.sent, 0),
+      failed: results.reduce((sum, r) => sum + r.failed, 0),
+    },
+    sms,
   };
 
   if (summary.sent > 0) {
@@ -159,10 +275,15 @@ export async function GET(request: NextRequest) {
         )
         .join("\n");
 
+      const smsLine = sms.enabled
+        ? `\n• SMS (phone-only) → sent ${sms.sent}${sms.failed ? ` (failed ${sms.failed})` : ""}`
+        : "";
+
       const body =
         `Sent: ${summary.sent} · Failed: ${summary.failed} · Attempted: ${summary.attempted}\n` +
         `Run: ${now.toISOString()}` +
-        (perTouchLines ? `\n\n${perTouchLines}` : "");
+        (perTouchLines ? `\n\n${perTouchLines}` : "") +
+        smsLine;
 
       await sendAdminAlert({
         title: "Outreach digest",

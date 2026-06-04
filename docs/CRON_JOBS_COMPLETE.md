@@ -2,7 +2,7 @@
 
 ## Overview
 
-LockSafe UK requires **7 cron jobs** to be fully operational, plus several optional automation jobs. All endpoints require the `CRON_SECRET` for authentication.
+LockSafe UK requires **7 cron jobs** to be fully operational, plus several optional automation jobs. Endpoints are protected by cron auth (`Authorization: Bearer CRON_SECRET`) or Vercel native cron header (`x-vercel-cron: 1`).
 
 ---
 
@@ -38,10 +38,7 @@ Add to your `.env` (and Netlify environment variables):
 CRON_SECRET="your-64-character-hex-string-here"
 ```
 
-> ✅ **Already configured in your `.env`:**
-> ```
-> CRON_SECRET="c4bcc756c1e53c197c9772ae60fdb0f4a6ebcb726b5db47f6c4c6d92307ddd42"
-> ```
+> Security note: never paste your real `CRON_SECRET` into docs, screenshots, or logs.
 
 ---
 

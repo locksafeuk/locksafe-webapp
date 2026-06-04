@@ -1,0 +1,2251 @@
+============================================
+LockSafe Local Daily Checks
+Root: /Users/piks/Locksafe Project/locksafe-webapp
+Time: 2026-06-04 06:00:05 BST
+Summary: /Users/piks/Locksafe Project/locksafe-webapp/reports/daily-checks/daily-checks-2026-06-04T06-00-04.summary.txt
+Log: /Users/piks/Locksafe Project/locksafe-webapp/reports/daily-checks/daily-checks-2026-06-04T06-00-04.log
+============================================
+
+[CHECK] Reliability daily prod
+[CMD]   npm run reliability:daily:prod
+
+> nextjs-shadcn@0.1.0 reliability:daily:prod
+> RELIABILITY_BASE_URL=https://www.locksafe.uk npx tsx --env-file=.env.local --tsconfig tsconfig.scripts.json scripts/daily-reliability-check.ts
+
+Running daily reliability checks for https://www.locksafe.uk
+Score: 76/100 (RED)
+Checks: PASS=8, WARN=1, FAIL=2
+Report: /Users/piks/Locksafe Project/locksafe-webapp/reports/reliability/daily-reliability-2026-06-04.md
+JSON:   /Users/piks/Locksafe Project/locksafe-webapp/reports/reliability/daily-reliability-2026-06-04.json
+[FAIL] Reliability daily prod (exit 1)
+
+[CHECK] Agents runtime verify
+[CMD]   npm run verify:agents-runtime
+
+> nextjs-shadcn@0.1.0 verify:agents-runtime
+> npx tsx --tsconfig tsconfig.scripts.json scripts/verify-agents-runtime.ts
+
+Agent runtime verification
+Base URL: https://www.locksafe.uk
+Minimum local percentage target: 90%
+
+=== Public failover health ===
+Status: healthy
+Ollama check: unconfigured (disabled via OLLAMA_RUNTIME_ENABLED=false)
+OpenAI backup: ok (reachable)
+
+=== Authenticated runtime diag (/api/agents/_diag) ===
+SKIP: VERIFY_CRON_SECRET or CRON_SECRET not set
+
+=== Admin status mix (/api/agents/status) ===
+SKIP: VERIFY_ADMIN_AUTH_TOKEN not set
+
+=== Result ===
+PASS: agent runtime checks look healthy
+[PASS] Agents runtime verify
+
+[CHECK] System test prod
+[CMD]   npm run test:system:prod
+
+> nextjs-shadcn@0.1.0 test:system:prod
+> SYSTEM_TEST_BASE_URL=https://www.locksafe.uk npx tsx --tsconfig tsconfig.scripts.json scripts/system-full-test.ts --skip=admin,cron
+
+[1m[36mLockSafe — System Full Test[0m
+[2mbase-url=https://www.locksafe.uk  dry-run=false  fail-fast=false[0m
+[2mskip=admin,cron[0m
+
+[36m[1m── SUITE: infra — Health, DB ping, environment sanity ────────────────────────────[0m
+  [32m✓[0m GET /api/health returns 200 + database:ok [90m(370ms)[0m
+  [32m✓[0m GET / responds (homepage shell) [90m(61ms)[0m
+  [32m✓[0m Unknown route returns 404 [90m(304ms)[0m
+
+[36m[1m── SUITE: auth — Registration, login, session, logout, password reset ────────────[0m
+  [32m✓[0m POST /api/auth/register rejects missing fields [90m(272ms)[0m
+  [32m✓[0m POST /api/auth/login rejects missing fields [90m(288ms)[0m
+  [32m✓[0m POST /api/auth/login fails with bad credentials (401) [90m(120ms)[0m
+  [32m✓[0m Customer register → login → session → logout (full round-trip) [90m(990ms)[0m
+  [32m✓[0m POST /api/auth/forgot-password accepts unknown email gracefully [90m(740ms)[0m
+  [32m✓[0m GET /api/auth/session without cookie → 401 [90m(147ms)[0m
+
+[36m[1m── SUITE: rbac — Unauthenticated requests to protected APIs return 401/403 ────────[0m
+  [32m✓[0m GET /api/admin/ops-snapshot without cookie → 401 [90m(74ms)[0m
+  [32m✓[0m GET /api/admin/locksmiths without cookie → 401 [90m(175ms)[0m
+  [32m✓[0m GET /api/customer/profile without cookie → 401 [90m(282ms)[0m
+  [32m✓[0m GET /api/locksmith/profile without cookie → 401 [90m(165ms)[0m
+  [32m✓[0m GET /api/admin/district-landing without cookie → 401 [90m(226ms)[0m
+
+[36m[1m── SUITE: customer — Booking intake validation + cancellation guard rails ────────[0m
+  [32m✓[0m POST /api/jobs rejects empty payload with field list [90m(123ms)[0m
+  [32m✓[0m POST /api/jobs rejects partial payload (no phone/customerId) [90m(84ms)[0m
+  [32m✓[0m GET /api/postcode/SW1A1AA returns coordinates (or 404) [90m(55ms)[0m
+  [33m↷[0m Customer flow: booking → upload → tracking → review [90m— needs seeded Stripe-Connect locksmith + accepted job (out of scope for harness)[0m
+
+[36m[1m── SUITE: locksmith — Onboarding, availability, GPS check-in, quote workflow ────────[0m
+  [32m✓[0m POST /api/locksmith/availability without auth → 401 [90m(73ms)[0m
+  [33m↷[0m Locksmith full onboarding flow [90m— needs DBS/insurance fixtures + manual approval — covered by Playwright suite[0m
+  [33m↷[0m GPS check-in + ETA recompute [90m— requires SSE client + accepted job fixture — covered by locksafe-mobile integration tests[0m
+
+[36m[1m── SUITE: dispatch — Job broadcasting, auction, ranking, duplicate prevention ────────[0m
+  [32m✓[0m POST /api/jobs/notify-locksmiths requires auth [90m(309ms)[0m
+  [33m↷[0m Auction wave scheme + ranking [90m— scripts/test-auction-wave-scheme.ts covers this in isolation[0m
+  [33m↷[0m Duplicate-job prevention (same customer+postcode within window) [90m— requires authenticated customer + DB cleanup — defer to integration suite[0m
+
+[36m[1m── SUITE: ai — Agent runtime, LLM failover, ops-snapshot agents block ────────────[0m
+  [32m✓[0m GET /api/health includes integration checks [90m(120ms)[0m
+  [33m↷[0m Ollama-first LLM router prefers local model [90m— scripts/check-llm-failover.ts is the source of truth — run `npm run health:llm-failover`[0m
+  [33m↷[0m Agent heartbeat freshness (<5min) [90m— requires authenticated admin /api/admin/agents/* — see admin suite[0m
+
+[36m[1m── SUITE: media — Upload endpoint guards + signed URL behaviour ──────────────────[0m
+  [32m✓[0m POST /api/upload without auth → 401/400 [90m(271ms)[0m
+  [33m↷[0m Upload size + MIME validation [90m— requires multipart form fixture (signed Blob URL) — defer to integration suite[0m
+
+[36m[1m── SUITE: pdf — Job-completion PDF generation + signature integrity ──────────────[0m
+  [33m↷[0m PDF generation pipeline [90m— requires completed job + signature fixture — covered by mobile integration[0m
+  [33m↷[0m Signature GPS metadata + timestamp [90m— validated in src/lib/signatures (unit tests) — not reachable via HTTP[0m
+
+[36m[1m── SUITE: seo — Public pages, sitemap, robots, district landings ─────────────────[0m
+  [32m✓[0m GET /sitemap.xml returns XML (or 404 if not configured) [90m(133ms)[0m
+  [32m✓[0m GET /robots.txt returns text (or 404) [90m(49ms)[0m
+  [32m✓[0m GET /locksmiths public listing responds [90m(242ms)[0m
+
+[36m[1m── SUITE: perf — Latency budgets + concurrent-request stability ──────────────────[0m
+  [32m✓[0m GET /api/health p95 < 1500ms (10 samples) [90m(1038ms)[0m
+  [32m✓[0m 20 concurrent /api/health all succeed [90m(1486ms)[0m
+
+[36m[1m── SUITE: security — Injection, XSS, rate-limit, security headers ────────────────[0m
+  [32m✓[0m Login with SQL-injection-style payload returns 400/401, never 500 [90m(166ms)[0m
+  [32m✓[0m Login with XSS payload returns 400/401, never 500 [90m(226ms)[0m
+  [32m✓[0m Login rate-limit triggers within 25 rapid attempts [90m(588ms)[0m
+  [32m✓[0m Security headers present on homepage (CSP / X-Frame-Options / HSTS) [90m(60ms)[0m
+  [33m↷[0m Role escalation: customer cookie cannot hit /api/admin/* [90m— requires seeded customer cookie — covered by rbac suite (401 without cookie ≈ enforced)[0m
+
+[36m[1m── SUITE: notifications — Telegram/SMS/email plumbing exposed via /api/health ────────[0m
+  [32m✓[0m Telegram health is ok or unconfigured (never error) [90m(105ms)[0m
+  [33m↷[0m Email/SMS delivery [90m— live send not safe in harness — use scripts/send-welcome-emails-test.ts manually[0m
+
+[1m── SUMMARY ──────────────────────────────────────────────[0m
+  [32mPASS[0m 31    [31mFAIL[0m 0    [33mSKIP[0m 12    total 43    [90m(9357ms)[0m
+
+[2mReport → /Users/piks/Locksafe Project/locksafe-webapp/test-reports/system-full-test-2026-06-04T05-00-13-905Z.json[0m
+[PASS] System test prod
+
+[CHECK] Source + Prisma fast validation
+[CMD]   bash ./scripts/validate-source-and-prisma.sh
+============================================
+LockSafe Source + Prisma Validation (Fast)
+Root: /Users/piks/Locksafe Project/locksafe-webapp
+Time: 2026-06-04 06:00:23 BST
+============================================
+
+[STEP] Prisma schema validation
+Environment variables loaded from .env
+Prisma schema loaded from prisma/schema.prisma
+The schema at prisma/schema.prisma is valid 🚀
+[PASS] Prisma schema validation
+
+[STEP] Prisma client generation
+
+> nextjs-shadcn@0.1.0 db:generate
+> prisma generate
+
+Environment variables loaded from .env
+Prisma schema loaded from prisma/schema.prisma
+
+✔ Generated Prisma Client (v5.22.0) to ./node_modules/@prisma/client in 319ms
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+Tip: Need your database queries to be 1000x faster? Accelerate offers you that and more: https://pris.ly/tip-2-accelerate
+
+┌─────────────────────────────────────────────────────────┐
+│  Update available 5.22.0 -> 7.8.0                       │
+│                                                         │
+│  This is a major update - please follow the guide at    │
+│  https://pris.ly/d/major-version-upgrade                │
+│                                                         │
+│  Run the following to update                            │
+│    npm i --save-dev prisma@latest                       │
+│    npm i @prisma/client@latest                          │
+└─────────────────────────────────────────────────────────┘
+[PASS] Prisma client generation
+
+[STEP] TypeScript + ESLint
+
+> nextjs-shadcn@0.1.0 lint
+> tsc --noEmit && eslint src
+
+[PASS] TypeScript + ESLint
+
+[STEP] Unit tests
+
+> nextjs-shadcn@0.1.0 test
+> jest --runInBand
+
+FAIL src/lib/__tests__/run-scout-scenarios.ts
+  ● Test suite failed to run
+
+    Your test suite must contain at least one test.
+
+      at onResult (node_modules/@jest/core/build/index.js:1054:18)
+      at node_modules/@jest/core/build/index.js:1125:165
+      at node_modules/emittery/index.js:363:13
+          at Array.map (<anonymous>)
+      at Emittery.emit (node_modules/emittery/index.js:361:23)
+
+
+📦 computeStabilityWeight — new keywords
+  ✓ brand-new keyword with no history → 0.25
+  ✓ single scan, no volatility yet → 0.25
+  ✓ 2 consecutive survival scans, stable history → ~0.56 (survivalWeight=0.625 × volDiscount≈0.90)
+  ✓ 4+ consecutive survival, stable history → ~0.95 (survivalWeight=1.0 × volDiscount≈0.95)
+
+📦 computeStabilityWeight — volatility discount
+  ✓ wild history (CV≈0.91) gets discounted to ≈0.52 even with 4 survival scans
+  ✓ stable history with 4 survival scans → ≥0.90
+  ✓ january spike: high volatility should discount the weight
+
+📦 computeStabilityWeight — floor & reset
+  ✓ after unprofitable scan (count=0), weight back to ~0.25
+  ✓ floor: weight never drops below 0.05
+
+📦 computeOperationalFactor — well-run geo
+  ✓ dataAvailable=true when metrics present
+  ✓ well-run geo: factor ≥0.75
+  ✓ well-run geo: factor ≤0.90 (some losses expected)
+
+📦 computeOperationalFactor — disaster city
+  ✓ dataAvailable=true
+  ✓ disaster city: factor ≤0.25 (heavy discounting)
+  ✓ factor is non-negative
+
+📦 computeOperationalFactor — no data (default)
+  ✓ null metrics → factor=1.0 (optimistic default)
+  ✓ null metrics → dataAvailable=false
+  ✓ empty metrics → factor=1.0
+  ✓ empty metrics → dataAvailable=false
+
+📦 profit model — CPC floor enforcement
+  ✓ zero CPC + HIGH competition: floor £5.00 → profit = 0.15×175-5 = £21.25
+  ✓ zero CPC + MEDIUM competition: floor £2.80 → profit = 0.12×175-2.80 = £18.20
+  ✓ zero CPC + LOW competition: floor £1.20 → profit = 0.07×175-1.20 = £11.05
+
+📦 profit model — high-CPC city (Sheffield) vs cheap city
+  ✓ Sheffield £5 CPC HIGH: profit = £21.25/click
+  ✓ Cheap city £1.50 CPC LOW: profit = £10.75/click
+  ✓ Sheffield monthly profit > cheap city at same volume (despite higher CPC)
+
+📦 profit model — conv rate override
+  ✓ 18% real conv rate, HIGH (floor £5) → £26.50/click profit
+  ✓ 18% real conv rate, £5.50 CPC above floor → £26.00/click
+  ✓ 6% actual conv (vs 12% MEDIUM baseline) → £7.50/click
+
+📦 profit model — negative profit (unprofitable keyword)
+  ✓ £15 CPC HIGH competition still profitable due to 15% conv rate
+  ✓ £15 CPC LOW competition → negative profit (keyword should be filtered)
+
+📦 BASELINE_CONV_RATES ordering invariant
+  ✓ HIGH competition conv rate > MEDIUM
+  ✓ MEDIUM competition conv rate > LOW
+  ✓ LOW competition conv rate > 0
+  ✓ UNKNOWN conv rate between LOW and MEDIUM
+
+📦 Scenario 1 — January spike keyword should be discounted
+  ✓ January spike keyword: high volatility discounts stability weight
+  ✓ Weight stays above floor (keyword not completely eliminated)
+  ✓ Stable keyword scores higher than spike keyword at same survival count
+     Spike weight: 0.369, Stable weight: 0.775
+
+📦 Scenario 2 — Geo contamination prevention
+  ✓ Sheffield stable keyword weight >> Exeter unstable weight (geo isolation works)
+  ✓ Without geo isolation, Exeter would inherit Sheffield's inflated weight
+     Sheffield weight: 0.987, Exeter weight: 0.083
+     Geo isolation prevents Exeter from inheriting Sheffield's 11.8× higher weight
+
+📦 Scenario 3 — Birmingham spam city
+  ✓ Birmingham has operational data
+  ✓ Birmingham spam city: operational factor ≤0.25 (severe discount)
+  ✓ Birmingham factor is positive (not zero)
+  ✓ Birmingham: raw £10k monthly profit deflated to ≤£2.5k after operational factor
+     Operational factor: 0.227
+     Raw profit: £10,000, Operational-adjusted: £2272
+
+📦 Scenario 4 — Hull after-hours gap (high-value opportunity)
+  ✓ Hull MEDIUM (floor £2.80 overrides £2.50 CPC) → £18.20 profit/click
+  ✓ Hull after-hours: 1.25× boost → £22.75/click
+  ✓ Hull well-run franchise: operational factor ≥0.80
+  ✓ Hull final profit after operational factor still ≥£18/click
+     Profit/click: £18.20, after-hours: £22.75, final: £18.35
+
+📦 Scenario 5 — Truro first scan (new market, heavy discount)
+  ✓ Truro LOW £1.80 CPC → £10.45 profit/click
+  ✓ First scan: stability weight = 0.25 (heavily discounted)
+  ✓ No operational data → factor=1.0
+  ✓ No operational data → dataAvailable=false (UI shows unverified)
+  ✓ Truro effective profit = raw × 0.25 (stability discount on first scan)
+  ✓ Truro adjusted monthly profit is ~¼ of raw estimate (first scan discount prevents overconfidence)
+     Raw monthly: £1254, Stability-adjusted: £314 (25% of raw)
+     UI will show: ~ prefix (unverified op data) + 🆕 badge (first scan)
+
+📦 Seed bank ranking — stable winner beats lucky spike
+  ✓ Stable keyword (6 scans, Wilson 0.85) outranks lucky spike (1 scan, Wilson 0.75)
+     Stable effective: 0.839, Lucky spike: 0.328
+
+📦 Seed bank ranking — volatile keyword discounted
+  ✓ Stable keyword ranks higher than volatile keyword with identical Wilson score
+     Stable rank: 0.772, Volatile rank: 0.420
+
+📦 Edge cases
+  ✓ 10 survival scans, empty history → weight 1.0 (no volatility penalty)
+  ✓ 3 survival scans, single reading → stable (volatility=0)
+  ✓ near-zero mean history: doesn't crash, stays above floor
+  ✓ all-negative history with 0 survival count → close to 0.25 (floor before vol discount)
+  ✓ partial metrics → dataAvailable=true
+  ✓ only spam rate=50% known → factor=0.50 (other fields default to best-case)
+
+📦 Quality gate — locksmith relevance filter
+  ✓ emergency locksmith → passes relevance
+  ✓ locked out of house → passes relevance
+  ✓ upvc lock repair → passes relevance
+  ✓ deadlock fitting → passes relevance
+  ✓ car locksmith → negative_keyword
+  ✓ door painting → not_locksmith
+  ✓ window cleaning → not_locksmith
+
+📦 Quality gate — profitability check
+  ✓ HIGH competition, reasonable CPC → profitable
+  ✓ profit/click ≥ £20
+  ✓ £16 CPC LOW competition → fails profitability
+  ✓ reason = unprofitable
+  ✓ profit/click is negative
+  ✓ dual-source + unknown CPC → passes gate (will price via Planner)
+
+📦 SERP parsing — display URL domain extraction
+  ✓ strips www + path
+  ✓ strips https + breadcrumb
+  ✓ bare domain unchanged
+  ✓ empty string → empty string
+  ✓ uppercase normalised to lowercase
+
+📦 SERP parsing — ad extraction from fixture HTML
+  ✓ Fixture HTML: at least 2 sponsored ads extracted
+  ✓ First ad domain: lockforce.co.uk
+  ✓ First ad headline contains 'Emergency'
+  ✓ Second ad domain: local-heroes.co.uk
+  ✓ First ad position = 1
+  ✓ Second ad position = 2
+
+📦 SERP parsing — Sponsored text fallback (no data-text-ad)
+  ✓ Sponsored-text fallback: at least 1 ad extracted
+  ✓ At least one ad domain contains 'locksmith'
+
+📦 Fingerprint parsing — PPC tracking detection
+  ✓ CallRail script → hasPpcTracking=true
+  ✓ WhatConverts mention → hasPpcTracking=true
+  ✓ Ringba mention → hasPpcTracking=true
+  ✓ Plain CDN script → hasPpcTracking=false
+  ✓ Plain content → hasPpcTracking=false
+
+📦 Fingerprint parsing — Google Ads ID extraction
+  ✓ Extracts both AW- IDs from script
+  ✓ AW-123456789 extracted
+  ✓ AW-987654321 extracted
+  ✓ No AW- IDs → empty array
+
+📦 Fingerprint parsing — MLA detection
+  ✓ MLA approved → isMlaApproved=true
+  ✓ Master Locksmiths Association → isMlaApproved=true
+  ✓ DBS only → isMlaApproved=false
+
+📦 Fingerprint parsing — price anchor extraction
+  ✓ At least 2 price anchors extracted
+  ✓ £49 anchor extracted
+  ✓ Lowest price anchor ≤ £49
+  ✓ Empty anchors → lowestGbp=null
+
+📦 Intel keyword merge — dualConfirmed detection
+  ✓ emergency locksmith keyword found in merged list
+  ✓ emergency locksmith: serpConfirmed=true
+  ✓ emergency locksmith: fingerprintConfirmed=true (in title)
+  ✓ emergency locksmith: dualConfirmed=true
+  ✓ emergency locksmith seen in 2 geos (london + manchester)
+  ✓ emergency locksmith: 2 competitor domains
+  ✓ lock change: serpConfirmed=true
+  ✓ lock change: dualConfirmed=false (no fingerprint match)
+  ✓ Dual-confirmed keywords sort first
+     Merged: 4 keywords, 1 dual-confirmed
+
+📦 Intel keyword merge — multi-domain detection
+  ✓ 3 competitors fighting over '24 hour locksmith'
+  ✓ Seen in 1 geo
+  ✓ No fingerprint → dualConfirmed=false
+
+📦 Competitor geo factor — exit boost
+  ✓ Sheffield: 2 competitors exiting
+  ✓ Sheffield: 0 competitors entering
+  ✓ Sheffield exit factor = 1.16 (+16% boost)
+  ✓ Exit factor is > 1.0 (geo becomes more attractive)
+     Sheffield geo factor: 1.160 (exit boost)
+
+📦 Competitor geo factor — entry caution
+  ✓ Exeter: 2 competitors entering/new
+  ✓ Exeter entry factor = 0.90 (-10% caution)
+  ✓ Entry factor is < 1.0 (geo becomes less attractive)
+
+📦 Competitor geo factor — no signals (graceful default)
+  ✓ No signals → factor=1.0 (no adjustment)
+  ✓ No signals → entryCount=0
+  ✓ No signals → exitCount=0
+
+📦 Competitor geo factor — clamped to [0.5, 1.5]
+  ✓ Factor clamped at minimum 0.5 even with 10 competitors entering
+  ✓ Factor clamped at maximum 1.5 even with 10 competitors exiting
+
+📦 Integration — dual-source seed passes full quality gate
+  ✓ "locksmith sheffield" (dual=true, cpc=£0) → passes=true
+  ✓ "emergency locksmith" (dual=true, cpc=£4.5) → passes=true
+  ✓ "emergency locksmith" (dual=false, cpc=£4.5) → passes=true
+  ✓ "car locksmith" (dual=true, cpc=£3) → passes=false
+  ✓ "door painting" (dual=false, cpc=£1) → passes=false
+  ✓ "lock change" (dual=false, cpc=£18) → passes=false
+
+📦 Scenario 6 — Lockforce exiting Hull + Sheffield (opportunity opens)
+  ✓ Hull: Lockforce exit → geo becomes more attractive
+  ✓ Sheffield: exit > entry → still net positive despite new entrant
+  ✓ Hull (pure exit) more attractive than Sheffield (mixed exit+entry)
+  ✓ Hull with Lockforce exit: profit ≥ base after-hours profit
+     Hull geo factor: 1.080, Sheffield: 1.030
+     Hull final profit: £24.57/click (after-hours + competitor exit)
+
+────────────────────────────────────────────────────────────
+
+📊 Results: 137 tests — ✅ ALL 137 PASSED
+
+FAIL src/lib/__tests__/opportunity-scout.test.ts
+  ● Console
+
+    console.info
+      Birmingham: raw £5000 → realised £1260 (operational factor 25%)
+
+      at Object.<anonymous> (src/lib/__tests__/opportunity-scout.test.ts:687:13)
+
+  ● computeOperationalFactor › SCENARIO — well-run city: minimal waste across all metrics
+
+    expect(received).toBeGreaterThan(expected)
+
+    Expected: > 0.8
+    Received:   0.7982
+
+      203 |     });
+      204 |     // Should be close to 1.0 — a very efficient operation
+    > 205 |     expect(result.factor).toBeGreaterThan(0.80);
+          |                           ^
+      206 |     expect(result.dataAvailable).toBe(true);
+      207 |   });
+      208 |
+
+      at Object.<anonymous> (src/lib/__tests__/opportunity-scout.test.ts:205:27)
+
+  ● scoreOpportunities — profit model › computes profitPerClick correctly: convRate × jobValue - cpcGbp
+
+    expect(received).toBeCloseTo(expected, precision)
+
+    Expected: 20.45
+    Received: 24.39
+
+    Expected precision:    1
+    Expected difference: < 0.05
+    Received difference:   3.9400000000000013
+
+      250 |     expect(kw).toBeDefined();
+      251 |     // profitPerClick = 0.15 × 175 - 5.80 = 20.45
+    > 252 |     expect(kw!.profitPerClick).toBeCloseTo(20.45, 1);
+          |                                ^
+      253 |   });
+      254 |
+      255 |   it("uses CPC floor when Planner returns 0 bids (test token mode)", async () => {
+
+      at Object.<anonymous> (src/lib/__tests__/opportunity-scout.test.ts:252:32)
+
+  ● scoreOpportunities — profit model › uses real conv rate override when provided via geoConvRateMap
+
+    expect(received).toBeCloseTo(expected, precision)
+
+    Expected: 31
+    Received: 36.25
+
+    Expected precision:    0
+    Expected difference: < 0.5
+    Received difference:   5.25
+
+      330 |     const kw = result.opportunities[0]?.topKeywords[0];
+      331 |     // profitPerClick = 0.20 × 175 - 4.00 = 35.00 - 4.00 = £31.00
+    > 332 |     expect(kw!.profitPerClick).toBeCloseTo(31.0, 0);
+          |                                ^
+      333 |     expect(result.opportunities[0]?.estimatedConvRate).toBeCloseTo(0.20, 3);
+      334 |   });
+      335 |
+
+      at Object.<anonymous> (src/lib/__tests__/opportunity-scout.test.ts:332:32)
+
+  ● Seed bank stability ranking › volatile keyword (4 scans but wild variance) ranks below stable equivalent
+
+    expect(received).toBeLessThan(expected)
+
+    Expected: < 0.5
+    Received:   0.5189430420979806
+
+      610 |
+      611 |     expect(stableWeight).toBeGreaterThan(volatileWeight);
+    > 612 |     expect(volatileWeight).toBeLessThan(0.5);
+          |                            ^
+      613 |   });
+      614 |
+      615 |   it("new experimental seed (0 scans) gets minimum viable weight", () => {
+
+      at Object.<anonymous> (src/lib/__tests__/opportunity-scout.test.ts:612:28)
+
+PASS src/lib/__tests__/google-ads.test.ts
+PASS src/lib/__tests__/competitor-cross-validate.test.ts
+FAIL src/lib/__tests__/discovery-campaign-generator.test.ts
+  ● buildHeadlines — substitution + length › uses the trust_signal copy bundle when family=trust_signal
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      55 |   it("uses the trust_signal copy bundle when family=trust_signal", () => {
+      56 |     const headlines = buildHeadlines("trust_signal", "M1");
+    > 57 |     expect(headlines.some((h) => /mla/i.test(h))).toBe(true);
+         |                                                   ^
+      58 |   });
+      59 |
+      60 |   it("uses the b2b_specialist copy bundle when family=b2b_specialist", () => {
+
+      at Object.<anonymous> (src/lib/__tests__/discovery-campaign-generator.test.ts:57:51)
+
+  ● buildNegativeKeywords › BASELINE_NEGATIVES exists and is non-trivial
+
+    expect(received).toEqual(expected) // deep equality
+
+    Expected: ArrayContaining ["diy", "free", "youtube"]
+    Received: ["amazon", "apprenticeship", "b&q", "blog", "course", "courses", "definition", "diy", "ebay", "game", …]
+
+      179 |   it("BASELINE_NEGATIVES exists and is non-trivial", () => {
+      180 |     expect(BASELINE_NEGATIVES.length).toBeGreaterThan(15);
+    > 181 |     expect(BASELINE_NEGATIVES).toEqual(expect.arrayContaining(["diy", "free", "youtube"]));
+          |                                ^
+      182 |   });
+      183 | });
+      184 |
+
+      at Object.<anonymous> (src/lib/__tests__/discovery-campaign-generator.test.ts:181:32)
+
+PASS src/app/api/retell/__tests__/retell-endpoints.test.ts
+FAIL src/lib/__tests__/conversion-loop-e2e.test.ts
+  ● End-to-end conversion loop — gclid → call → job → stripe paid → google upload › uploads the conversion using the gclid from CallIntent when Job.gclid is null
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      182 |
+      183 |     // ── Assert: Google Ads received the correct upload ─────────────────
+    > 184 |     expect(result.ok).toBe(true);
+          |                       ^
+      185 |     expect(result.status).toBe("uploaded");
+      186 |     expect(googleAdsRequestMock).toHaveBeenCalledTimes(1);
+      187 |
+
+      at Object.<anonymous> (src/lib/__tests__/conversion-loop-e2e.test.ts:184:23)
+
+  ● End-to-end loop — does NOT upload when chain is broken › propagates Google Ads API errors back to the Job (for retry)
+
+    expect(received).toMatch(expected)
+
+    Expected pattern: /rate limit/i
+    Received string:  "Cannot read properties of undefined (reading 'request')"
+
+      294 |     expect(result.ok).toBe(false);
+      295 |     expect(result.status).toBe("failed");
+    > 296 |     expect(result.error).toMatch(/rate limit/i);
+          |                          ^
+      297 |     expect(jobUpdate).toHaveBeenCalledWith({
+      298 |       where: { id: FAKE_JOB_ID },
+      299 |       data: expect.objectContaining({
+
+      at Object.<anonymous> (src/lib/__tests__/conversion-loop-e2e.test.ts:296:26)
+
+  ● End-to-end loop — Job.gclid path (web-form-led job) › uploads using Job.gclid directly when present (no CallIntent fallback needed)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      323 |     const result = await uploadJobConversionIfEligible(FAKE_JOB_ID);
+      324 |
+    > 325 |     expect(result.ok).toBe(true);
+          |                       ^
+      326 |     expect(googleAdsRequestMock.mock.calls[0][2].conversions[0].gclid).toBe(WEB_GCLID);
+      327 |
+      328 |     // Should NOT have queried VoiceCall when Job.gclid was already set —
+
+      at Object.<anonymous> (src/lib/__tests__/conversion-loop-e2e.test.ts:325:23)
+
+FAIL src/lib/__tests__/discovery-campaign-orchestrator.test.ts
+  ● generateDiscoveryDrafts — selection + writes › creates drafts for the top candidates respecting the default mix
+
+    expect(received).toBeGreaterThan(expected)
+
+    Expected: > 0
+    Received:   0
+
+      175 |
+      176 |     expect(result.consideredSeeds).toBe(6);
+    > 177 |     expect(result.draftsCreated).toBeGreaterThan(0);
+          |                                  ^
+      178 |     expect(result.draftsCreated).toBeLessThanOrEqual(6);
+      179 |     // service_long_tail + research_intent should NOT have been written
+      180 |     const writtenNames = createMock.mock.calls.map((c) => c[0].data.name);
+
+      at Object.<anonymous> (src/lib/__tests__/discovery-campaign-orchestrator.test.ts:177:34)
+
+  ● generateDiscoveryDrafts — selection + writes › calls prisma.create with the discovery-orchestrator audit prompt
+
+    expect(jest.fn()).toHaveBeenCalled()
+
+    Expected number of calls: >= 1
+    Received number of calls:    0
+
+      186 |     mockSeeds([{ keyword: "emergency locksmith RG1", category: "postcode_local" }]);
+      187 |     await generateDiscoveryDrafts({ accountId: ACCOUNT_ID });
+    > 188 |     expect(createMock).toHaveBeenCalled();
+          |                        ^
+      189 |     const args = createMock.mock.calls[0][0].data;
+      190 |     expect(args.accountId).toBe(ACCOUNT_ID);
+      191 |     expect(args.aiPrompt).toBe("discovery-orchestrator:phase2c");
+
+      at Object.<anonymous> (src/lib/__tests__/discovery-campaign-orchestrator.test.ts:188:24)
+
+  ● generateDiscoveryDrafts — selection + writes › skips a draft whose name already exists (idempotent re-run)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: 0
+
+      199 |     const result = await generateDiscoveryDrafts({ accountId: ACCOUNT_ID });
+      200 |     expect(result.draftsCreated).toBe(0);
+    > 201 |     expect(result.draftsSkipped).toBe(1);
+          |                                  ^
+      202 |     expect(createMock).not.toHaveBeenCalled();
+      203 |   });
+      204 |
+
+      at Object.<anonymous> (src/lib/__tests__/discovery-campaign-orchestrator.test.ts:201:34)
+
+  ● generateDiscoveryDrafts — selection + writes › captures per-draft errors without aborting the whole run
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: 0
+
+      236 |
+      237 |     const result = await generateDiscoveryDrafts({ accountId: ACCOUNT_ID });
+    > 238 |     expect(result.draftsCreated).toBe(1);
+          |                                  ^
+      239 |     expect(result.errors[0]).toMatch(/simulated DB outage/);
+      240 |   });
+      241 |
+
+      at Object.<anonymous> (src/lib/__tests__/discovery-campaign-orchestrator.test.ts:238:34)
+
+  ● generateDiscoveryDrafts — shark-saturation gating › drops keywords flagged as saturated when intelKeywords + flagSource are passed
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: "emergency locksmith bristol"
+    Received array: []
+
+      294 |
+      295 |     expect(result.saturatedDropped).toBe(1);
+    > 296 |     expect(result.drafts.map((d) => d.keyword)).toContain("emergency locksmith bristol");
+          |                                                 ^
+      297 |     expect(result.drafts.map((d) => d.keyword)).not.toContain("emergency locksmith london");
+      298 |   });
+      299 |
+
+      at Object.<anonymous> (src/lib/__tests__/discovery-campaign-orchestrator.test.ts:296:49)
+
+PASS src/lib/__tests__/phone-lead-intent-score.test.ts
+PASS src/lib/__tests__/locksmith-recruitment-recommender.test.ts
+PASS src/lib/__tests__/postcode-keyword-generator.test.ts
+PASS src/lib/__tests__/family-budget-caps.test.ts
+PASS src/lib/__tests__/shark-saturation.test.ts
+PASS src/lib/__tests__/shark-domains.test.ts
+PASS src/app/api/cron/__tests__/sync-google-ads-performance.test.ts
+  ● Console
+
+    console.log
+      [Cron] Google Ads sync done in 0ms: 1 accounts, 3 campaigns, 21 snapshots
+
+      at POST (src/app/api/cron/sync-google-ads-performance/route.ts:45:13)
+
+    console.log
+      [Cron] Google Ads sync done in 0ms: 1 accounts, 3 campaigns, 21 snapshots
+
+      at POST (src/app/api/cron/sync-google-ads-performance/route.ts:45:13)
+
+    console.log
+      [Cron] Google Ads sync done in 0ms: 1 accounts, 3 campaigns, 21 snapshots
+
+      at POST (src/app/api/cron/sync-google-ads-performance/route.ts:45:13)
+
+    console.log
+      [Cron] Google Ads sync done in 0ms: 1 accounts, 3 campaigns, 21 snapshots
+
+      at POST (src/app/api/cron/sync-google-ads-performance/route.ts:45:13)
+
+    console.log
+      [Cron] Google Ads sync done in 0ms: 1 accounts, 3 campaigns, 21 snapshots
+
+      at POST (src/app/api/cron/sync-google-ads-performance/route.ts:45:13)
+
+    console.log
+      [Cron] Google Ads sync done in 0ms: 2 accounts, 5 campaigns, 10 snapshots
+
+      at POST (src/app/api/cron/sync-google-ads-performance/route.ts:45:13)
+
+    console.log
+      [Cron] Google Ads sync done in 0ms: 1 accounts, 3 campaigns, 21 snapshots
+
+      at POST (src/app/api/cron/sync-google-ads-performance/route.ts:45:13)
+
+    console.error
+      [Cron] Google Ads sync error: Error: DB connection timeout
+          at Object.<anonymous> (/Users/piks/Locksafe Project/locksafe-webapp/src/app/api/cron/__tests__/sync-google-ads-performance.test.ts:183:7)
+          at Promise.finally.completed (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:1561:28)
+          at new Promise (<anonymous>)
+          at callAsyncCircusFn (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:1501:10)
+          at _callCircusTest (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:1011:40)
+          at _runTest (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:951:3)
+          at /Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:853:7
+          at _runTestsForDescribeBlock (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:866:11)
+          at _runTestsForDescribeBlock (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:861:11)
+          at run (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:765:3)
+          at runAndTransformResultsToJestFormat (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:1993:21)
+          at jestAdapter (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/runner.js:111:19)
+          at runTestInternal (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-runner/build/index.js:276:16)
+          at runTest (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-runner/build/index.js:344:7)
+
+      62 |     });
+      63 |   } catch (error) {
+    > 64 |     console.error("[Cron] Google Ads sync error:", error);
+         |             ^
+      65 |     return NextResponse.json(
+      66 |       {
+      67 |         success: false,
+
+      at POST (src/app/api/cron/sync-google-ads-performance/route.ts:64:13)
+      at Object.<anonymous> (src/app/api/cron/__tests__/sync-google-ads-performance.test.ts:189:17)
+
+    console.log
+      [Cron] Google Ads sync done in 0ms: 1 accounts, 3 campaigns, 21 snapshots
+
+      at POST (src/app/api/cron/sync-google-ads-performance/route.ts:45:13)
+
+    console.log
+      [Cron] Google Ads sync done in 0ms: 1 accounts, 3 campaigns, 21 snapshots
+
+      at POST (src/app/api/cron/sync-google-ads-performance/route.ts:45:13)
+
+FAIL src/lib/district-landing/__tests__/generate-content.test.ts
+  ● Console
+
+    console.warn
+      [district-landing] generation attempt 1 failed for RG1: banned=1 missing=— malformed=false
+
+      258 |     extraBanned = Array.from(new Set([...extraBanned, ...validation.bannedHits]));
+      259 |
+    > 260 |     console.warn(
+          |             ^
+      261 |       `[district-landing] generation attempt ${attempt} failed for ${facts.district}: `
+      262 |       + `banned=${validation.bannedHits.length} missing=${validation.missing.join(",") || "—"} `
+      263 |       + `malformed=${validation.malformed ?? false}`,
+
+      at generateDistrictContent (src/lib/district-landing/generate-content.ts:260:13)
+      at Object.<anonymous> (src/lib/district-landing/__tests__/generate-content.test.ts:152:20)
+
+    console.warn
+      [district-landing] generation attempt 1 failed for RG1: banned=1 missing=— malformed=false
+
+      258 |     extraBanned = Array.from(new Set([...extraBanned, ...validation.bannedHits]));
+      259 |
+    > 260 |     console.warn(
+          |             ^
+      261 |       `[district-landing] generation attempt ${attempt} failed for ${facts.district}: `
+      262 |       + `banned=${validation.bannedHits.length} missing=${validation.missing.join(",") || "—"} `
+      263 |       + `malformed=${validation.malformed ?? false}`,
+
+      at generateDistrictContent (src/lib/district-landing/generate-content.ts:260:13)
+      at Object.<anonymous> (src/lib/district-landing/__tests__/generate-content.test.ts:167:20)
+
+    console.warn
+      [district-landing] generation attempt 1 failed for RG1: banned=3 missing=— malformed=false
+
+      258 |     extraBanned = Array.from(new Set([...extraBanned, ...validation.bannedHits]));
+      259 |
+    > 260 |     console.warn(
+          |             ^
+      261 |       `[district-landing] generation attempt ${attempt} failed for ${facts.district}: `
+      262 |       + `banned=${validation.bannedHits.length} missing=${validation.missing.join(",") || "—"} `
+      263 |       + `malformed=${validation.malformed ?? false}`,
+
+      at generateDistrictContent (src/lib/district-landing/generate-content.ts:260:13)
+      at Object.<anonymous> (src/lib/district-landing/__tests__/generate-content.test.ts:183:20)
+
+    console.warn
+      [district-landing] generation attempt 2 failed for RG1: banned=1 missing=— malformed=false
+
+      258 |     extraBanned = Array.from(new Set([...extraBanned, ...validation.bannedHits]));
+      259 |
+    > 260 |     console.warn(
+          |             ^
+      261 |       `[district-landing] generation attempt ${attempt} failed for ${facts.district}: `
+      262 |       + `banned=${validation.bannedHits.length} missing=${validation.missing.join(",") || "—"} `
+      263 |       + `malformed=${validation.malformed ?? false}`,
+
+      at generateDistrictContent (src/lib/district-landing/generate-content.ts:260:13)
+      at Object.<anonymous> (src/lib/district-landing/__tests__/generate-content.test.ts:183:20)
+
+    console.warn
+      [district-landing] generation attempt 1 failed for RG1: banned=3 missing=— malformed=false
+
+      258 |     extraBanned = Array.from(new Set([...extraBanned, ...validation.bannedHits]));
+      259 |
+    > 260 |     console.warn(
+          |             ^
+      261 |       `[district-landing] generation attempt ${attempt} failed for ${facts.district}: `
+      262 |       + `banned=${validation.bannedHits.length} missing=${validation.missing.join(",") || "—"} `
+      263 |       + `malformed=${validation.malformed ?? false}`,
+
+      at generateDistrictContent (src/lib/district-landing/generate-content.ts:260:13)
+      at Object.<anonymous> (src/lib/district-landing/__tests__/generate-content.test.ts:201:5)
+
+    console.warn
+      [district-landing] generation attempt 2 failed for RG1: banned=3 missing=— malformed=false
+
+      258 |     extraBanned = Array.from(new Set([...extraBanned, ...validation.bannedHits]));
+      259 |
+    > 260 |     console.warn(
+          |             ^
+      261 |       `[district-landing] generation attempt ${attempt} failed for ${facts.district}: `
+      262 |       + `banned=${validation.bannedHits.length} missing=${validation.missing.join(",") || "—"} `
+      263 |       + `malformed=${validation.malformed ?? false}`,
+
+      at generateDistrictContent (src/lib/district-landing/generate-content.ts:260:13)
+      at Object.<anonymous> (src/lib/district-landing/__tests__/generate-content.test.ts:201:5)
+
+    console.warn
+      [district-landing] generation attempt 1 failed for RG1: banned=0 missing=— malformed=true
+
+      258 |     extraBanned = Array.from(new Set([...extraBanned, ...validation.bannedHits]));
+      259 |
+    > 260 |     console.warn(
+          |             ^
+      261 |       `[district-landing] generation attempt ${attempt} failed for ${facts.district}: `
+      262 |       + `banned=${validation.bannedHits.length} missing=${validation.missing.join(",") || "—"} `
+      263 |       + `malformed=${validation.malformed ?? false}`,
+
+      at generateDistrictContent (src/lib/district-landing/generate-content.ts:260:13)
+      at Object.<anonymous> (src/lib/district-landing/__tests__/generate-content.test.ts:209:5)
+
+    console.warn
+      [district-landing] generation attempt 2 failed for RG1: banned=0 missing=— malformed=true
+
+      258 |     extraBanned = Array.from(new Set([...extraBanned, ...validation.bannedHits]));
+      259 |
+    > 260 |     console.warn(
+          |             ^
+      261 |       `[district-landing] generation attempt ${attempt} failed for ${facts.district}: `
+      262 |       + `banned=${validation.bannedHits.length} missing=${validation.missing.join(",") || "—"} `
+      263 |       + `malformed=${validation.malformed ?? false}`,
+
+      at generateDistrictContent (src/lib/district-landing/generate-content.ts:260:13)
+      at Object.<anonymous> (src/lib/district-landing/__tests__/generate-content.test.ts:209:5)
+
+    console.warn
+      [district-landing] generation attempt 1 failed for RG1: banned=2 missing=— malformed=false
+
+      258 |     extraBanned = Array.from(new Set([...extraBanned, ...validation.bannedHits]));
+      259 |
+    > 260 |     console.warn(
+          |             ^
+      261 |       `[district-landing] generation attempt ${attempt} failed for ${facts.district}: `
+      262 |       + `banned=${validation.bannedHits.length} missing=${validation.missing.join(",") || "—"} `
+      263 |       + `malformed=${validation.malformed ?? false}`,
+
+      at generateDistrictContent (src/lib/district-landing/generate-content.ts:260:13)
+      at Object.<anonymous> (src/lib/district-landing/__tests__/generate-content.test.ts:218:7)
+
+    console.warn
+      [district-landing] generation attempt 2 failed for RG1: banned=2 missing=— malformed=false
+
+      258 |     extraBanned = Array.from(new Set([...extraBanned, ...validation.bannedHits]));
+      259 |
+    > 260 |     console.warn(
+          |             ^
+      261 |       `[district-landing] generation attempt ${attempt} failed for ${facts.district}: `
+      262 |       + `banned=${validation.bannedHits.length} missing=${validation.missing.join(",") || "—"} `
+      263 |       + `malformed=${validation.malformed ?? false}`,
+
+      at generateDistrictContent (src/lib/district-landing/generate-content.ts:260:13)
+      at Object.<anonymous> (src/lib/district-landing/__tests__/generate-content.test.ts:218:7)
+
+  ● generateDistrictContent — happy path › returns the parsed content + records the model used (single attempt)
+
+    TypeError: Cannot read properties of undefined (reading 'content')
+
+      241 |     );
+      242 |
+    > 243 |     const validation = validateLLMOutput(llmResponse.content);
+          |                                                      ^
+      244 |     attemptsLog.push(validation);
+      245 |
+      246 |     if (validation.ok && validation.parsed) {
+
+      at generateDistrictContent (src/lib/district-landing/generate-content.ts:243:54)
+      at Object.<anonymous> (src/lib/district-landing/__tests__/generate-content.test.ts:152:20)
+
+  ● generateDistrictContent — happy path › marks usedFallback responses correctly
+
+    TypeError: Cannot read properties of undefined (reading 'content')
+
+      241 |     );
+      242 |
+    > 243 |     const validation = validateLLMOutput(llmResponse.content);
+          |                                                      ^
+      244 |     attemptsLog.push(validation);
+      245 |
+      246 |     if (validation.ok && validation.parsed) {
+
+      at generateDistrictContent (src/lib/district-landing/generate-content.ts:243:54)
+      at Object.<anonymous> (src/lib/district-landing/__tests__/generate-content.test.ts:167:20)
+
+  ● generateDistrictContent — happy path › retries once when first attempt has banned phrases — succeeds on second
+
+    ContentGenerationError: Failed to generate valid content for RG1 after 2 attempts
+
+      265 |   }
+      266 |
+    > 267 |   throw new ContentGenerationError(
+          |         ^
+      268 |     `Failed to generate valid content for ${facts.district} after 2 attempts`,
+      269 |     attemptsLog,
+      270 |   );
+
+      at generateDistrictContent (src/lib/district-landing/generate-content.ts:267:9)
+      at Object.<anonymous> (src/lib/district-landing/__tests__/generate-content.test.ts:183:20)
+
+FAIL src/lib/__tests__/llm-router-alerts.test.ts
+  ● Console
+
+    console.warn
+      [LLM Router] Local model failed (qwen2.5:3b): fetch failed
+
+      569 |     } catch (err) {
+      570 |       const msg = err instanceof Error ? err.message : String(err);
+    > 571 |       console.warn(`[LLM Router] Local model failed (${localModel}): ${msg}`);
+          |               ^
+      572 |       await recordOllamaFailure(localModel, msg);
+      573 |
+      574 |       if (!(await shouldUseOpenAIFallback(options))) {
+
+      at chat (src/lib/llm-router.ts:571:15)
+      at Object.<anonymous> (src/lib/__tests__/llm-router-alerts.test.ts:54:5)
+
+    console.warn
+      [LLM Router] Local model failed (qwen2.5:3b): fetch failed
+
+      569 |     } catch (err) {
+      570 |       const msg = err instanceof Error ? err.message : String(err);
+    > 571 |       console.warn(`[LLM Router] Local model failed (${localModel}): ${msg}`);
+          |               ^
+      572 |       await recordOllamaFailure(localModel, msg);
+      573 |
+      574 |       if (!(await shouldUseOpenAIFallback(options))) {
+
+      at chat (src/lib/llm-router.ts:571:15)
+      at Object.<anonymous> (src/lib/__tests__/llm-router-alerts.test.ts:58:5)
+
+    console.warn
+      [LLM Router] Local model failed (qwen2.5:3b): fetch failed
+
+      569 |     } catch (err) {
+      570 |       const msg = err instanceof Error ? err.message : String(err);
+    > 571 |       console.warn(`[LLM Router] Local model failed (${localModel}): ${msg}`);
+          |               ^
+      572 |       await recordOllamaFailure(localModel, msg);
+      573 |
+      574 |       if (!(await shouldUseOpenAIFallback(options))) {
+
+      at chat (src/lib/llm-router.ts:571:15)
+      at Object.<anonymous> (src/lib/__tests__/llm-router-alerts.test.ts:62:5)
+
+    console.log
+      [LLM Router] Circuit OPEN — bypassing Ollama (qwen2.5:3b), routing to OpenAI
+
+      at chat (src/lib/llm-router.ts:582:13)
+
+    console.log
+      [LLM Router] Ollama runtime disabled (disabled via OLLAMA_RUNTIME_ENABLED=false) — routing qwen2.5:3b to OpenAI
+
+      at chat (src/lib/llm-router.ts:533:13)
+
+    console.log
+      [LLM Router] OpenAI fallback spend today: $0.0000 / $5 cap
+
+      at recordFallbackSpend (src/lib/llm-router.ts:966:11)
+
+    console.log
+      [LLM Router] Ollama runtime disabled (disabled via OLLAMA_RUNTIME_ENABLED=false) — routing qwen2.5:3b to OpenAI
+
+      at chat (src/lib/llm-router.ts:533:13)
+
+    console.warn
+      [LLM Router] Local model failed (qwen2.5:3b): ollama down
+
+      569 |     } catch (err) {
+      570 |       const msg = err instanceof Error ? err.message : String(err);
+    > 571 |       console.warn(`[LLM Router] Local model failed (${localModel}): ${msg}`);
+          |               ^
+      572 |       await recordOllamaFailure(localModel, msg);
+      573 |
+      574 |       if (!(await shouldUseOpenAIFallback(options))) {
+
+      at chat (src/lib/llm-router.ts:571:15)
+      at Object.<anonymous> (src/lib/__tests__/llm-router-alerts.test.ts:190:5)
+
+    console.log
+      [LLM Router] OpenAI fallback spend today: $0.0000 / $5 cap
+
+      at recordFallbackSpend (src/lib/llm-router.ts:966:11)
+
+    console.warn
+      [LLM Router] Local model failed (qwen2.5:3b): ollama down
+
+      569 |     } catch (err) {
+      570 |       const msg = err instanceof Error ? err.message : String(err);
+    > 571 |       console.warn(`[LLM Router] Local model failed (${localModel}): ${msg}`);
+          |               ^
+      572 |       await recordOllamaFailure(localModel, msg);
+      573 |
+      574 |       if (!(await shouldUseOpenAIFallback(options))) {
+
+      at chat (src/lib/llm-router.ts:571:15)
+      at Object.<anonymous> (src/lib/__tests__/llm-router-alerts.test.ts:195:5)
+
+    console.log
+      [LLM Router] OpenAI fallback spend today: $0.0000 / $5 cap
+
+      at recordFallbackSpend (src/lib/llm-router.ts:966:11)
+
+    console.warn
+      [LLM Router] Local model failed (qwen2.5:3b): ollama down
+
+      569 |     } catch (err) {
+      570 |       const msg = err instanceof Error ? err.message : String(err);
+    > 571 |       console.warn(`[LLM Router] Local model failed (${localModel}): ${msg}`);
+          |               ^
+      572 |       await recordOllamaFailure(localModel, msg);
+      573 |
+      574 |       if (!(await shouldUseOpenAIFallback(options))) {
+
+      at chat (src/lib/llm-router.ts:571:15)
+      at Object.<anonymous> (src/lib/__tests__/llm-router-alerts.test.ts:201:5)
+
+    console.log
+      [LLM Router] OpenAI fallback spend today: $0.0000 / $5 cap
+
+      at recordFallbackSpend (src/lib/llm-router.ts:966:11)
+
+    console.warn
+      [LLM Router] Local model failed (qwen2.5:3b): ollama down
+
+      569 |     } catch (err) {
+      570 |       const msg = err instanceof Error ? err.message : String(err);
+    > 571 |       console.warn(`[LLM Router] Local model failed (${localModel}): ${msg}`);
+          |               ^
+      572 |       await recordOllamaFailure(localModel, msg);
+      573 |
+      574 |       if (!(await shouldUseOpenAIFallback(options))) {
+
+      at chat (src/lib/llm-router.ts:571:15)
+      at Object.<anonymous> (src/lib/__tests__/llm-router-alerts.test.ts:254:7)
+
+    console.log
+      [LLM Router] OpenAI fallback spend today: $0.0000 / $5 cap
+
+      at recordFallbackSpend (src/lib/llm-router.ts:966:11)
+
+    console.warn
+      [LLM Router] Local model failed (qwen2.5:3b): ollama down
+
+      569 |     } catch (err) {
+      570 |       const msg = err instanceof Error ? err.message : String(err);
+    > 571 |       console.warn(`[LLM Router] Local model failed (${localModel}): ${msg}`);
+          |               ^
+      572 |       await recordOllamaFailure(localModel, msg);
+      573 |
+      574 |       if (!(await shouldUseOpenAIFallback(options))) {
+
+      at chat (src/lib/llm-router.ts:571:15)
+      at Object.<anonymous> (src/lib/__tests__/llm-router-alerts.test.ts:260:7)
+
+    console.log
+      [LLM Router] OpenAI fallback spend today: $0.0000 / $5 cap
+
+      at recordFallbackSpend (src/lib/llm-router.ts:966:11)
+
+    console.warn
+      [LLM Router] Local model failed (qwen2.5:3b): ollama down
+
+      569 |     } catch (err) {
+      570 |       const msg = err instanceof Error ? err.message : String(err);
+    > 571 |       console.warn(`[LLM Router] Local model failed (${localModel}): ${msg}`);
+          |               ^
+      572 |       await recordOllamaFailure(localModel, msg);
+      573 |
+      574 |       if (!(await shouldUseOpenAIFallback(options))) {
+
+      at chat (src/lib/llm-router.ts:571:15)
+      at Object.<anonymous> (src/lib/__tests__/llm-router-alerts.test.ts:266:7)
+
+    console.log
+      [LLM Router] OpenAI fallback spend today: $0.0000 / $5 cap
+
+      at recordFallbackSpend (src/lib/llm-router.ts:966:11)
+
+    console.warn
+      [LLM Router] Local model failed (qwen2.5:3b): ollama down
+
+      569 |     } catch (err) {
+      570 |       const msg = err instanceof Error ? err.message : String(err);
+    > 571 |       console.warn(`[LLM Router] Local model failed (${localModel}): ${msg}`);
+          |               ^
+      572 |       await recordOllamaFailure(localModel, msg);
+      573 |
+      574 |       if (!(await shouldUseOpenAIFallback(options))) {
+
+      at chat (src/lib/llm-router.ts:571:15)
+      at Object.<anonymous> (src/lib/__tests__/llm-router-alerts.test.ts:274:7)
+
+    console.log
+      [LLM Router] OpenAI fallback spend today: $0.0000 / $5 cap
+
+      at recordFallbackSpend (src/lib/llm-router.ts:966:11)
+
+  ● LLM router alerts › blocks OpenAI when runtime is disabled but fallback is not armed
+
+    expect(received).rejects.toThrow(expected)
+
+    Expected pattern: /fallback is not allowed by policy/i
+    Received message: "fetch failed"
+
+          39 |     mockMarketingPolicyUpdateMany.mockClear();
+          40 |     fetchMock.mockReset();
+        > 41 |     fetchMock.mockRejectedValue(new Error("fetch failed"));
+             |                                 ^
+          42 |     global.fetch = fetchMock as typeof fetch;
+          43 |     sendAdminAlertMock.mockClear();
+          44 |   });
+
+      at Object.<anonymous> (src/lib/__tests__/llm-router-alerts.test.ts:41:33)
+      at Object.toThrow (node_modules/expect/build/index.js:2155:20)
+      at Object.<anonymous> (src/lib/__tests__/llm-router-alerts.test.ts:147:15)
+
+  ● LLM router alerts › locks OpenAI fallback when Ollama circuit trips repeatedly
+
+    expect(received).rejects.toThrow()
+
+    Received promise resolved instead of rejected
+    Resolved to value: {"completionTokens": 1, "content": "openai-ok", "durationMs": 0, "model": "gpt-4o-mini", "promptTokens": 1, "toolCalls": undefined, "usedFallback": true}
+
+      199 |     });
+      200 |
+    > 201 |     await expect(
+          |           ^
+      202 |       chat(Models.FAST, [{ role: "user", content: "ping3" }], {
+      203 |         timeoutMs: 1000,
+      204 |         allowOpenAIFallback: true,
+
+      at expect (node_modules/expect/build/index.js:2116:15)
+      at Object.<anonymous> (src/lib/__tests__/llm-router-alerts.test.ts:201:11)
+
+  ● LLM router alerts › allows short fallback grace then forces retries back to Ollama
+
+    expect(received).rejects.toThrow()
+
+    Received promise resolved instead of rejected
+    Resolved to value: {"completionTokens": 1, "content": "openai-ok", "durationMs": 0, "model": "gpt-4o-mini", "promptTokens": 1, "toolCalls": undefined, "usedFallback": true}
+
+      272 |       now += 10;
+      273 |
+    > 274 |       await expect(
+          |             ^
+      275 |         chat(Models.FAST, [{ role: "user", content: "ping4" }], {
+      276 |           timeoutMs: 1000,
+      277 |           allowOpenAIFallback: true,
+
+      at expect (node_modules/expect/build/index.js:2116:15)
+      at Object.<anonymous> (src/lib/__tests__/llm-router-alerts.test.ts:274:13)
+
+PASS src/lib/__tests__/competitor-fingerprint.test.ts
+FAIL src/lib/__tests__/serp-intelligence-client.test.ts
+  ● classifyBlock — bot-block detection › returns null for a healthy SERP
+
+    expect(received).toBeNull()
+
+    Received: "js_only_serp"
+
+      224 |     const realisticHtml = "<html><body>" + "x".repeat(50_000) + "</body></html>";
+      225 |     expect(classifyBlock(realisticHtml, "text/html; charset=UTF-8", 200))
+    > 226 |       .toBeNull();
+          |        ^
+      227 |   });
+      228 | });
+      229 |
+
+      at Object.<anonymous> (src/lib/__tests__/serp-intelligence-client.test.ts:226:8)
+
+PASS src/lib/marketing/__tests__/call-intent-matcher.test.ts
+PASS src/lib/marketing/__tests__/click-to-call.test.ts
+  ● Console
+
+    console.warn
+      [click-to-call] sendBeacon failed: Error: nope
+          at Navigator.<anonymous> (/Users/piks/Locksafe Project/locksafe-webapp/src/lib/marketing/__tests__/click-to-call.test.ts:99:67)
+          at /Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-mock/build/index.js:305:39
+          at Navigator.<anonymous> (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-mock/build/index.js:312:13)
+          at Navigator.mockConstructor [as sendBeacon] (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-mock/build/index.js:102:19)
+          at sendCallIntent (/Users/piks/Locksafe Project/locksafe-webapp/src/lib/marketing/click-to-call.ts:64:28)
+          at /Users/piks/Locksafe Project/locksafe-webapp/src/lib/marketing/__tests__/click-to-call.test.ts:104:32
+          at Object.<anonymous> (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/expect/build/index.js:1824:9)
+          at Object.throwingMatcher [as toThrow] (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/expect/build/index.js:2235:93)
+          at Object.<anonymous> (/Users/piks/Locksafe Project/locksafe-webapp/src/lib/marketing/__tests__/click-to-call.test.ts:104:73)
+          at Promise.finally.completed (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:1561:28)
+          at new Promise (<anonymous>)
+          at callAsyncCircusFn (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:1501:10)
+          at _callCircusTest (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:1011:40)
+          at _runTest (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:951:3)
+          at /Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:853:7
+          at _runTestsForDescribeBlock (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:866:11)
+          at _runTestsForDescribeBlock (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:861:11)
+          at run (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:765:3)
+          at runAndTransformResultsToJestFormat (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:1993:21)
+          at jestAdapter (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/runner.js:111:19)
+          at runTestInternal (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-runner/build/index.js:276:16)
+          at runTest (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-runner/build/index.js:344:7)
+
+      68 |   } catch (err) {
+      69 |     if (process.env.NODE_ENV !== "production") {
+    > 70 |       console.warn("[click-to-call] sendBeacon failed:", err);
+         |               ^
+      71 |     }
+      72 |   }
+      73 |
+
+      at sendCallIntent (src/lib/marketing/click-to-call.ts:70:15)
+      at src/lib/marketing/__tests__/click-to-call.test.ts:104:32
+      at Object.<anonymous> (node_modules/expect/build/index.js:1824:9)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:2235:93)
+      at Object.<anonymous> (src/lib/marketing/__tests__/click-to-call.test.ts:104:73)
+
+    console.warn
+      [click-to-call] fetch fallback failed: Error: fetch dead
+          at /Users/piks/Locksafe Project/locksafe-webapp/src/lib/marketing/__tests__/click-to-call.test.ts:111:63
+          at /Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-mock/build/index.js:305:39
+          at /Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-mock/build/index.js:312:13
+          at mockConstructor (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-mock/build/index.js:102:19)
+          at sendCallIntent (/Users/piks/Locksafe Project/locksafe-webapp/src/lib/marketing/click-to-call.ts:78:5)
+          at /Users/piks/Locksafe Project/locksafe-webapp/src/lib/marketing/__tests__/click-to-call.test.ts:112:32
+          at Object.<anonymous> (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/expect/build/index.js:1824:9)
+          at Object.throwingMatcher [as toThrow] (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/expect/build/index.js:2235:93)
+          at Object.<anonymous> (/Users/piks/Locksafe Project/locksafe-webapp/src/lib/marketing/__tests__/click-to-call.test.ts:112:73)
+          at Promise.finally.completed (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:1561:28)
+          at new Promise (<anonymous>)
+          at callAsyncCircusFn (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:1501:10)
+          at _callCircusTest (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:1011:40)
+          at _runTest (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:951:3)
+          at /Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:853:7
+          at _runTestsForDescribeBlock (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:866:11)
+          at _runTestsForDescribeBlock (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:861:11)
+          at run (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:765:3)
+          at runAndTransformResultsToJestFormat (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:1993:21)
+          at jestAdapter (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/runner.js:111:19)
+          at runTestInternal (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-runner/build/index.js:276:16)
+          at runTest (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-runner/build/index.js:344:7)
+
+      84 |   } catch (err) {
+      85 |     if (process.env.NODE_ENV !== "production") {
+    > 86 |       console.warn("[click-to-call] fetch fallback failed:", err);
+         |               ^
+      87 |     }
+      88 |   }
+      89 | }
+
+      at sendCallIntent (src/lib/marketing/click-to-call.ts:86:15)
+      at src/lib/marketing/__tests__/click-to-call.test.ts:112:32
+      at Object.<anonymous> (node_modules/expect/build/index.js:1824:9)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:2235:93)
+      at Object.<anonymous> (src/lib/marketing/__tests__/click-to-call.test.ts:112:73)
+
+PASS src/lib/__tests__/job-service-dedup.test.ts
+FAIL src/lib/district-landing/__tests__/validate-content.test.ts
+  ● validateLLMOutput — parse + validate end-to-end › accepts clean valid JSON
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      138 |   it("accepts clean valid JSON", () => {
+      139 |     const out = validateLLMOutput(JSON.stringify(VALID));
+    > 140 |     expect(out.ok).toBe(true);
+          |                    ^
+      141 |     expect(out.parsed).toEqual(VALID);
+      142 |     expect(out.bannedHits).toEqual([]);
+      143 |     expect(out.missing).toEqual([]);
+
+      at Object.<anonymous> (src/lib/district-landing/__tests__/validate-content.test.ts:140:20)
+
+PASS src/app/api/marketing/call-intent/__tests__/call-intent.test.ts
+  ● Console
+
+    console.error
+      [call-intent] failed to record intent: simulated DB outage
+
+       98 |     // by a transient DB hiccup.
+       99 |     const message = err instanceof Error ? err.message : String(err);
+    > 100 |     console.error("[call-intent] failed to record intent:", message);
+          |             ^
+      101 |     return NextResponse.json(
+      102 |       { error: "intent not recorded", details: message },
+      103 |       { status: 200 },
+
+      at POST (src/app/api/marketing/call-intent/route.ts:100:13)
+      at Object.<anonymous> (src/app/api/marketing/call-intent/__tests__/call-intent.test.ts:164:17)
+
+PASS src/lib/district-landing/__tests__/assemble-facts.test.ts
+PASS src/app/api/retell/send-notification/__tests__/route.test.ts
+  ● Console
+
+    console.log
+      [Retell send-notification] Request: {
+        retellCallId: 'call_123',
+        job_id: 'job_1',
+        customer_id: '[missing]',
+        notification_type: 'continue'
+      }
+
+      at POST (src/app/api/retell/send-notification/route.ts:121:13)
+
+    console.warn
+      [Retell send-notification] SMS not delivered: provider rejected
+
+      246 |           );
+      247 |         } else {
+    > 248 |           console.warn(
+          |                   ^
+      249 |             `[Retell send-notification] SMS not delivered: ${smsResult.error || "unknown error"}`
+      250 |           );
+      251 |         }
+
+      at POST (src/app/api/retell/send-notification/route.ts:248:19)
+      at Object.<anonymous> (src/app/api/retell/send-notification/__tests__/route.test.ts:79:17)
+
+    console.log
+      [Retell send-notification] Request: {
+        retellCallId: 'call_456',
+        job_id: 'job_1',
+        customer_id: '[missing]',
+        notification_type: 'continue'
+      }
+
+      at POST (src/app/api/retell/send-notification/route.ts:121:13)
+
+    console.log
+      [Retell send-notification] SMS sent to +447700900124 (type: continue, 0ms)
+
+      at POST (src/app/api/retell/send-notification/route.ts:244:19)
+
+    console.log
+      [Retell send-notification] Notifications sent: sms (type: continue, 0ms)
+
+      at POST (src/app/api/retell/send-notification/route.ts:314:13)
+
+    console.log
+      [Retell send-notification] Request: {
+        retellCallId: 'call_789',
+        job_id: 'job_1',
+        customer_id: '[missing]',
+        notification_type: 'payment'
+      }
+
+      at POST (src/app/api/retell/send-notification/route.ts:121:13)
+
+    console.log
+      [Retell send-notification] Remapping payment notification request to continue/details flow
+
+      at POST (src/app/api/retell/send-notification/route.ts:202:15)
+
+    console.log
+      [Retell send-notification] SMS sent to +447700900125 (type: continue, 0ms)
+
+      at POST (src/app/api/retell/send-notification/route.ts:244:19)
+
+    console.log
+      [Retell send-notification] Notifications sent: sms (type: continue, 1ms)
+
+      at POST (src/app/api/retell/send-notification/route.ts:314:13)
+
+PASS src/app/api/health/__tests__/health.test.ts
+PASS src/components/marketing/__tests__/TelLinkAttribution.test.tsx
+PASS src/app/api/webhooks/resend/__tests__/signature.test.ts
+PASS src/app/api/cron/__tests__/google-ads-suggestions.test.ts
+  ● Console
+
+    console.log
+      [CampaignLadder] Evaluated 4 campaigns. 0 suggestions created. 0 errors.
+
+      at runCampaignLadder (src/lib/campaign-ladder.ts:625:11)
+
+    console.log
+      [CampaignLadder] Evaluated 4 campaigns. 0 suggestions created. 0 errors.
+
+      at runCampaignLadder (src/lib/campaign-ladder.ts:625:11)
+
+    console.error
+      [Cron] google-ads-suggestions error: Error: boom
+          at Object.<anonymous> (/Users/piks/Locksafe Project/locksafe-webapp/src/app/api/cron/__tests__/google-ads-suggestions.test.ts:106:50)
+          at Promise.finally.completed (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:1561:28)
+          at new Promise (<anonymous>)
+          at callAsyncCircusFn (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:1501:10)
+          at _callCircusTest (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:1011:40)
+          at _runTest (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:951:3)
+          at /Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:853:7
+          at _runTestsForDescribeBlock (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:866:11)
+          at _runTestsForDescribeBlock (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:861:11)
+          at run (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:765:3)
+          at runAndTransformResultsToJestFormat (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/jestAdapterInit.js:1993:21)
+          at jestAdapter (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-circus/build/runner.js:111:19)
+          at runTestInternal (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-runner/build/index.js:276:16)
+          at runTest (/Users/piks/Locksafe Project/locksafe-webapp/node_modules/jest-runner/build/index.js:344:7)
+
+      58 |     });
+      59 |   } catch (err) {
+    > 60 |     console.error("[Cron] google-ads-suggestions error:", err);
+         |             ^
+      61 |     return NextResponse.json(
+      62 |       { success: false, error: err instanceof Error ? err.message : String(err), duration: Date.now() - start },
+      63 |       { status: 500 },
+
+      at POST (src/app/api/cron/google-ads-suggestions/route.ts:60:13)
+      at Object.<anonymous> (src/app/api/cron/__tests__/google-ads-suggestions.test.ts:111:17)
+
+PASS src/lib/__tests__/retell-qa.test.ts
+PASS src/lib/__tests__/retell-simulations.test.ts
+PASS src/lib/__tests__/customer-payment-request.test.ts
+PASS src/app/api/webhooks/meta/__tests__/meta.test.ts
+  ● Console
+
+    console.log
+      [Meta Webhook] Verification request received: { mode: 'subscribe', token: 'verify-tok...' }
+
+      at GET (src/app/api/webhooks/meta/route.ts:96:11)
+
+    console.log
+      [Meta Webhook] Verification successful!
+
+      at GET (src/app/api/webhooks/meta/route.ts:100:13)
+
+    console.warn
+      [FraudGuard] Suspicious activity {
+        category: 'webhook_abuse',
+        event: 'meta_webhook_invalid_signature',
+        severity: 'warn',
+        ip: 'unknown',
+        userId: undefined,
+        token: undefined,
+        phone: undefined,
+        email: undefined,
+        details: {}
+      }
+
+      54 |   const ip = payload.ip || "unknown";
+      55 |
+    > 56 |   console.warn("[FraudGuard] Suspicious activity", {
+         |           ^
+      57 |     category: payload.category,
+      58 |     event: payload.event,
+      59 |     severity,
+
+      at logSuspiciousActivity (src/lib/fraud-logger.ts:56:11)
+      at POST (src/app/api/webhooks/meta/route.ts:136:34)
+      at Object.<anonymous> (src/app/api/webhooks/meta/__tests__/meta.test.ts:84:17)
+
+    console.log
+      [Meta Webhook] Event received: {
+        "object": "ad_account",
+        "entry": []
+      }
+
+      at POST (src/app/api/webhooks/meta/route.ts:147:13)
+
+PASS src/lib/__tests__/retell-observability.test.ts
+PASS src/app/api/retell/config/versions/__tests__/deploy.test.ts
+PASS src/lib/__tests__/google-ads-copy-guard.test.ts
+PASS src/lib/__tests__/retell-realism.test.ts
+PASS src/app/api/payments/create-intent/__tests__/create-intent.test.ts
+  ● Console
+
+    console.log
+      [Payment Intent] Creating payment intent: {
+        type: 'assessment_fee',
+        amount: 5,
+        jobId: 'job-1',
+        locksmithId: undefined
+      }
+
+      at POST (src/app/api/payments/create-intent/route.ts:36:13)
+
+    console.error
+      [Payment Intent] Invalid amount: 5
+
+      47 |     const amountValidationError = validatePaymentAmount(amount);
+      48 |     if (amountValidationError) {
+    > 49 |       console.error("[Payment Intent] Invalid amount:", amount);
+         |               ^
+      50 |       return NextResponse.json(
+      51 |         { error: amountValidationError },
+      52 |         { status: 400 }
+
+      at POST (src/app/api/payments/create-intent/route.ts:49:15)
+      at Object.<anonymous> (src/app/api/payments/create-intent/__tests__/create-intent.test.ts:65:17)
+
+    console.log
+      [Payment Intent] Creating payment intent: {
+        type: 'assessment_fee',
+        amount: 29,
+        jobId: 'job-1',
+        locksmithId: undefined
+      }
+
+      at POST (src/app/api/payments/create-intent/route.ts:36:13)
+
+    console.log
+      [Payment Intent] Creating assessment fee payment intent for £29
+
+      at POST (src/app/api/payments/create-intent/route.ts:117:15)
+
+    console.log
+      [Payment Intent] Successfully created: {
+        paymentIntentId: 'pi_123',
+        amount: 29,
+        currency: 'gbp',
+        platformFee: NaN,
+        locksmithShare: NaN,
+        transfersToLocksmith: false
+      }
+
+      at POST (src/app/api/payments/create-intent/route.ts:169:13)
+
+PASS src/app/api/auth/reset-password/__tests__/reset-password.test.ts
+PASS src/lib/__tests__/retell-prompt.test.ts
+PASS src/lib/__tests__/retell-cutover.test.ts
+PASS src/lib/__tests__/google-ads-learnings.test.ts
+PASS src/lib/__tests__/retell-dataset-jobs.test.ts
+PASS src/app/api/cron/lead-outreach-sequence/__tests__/route.test.ts
+  ● Console
+
+    console.log
+      [Telegram][gated] sendAdminAlert suppressed severity=warning sensitivity=critical title=Outreach digest
+
+      at sendAdminAlert (src/lib/telegram.ts:950:17)
+
+PASS src/lib/__tests__/retell-simulation-regression.test.ts
+PASS src/agents/tools/__tests__/registry.test.ts
+  ● Console
+
+    console.log
+      [Tools] Initializing agent tool registry...
+
+      at initializeTools (src/agents/tools/index.ts:49:11)
+
+    console.log
+      [Registry] Registered tool: getJobStats
+
+      at registerTool (src/agents/tools/registry.ts:21:11)
+
+    console.log
+      [Registry] Registered tool: findBestMatch
+
+      at registerTool (src/agents/tools/registry.ts:21:11)
+
+    console.log
+      [Registry] Registered tool: autoDispatch
+
+      at registerTool (src/agents/tools/registry.ts:21:11)
+
+    console.log
+      [Registry] Registered tool: getAvailableLocksmiths
+
+      at registerTool (src/agents/tools/registry.ts:21:11)
+
+    console.log
+      [Registry] Registered tool: setLocksmithAvailability
+
+      at registerTool (src/agents/tools/registry.ts:21:11)
+
+    console.log
+      [Registry] Registered tool: getAlerts
+
+      at registerTool (src/agents/tools/registry.ts:21:11)
+
+    console.log
+      [Registry] Registered tool: getMarketingStats
+
+      at registerTool (src/agents/tools/registry.ts:21:11)
+
+    console.log
+      [Registry] Registered tool: generateAdCopy
+
+      at registerTool (src/agents/tools/registry.ts:21:11)
+
+    console.log
+      [Registry] Registered tool: generateSocialContent
+
+      at registerTool (src/agents/tools/registry.ts:21:11)
+
+    console.log
+      [Registry] Registered tool: scheduleSocialPost
+
+      at registerTool (src/agents/tools/registry.ts:21:11)
+
+    console.log
+      [Registry] Registered tool: getCampaignPerformance
+
+      at registerTool (src/agents/tools/registry.ts:21:11)
+
+    console.log
+      [Registry] Registered tool: updateCampaignStatus
+
+      at registerTool (src/agents/tools/registry.ts:21:11)
+
+    console.log
+      [Registry] Registered tool: analyzeCampaign
+
+      at registerTool (src/agents/tools/registry.ts:21:11)
+
+    console.log
+      [Registry] Registered tool: getGoogleAdsCampaigns
+
+      at registerTool (src/agents/tools/registry.ts:21:11)
+
+    console.log
+      [Registry] Registered tool: getGoogleAdsSearchTerms
+
+      at registerTool (src/agents/tools/registry.ts:21:11)
+
+    console.log
+      [Registry] Registered tool: createGoogleAdsDraft
+
+      at registerTool (src/agents/tools/registry.ts:21:11)
+
+    console.log
+      [Registry] Registered tool: listGoogleAdsDrafts
+
+      at registerTool (src/agents/tools/registry.ts:21:11)
+
+    console.log
+      [Registry] Registered tool: syncGoogleAdsGeoTargets
+
+      at registerTool (src/agents/tools/registry.ts:21:11)
+
+    console.log
+      [Registry] Registered tool: optimiseGoogleCampaigns
+
+      at registerTool (src/agents/tools/registry.ts:21:11)
+
+    console.log
+      [Registry] Registered tool: launchAcquisitionEngine
+
+      at registerTool (src/agents/tools/registry.ts:21:11)
+
+    console.log
+      [Registry] Registered tool: optimiseMetaCampaigns
+
+      at registerTool (src/agents/tools/registry.ts:21:11)
+
+    console.log
+      [Registry] Registered tool: sendTelegramAlert
+
+      at registerTool (src/agents/tools/registry.ts:21:11)
+
+    console.log
+      [Registry] Registered tool: sendEmail
+
+      at registerTool (src/agents/tools/registry.ts:21:11)
+
+    console.log
+      [Registry] Registered tool: sendSMS
+
+      at registerTool (src/agents/tools/registry.ts:21:11)
+
+    console.log
+      [Registry] Registered tool: logAgentCommunication
+
+      at registerTool (src/agents/tools/registry.ts:21:11)
+
+    console.log
+      [Registry] Registered tool: createRepairTask
+
+      at registerTool (src/agents/tools/registry.ts:21:11)
+
+    console.log
+      [Registry] Registered tool: controlAgentHeartbeat
+
+      at registerTool (src/agents/tools/registry.ts:21:11)
+
+    console.log
+      [Registry] Registered tool: getDashboardStats
+
+      at registerTool (src/agents/tools/registry.ts:21:11)
+
+    console.log
+      [Registry] Registered tool: getConversionFunnel
+
+      at registerTool (src/agents/tools/registry.ts:21:11)
+
+    console.log
+      [Registry] Registered tool: getTopPerformers
+
+      at registerTool (src/agents/tools/registry.ts:21:11)
+
+    console.log
+      [Registry] Registered tool: generateDailySummary
+
+      at registerTool (src/agents/tools/registry.ts:21:11)
+
+    console.log
+      [Tools] Registered 31 tools
+
+      at initializeTools (src/agents/tools/index.ts:51:11)
+
+PASS src/app/api/cron/generate-payouts/__tests__/generate-payouts.test.ts
+  ● Console
+
+    console.log
+      [Cron] Unauthorized request to generate-payouts
+
+      at POST (src/app/api/cron/generate-payouts/route.ts:54:15)
+
+    console.log
+      [Cron] Starting weekly payout generation...
+
+      at POST (src/app/api/cron/generate-payouts/route.ts:58:13)
+
+    console.log
+      [Cron] Found 0 unpaid jobs
+
+      at POST (src/app/api/cron/generate-payouts/route.ts:90:13)
+
+    console.log
+      [Cron] Weekly payout generation complete. Created 0 payouts.
+
+      at POST (src/app/api/cron/generate-payouts/route.ts:166:13)
+
+PASS src/lib/__tests__/retell-experiments.test.ts
+PASS src/lib/__tests__/ollama-runtime.test.ts
+PASS src/app/api/referral/validate/__tests__/validate.test.ts
+PASS src/lib/__tests__/telegram-dedupe.test.ts
+  ● Console
+
+    console.log
+      [Telegram] Message sent
+
+      at sendTelegramMessage (src/lib/telegram.ts:274:17)
+
+    console.log
+      [Telegram][dedupe] suppressed alert key=llm-router:ollama-circuit-tripped severity=error title=🔴 Ollama Circuit Tripped
+
+      at sendAdminAlert (src/lib/telegram.ts:975:13)
+
+PASS src/lib/__tests__/risk-controls.test.ts
+PASS src/components/__tests__/Footer.test.tsx
+PASS src/lib/__tests__/rate-limit.test.ts
+PASS src/lib/__tests__/retell-dataset.test.ts
+PASS src/lib/__tests__/config.test.ts
+PASS src/app/api/marketing/call-intent/__tests__/_undici-polyfill.ts
+PASS src/lib/__tests__/env.test.ts
+PASS src/app/api/auth/login/__tests__/login.test.ts
+  ● Console
+
+    console.error
+      Login error: SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)
+          at JSON.parse (<anonymous>)
+          at parseJSONFromBytes (node:internal/deps/undici/undici:4227:19)
+          at successSteps (node:internal/deps/undici/undici:6875:27)
+          at readAllBytes (node:internal/deps/undici/undici:5798:13)
+
+      174 |     );
+      175 |   } catch (error) {
+    > 176 |     console.error("Login error:", error);
+          |             ^
+      177 |     return NextResponse.json(
+      178 |       { error: "An error occurred during login" },
+      179 |       { status: 500 }
+
+      at POST (src/app/api/auth/login/route.ts:176:13)
+      at Object.<anonymous> (src/app/api/auth/login/__tests__/login.test.ts:110:17)
+
+PASS src/lib/__tests__/google-ads-draft-throttle.test.ts
+PASS src/lib/__tests__/google-ads-playbook.test.ts
+  ● Console
+
+    console.warn
+      [playbook] cannot seed — agent "ads-specialist" not found. Run agent initialization first.
+
+      269 |   const agentId = await getPlaybookAgentId();
+      270 |   if (!agentId) {
+    > 271 |     console.warn(`[playbook] cannot seed — agent "${PLAYBOOK_AGENT_NAME}" not found. Run agent initialization first.`);
+          |             ^
+      272 |     return { created: 0, updated: 0, skipped: SEED_PLAYBOOK_RULES.length };
+      273 |   }
+      274 |   let created = 0;
+
+      at seedPlaybook (src/lib/google-ads-playbook.ts:271:13)
+      at Object.<anonymous> (src/lib/__tests__/google-ads-playbook.test.ts:95:20)
+
+PASS src/lib/__tests__/google-ads-draft-enforcement.test.ts
+
+Summary of all failing tests
+FAIL src/lib/__tests__/run-scout-scenarios.ts
+  ● Test suite failed to run
+
+    Your test suite must contain at least one test.
+
+      at onResult (node_modules/@jest/core/build/index.js:1054:18)
+      at node_modules/@jest/core/build/index.js:1125:165
+      at node_modules/emittery/index.js:363:13
+          at Array.map (<anonymous>)
+      at Emittery.emit (node_modules/emittery/index.js:361:23)
+
+FAIL src/lib/__tests__/opportunity-scout.test.ts
+  ● computeOperationalFactor › SCENARIO — well-run city: minimal waste across all metrics
+
+    expect(received).toBeGreaterThan(expected)
+
+    Expected: > 0.8
+    Received:   0.7982
+
+      203 |     });
+      204 |     // Should be close to 1.0 — a very efficient operation
+    > 205 |     expect(result.factor).toBeGreaterThan(0.80);
+          |                           ^
+      206 |     expect(result.dataAvailable).toBe(true);
+      207 |   });
+      208 |
+
+      at Object.<anonymous> (src/lib/__tests__/opportunity-scout.test.ts:205:27)
+
+  ● scoreOpportunities — profit model › computes profitPerClick correctly: convRate × jobValue - cpcGbp
+
+    expect(received).toBeCloseTo(expected, precision)
+
+    Expected: 20.45
+    Received: 24.39
+
+    Expected precision:    1
+    Expected difference: < 0.05
+    Received difference:   3.9400000000000013
+
+      250 |     expect(kw).toBeDefined();
+      251 |     // profitPerClick = 0.15 × 175 - 5.80 = 20.45
+    > 252 |     expect(kw!.profitPerClick).toBeCloseTo(20.45, 1);
+          |                                ^
+      253 |   });
+      254 |
+      255 |   it("uses CPC floor when Planner returns 0 bids (test token mode)", async () => {
+
+      at Object.<anonymous> (src/lib/__tests__/opportunity-scout.test.ts:252:32)
+
+  ● scoreOpportunities — profit model › uses real conv rate override when provided via geoConvRateMap
+
+    expect(received).toBeCloseTo(expected, precision)
+
+    Expected: 31
+    Received: 36.25
+
+    Expected precision:    0
+    Expected difference: < 0.5
+    Received difference:   5.25
+
+      330 |     const kw = result.opportunities[0]?.topKeywords[0];
+      331 |     // profitPerClick = 0.20 × 175 - 4.00 = 35.00 - 4.00 = £31.00
+    > 332 |     expect(kw!.profitPerClick).toBeCloseTo(31.0, 0);
+          |                                ^
+      333 |     expect(result.opportunities[0]?.estimatedConvRate).toBeCloseTo(0.20, 3);
+      334 |   });
+      335 |
+
+      at Object.<anonymous> (src/lib/__tests__/opportunity-scout.test.ts:332:32)
+
+  ● Seed bank stability ranking › volatile keyword (4 scans but wild variance) ranks below stable equivalent
+
+    expect(received).toBeLessThan(expected)
+
+    Expected: < 0.5
+    Received:   0.5189430420979806
+
+      610 |
+      611 |     expect(stableWeight).toBeGreaterThan(volatileWeight);
+    > 612 |     expect(volatileWeight).toBeLessThan(0.5);
+          |                            ^
+      613 |   });
+      614 |
+      615 |   it("new experimental seed (0 scans) gets minimum viable weight", () => {
+
+      at Object.<anonymous> (src/lib/__tests__/opportunity-scout.test.ts:612:28)
+
+FAIL src/lib/__tests__/discovery-campaign-generator.test.ts
+  ● buildHeadlines — substitution + length › uses the trust_signal copy bundle when family=trust_signal
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      55 |   it("uses the trust_signal copy bundle when family=trust_signal", () => {
+      56 |     const headlines = buildHeadlines("trust_signal", "M1");
+    > 57 |     expect(headlines.some((h) => /mla/i.test(h))).toBe(true);
+         |                                                   ^
+      58 |   });
+      59 |
+      60 |   it("uses the b2b_specialist copy bundle when family=b2b_specialist", () => {
+
+      at Object.<anonymous> (src/lib/__tests__/discovery-campaign-generator.test.ts:57:51)
+
+  ● buildNegativeKeywords › BASELINE_NEGATIVES exists and is non-trivial
+
+    expect(received).toEqual(expected) // deep equality
+
+    Expected: ArrayContaining ["diy", "free", "youtube"]
+    Received: ["amazon", "apprenticeship", "b&q", "blog", "course", "courses", "definition", "diy", "ebay", "game", …]
+
+      179 |   it("BASELINE_NEGATIVES exists and is non-trivial", () => {
+      180 |     expect(BASELINE_NEGATIVES.length).toBeGreaterThan(15);
+    > 181 |     expect(BASELINE_NEGATIVES).toEqual(expect.arrayContaining(["diy", "free", "youtube"]));
+          |                                ^
+      182 |   });
+      183 | });
+      184 |
+
+      at Object.<anonymous> (src/lib/__tests__/discovery-campaign-generator.test.ts:181:32)
+
+FAIL src/lib/__tests__/conversion-loop-e2e.test.ts
+  ● End-to-end conversion loop — gclid → call → job → stripe paid → google upload › uploads the conversion using the gclid from CallIntent when Job.gclid is null
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      182 |
+      183 |     // ── Assert: Google Ads received the correct upload ─────────────────
+    > 184 |     expect(result.ok).toBe(true);
+          |                       ^
+      185 |     expect(result.status).toBe("uploaded");
+      186 |     expect(googleAdsRequestMock).toHaveBeenCalledTimes(1);
+      187 |
+
+      at Object.<anonymous> (src/lib/__tests__/conversion-loop-e2e.test.ts:184:23)
+
+  ● End-to-end loop — does NOT upload when chain is broken › propagates Google Ads API errors back to the Job (for retry)
+
+    expect(received).toMatch(expected)
+
+    Expected pattern: /rate limit/i
+    Received string:  "Cannot read properties of undefined (reading 'request')"
+
+      294 |     expect(result.ok).toBe(false);
+      295 |     expect(result.status).toBe("failed");
+    > 296 |     expect(result.error).toMatch(/rate limit/i);
+          |                          ^
+      297 |     expect(jobUpdate).toHaveBeenCalledWith({
+      298 |       where: { id: FAKE_JOB_ID },
+      299 |       data: expect.objectContaining({
+
+      at Object.<anonymous> (src/lib/__tests__/conversion-loop-e2e.test.ts:296:26)
+
+  ● End-to-end loop — Job.gclid path (web-form-led job) › uploads using Job.gclid directly when present (no CallIntent fallback needed)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      323 |     const result = await uploadJobConversionIfEligible(FAKE_JOB_ID);
+      324 |
+    > 325 |     expect(result.ok).toBe(true);
+          |                       ^
+      326 |     expect(googleAdsRequestMock.mock.calls[0][2].conversions[0].gclid).toBe(WEB_GCLID);
+      327 |
+      328 |     // Should NOT have queried VoiceCall when Job.gclid was already set —
+
+      at Object.<anonymous> (src/lib/__tests__/conversion-loop-e2e.test.ts:325:23)
+
+FAIL src/lib/__tests__/discovery-campaign-orchestrator.test.ts
+  ● generateDiscoveryDrafts — selection + writes › creates drafts for the top candidates respecting the default mix
+
+    expect(received).toBeGreaterThan(expected)
+
+    Expected: > 0
+    Received:   0
+
+      175 |
+      176 |     expect(result.consideredSeeds).toBe(6);
+    > 177 |     expect(result.draftsCreated).toBeGreaterThan(0);
+          |                                  ^
+      178 |     expect(result.draftsCreated).toBeLessThanOrEqual(6);
+      179 |     // service_long_tail + research_intent should NOT have been written
+      180 |     const writtenNames = createMock.mock.calls.map((c) => c[0].data.name);
+
+      at Object.<anonymous> (src/lib/__tests__/discovery-campaign-orchestrator.test.ts:177:34)
+
+  ● generateDiscoveryDrafts — selection + writes › calls prisma.create with the discovery-orchestrator audit prompt
+
+    expect(jest.fn()).toHaveBeenCalled()
+
+    Expected number of calls: >= 1
+    Received number of calls:    0
+
+      186 |     mockSeeds([{ keyword: "emergency locksmith RG1", category: "postcode_local" }]);
+      187 |     await generateDiscoveryDrafts({ accountId: ACCOUNT_ID });
+    > 188 |     expect(createMock).toHaveBeenCalled();
+          |                        ^
+      189 |     const args = createMock.mock.calls[0][0].data;
+      190 |     expect(args.accountId).toBe(ACCOUNT_ID);
+      191 |     expect(args.aiPrompt).toBe("discovery-orchestrator:phase2c");
+
+      at Object.<anonymous> (src/lib/__tests__/discovery-campaign-orchestrator.test.ts:188:24)
+
+  ● generateDiscoveryDrafts — selection + writes › skips a draft whose name already exists (idempotent re-run)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: 0
+
+      199 |     const result = await generateDiscoveryDrafts({ accountId: ACCOUNT_ID });
+      200 |     expect(result.draftsCreated).toBe(0);
+    > 201 |     expect(result.draftsSkipped).toBe(1);
+          |                                  ^
+      202 |     expect(createMock).not.toHaveBeenCalled();
+      203 |   });
+      204 |
+
+      at Object.<anonymous> (src/lib/__tests__/discovery-campaign-orchestrator.test.ts:201:34)
+
+  ● generateDiscoveryDrafts — selection + writes › captures per-draft errors without aborting the whole run
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: 0
+
+      236 |
+      237 |     const result = await generateDiscoveryDrafts({ accountId: ACCOUNT_ID });
+    > 238 |     expect(result.draftsCreated).toBe(1);
+          |                                  ^
+      239 |     expect(result.errors[0]).toMatch(/simulated DB outage/);
+      240 |   });
+      241 |
+
+      at Object.<anonymous> (src/lib/__tests__/discovery-campaign-orchestrator.test.ts:238:34)
+
+  ● generateDiscoveryDrafts — shark-saturation gating › drops keywords flagged as saturated when intelKeywords + flagSource are passed
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: "emergency locksmith bristol"
+    Received array: []
+
+      294 |
+      295 |     expect(result.saturatedDropped).toBe(1);
+    > 296 |     expect(result.drafts.map((d) => d.keyword)).toContain("emergency locksmith bristol");
+          |                                                 ^
+      297 |     expect(result.drafts.map((d) => d.keyword)).not.toContain("emergency locksmith london");
+      298 |   });
+      299 |
+
+      at Object.<anonymous> (src/lib/__tests__/discovery-campaign-orchestrator.test.ts:296:49)
+
+FAIL src/lib/district-landing/__tests__/generate-content.test.ts
+  ● generateDistrictContent — happy path › returns the parsed content + records the model used (single attempt)
+
+    TypeError: Cannot read properties of undefined (reading 'content')
+
+      241 |     );
+      242 |
+    > 243 |     const validation = validateLLMOutput(llmResponse.content);
+          |                                                      ^
+      244 |     attemptsLog.push(validation);
+      245 |
+      246 |     if (validation.ok && validation.parsed) {
+
+      at generateDistrictContent (src/lib/district-landing/generate-content.ts:243:54)
+      at Object.<anonymous> (src/lib/district-landing/__tests__/generate-content.test.ts:152:20)
+
+  ● generateDistrictContent — happy path › marks usedFallback responses correctly
+
+    TypeError: Cannot read properties of undefined (reading 'content')
+
+      241 |     );
+      242 |
+    > 243 |     const validation = validateLLMOutput(llmResponse.content);
+          |                                                      ^
+      244 |     attemptsLog.push(validation);
+      245 |
+      246 |     if (validation.ok && validation.parsed) {
+
+      at generateDistrictContent (src/lib/district-landing/generate-content.ts:243:54)
+      at Object.<anonymous> (src/lib/district-landing/__tests__/generate-content.test.ts:167:20)
+
+  ● generateDistrictContent — happy path › retries once when first attempt has banned phrases — succeeds on second
+
+    ContentGenerationError: Failed to generate valid content for RG1 after 2 attempts
+
+      265 |   }
+      266 |
+    > 267 |   throw new ContentGenerationError(
+          |         ^
+      268 |     `Failed to generate valid content for ${facts.district} after 2 attempts`,
+      269 |     attemptsLog,
+      270 |   );
+
+      at generateDistrictContent (src/lib/district-landing/generate-content.ts:267:9)
+      at Object.<anonymous> (src/lib/district-landing/__tests__/generate-content.test.ts:183:20)
+
+FAIL src/lib/__tests__/llm-router-alerts.test.ts
+  ● LLM router alerts › blocks OpenAI when runtime is disabled but fallback is not armed
+
+    expect(received).rejects.toThrow(expected)
+
+    Expected pattern: /fallback is not allowed by policy/i
+    Received message: "fetch failed"
+
+          39 |     mockMarketingPolicyUpdateMany.mockClear();
+          40 |     fetchMock.mockReset();
+        > 41 |     fetchMock.mockRejectedValue(new Error("fetch failed"));
+             |                                 ^
+          42 |     global.fetch = fetchMock as typeof fetch;
+          43 |     sendAdminAlertMock.mockClear();
+          44 |   });
+
+      at Object.<anonymous> (src/lib/__tests__/llm-router-alerts.test.ts:41:33)
+      at Object.toThrow (node_modules/expect/build/index.js:2155:20)
+      at Object.<anonymous> (src/lib/__tests__/llm-router-alerts.test.ts:147:15)
+
+  ● LLM router alerts › locks OpenAI fallback when Ollama circuit trips repeatedly
+
+    expect(received).rejects.toThrow()
+
+    Received promise resolved instead of rejected
+    Resolved to value: {"completionTokens": 1, "content": "openai-ok", "durationMs": 0, "model": "gpt-4o-mini", "promptTokens": 1, "toolCalls": undefined, "usedFallback": true}
+
+      199 |     });
+      200 |
+    > 201 |     await expect(
+          |           ^
+      202 |       chat(Models.FAST, [{ role: "user", content: "ping3" }], {
+      203 |         timeoutMs: 1000,
+      204 |         allowOpenAIFallback: true,
+
+      at expect (node_modules/expect/build/index.js:2116:15)
+      at Object.<anonymous> (src/lib/__tests__/llm-router-alerts.test.ts:201:11)
+
+  ● LLM router alerts › allows short fallback grace then forces retries back to Ollama
+
+    expect(received).rejects.toThrow()
+
+    Received promise resolved instead of rejected
+    Resolved to value: {"completionTokens": 1, "content": "openai-ok", "durationMs": 0, "model": "gpt-4o-mini", "promptTokens": 1, "toolCalls": undefined, "usedFallback": true}
+
+      272 |       now += 10;
+      273 |
+    > 274 |       await expect(
+          |             ^
+      275 |         chat(Models.FAST, [{ role: "user", content: "ping4" }], {
+      276 |           timeoutMs: 1000,
+      277 |           allowOpenAIFallback: true,
+
+      at expect (node_modules/expect/build/index.js:2116:15)
+      at Object.<anonymous> (src/lib/__tests__/llm-router-alerts.test.ts:274:13)
+
+FAIL src/lib/__tests__/serp-intelligence-client.test.ts
+  ● classifyBlock — bot-block detection › returns null for a healthy SERP
+
+    expect(received).toBeNull()
+
+    Received: "js_only_serp"
+
+      224 |     const realisticHtml = "<html><body>" + "x".repeat(50_000) + "</body></html>";
+      225 |     expect(classifyBlock(realisticHtml, "text/html; charset=UTF-8", 200))
+    > 226 |       .toBeNull();
+          |        ^
+      227 |   });
+      228 | });
+      229 |
+
+      at Object.<anonymous> (src/lib/__tests__/serp-intelligence-client.test.ts:226:8)
+
+FAIL src/lib/district-landing/__tests__/validate-content.test.ts
+  ● validateLLMOutput — parse + validate end-to-end › accepts clean valid JSON
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      138 |   it("accepts clean valid JSON", () => {
+      139 |     const out = validateLLMOutput(JSON.stringify(VALID));
+    > 140 |     expect(out.ok).toBe(true);
+          |                    ^
+      141 |     expect(out.parsed).toEqual(VALID);
+      142 |     expect(out.bannedHits).toEqual([]);
+      143 |     expect(out.missing).toEqual([]);
+
+      at Object.<anonymous> (src/lib/district-landing/__tests__/validate-content.test.ts:140:20)
+
+
+Test Suites: 9 failed, 54 passed, 63 total
+Tests:       22 failed, 718 passed, 740 total
+Snapshots:   0 total
+Time:        5.303 s
+Ran all test suites.
+Force exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?
+[FAIL] Unit tests (exit 1)
+[FAIL] Source + Prisma fast validation (exit 1)
+
+[CHECK] Single Telegram summary
+[Telegram] Message sent
+[daily-checks] Telegram summary sent
+[PASS] Single Telegram summary sent
+
+============================================
+Daily checks FAILED: 2 check(s)
+============================================

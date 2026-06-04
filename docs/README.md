@@ -168,7 +168,7 @@ LockSafe UK is a **full-stack emergency locksmith marketplace** that connects:
 | [PROJECT_OS_PROMPT_PACK.md](./PROJECT_OS_PROMPT_PACK.md) | Copy-paste prompts for each implementation phase |
 | [PROJECT_OS_EXECUTION_CHECKLIST.md](./PROJECT_OS_EXECUTION_CHECKLIST.md) | Launch checklist and gate tracker |
 | [PROJECT_OS_MASTER_COPYPASTE.md](./PROJECT_OS_MASTER_COPYPASTE.md) | Single-file copy-paste + downloadable project starter pack |
-| [PROJECT_OS_MASTER_COPYPASTE.txt](./PROJECT_OS_MASTER_COPYPASTE.txt) | Plain text copy-paste version for chat apps and quick sharing |
+| [PROJECT_OS_MASTER_COPYPASTE.txt](./archive/PROJECT_OS_MASTER_COPYPASTE.txt) | Archived plain-text copy-paste version for chat apps and quick sharing |
 
 ---
 

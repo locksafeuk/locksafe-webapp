@@ -42,7 +42,6 @@ step "2/6 stage modified + new files"
 git add -A
 # Then explicitly unstage noise
 git restore --staged tmp/                                                          2>/dev/null || true
-git restore --staged scripts/run-ripoff-defence-tests.ts.bak                       2>/dev/null || true
 # Don't commit deploy artefacts that already exist (smoketest etc. are useful, keep them)
 echo ""
 echo "Staged changes:"

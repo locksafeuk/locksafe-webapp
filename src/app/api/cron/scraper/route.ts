@@ -42,6 +42,18 @@ const SERP_MIN_INTERVAL_MS = 400;
 /** Max website email lookups per invocation to keep runtime bounded. */
 const EMAIL_LOOKUPS_PER_RUN = 90;
 
+/**
+ * How many of the 7 SEARCH_QUERIES variants to run per city. More variants =
+ * deeper discovery of long-tail independents, but each variant is 1 Serper
+ * credit per city. Default 4 (locksmith / independent / emergency / auto) is a
+ * good cost/coverage balance; set SCRAPER_QUERY_VARIANTS=7 for maximum reach.
+ * The SERP_MAX_CALLS_PER_RUN ceiling still bounds total cost per invocation.
+ */
+const QUERY_VARIANTS_PER_CITY = Math.max(
+  1,
+  Math.min(7, Number(process.env.SCRAPER_QUERY_VARIANTS ?? "4") || 4),
+);
+
 /** Credit-saver mode: scrape only uncovered/recruit-target cities by default. */
 const SCRAPER_GAP_ONLY_MODE =
   (process.env.SCRAPER_GAP_ONLY_MODE ?? "true").toLowerCase() !== "false";
@@ -180,9 +192,12 @@ const CHAIN_KEYWORDS = [
   "timpson", "mls locksmith", "speedy locksmith", "banham",
   "chubb", "yale", "securitas", "g4s", "keyfax", "fast keys",
   "locksmith network", "multilock", "assa abloy", "ingersoll",
-  "locksmiths24", "locksmiths 24", "national locksmith",
-  "uk locksmith", "emergency locksmiths ltd", "lockforce", "keytek",
+  "locksmiths24", "locksmiths 24",
+  "lockforce", "keytek",
   "lockrite", "auto locksmith network", "locksafe",
+  // NOTE: removed broad tokens "national locksmith", "uk locksmith",
+  // "emergency locksmiths ltd" — they were nuking legitimate independents
+  // whose names happen to contain those generic words.
 ];
 
 function isChain(name: string): boolean {
@@ -447,6 +462,7 @@ async function extractEmailFromWebsite(websiteUrl: string): Promise<string> {
 // ─────────────────────────────────────────────────────────────────────────────
 async function serpSearch(
   city: string,
+  query: string,
   apiKey: string,
 ): Promise<ScrapedLead[]> {
   const controller = new AbortController();
@@ -459,19 +475,19 @@ async function serpSearch(
         "X-API-KEY": apiKey,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ q: `locksmith ${city} UK`, gl: "uk", hl: "en" }),
+      body: JSON.stringify({ q: query, gl: "uk", hl: "en" }),
     });
 
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      console.error(`[scraper-cron] Serper error ${res.status} for ${city}: ${body.slice(0, 200)}`);
+      console.error(`[scraper-cron] Serper error ${res.status} for "${query}": ${body.slice(0, 200)}`);
       return [];
     }
 
     const data = (await res.json()) as { places?: SerperPlace[] };
     const places = data?.places ?? [];
     if (places.length === 0) {
-      console.warn(`[scraper-cron] Serper returned 0 places for ${city}`);
+      console.warn(`[scraper-cron] Serper returned 0 places for "${query}"`);
       return [];
     }
 
@@ -587,54 +603,89 @@ function buildCityQueue(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// City scraper — SERP.dev only
+// Per-run skip/save accounting — surfaced in the response + Telegram so we can
+// SEE which gate is dropping leads instead of guessing.
+// ─────────────────────────────────────────────────────────────────────────────
+interface FunnelStats {
+  candidates: number;     // raw places returned by Serper (post-title)
+  dedup: number;          // already in DB or seen this run
+  chain: number;          // chain/franchise filtered
+  notLocksmith: number;   // failed strict locksmith check
+  nonUk: number;          // failed UK check
+  noContact: number;      // no phone AND no website → uncontactable, dropped
+  savedWithEmail: number;
+  savedNoEmail: number;   // phone-only / no-email leads now KEPT (was dropped)
+  emailLookups: number;
+}
+
+function newFunnelStats(): FunnelStats {
+  return {
+    candidates: 0, dedup: 0, chain: 0, notLocksmith: 0, nonUk: 0,
+    noContact: 0, savedWithEmail: 0, savedNoEmail: 0, emailLookups: 0,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// City scraper — SERP.dev, multi-query.
+//
+// Calibration (2026-06): runs several query variants per city (not just one
+// generic "locksmith {city}") to surface the long-tail independents that the
+// single query missed, and KEEPS phone-reachable leads even when no email can
+// be extracted. Email is now best-effort enrichment, not a hard gate — the old
+// email requirement was discarding ~99% of real locksmiths (1 of 1805 `new`
+// leads had an email). Phone-only leads are contacted via the SMS sequence.
 // ─────────────────────────────────────────────────────────────────────────────
 async function scrapeCity(
   city: string,
   seen: Set<string>,
   engine: ScrapeEngine,
+  queries: Array<(c: string) => string>,
+  stats: FunnelStats,
 ): Promise<ScrapedLead[]> {
   const leads: ScrapedLead[] = [];
-
-  // ── SERP.dev source (hard-capped per run for credit control)
   const serpKey = engine.serpKey;
-  if (serpKey && engine.serpCallsThisRun < engine.serpCapPerRun) {
+  if (!serpKey) return leads;
+
+  // Dedup placeIds seen across this city's query variants (same business often
+  // appears under several queries) so we only process each business once.
+  const cityScopedSeen = new Set<string>();
+
+  for (const buildQuery of queries) {
+    if (engine.serpCallsThisRun >= engine.serpCapPerRun) break;
     engine.serpCallsThisRun++;
-    const serpLeads = await serpSearch(city, serpKey);
+
+    const serpLeads = await serpSearch(city, buildQuery(city), serpKey);
     for (const lead of serpLeads) {
-      if (seen.has(lead.placeId) || isChain(lead.name)) continue;
+      if (cityScopedSeen.has(lead.placeId)) continue;
+      cityScopedSeen.add(lead.placeId);
+      stats.candidates++;
 
-      if (!looksLikeStrictLocksmith(lead)) {
-        console.log(`[scraper-cron] Serper: skipping non-locksmith "${lead.name}"`);
-        continue;
+      if (seen.has(lead.placeId)) { stats.dedup++; continue; }
+      if (isChain(lead.name)) { stats.chain++; continue; }
+      if (!looksLikeStrictLocksmith(lead)) { stats.notLocksmith++; continue; }
+      if (!looksUkEnough(city, lead.address, lead.phone, lead.website)) { stats.nonUk++; continue; }
+
+      // Must be reachable some way. Phone is enough (SMS outreach); a website is
+      // also acceptable (email enrichment can follow). Only drop if neither.
+      if (!lead.phone && !lead.website) { stats.noContact++; continue; }
+
+      // Best-effort email enrichment — NON-gating. If the lead has a website and
+      // we're under the per-run lookup cap, try to grab an email; otherwise keep
+      // the lead anyway with email empty (the enrich-leads cron retries later).
+      if (lead.website && engine.emailLookupsThisRun < engine.emailLookupCapPerRun) {
+        engine.emailLookupsThisRun++;
+        stats.emailLookups++;
+        const email = await extractEmailFromWebsite(lead.website);
+        if (email) lead.email = email;
       }
 
-      if (!looksUkEnough(city, lead.address, lead.phone, lead.website)) {
-        console.log(`[scraper-cron] Serper: skipping non-UK "${lead.name}"`);
-        continue;
-      }
+      if (lead.email) stats.savedWithEmail++;
+      else stats.savedNoEmail++;
 
-      if (!lead.website) {
-        console.log(`[scraper-cron] Serper: skipping without website "${lead.name}"`);
-        continue;
-      }
-
-      if (engine.emailLookupsThisRun >= engine.emailLookupCapPerRun) {
-        console.warn("[scraper-cron] Email lookup cap reached; skipping remaining candidates this run.");
-        break;
-      }
-
-      engine.emailLookupsThisRun++;
-      const email = await extractEmailFromWebsite(lead.website);
-      if (!email) {
-        console.log(`[scraper-cron] Serper: skipping without email "${lead.name}"`);
-        continue;
-      }
-
-      lead.email = email;
       seen.add(lead.placeId);
       leads.push(lead);
     }
+
     await sleep(engine.serpMinIntervalMs); // rate-limit courtesy spacing
   }
 
@@ -797,6 +848,11 @@ export async function GET(request: NextRequest) {
   let leadsFoundThisRun = 0;
   let leadsSavedThisRun = 0;
 
+  // Active query variants for this run (multi-query discovery).
+  const activeQueries = SEARCH_QUERIES.slice(0, QUERY_VARIANTS_PER_CITY);
+  // Per-run funnel accounting so we can see WHICH gate drops leads.
+  const funnel = newFunnelStats();
+
   for (const city of remaining) {
     // Stop if time is running short
     if (elapsed() > MAX_DURATION_MS) {
@@ -809,7 +865,7 @@ export async function GET(request: NextRequest) {
 
     console.log(`[scraper-cron] Scraping: ${city}`);
 
-    const cityLeads = await scrapeCity(city, seen, engine);
+    const cityLeads = await scrapeCity(city, seen, engine, activeQueries, funnel);
     leadsFoundThisRun += cityLeads.length;
 
     // Upsert leads to DB
@@ -889,19 +945,26 @@ export async function GET(request: NextRequest) {
 
   const remainingAfter = remaining.length - completedThisRun.length;
 
+  const funnelLine =
+    `candidates=${funnel.candidates} dedup=${funnel.dedup} chain=${funnel.chain} ` +
+    `notLocksmith=${funnel.notLocksmith} nonUk=${funnel.nonUk} noContact=${funnel.noContact} ` +
+    `saved(email=${funnel.savedWithEmail}/phone-only=${funnel.savedNoEmail})`;
+
   console.log(
     `[scraper-cron] Run complete. Cities: ${completedThisRun.length}. ` +
       `Leads: ${leadsFoundThisRun} found / ${leadsSavedThisRun} saved. ` +
       `Remaining in cycle: ${remainingAfter}. ` +
       `Time: ${Math.round(elapsed() / 1000)}s`,
   );
+  console.log(`[scraper-cron] Funnel: ${funnelLine}`);
 
   if (cycleComplete) {
     await sendAdminAlert({
       title: "🔁 Scraper Cycle Complete",
       message:
         `All ${cityQueue.length} queued cities scraped.\n` +
-        `Leads found: ${newTotal} | Saved: ${newSaved}`,
+        `Leads found: ${newTotal} | Saved: ${newSaved}\n` +
+        `Last run funnel: ${funnelLine}`,
       severity: "info",
     });
   }
@@ -919,7 +982,9 @@ export async function GET(request: NextRequest) {
     uncoveredCities: prioritizedCities.length - coveredCities.size,
     scraperGapOnlyMode: SCRAPER_GAP_ONLY_MODE,
     recruitTargets: recruitTargets.size,
+    queryVariantsPerCity: QUERY_VARIANTS_PER_CITY,
     serpCallsThisRun: engine.serpCallsThisRun,
     emailLookupsThisRun: engine.emailLookupsThisRun,
+    funnel,
   });
 }
