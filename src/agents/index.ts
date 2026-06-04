@@ -30,6 +30,9 @@ import {
   getAgentStates,
 } from "@/agents/core/orchestrator";
 
+// Heartbeat scheduling: quiet hours + minimum-interval throttling
+import { isHeartbeatSuppressed } from "@/agents/heartbeat-schedules";
+
 // Skill parser
 import { parseSkillsFile, parseSkillsContent, generateSystemPrompt, validateSkills } from "@/agents/core/skill-parser";
 
@@ -401,18 +404,38 @@ export async function runAgentHeartbeats(): Promise<{
   let activeAgentNames = new Set<string>([
     "ceo", "cto", "cmo", "coo", "copywriter", "ads-specialist", "social-media",
   ]);
+  const lastHeartbeatByName = new Map<string, Date | null>();
   try {
     const rows = await prismaForActiveSet.agent.findMany({
       where: { status: "active" },
-      select: { name: true },
+      select: { name: true, lastHeartbeat: true },
     });
     if (rows.length > 0) {
       activeAgentNames = new Set(rows.map(r => r.name.toLowerCase()));
+      for (const r of rows) lastHeartbeatByName.set(r.name.toLowerCase(), r.lastHeartbeat);
     }
   } catch (e) {
     console.warn("[Heartbeats] Failed to load active agent set, defaulting to all:", e);
   }
   const isActive = (name: string) => activeAgentNames.has(name.toLowerCase());
+
+  // ─── Quiet-hours + minimum-interval gate ──────────────────────────────────
+  // Suppresses overnight (23:00–06:00 UK) heartbeats for all agents except the
+  // COO dispatch guardian, and throttles chatty guardians (CTO ~6h, CMO ~12h)
+  // against their persisted lastHeartbeat. Job-related notifications (COO) are
+  // never gated. See heartbeat-schedules.ts for the policy.
+  const heartbeatNow = new Date();
+  const shouldRun = (name: string): boolean => {
+    const { suppressed, reason } = isHeartbeatSuppressed(
+      name,
+      lastHeartbeatByName.get(name.toLowerCase()) ?? null,
+      heartbeatNow,
+    );
+    if (suppressed) {
+      console.log(`[Heartbeats] Skipping ${name} this cycle (${reason}).`);
+    }
+    return !suppressed;
+  };
 
   // Wrap each agent heartbeat fn to capture success/errors uniformly
   async function runWithResult(name: string, fn: () => Promise<void>) {
@@ -464,10 +487,11 @@ export async function runAgentHeartbeats(): Promise<{
   } catch (e) {
     console.warn("[Heartbeats] Guardian auto-resume step failed:", e);
   }
+  // COO (exempt) always runs; CTO is gated by quiet hours + 6h min-interval.
   const guardianJobs = [
     { name: "cto", fn: runCTOHeartbeat },
     { name: "coo", fn: runCOOHeartbeat },
-  ];
+  ].filter(j => shouldRun(j.name));
 
   if (guardianOnly) {
     console.log("[Heartbeats] Guardian Mode ON — running guardians only (CTO, COO)");
@@ -499,7 +523,7 @@ export async function runAgentHeartbeats(): Promise<{
     ? guardianJobs
     : [
         ...guardianJobs,
-        ...(isActive("ceo") ? [{ name: "ceo", fn: runCEOHeartbeat }] : []),
+        ...(isActive("ceo") && shouldRun("ceo") ? [{ name: "ceo", fn: runCEOHeartbeat }] : []),
       ];
 
   const independentResults = await runLimited(independentJobs, CONCURRENCY_CAP);
@@ -525,7 +549,7 @@ export async function runAgentHeartbeats(): Promise<{
   }
 
   // CMO depends on CEO results — run after independent agents (skip if paused)
-  const cmoResult = isActive("cmo")
+  const cmoResult = isActive("cmo") && shouldRun("cmo")
     ? await runWithResult("cmo", runCMOHeartbeat)
     : null;
 
@@ -534,7 +558,7 @@ export async function runAgentHeartbeats(): Promise<{
     { name: "copywriter", fn: runCopywriterHeartbeat },
     { name: "ads-specialist", fn: runAdsSpecialistHeartbeat },
     { name: "social-media", fn: runSocialMediaHeartbeat },
-  ].filter(j => isActive(j.name));
+  ].filter(j => isActive(j.name) && shouldRun(j.name));
   const subagentResults = await runLimited(subagentJobs, CONCURRENCY_CAP);
 
   const results = [
