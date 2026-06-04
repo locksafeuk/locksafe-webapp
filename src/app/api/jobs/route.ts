@@ -230,6 +230,14 @@ export async function POST(request: NextRequest) {
       longitude: job.longitude,
       createdAt: job.createdAt.toISOString(),
     }).then((result) => {
+      if (result.locksmithIds.length > 0) {
+        prisma.job.update({
+          where: { id: job.id },
+          data: { notifiedLocksmithIds: result.locksmithIds },
+        }).catch((updateErr) => {
+          console.error(`[Job Created] Failed to persist notified locksmith IDs:`, updateErr);
+        });
+      }
       console.log(`[Job Created] Notified ${result.notifiedCount} locksmiths about job ${job.jobNumber} (SSE + Email)`);
     }).catch((err) => {
       console.error(`[Job Created] Failed to notify locksmiths:`, err);
@@ -253,7 +261,7 @@ export async function POST(request: NextRequest) {
 
     // Wake COO agent immediately for instant dispatch (fire-and-forget)
     if (process.env.AGENTS_ENABLED === "true") {
-      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://locksafe.uk";
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.locksafe.uk";
       fetch(`${siteUrl}/api/agents/heartbeat`, {
         method: "POST",
         headers: {

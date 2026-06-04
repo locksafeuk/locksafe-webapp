@@ -208,9 +208,20 @@ export async function POST(request: NextRequest) {
           address: job.address,
           latitude,
           longitude,
-        }).catch((err) =>
-          console.error("[Admin Create Job] Error notifying locksmiths:", err)
-        );
+        })
+          .then((result) => {
+            if (result.locksmithIds.length > 0) {
+              prisma.job.update({
+                where: { id: job.id },
+                data: { notifiedLocksmithIds: result.locksmithIds },
+              }).catch((updateErr) =>
+                console.error("[Admin Create Job] Failed to persist notified locksmith IDs:", updateErr)
+              );
+            }
+          })
+          .catch((err) =>
+            console.error("[Admin Create Job] Error notifying locksmiths:", err)
+          );
       }
 
       // Telegram notification
@@ -228,6 +239,21 @@ export async function POST(request: NextRequest) {
       }).catch((err) =>
         console.error("[Admin Create Job] Telegram notification error:", err)
       );
+
+      // Wake COO agent immediately for instant dispatch sweep (fire-and-forget)
+      // This protects admin-created jobs when notifyNearbyLocksmiths gets cut off
+      // by serverless lifecycle timing.
+      if (process.env.AGENTS_ENABLED === "true") {
+        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.locksafe.uk";
+        fetch(`${siteUrl}/api/agents/heartbeat`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(process.env.CRON_SECRET ? { Authorization: `Bearer ${process.env.CRON_SECRET}` } : {}),
+          },
+          body: JSON.stringify({ agentId: "coo", reason: "admin_created_job" }),
+        }).catch(() => {});
+      }
     }
 
     return NextResponse.json({

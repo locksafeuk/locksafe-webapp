@@ -65,6 +65,7 @@ interface LocksmithEntry {
 
 // ── Status colour helpers ──────────────────────────────────────────────────
 const STATUS_COLOR: Record<string, string> = {
+  PHONE_INITIATED: "#dc2626",   // red-600
   PENDING: "#ef4444",           // red
   ACCEPTED: "#f97316",          // orange
   EN_ROUTE: "#f59e0b",          // amber
@@ -77,6 +78,7 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 const STATUS_LABEL: Record<string, string> = {
+  PHONE_INITIATED: "Phone Initiated",
   PENDING: "Pending",
   ACCEPTED: "Accepted",
   EN_ROUTE: "En Route",
@@ -468,6 +470,7 @@ export default function AdminOpsPage() {
         <div className="px-3 py-2 border-b border-gray-800 flex flex-wrap gap-1.5 overflow-x-auto">
           {[
             { key: "all", label: "All" },
+            { key: "PHONE_INITIATED", label: "Phone" },
             { key: "PENDING", label: "Pending" },
             { key: "ACCEPTED", label: "Accepted" },
             { key: "EN_ROUTE", label: "En Route" },
