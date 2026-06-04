@@ -2,19 +2,42 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, MessageCircle, RefreshCw, Send } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { AlertTriangle, Loader2, MessageCircle, RefreshCw, Send } from "lucide-react";
+
+type QueueView = "all" | "unread" | "urgent" | "mine" | "unassigned";
+type SendMode = "text" | "template";
 
 interface Conversation {
   id: string;
   phone: string;
   waId: string | null;
   contactName: string | null;
+  assignedAdminId: string | null;
+  assignedAdminEmail: string | null;
+  assignedAdminName: string | null;
+  assignedAt: string | null;
+  isUrgent: boolean;
   lastMessageAt: string;
   lastMessagePreview: string | null;
   unreadCount: number;
   createdAt: string;
   _count: { messages: number };
+}
+
+interface InboxAssignee {
+  id: string;
+  name: string;
+  email: string;
 }
 
 interface ConversationMessage {
@@ -35,11 +58,22 @@ interface ConversationPayload {
 export default function AdminWhatsAppInboxPage() {
   const [loading, setLoading] = useState(true);
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [assignees, setAssignees] = useState<InboxAssignee[]>([]);
+  const [currentAdminId, setCurrentAdminId] = useState<string | null>(null);
+  const [queueView, setQueueView] = useState<QueueView>("all");
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [conversationMeta, setConversationMeta] = useState<ConversationPayload["conversation"] | null>(null);
+  const [sendMode, setSendMode] = useState<SendMode>("text");
   const [messageText, setMessageText] = useState("");
+  const [templateName, setTemplateName] = useState("");
+  const [templateLanguage, setTemplateLanguage] = useState("en_GB");
+  const [templateParametersInput, setTemplateParametersInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [savingAssignee, setSavingAssignee] = useState(false);
+  const [savingUrgency, setSavingUrgency] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const selectedConversation = useMemo(
@@ -49,16 +83,34 @@ export default function AdminWhatsAppInboxPage() {
 
   const fetchConversations = useCallback(async () => {
     setError(null);
-    const res = await fetch("/api/admin/whatsapp/conversations", { cache: "no-store" });
+    const params = new URLSearchParams();
+    params.set("view", queueView);
+    if (searchQuery.trim()) {
+      params.set("q", searchQuery.trim());
+    }
+
+    const res = await fetch(`/api/admin/whatsapp/conversations?${params.toString()}`, { cache: "no-store" });
     const data = await res.json();
     if (!res.ok || !data.success) {
       throw new Error(data.error || "Failed to load conversations");
     }
-    setConversations(data.conversations || []);
-    if (!selectedId && data.conversations?.length > 0) {
-      setSelectedId(data.conversations[0].id);
+
+    const nextConversations = (data.conversations || []) as Conversation[];
+    setConversations(nextConversations);
+    setAssignees((data.assignees || []) as InboxAssignee[]);
+    setCurrentAdminId(typeof data.currentAdminId === "string" ? data.currentAdminId : null);
+
+    if (nextConversations.length === 0) {
+      setSelectedId(null);
+      setMessages([]);
+      setConversationMeta(null);
+      return;
     }
-  }, [selectedId]);
+
+    if (!selectedId || !nextConversations.some((conversation) => conversation.id === selectedId)) {
+      setSelectedId(nextConversations[0].id);
+    }
+  }, [queueView, searchQuery, selectedId]);
 
   const fetchMessages = useCallback(async (conversationId: string) => {
     const res = await fetch(`/api/admin/whatsapp/conversations/${conversationId}/messages`, {
@@ -95,6 +147,13 @@ export default function AdminWhatsAppInboxPage() {
   }, [refreshAll]);
 
   useEffect(() => {
+    const timeout = setTimeout(() => {
+      setSearchQuery(searchInput);
+    }, 250);
+    return () => clearTimeout(timeout);
+  }, [searchInput]);
+
+  useEffect(() => {
     if (!selectedId) {
       setMessages([]);
       setConversationMeta(null);
@@ -106,26 +165,106 @@ export default function AdminWhatsAppInboxPage() {
   }, [selectedId, fetchMessages]);
 
   const handleSend = async () => {
-    if (!selectedId || !messageText.trim() || sending) return;
+    if (!selectedId || sending) return;
+
+    if (sendMode === "text" && !messageText.trim()) {
+      return;
+    }
+
+    if (sendMode === "template" && !templateName.trim()) {
+      setError("Template name is required");
+      return;
+    }
+
     setSending(true);
     setError(null);
 
     try {
+      const templateParameters = templateParametersInput
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
+
       const res = await fetch(`/api/admin/whatsapp/conversations/${selectedId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: messageText.trim() }),
+        body: JSON.stringify(
+          sendMode === "text"
+            ? { sendMode: "text", text: messageText.trim() }
+            : {
+                sendMode: "template",
+                templateName: templateName.trim(),
+                templateLanguage: templateLanguage.trim() || "en_GB",
+                templateParameters,
+              },
+        ),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
         throw new Error(data.error || "Failed to send message");
       }
-      setMessageText("");
+
+      if (sendMode === "text") {
+        setMessageText("");
+      }
+
       await Promise.all([fetchConversations(), fetchMessages(selectedId)]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send message");
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleAssignConversation = async (assigneeId: string) => {
+    if (!selectedId || savingAssignee) return;
+
+    setSavingAssignee(true);
+    setError(null);
+
+    try {
+      const res = await fetch(`/api/admin/whatsapp/conversations/${selectedId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assigneeId: assigneeId === "unassigned" ? null : assigneeId }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to assign conversation");
+      }
+
+      await Promise.all([fetchConversations(), fetchMessages(selectedId)]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to assign conversation");
+    } finally {
+      setSavingAssignee(false);
+    }
+  };
+
+  const handleToggleUrgent = async () => {
+    if (!selectedId || !conversationMeta || savingUrgency) return;
+
+    setSavingUrgency(true);
+    setError(null);
+
+    try {
+      const res = await fetch(`/api/admin/whatsapp/conversations/${selectedId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isUrgent: !conversationMeta.isUrgent }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to update urgency");
+      }
+
+      await Promise.all([fetchConversations(), fetchMessages(selectedId)]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update urgency");
+    } finally {
+      setSavingUrgency(false);
     }
   };
 
@@ -149,6 +288,31 @@ export default function AdminWhatsAppInboxPage() {
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
             Refresh
           </Button>
+        </div>
+
+        <div className="mb-4 grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-3 md:grid-cols-[220px_minmax(0,1fr)_auto]">
+          <Select value={queueView} onValueChange={(value) => setQueueView(value as QueueView)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Queue" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Conversations</SelectItem>
+              <SelectItem value="unread">Unread</SelectItem>
+              <SelectItem value="urgent">Urgent</SelectItem>
+              <SelectItem value="mine">Assigned To Me</SelectItem>
+              <SelectItem value="unassigned">Unassigned</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Input
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search by contact name, phone, or WA ID"
+          />
+
+          <div className="self-center text-right text-xs text-slate-500">
+            {conversations.length} conversation{conversations.length === 1 ? "" : "s"}
+          </div>
         </div>
 
         {error && (
@@ -183,6 +347,16 @@ export default function AdminWhatsAppInboxPage() {
                           {conversation.contactName || conversation.phone}
                         </div>
                         <div className="truncate text-xs text-slate-500">{conversation.phone}</div>
+                        <div className="mt-1 flex items-center gap-1">
+                          {conversation.isUrgent && (
+                            <Badge className="border-red-200 bg-red-100 text-red-700">Urgent</Badge>
+                          )}
+                          {conversation.assignedAdminName && (
+                            <Badge variant="outline" className="text-[10px]">
+                              {conversation.assignedAdminName}
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                       <div className="flex flex-col items-end gap-1">
                         <span className="text-[11px] text-slate-500">{formatDateTime(conversation.lastMessageAt)}</span>
@@ -211,10 +385,60 @@ export default function AdminWhatsAppInboxPage() {
             ) : (
               <>
                 <div className="border-b border-slate-200 px-4 py-3">
-                  <div className="text-sm font-semibold text-slate-900">
-                    {selectedConversation?.contactName || conversationMeta.phone}
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-900">
+                        {selectedConversation?.contactName || conversationMeta.phone}
+                      </div>
+                      <div className="text-xs text-slate-500">{conversationMeta.phone}</div>
+                      <div className="mt-1 flex items-center gap-1">
+                        {conversationMeta.isUrgent && (
+                          <Badge className="border-red-200 bg-red-100 text-red-700">Urgent</Badge>
+                        )}
+                        {conversationMeta.assignedAdminName ? (
+                          <Badge variant="outline" className="text-[10px]">
+                            Assigned: {conversationMeta.assignedAdminName}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] text-slate-500">
+                            Unassigned
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-[220px_auto]">
+                      <Select
+                        value={conversationMeta.assignedAdminId || "unassigned"}
+                        onValueChange={handleAssignConversation}
+                        disabled={savingAssignee}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Assign owner" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unassigned">Unassigned</SelectItem>
+                          {assignees.map((assignee) => (
+                            <SelectItem key={assignee.id} value={assignee.id}>
+                              {assignee.name}
+                              {assignee.id === currentAdminId ? " (Me)" : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      <Button
+                        type="button"
+                        variant={conversationMeta.isUrgent ? "destructive" : "outline"}
+                        onClick={handleToggleUrgent}
+                        disabled={savingUrgency}
+                        className="gap-2"
+                      >
+                        {savingUrgency ? <Loader2 className="h-4 w-4 animate-spin" /> : <AlertTriangle className="h-4 w-4" />}
+                        {conversationMeta.isUrgent ? "Urgent" : "Mark Urgent"}
+                      </Button>
+                    </div>
                   </div>
-                  <div className="text-xs text-slate-500">{conversationMeta.phone}</div>
                 </div>
 
                 <div className="h-[54vh] overflow-y-auto bg-slate-50 p-4">
@@ -248,17 +472,62 @@ export default function AdminWhatsAppInboxPage() {
                 </div>
 
                 <div className="border-t border-slate-200 p-3">
+                  <div className="mb-2 grid grid-cols-1 gap-2 sm:grid-cols-[170px_170px_minmax(0,1fr)]">
+                    <Select value={sendMode} onValueChange={(value) => setSendMode(value as SendMode)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Send mode" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="text">Free Text</SelectItem>
+                        <SelectItem value="template">Template</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    {sendMode === "template" && (
+                      <Input
+                        value={templateLanguage}
+                        onChange={(e) => setTemplateLanguage(e.target.value)}
+                        placeholder="Language code"
+                      />
+                    )}
+                  </div>
+
+                  {sendMode === "template" && (
+                    <div className="mb-2 grid grid-cols-1 gap-2 md:grid-cols-2">
+                      <Input
+                        value={templateName}
+                        onChange={(e) => setTemplateName(e.target.value)}
+                        placeholder="Approved template name"
+                      />
+                      <textarea
+                        value={templateParametersInput}
+                        onChange={(e) => setTemplateParametersInput(e.target.value)}
+                        placeholder="Template body parameters (one per line)"
+                        rows={2}
+                        className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-orange-400 focus:outline-none"
+                      />
+                    </div>
+                  )}
+
                   <div className="flex gap-2">
                     <textarea
                       value={messageText}
                       onChange={(e) => setMessageText(e.target.value)}
-                      placeholder="Type a WhatsApp reply..."
+                      placeholder={sendMode === "text" ? "Type a WhatsApp reply..." : "Optional note for your own context"}
                       rows={2}
                       className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-orange-400 focus:outline-none"
                     />
-                    <Button onClick={handleSend} disabled={sending || !messageText.trim()} className="gap-2 self-end">
+                    <Button
+                      onClick={handleSend}
+                      disabled={
+                        sending ||
+                        (sendMode === "text" && !messageText.trim()) ||
+                        (sendMode === "template" && !templateName.trim())
+                      }
+                      className="gap-2 self-end"
+                    >
                       {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                      Send
+                      {sendMode === "template" ? "Send Template" : "Send"}
                     </Button>
                   </div>
                 </div>

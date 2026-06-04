@@ -72,6 +72,11 @@ model WhatsAppConversation {
   waId              String?  @unique // WhatsApp wa_id when known (digits-only)
   phone             String   // Normalized destination/source phone
   contactName       String?
+  assignedAdminId   String?
+  assignedAdminEmail String?
+  assignedAdminName String?
+  assignedAt        DateTime?
+  isUrgent          Boolean  @default(false)
   lastMessageAt     DateTime @default(now())
   lastMessagePreview String?
   unreadCount       Int      @default(0)
@@ -83,6 +88,8 @@ model WhatsAppConversation {
 
   @@index([phone])
   @@index([lastMessageAt])
+  @@index([assignedAdminId, lastMessageAt])
+  @@index([isUrgent, lastMessageAt])
 }
 
 model WhatsAppConversationMessage {
