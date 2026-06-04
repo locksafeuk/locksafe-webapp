@@ -100,9 +100,8 @@ export async function GET(request: NextRequest) {
       console.log(`[generate-images] Enhancing prompt for post ${post.id}...`);
       const enhancedPrompt = await enhanceImagePrompt(post.imagePrompt);
 
-      // Determine image format based on platforms
-      const hasInstagram = post.platforms.includes("INSTAGRAM");
-      const format = hasInstagram ? "portrait" : "landscape";
+      // Generate a poster-style image for every organic post.
+      const format = "poster";
 
       // Generate image via ComfyUI Flux Schnell
       console.log(`[generate-images] Generating ${format} image for post ${post.id}...`);

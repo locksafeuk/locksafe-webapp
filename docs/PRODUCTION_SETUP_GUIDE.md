@@ -18,7 +18,9 @@ This guide covers setting up Telegram webhooks and WhatsApp Business integration
 Go to your Vercel project settings → Environment Variables and add:
 
 ```env
-TELEGRAM_BOT_TOKEN=your-bot-token-here
+TELEGRAM_ADMIN_BOT_TOKEN=your-admin-bot-token-here
+TELEGRAM_LOCKSMITH_BOT_TOKEN=your-locksmith-bot-token-here
+TELEGRAM_BOT_TOKEN=your-fallback-bot-token-here
 TELEGRAM_CHAT_ID=your-chat-id-here
 TELEGRAM_NOTIFICATIONS_ENABLED=true
 ```

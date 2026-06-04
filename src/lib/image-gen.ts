@@ -181,8 +181,8 @@ async function fetchImage(filename: string, subfolder: string, type: string): Pr
 
 export interface GenerateImageOptions {
   prompt: string;
-  /** 1024×1024 (square) or 1080×1350 (portrait/Instagram) or 1200×630 (landscape/Facebook) */
-  format?: "square" | "portrait" | "landscape";
+  /** 1024×1024 (square), 1080×1350 (poster/portrait), or 1200×630 (landscape/Facebook) */
+  format?: "square" | "poster" | "portrait" | "landscape";
   /** Random seed; omit for random */
   seed?: number;
   /** Prefix used for the Vercel Blob path */
@@ -208,7 +208,8 @@ export async function generateImage(opts: GenerateImageOptions): Promise<Generat
 
   const dimensions: Record<string, [number, number]> = {
     square:    [1024, 1024],
-    portrait:  [832, 1040],   // ~4:5 for Instagram
+    poster:    [1080, 1350],  // poster-style 4:5 composition
+    portrait:  [832, 1040],   // legacy alias for ~4:5 Instagram
     landscape: [1216, 768],   // ~19:12 for Facebook/Twitter
   };
 
@@ -238,7 +239,7 @@ export async function generateImage(opts: GenerateImageOptions): Promise<Generat
 
 /**
  * Enhance a raw image prompt with Ollama for better Flux image quality.
- * Adds photographic style, composition, and lighting details.
+ * Adds photographic style, poster composition, and lighting details.
  */
 export async function enhanceImagePrompt(rawPrompt: string): Promise<string> {
   const OLLAMA_BASE = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
@@ -249,9 +250,9 @@ export async function enhanceImagePrompt(rawPrompt: string): Promise<string> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "llama3:70b",
-        prompt: `You are a professional image prompt engineer for Flux image generation. 
-Enhance this social media image concept into a detailed Flux image prompt.
-Add: photographic style, composition, lighting, color palette, and mood.
+        prompt: `You are a professional image prompt engineer for Flux image generation.
+      Enhance this social media image concept into a detailed Flux poster prompt.
+      Add: bold poster composition, generous copy-safe space, photographic style, lighting, color palette, and mood.
 Keep it under 200 words. Return ONLY the enhanced prompt, no explanations.
 
 Concept: ${rawPrompt}`,
@@ -265,7 +266,7 @@ Concept: ${rawPrompt}`,
     const data = await resp.json() as { response: string };
     return data.response.trim();
   } catch {
-    // Return raw prompt if Ollama is unavailable
-    return rawPrompt;
+    // Return a poster-oriented fallback if Ollama is unavailable.
+    return `${rawPrompt}\n\nPoster composition: bold central subject, clean headline-safe space, minimal background clutter, high-contrast lighting, branded orange and slate accents, social-media poster layout.`;
   }
 }

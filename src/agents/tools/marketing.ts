@@ -663,16 +663,40 @@ export const getGoogleAdsCampaignsTool: AgentTool = {
 
     try {
       const rows = await handle.client.getCampaignMetrics(range);
+      const draftRows = await prisma.googleAdsCampaignDraft.findMany({
+        where: {
+          googleCampaignId: { in: rows.map((row) => row.campaignId) },
+        },
+        select: {
+          googleCampaignId: true,
+          name: true,
+          status: true,
+          publishedAt: true,
+          createdAt: true,
+        },
+      });
+      const draftByCampaignId = new Map(
+        draftRows.map((draft) => [draft.googleCampaignId ?? "", draft]),
+      );
       const enriched = rows.map((r) => {
         const cost = microsToCurrency(r.costMicros);
         const cpc = r.clicks > 0 ? cost / r.clicks : 0;
         const cpa = r.conversions > 0 ? cost / r.conversions : 0;
         const roas = cost > 0 ? r.conversionsValue / cost : 0;
+        const draft = draftByCampaignId.get(r.campaignId);
+        const publishedAt = draft?.publishedAt ?? null;
+        const daysSincePublished = publishedAt
+          ? Math.max(0, Math.floor((Date.now() - publishedAt.getTime()) / (24 * 60 * 60 * 1000)))
+          : null;
         return {
           campaignId: r.campaignId,
           name: r.campaignName,
           status: r.status,
           channel: r.advertisingChannelType,
+          locksafeStatus: draft?.status ?? null,
+          publishedAt: publishedAt ? publishedAt.toISOString() : null,
+          daysSincePublished,
+          isLearningPhase: daysSincePublished !== null ? daysSincePublished < 7 : null,
           spend: cost,
           impressions: r.impressions,
           clicks: r.clicks,
@@ -688,6 +712,13 @@ export const getGoogleAdsCampaignsTool: AgentTool = {
       const totalSpend = enriched.reduce((s, c) => s + c.spend, 0);
       const totalConversions = enriched.reduce((s, c) => s + c.conversions, 0);
       const totalRevenue = enriched.reduce((s, c) => s + c.conversionsValue, 0);
+      const liveServingCampaigns = enriched.filter((c) => c.status === "ENABLED").length;
+      const zeroImpressionServingCampaigns = enriched.filter(
+        (c) => c.status === "ENABLED" && c.impressions === 0,
+      ).length;
+      const learningPhaseCampaigns = enriched.filter(
+        (c) => c.daysSincePublished !== null && c.daysSincePublished < 7,
+      ).length;
       return {
         success: true,
         data: {
@@ -700,6 +731,9 @@ export const getGoogleAdsCampaignsTool: AgentTool = {
             totalRevenue,
             avgRoas: totalSpend > 0 ? totalRevenue / totalSpend : 0,
             cpa: totalConversions > 0 ? totalSpend / totalConversions : 0,
+            liveServingCampaigns,
+            zeroImpressionServingCampaigns,
+            learningPhaseCampaigns,
           },
         },
       };

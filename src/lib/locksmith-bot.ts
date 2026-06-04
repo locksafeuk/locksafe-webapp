@@ -50,7 +50,7 @@ interface QuoteAssistanceResult {
 }
 
 // Environment
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_LOCKSMITH_BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://locksafe.uk";
 
 // ============================================

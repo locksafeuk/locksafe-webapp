@@ -9,6 +9,7 @@ import { JobStatus } from "@prisma/client";
 import { executeHeartbeat, delegateTask } from "@/agents/core/orchestrator";
 import { storeDecision, storePattern } from "@/agents/core/memory";
 import type { AgentConfig } from "@/agents/core/types";
+import { CEO_HEARTBEAT_CRON } from "@/agents/heartbeat-schedules";
 
 // Agent configuration
 export const CEO_AGENT_CONFIG: AgentConfig = {
@@ -17,7 +18,7 @@ export const CEO_AGENT_CONFIG: AgentConfig = {
   role: "Chief Executive Officer - Strategic coordination, resource allocation, and company oversight",
   skillsPath: "ceo/SKILL.md",
   monthlyBudgetUsd: 100,
-  heartbeatCronExpr: "0 */8 * * *", // Every 8 hours (non-workflow tier — reduced from 4h)
+  heartbeatCronExpr: CEO_HEARTBEAT_CRON,
   permissions: [
     "ceo",
     "analyst",

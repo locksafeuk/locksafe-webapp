@@ -79,6 +79,15 @@ const statusColors: Record<string, string> = {
   ARCHIVED: "bg-slate-200 text-slate-500",
 };
 
+const pillarBadgeClasses: Record<string, string> = {
+  "anti-fraud": "bg-red-50 text-red-700",
+  tips: "bg-blue-50 text-blue-700",
+  stories: "bg-emerald-50 text-emerald-700",
+  "behind-scenes": "bg-violet-50 text-violet-700",
+  stats: "bg-amber-50 text-amber-700",
+  engagement: "bg-pink-50 text-pink-700",
+};
+
 export default function PostDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const router = useRouter();
@@ -298,7 +307,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
             <Link href="/admin/organic">
-              <button type="button" className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+              <button type="button" className="p-2 hover:bg-slate-100 rounded-lg transition-colors" title="Back to posts" aria-label="Back to posts">
                 <ArrowLeft className="w-5 h-5 text-slate-600" />
               </button>
             </Link>
@@ -372,6 +381,8 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                       type="text"
                       value={hook}
                       onChange={(e) => setHook(e.target.value)}
+                      aria-label="Hook text"
+                      placeholder="Hook"
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                     />
                   </div>
@@ -382,6 +393,8 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                       value={content}
                       onChange={(e) => setContent(e.target.value)}
                       rows={6}
+                      aria-label="Main post content"
+                      placeholder="Main post content"
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
                     />
                   </div>
@@ -392,6 +405,8 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                       type="text"
                       value={headline}
                       onChange={(e) => setHeadline(e.target.value)}
+                      aria-label="Headline"
+                      placeholder="Headline"
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                     />
                   </div>
@@ -402,6 +417,8 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                       type="url"
                       value={imageUrl}
                       onChange={(e) => setImageUrl(e.target.value)}
+                      aria-label="Image URL"
+                      placeholder="Image URL"
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                     />
                   </div>
@@ -414,6 +431,8 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                         value={hashtagInput}
                         onChange={(e) => setHashtagInput(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddHashtag())}
+                        aria-label="Add hashtag"
+                        placeholder="#hashtag"
                         className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                       />
                       <Button onClick={handleAddHashtag} variant="outline">Add</Button>
@@ -443,6 +462,8 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                       <button
                         type="button"
                         onClick={() => togglePlatform("FACEBOOK")}
+                        title="Toggle Facebook platform"
+                        aria-label="Toggle Facebook platform"
                         className={`flex items-center gap-2 px-4 py-2 rounded-lg border ${
                           selectedPlatforms.includes("FACEBOOK")
                             ? "border-blue-500 bg-blue-50 text-blue-700"
@@ -461,6 +482,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                       type="datetime-local"
                       value={scheduledFor}
                       onChange={(e) => setScheduledFor(e.target.value)}
+                      aria-label="Scheduled publish time"
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                     />
                   </div>
@@ -529,7 +551,8 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
             {/* Image Preview */}
             {post.imageUrl && (
               <div className="bg-white rounded-xl p-6 border border-slate-200">
-                <h2 className="font-semibold text-slate-900 mb-4">Image</h2>
+                <h2 className="font-semibold text-slate-900 mb-4">Posting Preview</h2>
+                <p className="text-sm text-slate-500 mb-4">This is what will be attached when the post goes out.</p>
                 <img
                   src={post.imageUrl}
                   alt="Post image"
@@ -575,11 +598,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                   <p className="text-sm text-slate-500">Pillar</p>
                   {post.pillar ? (
                     <span
-                      className="inline-flex items-center px-2 py-1 rounded-full text-sm font-medium mt-1"
-                      style={{
-                        backgroundColor: `${post.pillar.color}20`,
-                        color: post.pillar.color,
-                      }}
+                      className={`inline-flex items-center px-2 py-1 rounded-full text-sm font-medium mt-1 ${pillarBadgeClasses[post.pillar.name] || "bg-slate-100 text-slate-700"}`}
                     >
                       {post.pillar.displayName}
                     </span>

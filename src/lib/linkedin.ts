@@ -13,13 +13,25 @@
  */
 
 const LINKEDIN_API = "https://api.linkedin.com/v2";
+const LINKEDIN_ASSETS_API = "https://api.linkedin.com/rest/assets";
+
+function getLinkedInVersion(): string {
+  // LinkedIn REST APIs require an explicit version header in YYYYMM format.
+  return process.env.LINKEDIN_VERSION || "202506";
+}
 
 export interface LinkedInPostResult {
   id: string;
   url: string;
 }
 
-function getAuth(): { token: string; orgId: string } {
+export interface LinkedInAuth {
+  token: string;
+  orgId: string;
+  authorUrn?: string;
+}
+
+function getAuth(): LinkedInAuth {
   const token = process.env.LINKEDIN_ACCESS_TOKEN;
   const orgId = process.env.LINKEDIN_ORGANIZATION_ID;
 
@@ -38,15 +50,35 @@ function getAuth(): { token: string; orgId: string } {
 export async function postToLinkedIn(content: {
   text: string;
   imageUrl?: string;
-}): Promise<LinkedInPostResult> {
-  const { token, orgId } = getAuth();
-  const author = `urn:li:organization:${orgId}`;
+}, auth?: LinkedInAuth): Promise<LinkedInPostResult> {
+  const { token, orgId } = auth ?? getAuth();
+  const author = auth?.authorUrn ?? `urn:li:organization:${orgId}`;
 
-  const shareMedia: unknown[] = [];
+  const shareMedia: Array<Record<string, unknown>> = [];
   if (content.imageUrl) {
-    // For image posts, the image must first be registered + uploaded via LinkedIn's
-    // media upload flow. For now we post text-only and include the URL as a link.
-    // Full image upload support can be added in a future iteration.
+    try {
+      const assetUrn = await uploadLinkedInImageAsset({
+        token,
+        orgId,
+        imageUrl: content.imageUrl,
+      });
+
+      shareMedia.push({
+        media: assetUrn,
+        status: "READY",
+        title: {
+          text: "LockSafe UK",
+        },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const accessDeniedAssets = message.includes("partnerApiAssets.ACTION-registerUpload") || message.includes("ACCESS_DENIED");
+      if (accessDeniedAssets) {
+        console.warn("[LinkedIn] Image upload permission missing; publishing text-only fallback.");
+      } else {
+        throw error;
+      }
+    }
   }
 
   const body = {
@@ -94,6 +126,83 @@ export async function postToLinkedIn(content: {
 
   console.log(`[LinkedIn] Posted to org ${orgId}: ${postId}`);
   return { id: postId, url };
+}
+
+async function uploadLinkedInImageAsset(params: {
+  token: string;
+  orgId: string;
+  imageUrl: string;
+}): Promise<string> {
+  const imageResponse = await fetch(params.imageUrl);
+  if (!imageResponse.ok) {
+    throw new Error(`[LinkedIn] Failed to fetch image: ${imageResponse.status}`);
+  }
+
+  const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+  const registerResponse = await fetch(`${LINKEDIN_ASSETS_API}?action=registerUpload`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${params.token}`,
+      "X-Restli-Protocol-Version": "2.0.0",
+      "LinkedIn-Version": getLinkedInVersion(),
+    },
+    body: JSON.stringify({
+      registerUploadRequest: {
+        owner: `urn:li:organization:${params.orgId}`,
+        recipes: ["urn:li:digitalmediaRecipe:feedshare-image"],
+        serviceRelationships: [
+          {
+            identifier: "urn:li:userGeneratedContent",
+            relationshipType: "OWNER",
+          },
+        ],
+        supportedUploadMechanism: ["SYNCHRONOUS_UPLOAD"],
+      },
+    }),
+  });
+
+  if (!registerResponse.ok) {
+    const errorText = await registerResponse.text();
+    throw new Error(`[LinkedIn] registerUpload failed ${registerResponse.status}: ${errorText}`);
+  }
+
+  const registerData = await registerResponse.json() as {
+    value?: {
+      asset?: string;
+      uploadMechanism?: {
+        "com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest"?: {
+          uploadUrl?: string;
+          headers?: Record<string, string>;
+        };
+      };
+    };
+  };
+
+  const assetUrn = registerData.value?.asset;
+  const uploadUrl = registerData.value?.uploadMechanism?.["com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest"]?.uploadUrl;
+  const uploadHeaders = registerData.value?.uploadMechanism?.["com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest"]?.headers ?? {};
+
+  if (!assetUrn || !uploadUrl) {
+    throw new Error("[LinkedIn] registerUpload response missing asset or uploadUrl");
+  }
+
+  const uploadResponse = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${params.token}`,
+      "LinkedIn-Version": getLinkedInVersion(),
+      ...uploadHeaders,
+    },
+    body: imageBuffer,
+  });
+
+  if (!uploadResponse.ok) {
+    const errorText = await uploadResponse.text();
+    throw new Error(`[LinkedIn] image upload failed ${uploadResponse.status}: ${errorText}`);
+  }
+
+  return assetUrn;
 }
 
 /**

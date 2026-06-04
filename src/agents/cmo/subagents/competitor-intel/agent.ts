@@ -58,6 +58,7 @@ import {
 import { addSeed }                              from "@/agents/core/seed-bank";
 import { BASELINE_NEGATIVE_KEYWORDS }           from "@/lib/google-ads-keywords";
 import type { AgentConfig }                     from "@/agents/core/types";
+import { COMPETITOR_INTEL_HEARTBEAT_CRON } from "@/agents/heartbeat-schedules";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -70,7 +71,7 @@ export const COMPETITOR_INTEL_AGENT_CONFIG: AgentConfig = {
     "No paid API required — real-time Google data via own stack.",
   skillsPath:       "cmo/subagents/competitor-intel/SKILL.md",
   monthlyBudgetUsd: 0, // zero external API cost
-  heartbeatCronExpr: "0 4 * * 1", // 04:00 UTC every Monday
+  heartbeatCronExpr: COMPETITOR_INTEL_HEARTBEAT_CRON,
   permissions:      ["read:competitors", "write:seed-bank", "write:competitor-intel"],
   governanceLevel:  "supervised",
 };

@@ -76,10 +76,10 @@ Start with a bold claim → prove it with specifics → end with the implication
 Why does home security matter? → How LockSafe solves it → What we actually do
 
 ## Posting Strategy
-- Times: 09:00, 13:00, 18:00 UK time
-- 3 posts per day across all active platforms
+- Daily heartbeat: generate one strong post set per run, not a volume burst
+- Prefer one post with a supporting image prompt or generated media path
 - Never duplicate exact text across platforms — platform-native rewrites only
-- Image prompts saved for future DALL-E/Stable Diffusion integration
+- If a post cannot have media, it should be treated as lower priority and not auto-published
 
 ## What NOT to Do
 - Never use stock photo language like "smiling professional"

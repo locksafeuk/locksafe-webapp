@@ -26,14 +26,17 @@ import {
   runAllHeartbeats,
   executeHeartbeat
 } from "@/agents/core/orchestrator";
+import { parseCommand } from "@/lib/agent-auth";
 import { getCOOStatus } from "@/agents/coo/agent";
 import { getCMOStatus } from "@/agents/cmo/agent";
 import { getCEOStatus, generateWeeklySummary } from "@/agents/ceo/agent";
 import { getAllBudgetStatus } from "@/agents/core/budget";
 
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_ADMIN_BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://locksafe.uk";
 const AGENTS_ENABLED = process.env.AGENTS_ENABLED === "true";
+const REQUIRE_CONFIRM_FOR_MUTATIONS =
+  (process.env.TELEGRAM_REQUIRE_CONFIRM ?? "true").toLowerCase() === "true";
 
 /**
  * Send a message to a Telegram chat
@@ -169,7 +172,7 @@ export async function handleHelpCommand(chatId: string): Promise<void> {
 
 <b>🎯 Dispatch</b>
 /dispatch &lt;job_number&gt; - Find best match for job
-/assign &lt;job_number&gt; &lt;locksmith_id&gt; - Assign job
+/assign &lt;job_number&gt; &lt;locksmith_id&gt; [confirm] - Assign job
 
 <b>📊 Dashboard</b>
 /stats - Quick statistics
@@ -183,18 +186,78 @@ export async function handleHelpCommand(chatId: string): Promise<void> {
 /customers - Customer stats
 
 <b>🤖 AI Agents</b>
+/mobile - Mobile control center shortcuts
 /agents - View all agent statuses
 /agent_ceo - CEO Agent details & strategic metrics
 /agent_coo - COO Agent details & operations
 /agent_cmo - CMO Agent details & marketing
 /agent_budget - Agent budget overview
-/agent_run - Manually trigger agent heartbeats
+/agent_run [confirm] - Manually trigger agent heartbeats
 /weekly - Generate weekly strategic summary
+
+<b>🛡️ Safety</b>
+/confirm &lt;command...&gt; - Confirm a protected command
+Example: <code>/confirm /agent_run</code>
 
 <i>Need help? Contact support@locksafe.uk</i>
 `;
 
   await sendMessage(chatId, message);
+}
+
+export async function handleMobileCommand(chatId: string): Promise<void> {
+  const message = `
+📱 <b>Mobile Control Center</b>
+
+<b>Read-only quick checks</b>
+• /stats
+• /alerts
+• /agents
+• /agent_cmo
+• /agent_coo
+
+<b>Protected actions (require confirm)</b>
+• /agent_run
+• /assign
+• /availability
+
+<b>How to confirm</b>
+1) Send the action command (example: <code>/agent_run</code>)
+2) Confirm with: <code>/confirm /agent_run</code>
+
+You can also append <code>confirm</code> directly:
+<code>/agent_run confirm</code>
+`;
+
+  await sendMessage(chatId, message);
+}
+
+function hasConfirmArg(args: string[]): boolean {
+  if (args.length === 0) return false;
+  const last = args[args.length - 1]?.toLowerCase();
+  return last === "confirm" || last === "--confirm" || last === "yes";
+}
+
+function trimConfirmArg(args: string[]): string[] {
+  if (!hasConfirmArg(args)) return args;
+  return args.slice(0, -1);
+}
+
+function requiresConfirmation(command: string): boolean {
+  if (!REQUIRE_CONFIRM_FOR_MUTATIONS) return false;
+  return command === "/agent_run" || command === "/run_agents" || command === "/assign" || command === "/availability";
+}
+
+async function promptForConfirmation(
+  chatId: string,
+  command: string,
+  args: string[],
+): Promise<void> {
+  const rendered = [command, ...args].join(" ").trim();
+  await sendMessage(
+    chatId,
+    `🛡️ <b>Confirmation required</b>\n\nCommand: <code>${escapeHtml(rendered)}</code>\n\nReply with:\n<code>/confirm ${escapeHtml(rendered)}</code>`,
+  );
 }
 
 // ============================================
@@ -1122,7 +1185,14 @@ export async function handleCallbackQuery(
     await handleAlertsCommand(chatId);
   } else if (data.startsWith("assign_")) {
     const [_, jobId, locksmithId] = data.split("_");
-    await handleAssignCommand(chatId, jobId, locksmithId);
+    if (REQUIRE_CONFIRM_FOR_MUTATIONS) {
+      await sendMessage(
+        chatId,
+        `🛡️ Assignment confirmation required.\n\nReply with:\n<code>/confirm /assign ${escapeHtml(jobId)} ${escapeHtml(locksmithId)}</code>`,
+      );
+    } else {
+      await handleAssignCommand(chatId, jobId, locksmithId);
+    }
   }
 }
 
@@ -1134,10 +1204,30 @@ export async function handleCommand(
   command: string,
   args: string[],
 ): Promise<void> {
+  if (command === "/confirm") {
+    const nested = parseCommand(args.join(" "));
+    if (!nested) {
+      await sendMessage(chatId, "❌ Usage: /confirm /agent_run  OR  /confirm /assign <job> <locksmith>");
+      return;
+    }
+    await handleCommand(chatId, nested.command, [...nested.args, "confirm"]);
+    return;
+  }
+
+  const normalizedArgs = trimConfirmArg(args);
+  const confirmed = hasConfirmArg(args);
+  if (requiresConfirmation(command) && !confirmed) {
+    await promptForConfirmation(chatId, command, normalizedArgs);
+    return;
+  }
+
   switch (command) {
     case "/help":
     case "/start":
       await handleHelpCommand(chatId);
+      break;
+    case "/mobile":
+      await handleMobileCommand(chatId);
       break;
     case "/stats":
     case "/dashboard":
@@ -1158,13 +1248,13 @@ export async function handleCommand(
       await handleAlertsCommand(chatId);
       break;
     case "/dispatch":
-      await handleDispatchCommand(chatId, args[0] || "");
+      await handleDispatchCommand(chatId, normalizedArgs[0] || "");
       break;
     case "/assign":
-      await handleAssignCommand(chatId, args[0] || "", args[1] || "");
+      await handleAssignCommand(chatId, normalizedArgs[0] || "", normalizedArgs[1] || "");
       break;
     case "/availability":
-      await handleAvailabilityCommand(chatId, args[0] || "", args[1] || "");
+      await handleAvailabilityCommand(chatId, normalizedArgs[0] || "", normalizedArgs[1] || "");
       break;
     case "/earnings":
     case "/revenue":

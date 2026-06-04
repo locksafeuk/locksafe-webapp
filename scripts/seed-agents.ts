@@ -8,6 +8,15 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import {
+  CEO_HEARTBEAT_CRON,
+  COO_HEARTBEAT_CRON,
+  CMO_HEARTBEAT_CRON,
+  CTO_HEARTBEAT_CRON,
+  COPYWRITER_HEARTBEAT_CRON,
+  ADS_SPECIALIST_HEARTBEAT_CRON,
+  SOCIAL_MEDIA_HEARTBEAT_CRON,
+} from "../src/agents/heartbeat-schedules";
 
 const prisma = new PrismaClient();
 
@@ -27,7 +36,7 @@ async function main() {
       monthlyBudgetUsd: 100,
       budgetUsedUsd: 0,
       heartbeatEnabled: true,
-      heartbeatCronExpr: "0 */4 * * *",
+      heartbeatCronExpr: CEO_HEARTBEAT_CRON,
       governanceLevel: "supervised",
       permissions: ["read_all", "delegate", "approve", "telegram_notify", "repair_system"],
     },
@@ -50,7 +59,7 @@ async function main() {
       monthlyBudgetUsd: 40,
       budgetUsedUsd: 0,
       heartbeatEnabled: true,
-      heartbeatCronExpr: "*/5 * * * *",
+      heartbeatCronExpr: COO_HEARTBEAT_CRON,
       governanceLevel: "autonomous",
       permissions: ["read_jobs", "dispatch_jobs", "assign_locksmiths", "telegram_notify"],
     },
@@ -72,7 +81,7 @@ async function main() {
       monthlyBudgetUsd: 60,
       budgetUsedUsd: 0,
       heartbeatEnabled: true,
-      heartbeatCronExpr: "0 */2 * * *",
+      heartbeatCronExpr: CMO_HEARTBEAT_CRON,
       governanceLevel: "supervised",
       permissions: ["read_marketing", "create_drafts", "approve_content", "telegram_notify"],
     },
@@ -94,7 +103,7 @@ async function main() {
       monthlyBudgetUsd: 80,
       budgetUsedUsd: 0,
       heartbeatEnabled: true,
-      heartbeatCronExpr: "*/15 * * * *",
+      heartbeatCronExpr: CTO_HEARTBEAT_CRON,
       governanceLevel: "supervised",
       permissions: ["read_system", "read_errors", "telegram_notify", "repair_system"],
     },
@@ -120,7 +129,7 @@ async function main() {
       monthlyBudgetUsd: 20,
       budgetUsedUsd: 0,
       heartbeatEnabled: true,
-      heartbeatCronExpr: "0 5 * * *",
+      heartbeatCronExpr: COPYWRITER_HEARTBEAT_CRON,
       governanceLevel: "autonomous",
       permissions: ["create_content", "read_marketing"],
     },
@@ -144,7 +153,7 @@ async function main() {
       monthlyBudgetUsd: 25,
       budgetUsedUsd: 0,
       heartbeatEnabled: true,
-      heartbeatCronExpr: "0 */2 * * *",
+      heartbeatCronExpr: ADS_SPECIALIST_HEARTBEAT_CRON,
       governanceLevel: "supervised",
       permissions: ["read_ads", "create_ads", "pause_ads", "read_marketing"],
     },
@@ -168,7 +177,7 @@ async function main() {
       monthlyBudgetUsd: 15,
       budgetUsedUsd: 0,
       heartbeatEnabled: true,
-      heartbeatCronExpr: "0 5 * * *",
+      heartbeatCronExpr: SOCIAL_MEDIA_HEARTBEAT_CRON,
       governanceLevel: "autonomous",
       permissions: ["create_content", "schedule_posts", "read_marketing"],
     },

@@ -3,6 +3,7 @@
  *
  * AI-powered content creation for Facebook & Instagram organic posts.
  * Uses elite copywriting frameworks from:
+- Poster-style composition with a clean headline-safe area
  * - Justin Welsh (hooks, pattern interrupts)
  * - Russell Brunson (storytelling, engagement)
  * - Nicholas Cole (specificity, category design)
@@ -214,6 +215,7 @@ export interface OrganicPostRequest {
   tone?: string[];
   includeCallToAction?: boolean;
   maxLength?: number;
+  count?: number;
 }
 
 export interface OrganicPost {
@@ -228,6 +230,84 @@ export interface OrganicPost {
   callToAction?: string;
   reasoning: string;
   imagePrompt?: string; // For AI image generation
+}
+
+function normalizeOrganicCopy(text: string): string {
+  return text
+    .replace(/\bDont\b/g, "Don't")
+    .replace(/\bdont\b/g, "don't")
+    .replace(/\bsecuirty\b/gi, "security")
+    .replace(/\brecieve\b/gi, "receive")
+    .replace(/\bseperate\b/gi, "separate")
+    .replace(/\bteh\b/gi, "the")
+    .replace(/\borganize\b/gi, "organise")
+    .replace(/\bcolor\b/gi, "colour")
+    .replace(/\bfavor\b/gi, "favour")
+    .replace(/\bcenter\b/gi, "centre");
+}
+
+export async function proofreadOrganicPost(post: OrganicPost): Promise<OrganicPost> {
+  const response = await openAiChat({
+    model: "gpt-4o-mini",
+    messages: [
+      {
+        role: "system",
+        content: `You are a meticulous UK-English proofreader for LockSafe UK organic social posts.
+Correct spelling, grammar, punctuation, and obvious wording issues.
+Preserve the original meaning, brand voice, hashtags, and structure.
+Use UK spelling only.
+Return valid JSON only.`,
+      },
+      {
+        role: "user",
+        content: `Proofread this post and return the same fields with corrections applied if needed:\n\n${JSON.stringify(post, null, 2)}`,
+      },
+    ],
+    temperature: 0.1,
+    max_tokens: 900,
+    response_format: { type: "json_object" },
+  });
+
+  try {
+    const content = response.choices[0].message.content;
+    const parsed = content ? JSON.parse(content) : {};
+    const hashtags = Array.isArray(parsed.hashtags)
+      ? parsed.hashtags.filter((tag: unknown): tag is string => typeof tag === "string")
+      : post.hashtags;
+    const normalized = {
+      content: typeof parsed.content === "string" ? parsed.content : post.content,
+      headline: typeof parsed.headline === "string" ? parsed.headline : post.headline,
+      hook: typeof parsed.hook === "string" ? parsed.hook : post.hook,
+      hookType: typeof parsed.hookType === "string" ? parsed.hookType : post.hookType,
+      hashtags,
+      framework: typeof parsed.framework === "string" ? parsed.framework : post.framework,
+      emotionalAngle: typeof parsed.emotionalAngle === "string" ? parsed.emotionalAngle : post.emotionalAngle,
+      pillar: parsed.pillar || post.pillar,
+      callToAction: typeof parsed.callToAction === "string" ? parsed.callToAction : post.callToAction,
+      reasoning: typeof parsed.reasoning === "string" ? parsed.reasoning : post.reasoning,
+      imagePrompt: typeof parsed.imagePrompt === "string" ? parsed.imagePrompt : post.imagePrompt,
+    };
+
+    return {
+      ...normalized,
+      content: normalizeOrganicCopy(normalized.content),
+      headline: normalizeOrganicCopy(normalized.headline),
+      hook: normalizeOrganicCopy(normalized.hook),
+      hashtags: normalized.hashtags.map((tag: string) => normalizeOrganicCopy(tag)),
+      reasoning: normalizeOrganicCopy(normalized.reasoning),
+      imagePrompt: normalized.imagePrompt ? normalizeOrganicCopy(normalized.imagePrompt) : normalized.imagePrompt,
+    };
+  } catch {
+    return {
+      ...post,
+      content: normalizeOrganicCopy(post.content),
+      headline: normalizeOrganicCopy(post.headline),
+      hook: normalizeOrganicCopy(post.hook),
+      hashtags: post.hashtags.map((tag: string) => normalizeOrganicCopy(tag)),
+      reasoning: normalizeOrganicCopy(post.reasoning),
+      imagePrompt: post.imagePrompt ? normalizeOrganicCopy(post.imagePrompt) : post.imagePrompt,
+    };
+  }
 }
 
 export interface ContentCalendarSlot {
@@ -345,6 +425,7 @@ export async function generateOrganicPost(request: OrganicPostRequest): Promise<
   const businessContext = getBusinessSummary();
   const pillar = CONTENT_PILLARS[request.pillar];
   const seasonalContext = getSeasonalContext();
+  const postCount = Math.max(1, request.count ?? 1);
 
   const systemPrompt = `${getOrganicContentPrompt()}
 
@@ -373,7 +454,7 @@ Use a MIX of copywriting frameworks:
 ` : `
 Use ${request.framework?.toUpperCase() || 'JUSTIN WELSH'} style specifically.`;
 
-  const userPrompt = `Create 3 organic social media posts for LockSafe UK.
+  const userPrompt = `Create ${postCount} organic social media post${postCount === 1 ? '' : 's'} for LockSafe UK.
 
 CONTENT PILLAR: ${pillar.displayName}
 Description: ${pillar.description}
@@ -404,7 +485,7 @@ Return JSON with a "posts" array. Each post should have:
 - pillar: "${request.pillar}"
 - callToAction: Soft CTA if requested (or null)
 - reasoning: Why this post will perform well
-- imagePrompt: Description of ideal accompanying image
+- imagePrompt: Description of ideal poster-style accompanying image
 
 Default hashtags for this pillar: ${pillar.hashtags.join(', ')}
 
@@ -428,7 +509,7 @@ Return ONLY valid JSON, no markdown.`;
     }
 
     const parsed = JSON.parse(content);
-    return (parsed.posts || [parsed]).map((p: OrganicPost) => ({
+    const generatedPosts: OrganicPost[] = (parsed.posts || [parsed]).slice(0, postCount).map((p: OrganicPost) => ({
       content: p.content || '',
       headline: p.headline || '',
       hook: p.hook || '',
@@ -441,6 +522,8 @@ Return ONLY valid JSON, no markdown.`;
       reasoning: p.reasoning || '',
       imagePrompt: p.imagePrompt,
     }));
+
+    return Promise.all(generatedPosts.map((post: OrganicPost) => proofreadOrganicPost(post)));
   } catch (error) {
     console.error('Error generating organic post:', error);
     throw error;
@@ -726,7 +809,7 @@ Content: ${post.content.slice(0, 200)}
 Pillar: ${post.pillar}
 Emotional angle: ${post.emotionalAngle}
 
-Return a detailed image generation prompt (for DALL-E or Midjourney style).`,
+Return a detailed poster-style image generation prompt (for DALL-E or Midjourney style).`,
       },
     ],
     temperature: 0.7,

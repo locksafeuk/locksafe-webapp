@@ -9,6 +9,7 @@ import { executeHeartbeat, delegateTask } from "@/agents/core/orchestrator";
 import { storeDecision, storePattern } from "@/agents/core/memory";
 import { sendAdminAlert } from "@/lib/telegram";
 import type { AgentConfig } from "@/agents/core/types";
+import { CTO_HEARTBEAT_CRON } from "@/agents/heartbeat-schedules";
 
 // Agent configuration
 export const CTO_AGENT_CONFIG: AgentConfig = {
@@ -17,7 +18,7 @@ export const CTO_AGENT_CONFIG: AgentConfig = {
   role: "Chief Technology Officer - System health monitoring, deployments, and technical oversight",
   skillsPath: "cto/SKILL.md",
   monthlyBudgetUsd: 80,
-  heartbeatCronExpr: "*/15 * * * *", // Every 15 minutes
+  heartbeatCronExpr: CTO_HEARTBEAT_CRON,
   permissions: [
     "cto",
     "senior-dev",

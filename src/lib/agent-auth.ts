@@ -11,15 +11,19 @@ import type { NextRequest } from "next/server";
 // Agent API key for OpenClaw
 const AGENT_API_KEY = process.env.AGENT_API_KEY;
 
-// Telegram Bot Token for webhook verification
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-
 // Telegram Chat IDs allowed for admin operations (comma-separated)
 const ADMIN_CHAT_IDS = (
   process.env.TELEGRAM_ADMIN_CHAT_IDS ||
   process.env.TELEGRAM_CHAT_ID ||
   ""
 )
+  .split(",")
+  .map((id) => id.trim())
+  .filter(Boolean);
+
+// Optional Telegram user IDs allowed for admin operations (comma-separated).
+// If set, both chat and user must match.
+const ADMIN_USER_IDS = (process.env.TELEGRAM_ADMIN_USER_IDS || "")
   .split(",")
   .map((id) => id.trim())
   .filter(Boolean);
@@ -90,6 +94,9 @@ export function verifyTelegramWebhook(body: TelegramUpdate): AgentAuthResult {
   const chatId =
     body.message?.chat?.id?.toString() ||
     body.callback_query?.message?.chat?.id?.toString();
+  const userId =
+    body.message?.from?.id?.toString() ||
+    body.callback_query?.from?.id?.toString();
 
   if (!chatId) {
     return {
@@ -109,10 +116,31 @@ export function verifyTelegramWebhook(body: TelegramUpdate): AgentAuthResult {
     };
   }
 
+  if (ADMIN_USER_IDS.length > 0) {
+    if (!userId) {
+      return {
+        authenticated: false,
+        type: "telegram",
+        chatId,
+        error: "Missing Telegram user ID",
+      };
+    }
+    if (!ADMIN_USER_IDS.includes(userId)) {
+      return {
+        authenticated: false,
+        type: "telegram",
+        chatId,
+        userId,
+        error: "Unauthorized Telegram user ID",
+      };
+    }
+  }
+
   return {
     authenticated: true,
     type: "telegram",
     chatId,
+    userId,
     userType: "admin",
   };
 }
@@ -203,7 +231,8 @@ export function parseCommand(
   }
 
   const parts = text.split(/\s+/);
-  const command = parts[0].toLowerCase().replace("@locksafe_admin_bot", ""); // Remove bot mention if present
+  // Support command mentions for any bot username (e.g. /help@LocksafeAI_BOT).
+  const command = parts[0].toLowerCase().replace(/@[a-z0-9_]+$/i, "");
   const args = parts.slice(1);
 
   return { command, args };

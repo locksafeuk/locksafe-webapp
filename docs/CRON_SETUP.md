@@ -45,7 +45,9 @@ OPENAI_API_KEY=sk-your-openai-key
 CRON_SECRET=your-secure-random-string
 
 # Optional - for Telegram notifications
-TELEGRAM_BOT_TOKEN=your-bot-token
+TELEGRAM_ADMIN_BOT_TOKEN=your-admin-bot-token
+TELEGRAM_LOCKSMITH_BOT_TOKEN=your-locksmith-bot-token
+TELEGRAM_BOT_TOKEN=your-fallback-bot-token
 TELEGRAM_CHAT_ID=your-chat-id
 ```
 
@@ -235,9 +237,13 @@ Visit `/admin/agents` to see:
 
 | Agent | Default Schedule | Purpose |
 |-------|-----------------|---------|
-| CEO | Every 4 hours | Strategic oversight |
+| CEO | Every 12 hours | Strategic oversight |
 | COO | Every 5 minutes | Real-time operations |
-| CMO | Every 2 hours | Campaign monitoring |
+| CMO | Every 8 hours | Campaign monitoring |
+| CTO | Every 15 minutes | System health |
+| Copywriter | Daily at 05:00 UTC | Content creation (skips idle cycles when no tasks are pending) |
+| Ads Specialist | Every 8 hours | Campaign optimisation |
+| Social Media | Daily at 05:00 UTC | Social distribution |
 
 The heartbeat API triggers all due agents based on their individual schedules.
 

@@ -5,10 +5,11 @@
  */
 
 import prisma from "@/lib/db";
-import { executeHeartbeat } from "@/agents/core/orchestrator";
+import { executeHeartbeat, getAgentStates } from "@/agents/core/orchestrator";
 import { storeDecision, storePattern } from "@/agents/core/memory";
 import { chat, Models } from "@/lib/llm-router";
 import type { AgentConfig } from "@/agents/core/types";
+import { COPYWRITER_HEARTBEAT_CRON, getNextHeartbeatAt } from "@/agents/heartbeat-schedules";
 
 // Agent configuration
 export const COPYWRITER_AGENT_CONFIG: AgentConfig = {
@@ -17,7 +18,7 @@ export const COPYWRITER_AGENT_CONFIG: AgentConfig = {
   role: "Marketing Copy Specialist - Ad copy, social content, and email generation",
   skillsPath: "cmo/subagents/copywriter/SKILL.md",
   monthlyBudgetUsd: 20,
-  heartbeatCronExpr: "0 5 * * *", // Daily at 5am
+  heartbeatCronExpr: COPYWRITER_HEARTBEAT_CRON,
   permissions: [
     "copywriter",
     "content",
@@ -114,6 +115,27 @@ export async function runCopywriterHeartbeat(): Promise<void> {
   if (!agent) {
     console.error("[Copywriter] Agent not found, initializing...");
     await initializeCopywriterAgent();
+    return;
+  }
+
+  const pendingTasks = await prisma.agentTask.count({
+    where: {
+      agentId: agent.id,
+      status: { in: ["pending", "in_progress"] },
+    },
+  });
+
+  if (pendingTasks === 0) {
+    const nextHeartbeat = getNextHeartbeatAt("copywriter");
+    const runtimeState = getAgentStates().get("copywriter");
+    if (runtimeState) {
+      runtimeState.nextHeartbeat = nextHeartbeat;
+    }
+    await prisma.agent.update({
+      where: { name: "copywriter" },
+      data: { nextHeartbeat },
+    }).catch(() => {});
+    console.log("[Copywriter] No pending tasks — skipping heartbeat");
     return;
   }
 

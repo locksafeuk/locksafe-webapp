@@ -6,10 +6,11 @@
 
 import prisma from "@/lib/db";
 import { AdStatus, AdObjective } from "@prisma/client";
-import { executeHeartbeat } from "@/agents/core/orchestrator";
+import { executeHeartbeat, getAgentStates } from "@/agents/core/orchestrator";
 import { storeDecision, storePattern } from "@/agents/core/memory";
 import { seedPlaybook } from "@/lib/google-ads-playbook";
 import type { AgentConfig } from "@/agents/core/types";
+import { ADS_SPECIALIST_HEARTBEAT_CRON, getNextHeartbeatAt } from "@/agents/heartbeat-schedules";
 
 /** Seed the campaign playbook once the agent row exists. Never throws. */
 async function ensurePlaybookSeeded(): Promise<void> {
@@ -28,7 +29,7 @@ export const ADS_SPECIALIST_AGENT_CONFIG: AgentConfig = {
   role: "Campaign Management Specialist - Ad campaigns, targeting, and optimization",
   skillsPath: "cmo/subagents/ads-specialist/SKILL.md",
   monthlyBudgetUsd: 25,
-  heartbeatCronExpr: "0 */6 * * *", // Every 6 hours (non-workflow tier — reduced from 2h)
+  heartbeatCronExpr: ADS_SPECIALIST_HEARTBEAT_CRON,
   permissions: [
     "ads-specialist",
     "marketing",
@@ -134,6 +135,27 @@ export async function runAdsSpecialistHeartbeat(): Promise<void> {
   if (!agent) {
     console.error("[AdsSpecialist] Agent not found, initializing...");
     await initializeAdsSpecialistAgent();
+    return;
+  }
+
+  const pendingTasks = await prisma.agentTask.count({
+    where: {
+      agentId: agent.id,
+      status: { in: ["pending", "in_progress"] },
+    },
+  });
+
+  if (pendingTasks === 0) {
+    const nextHeartbeat = getNextHeartbeatAt("ads-specialist");
+    const runtimeState = getAgentStates().get("ads-specialist");
+    if (runtimeState) {
+      runtimeState.nextHeartbeat = nextHeartbeat;
+    }
+    await prisma.agent.update({
+      where: { name: "ads-specialist" },
+      data: { nextHeartbeat },
+    }).catch(() => {});
+    console.log("[AdsSpecialist] No pending tasks - skipping heartbeat");
     return;
   }
 

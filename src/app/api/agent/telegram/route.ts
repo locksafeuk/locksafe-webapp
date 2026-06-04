@@ -21,7 +21,7 @@ import { handleCallbackQuery, handleCommand } from "@/lib/telegram-bot";
 import { processNaturalLanguageQuery } from "@/lib/openclaw-nlp";
 import { type NextRequest, NextResponse } from "next/server";
 
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_ADMIN_BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 /**

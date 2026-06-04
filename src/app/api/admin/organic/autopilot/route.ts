@@ -39,7 +39,7 @@ export async function GET() {
         data: {
           isEnabled: false,
           postsPerDay: 1,
-          generateAheadDays: 7,
+          generateAheadDays: 1,
           requireApproval: false,
           publishToFacebook: true,
           publishToInstagram: false,
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
         data: {
           isEnabled: isEnabled ?? false,
           postsPerDay: postsPerDay ?? 1,
-          generateAheadDays: generateAheadDays ?? 7,
+          generateAheadDays: generateAheadDays ?? 1,
           requireApproval: requireApproval ?? false,
           publishToFacebook: publishToFacebook ?? true,
           publishToInstagram: publishToInstagram ?? false,

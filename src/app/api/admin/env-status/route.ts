@@ -50,8 +50,13 @@ export async function GET() {
 
     // Check Telegram environment variables
     const telegramVars = {
-      TELEGRAM_BOT_TOKEN: !!process.env.TELEGRAM_BOT_TOKEN,
+      TELEGRAM_ADMIN_BOT_TOKEN: !!(process.env.TELEGRAM_ADMIN_BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN),
+      TELEGRAM_LOCKSMITH_BOT_TOKEN: !!(process.env.TELEGRAM_LOCKSMITH_BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN),
       TELEGRAM_CHAT_ID: !!process.env.TELEGRAM_CHAT_ID,
+      TELEGRAM_ADMIN_CHAT_IDS: !!process.env.TELEGRAM_ADMIN_CHAT_IDS,
+      TELEGRAM_ADMIN_USER_IDS: !!process.env.TELEGRAM_ADMIN_USER_IDS,
+      TELEGRAM_REQUIRE_CONFIRM: (process.env.TELEGRAM_REQUIRE_CONFIRM ?? "true") === "true",
+      TELEGRAM_TOPIC_SOCIAL: !!process.env.TELEGRAM_TOPIC_SOCIAL,
       TELEGRAM_NOTIFICATIONS_ENABLED: process.env.TELEGRAM_NOTIFICATIONS_ENABLED === "true",
     };
 
@@ -74,7 +79,11 @@ export async function GET() {
     // Calculate Telegram status
     const telegramConfigured = Object.values(telegramVars).filter(Boolean).length;
     const telegramTotal = Object.keys(telegramVars).length;
-    const telegramReady = telegramVars.TELEGRAM_BOT_TOKEN && telegramVars.TELEGRAM_CHAT_ID && telegramVars.TELEGRAM_NOTIFICATIONS_ENABLED;
+    const telegramReady =
+      telegramVars.TELEGRAM_ADMIN_BOT_TOKEN &&
+      telegramVars.TELEGRAM_LOCKSMITH_BOT_TOKEN &&
+      telegramVars.TELEGRAM_CHAT_ID &&
+      telegramVars.TELEGRAM_NOTIFICATIONS_ENABLED;
 
     // Calculate WhatsApp status
     const whatsappConfigured = Object.values(whatsappVars).filter(Boolean).length;
@@ -97,7 +106,9 @@ export async function GET() {
         configured: telegramConfigured,
         total: telegramTotal,
         ready: telegramReady,
-        webhookUrl: "https://locksafe.uk/api/agent/telegram",
+        webhookUrlAdmin: "https://locksafe.uk/api/agent/telegram",
+        webhookUrlLocksmith: "https://locksafe.uk/api/locksmith/bot",
+        socialAlertsTopic: telegramVars.TELEGRAM_TOPIC_SOCIAL ? "configured" : "fallback-to-agents-topic",
       },
       whatsapp: {
         variables: whatsappVars,

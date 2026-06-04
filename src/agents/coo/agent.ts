@@ -13,6 +13,7 @@ import { WorkflowEngine } from "@/lib/workflow-engine";
 import { sendAdminAlert } from "@/lib/telegram";
 import { notifyNearbyLocksmiths } from "@/lib/job-notifications";
 import type { AgentConfig } from "@/agents/core/types";
+import { COO_HEARTBEAT_CRON } from "@/agents/heartbeat-schedules";
 
 // Agent configuration
 export const COO_AGENT_CONFIG: AgentConfig = {
@@ -21,7 +22,7 @@ export const COO_AGENT_CONFIG: AgentConfig = {
   role: "Chief Operating Officer - Manages dispatch, locksmith operations, and service quality",
   skillsPath: "coo/SKILL.md",
   monthlyBudgetUsd: 40,
-  heartbeatCronExpr: "*/5 * * * *", // Every 5 minutes
+  heartbeatCronExpr: COO_HEARTBEAT_CRON,
   permissions: [
     "coo",
     "ops-manager",

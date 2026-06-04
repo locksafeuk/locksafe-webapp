@@ -10,6 +10,7 @@ import { executeHeartbeat, delegateTask } from "@/agents/core/orchestrator";
 import { parseSkillsFile } from "@/agents/core/skill-parser";
 import { storeDecision, storePattern } from "@/agents/core/memory";
 import type { AgentConfig } from "@/agents/core/types";
+import { CMO_HEARTBEAT_CRON } from "@/agents/heartbeat-schedules";
 
 // Agent configuration
 export const CMO_AGENT_CONFIG: AgentConfig = {
@@ -18,7 +19,7 @@ export const CMO_AGENT_CONFIG: AgentConfig = {
   role: "Chief Marketing Officer - Manages ad campaigns, content generation, and marketing strategy",
   skillsPath: "cmo/SKILL.md",
   monthlyBudgetUsd: 60,
-  heartbeatCronExpr: "0 */6 * * *", // Every 6 hours (non-workflow tier — reduced from 2h)
+  heartbeatCronExpr: CMO_HEARTBEAT_CRON,
   permissions: [
     "cmo",
     "copywriter",

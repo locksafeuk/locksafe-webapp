@@ -16,6 +16,8 @@ import { verifyToken } from "@/lib/auth";
 import {
   generateOrganicPost,
   generateContentCalendar,
+  generateImagePrompt,
+  proofreadOrganicPost,
   CONTENT_PILLARS,
   type ContentPillarKey,
 } from "@/lib/organic-content";
@@ -52,7 +54,7 @@ export async function GET(request: NextRequest) {
         data: {
           isEnabled: false, // Disabled by default
           postsPerDay: 1,
-          generateAheadDays: 3,
+          generateAheadDays: 1,
           requireApproval: false,
           publishToFacebook: true,
           publishToInstagram: false,
@@ -87,10 +89,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Build the content calendar from the admin-configured cadence. The
-    // calendar itself is now the source of truth for how many posts we want
-    // (publishTimes can vary the count per weekday); postsPerDay is the
-    // per-day fallback for any weekday without configured times.
+    // Build a compact content calendar so the queue stays small.
     const daysAhead = config.generateAheadDays;
     const calendar = generateContentCalendar(new Date(), daysAhead, {
       postsPerDay: config.postsPerDay,
@@ -165,10 +164,12 @@ export async function GET(request: NextRequest) {
           framework,
           emotionalAngle: angle,
           includeCallToAction: postIndex % 2 === 0,
+          count: 1,
         });
 
         if (posts.length > 0) {
-          const post = posts[0];
+          const post = await proofreadOrganicPost(posts[0]);
+          const imagePrompt = post.imagePrompt || await generateImagePrompt(post);
 
           // Calculate scheduled time
           const scheduledDate = new Date(slot.date);
@@ -203,6 +204,7 @@ export async function GET(request: NextRequest) {
               emotionalAngle: post.emotionalAngle,
               status: config.requireApproval ? "PENDING_APPROVAL" : "SCHEDULED",
               scheduledFor: scheduledDate,
+              imagePrompt,
             },
           });
 

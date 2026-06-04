@@ -83,6 +83,15 @@ const statusIcons: Record<string, typeof Clock> = {
   ARCHIVED: Trash2,
 };
 
+const pillarBadgeClasses: Record<string, string> = {
+  "anti-fraud": "bg-red-50 text-red-700",
+  tips: "bg-blue-50 text-blue-700",
+  stories: "bg-emerald-50 text-emerald-700",
+  "behind-scenes": "bg-violet-50 text-violet-700",
+  stats: "bg-amber-50 text-amber-700",
+  engagement: "bg-pink-50 text-pink-700",
+};
+
 export default function OrganicPostsPage() {
   const [posts, setPosts] = useState<SocialPost[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -412,6 +421,7 @@ export default function OrganicPostsPage() {
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
+              aria-label="Filter organic posts by status"
               className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
             >
               <option value="all">All Statuses</option>
@@ -426,6 +436,7 @@ export default function OrganicPostsPage() {
             <select
               value={selectedPillar}
               onChange={(e) => setSelectedPillar(e.target.value)}
+              aria-label="Filter organic posts by pillar"
               className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
             >
               <option value="all">All Pillars</option>
@@ -440,6 +451,8 @@ export default function OrganicPostsPage() {
             <button
               type="button"
               onClick={fetchPosts}
+              title="Refresh organic posts"
+              aria-label="Refresh organic posts"
               className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors"
             >
               <RefreshCw className="w-4 h-4 text-slate-500" />
@@ -481,6 +494,7 @@ export default function OrganicPostsPage() {
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
                     <th className="text-left px-4 py-3 text-sm font-semibold text-slate-700">Content</th>
+                    <th className="text-left px-4 py-3 text-sm font-semibold text-slate-700">Media</th>
                     <th className="text-left px-4 py-3 text-sm font-semibold text-slate-700">Pillar</th>
                     <th className="text-left px-4 py-3 text-sm font-semibold text-slate-700">Status</th>
                     <th className="text-left px-4 py-3 text-sm font-semibold text-slate-700">Platforms</th>
@@ -514,13 +528,24 @@ export default function OrganicPostsPage() {
                           </div>
                         </td>
                         <td className="px-4 py-3">
+                          {post.imageUrl ? (
+                            <Link href={`/admin/organic/${post.id}`}>
+                              <img
+                                src={post.imageUrl}
+                                alt={post.headline || "Post image"}
+                                className="h-16 w-16 rounded-lg object-cover border border-slate-200"
+                              />
+                            </Link>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-slate-100 text-slate-500">
+                              No image
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
                           {post.pillar ? (
                             <span
-                              className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
-                              style={{
-                                backgroundColor: `${post.pillar.color}20`,
-                                color: post.pillar.color,
-                              }}
+                              className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${pillarBadgeClasses[post.pillar.name] || "bg-slate-100 text-slate-700"}`}
                             >
                               {post.pillar.displayName}
                             </span>
@@ -571,7 +596,7 @@ export default function OrganicPostsPage() {
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-2">
                             <Link href={`/admin/organic/${post.id}`}>
-                              <button type="button" className="p-1.5 hover:bg-slate-100 rounded transition-colors">
+                              <button type="button" className="p-1.5 hover:bg-slate-100 rounded transition-colors" title="View post details" aria-label="View post details">
                                 <Eye className="w-4 h-4 text-slate-500" />
                               </button>
                             </Link>
