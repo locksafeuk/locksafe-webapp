@@ -3,6 +3,36 @@ import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
 import { geocodePostcode } from "@/lib/locksmith-matcher";
 
+function normalizeUkPostcode(postcode: string): string {
+  const compact = postcode.replace(/\s+/g, "").toUpperCase();
+  if (compact.length <= 3) return compact;
+  return `${compact.slice(0, -3)} ${compact.slice(-3)}`;
+}
+
+async function geocodeAddressFallback(address: string, postcode?: string | null): Promise<{ latitude: number; longitude: number } | null> {
+  try {
+    const query = [address, postcode, "United Kingdom"].filter(Boolean).join(", ");
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`,
+      {
+        headers: {
+          "User-Agent": "LockSafe-UK/1.0 (ops-live-map)",
+        },
+      },
+    );
+    const data = await response.json();
+    if (Array.isArray(data) && data.length > 0) {
+      return {
+        latitude: Number.parseFloat(data[0].lat),
+        longitude: Number.parseFloat(data[0].lon),
+      };
+    }
+  } catch {
+    // best-effort fallback only
+  }
+  return null;
+}
+
 async function requireAdmin(request: NextRequest) {
   const cookieStore = await cookies();
   const authToken = cookieStore.get("auth_token");
@@ -100,7 +130,11 @@ export async function GET(request: NextRequest) {
 
       if ((!latitude || !longitude) && job.postcode) {
         try {
-          const coords = await geocodePostcode(job.postcode);
+          const normalizedPostcode = normalizeUkPostcode(job.postcode);
+          const coords =
+            (await geocodePostcode(job.postcode)) ??
+            (normalizedPostcode !== job.postcode ? await geocodePostcode(normalizedPostcode) : null) ??
+            (job.address ? await geocodeAddressFallback(job.address, normalizedPostcode) : null);
           if (coords) {
             latitude = coords.latitude;
             longitude = coords.longitude;
