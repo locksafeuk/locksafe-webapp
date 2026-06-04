@@ -88,7 +88,7 @@ export async function sendAppInstallReminderEmail(
   const dashboardUrl = `${SITE_URL}/locksmith/dashboard`;
   const iosAppUrl = process.env.NEXT_PUBLIC_LOCKSAFE_IOS_APP_URL || dashboardUrl;
   const androidAppUrl = process.env.NEXT_PUBLIC_LOCKSAFE_ANDROID_APP_URL || dashboardUrl;
-  const pwaInstallUrl = process.env.NEXT_PUBLIC_LOCKSAFE_PWA_URL || dashboardUrl;
+  const pwaInstallUrl = process.env.NEXT_PUBLIC_LOCKSAFE_PWA_URL || `${SITE_URL}/install`;
   const html = `
     <!DOCTYPE html>
     <html>
@@ -353,7 +353,7 @@ export async function sendLocksmithWelcomeEmail(
   const faqUrl = `${SITE_URL}/locksmith/faq`;
   const iosAppUrl = process.env.NEXT_PUBLIC_LOCKSAFE_IOS_APP_URL || dashboardUrl;
   const androidAppUrl = process.env.NEXT_PUBLIC_LOCKSAFE_ANDROID_APP_URL || dashboardUrl;
-  const pwaInstallUrl = process.env.NEXT_PUBLIC_LOCKSAFE_PWA_URL || dashboardUrl;
+  const pwaInstallUrl = process.env.NEXT_PUBLIC_LOCKSAFE_PWA_URL || `${SITE_URL}/install`;
 
   const html = `
     <!DOCTYPE html>
@@ -529,7 +529,7 @@ export async function sendLocksmithFirstLoginInstallOptionsEmail(
   const dashboardUrl = `${SITE_URL}/locksmith/dashboard`;
   const iosAppUrl = process.env.NEXT_PUBLIC_LOCKSAFE_IOS_APP_URL || dashboardUrl;
   const androidAppUrl = process.env.NEXT_PUBLIC_LOCKSAFE_ANDROID_APP_URL || dashboardUrl;
-  const pwaInstallUrl = process.env.NEXT_PUBLIC_LOCKSAFE_PWA_URL || dashboardUrl;
+  const pwaInstallUrl = process.env.NEXT_PUBLIC_LOCKSAFE_PWA_URL || `${SITE_URL}/install`;
 
   const html = `
     <!DOCTYPE html>
@@ -1204,7 +1204,7 @@ export async function sendAccountVerifiedEmail(
   const dashboardUrl = `${SITE_URL}/locksmith/dashboard`;
   const iosAppUrl = process.env.NEXT_PUBLIC_LOCKSAFE_IOS_APP_URL || dashboardUrl;
   const androidAppUrl = process.env.NEXT_PUBLIC_LOCKSAFE_ANDROID_APP_URL || dashboardUrl;
-  const pwaInstallUrl = process.env.NEXT_PUBLIC_LOCKSAFE_PWA_URL || dashboardUrl;
+  const pwaInstallUrl = process.env.NEXT_PUBLIC_LOCKSAFE_PWA_URL || `${SITE_URL}/install`;
 
   const html = `
     <!DOCTYPE html>
