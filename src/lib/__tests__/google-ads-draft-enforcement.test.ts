@@ -283,5 +283,202 @@ describe("google-ads-draft-enforcement", () => {
       expect(PLAYBOOK_GUARDRAILS.MAX_HEADLINES).toBe(15);
       expect(PLAYBOOK_GUARDRAILS.MAX_DESCRIPTIONS).toBe(4);
     });
+
+    it("encodes the per-ad-group floors (post-2026-06-02 lesson)", () => {
+      expect(PLAYBOOK_GUARDRAILS.MIN_KEYWORDS_PER_AD_GROUP).toBe(10);
+      expect(PLAYBOOK_GUARDRAILS.MIN_ADS_PER_AD_GROUP).toBe(1);
+    });
+
+    it("bans 'locksmith' in keywords (Local Services policy)", () => {
+      expect(PLAYBOOK_GUARDRAILS.BANNED_KEYWORD_TOKENS).toContain("locksmith");
+      expect(PLAYBOOK_GUARDRAILS.BANNED_KEYWORD_EXACT).toContain("lock replacement");
+    });
+  });
+
+  // ─── New checks added 2026-06-04 after the empty-ad-group failure ────
+
+  describe("Local Services policy — banned keyword tokens", () => {
+    it("rejects keywords containing 'locksmith' at the flat-keywords level", () => {
+      const r = enforceDraftGuardrails({
+        ...conforming(),
+        keywords: [
+          ...Array.from({ length: 53 }, (_, i) => ({ text: `kw${i}`, matchType: "PHRASE" as const })),
+          { text: "emergency locksmith", matchType: "EXACT" as const },
+        ],
+      });
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        const v = r.violations.find((x) =>
+          x.field === "keywords" && x.actual === "emergency locksmith",
+        );
+        expect(v).toBeDefined();
+        expect(v?.severity).toBe("error");
+      }
+    });
+
+    it("rejects bare 'lock replacement' even without 'locksmith'", () => {
+      const r = enforceDraftGuardrails({
+        ...conforming(),
+        keywords: [
+          ...Array.from({ length: 53 }, (_, i) => ({ text: `kw${i}`, matchType: "PHRASE" as const })),
+          { text: "lock replacement", matchType: "EXACT" as const },
+        ],
+      });
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        const v = r.violations.find(
+          (x) => x.field === "keywords" && x.actual === "lock replacement",
+        );
+        expect(v).toBeDefined();
+      }
+    });
+
+    it("allows qualified variants like 'door lock replacement'", () => {
+      const r = enforceDraftGuardrails({
+        ...conforming(),
+        keywords: [
+          ...Array.from({ length: 53 }, (_, i) => ({ text: `kw${i}`, matchType: "PHRASE" as const })),
+          { text: "door lock replacement", matchType: "PHRASE" as const },
+        ],
+      });
+      expect(r.ok).toBe(true);
+    });
+
+    it("allows the validated 'locked out' phrasing pattern", () => {
+      const r = enforceDraftGuardrails({
+        ...conforming(),
+        keywords: [
+          { text: "locked out", matchType: "PHRASE" },
+          { text: "locked out of house", matchType: "EXACT" },
+          { text: "house lockout", matchType: "EXACT" },
+          ...Array.from({ length: 50 }, (_, i) => ({
+            text: `kw${i}`,
+            matchType: "PHRASE" as const,
+          })),
+        ],
+      });
+      expect(r.ok).toBe(true);
+    });
+  });
+
+  describe("per-ad-group enforcement (the 2026-06-02 failure mode)", () => {
+    const conformingAdGroup = (name: string) => ({
+      name,
+      keywords: Array.from({ length: 12 }, (_, i) => ({
+        text: `${name.toLowerCase()}-kw${i}`,
+        matchType: "PHRASE" as const,
+      })),
+      ads: [
+        {
+          headlines: Array.from({ length: 14 }, (_, i) => `H${i + 1}`),
+          descriptions: Array.from({ length: 4 }, (_, i) => `D${i + 1}`),
+        },
+      ],
+      headlines: Array.from({ length: 14 }, (_, i) => `H${i + 1}`),
+      descriptions: Array.from({ length: 4 }, (_, i) => `D${i + 1}`),
+    });
+
+    it("passes when all 5 themed ad groups are fully populated", () => {
+      const r = enforceDraftGuardrails({
+        ...conforming(),
+        adGroups: [
+          conformingAdGroup("Emergency & 24hr"),
+          conformingAdGroup("Locked Out"),
+          conformingAdGroup("Lock Change & Burglary"),
+          conformingAdGroup("uPVC & Composite Doors"),
+          conformingAdGroup("Trust & USP"),
+        ],
+      });
+      expect(r.ok).toBe(true);
+    });
+
+    it("REGRESSION: rejects the 2026-06-02 pattern — 3 of 5 ad groups empty", () => {
+      // Reproduces what shipped on 2026-06-02: only Locked Out + uPVC got
+      // populated; Emergency & 24hr, Lock Change & Burglary, Trust & USP
+      // shipped with empty keywords arrays.
+      const r = enforceDraftGuardrails({
+        ...conforming(),
+        adGroups: [
+          { ...conformingAdGroup("Emergency & 24hr"), keywords: [] },
+          conformingAdGroup("Locked Out"),
+          { ...conformingAdGroup("Lock Change & Burglary"), keywords: [] },
+          conformingAdGroup("uPVC & Composite Doors"),
+          { ...conformingAdGroup("Trust & USP"), keywords: [] },
+        ],
+      });
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        // Each of the 3 empty ad groups must produce a keywords violation
+        const labels = [
+          "Emergency & 24hr",
+          "Lock Change & Burglary",
+          "Trust & USP",
+        ];
+        for (const label of labels) {
+          const v = r.violations.find((x) =>
+            x.field === `adGroups[${label}].keywords`,
+          );
+          expect(v).toBeDefined();
+        }
+      }
+    });
+
+    it("rejects an ad group with zero ads (the LC&B-no-RSA case)", () => {
+      const r = enforceDraftGuardrails({
+        ...conforming(),
+        adGroups: [
+          { ...conformingAdGroup("Lock Change & Burglary"), ads: [] },
+        ],
+      });
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        const v = r.violations.find(
+          (x) => x.field === "adGroups[Lock Change & Burglary].ads",
+        );
+        expect(v).toBeDefined();
+      }
+    });
+
+    it("rejects per-ad-group keywords containing 'locksmith'", () => {
+      const r = enforceDraftGuardrails({
+        ...conforming(),
+        adGroups: [
+          {
+            ...conformingAdGroup("Emergency & 24hr"),
+            keywords: [
+              { text: "emergency locksmith", matchType: "EXACT" },
+              { text: "24 hour locksmith", matchType: "EXACT" },
+              ...Array.from({ length: 10 }, (_, i) => ({
+                text: `kw${i}`,
+                matchType: "PHRASE" as const,
+              })),
+            ],
+          },
+        ],
+      });
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(
+          r.violations.some(
+            (x) =>
+              x.field === "adGroups[Emergency & 24hr].keywords" &&
+              x.actual === "emergency locksmith",
+          ),
+        ).toBe(true);
+      }
+    });
+
+    it("uses ad group index when name is missing", () => {
+      const r = enforceDraftGuardrails({
+        ...conforming(),
+        adGroups: [{ keywords: [], ads: [] }],
+      });
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(
+          r.violations.some((x) => x.field.includes("ad group 1")),
+        ).toBe(true);
+      }
+    });
   });
 });

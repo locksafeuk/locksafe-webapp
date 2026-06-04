@@ -49,13 +49,58 @@ export const PLAYBOOK_GUARDRAILS = {
    * variance; reject only drafts that are dramatically thin. */
   MIN_KEYWORDS: 40,
 
+  /** PER-AD-GROUP minimum keywords. Catches the 2026-06-02 failure mode where
+   * the generator shipped 3 of 5 themed ad groups EMPTY because their keyword
+   * vocabulary (containing "locksmith") hit Local Services policy and dropped.
+   * Empty ad groups serve zero impressions even when the campaign reports SERVING. */
+  MIN_KEYWORDS_PER_AD_GROUP: 10,
+
+  /** PER-AD-GROUP minimum ads. The Lock Change & Burglary ad group in
+   * Yorkshire | Final shipped with zero ads — it appeared Eligible but
+   * couldn't serve. Same root cause as MIN_KEYWORDS_PER_AD_GROUP. */
+  MIN_ADS_PER_AD_GROUP: 1,
+
   /** Playbook target = 128 negatives (the shared list verbatim). Same slack
    * rationale as above. */
   MIN_NEGATIVE_KEYWORDS: 100,
 
   /** Every draft must land on a city/district page that returned 200 before publish. */
   REQUIRE_FINAL_URL: true,
+
+  /** Local Services Ads policy: keywords containing these tokens get flagged
+   * and dropped silently by Google. Until the account is enrolled in Local
+   * Services Ads, the autonomous draft path must not include them. See
+   * google-ads-campaign-playbook.md §10. */
+  BANNED_KEYWORD_TOKENS: ["locksmith"] as const,
+
+  /** Single-word keywords that Google's Local Services classifier still
+   * flags even without "locksmith". Use qualified variants instead
+   * (e.g. "door lock replacement" instead of "lock replacement"). */
+  BANNED_KEYWORD_EXACT: ["lock replacement"] as const,
 } as const;
+
+// ─── Per-ad-group input shape ──────────────────────────────────────────────
+/**
+ * Loose shape for the per-ad-group payload found in
+ * `GoogleAdsCampaignDraft.adGroups` (Json). The webapp's draft generator
+ * populates this when building multi-ad-group themed campaigns. The
+ * canonical shape per the 2026-06-02 published drafts is:
+ *
+ *   adGroups: [
+ *     { name: "Emergency & 24hr", keywords: [...], ads: [{ headlines, descriptions, finalUrl }] },
+ *     { name: "Locked Out", keywords: [...], ads: [...] },
+ *     ...
+ *   ]
+ *
+ * Callers may pass partials; we treat missing fields as zero-length arrays.
+ */
+export interface AdGroupCheckShape {
+  name?: string;
+  keywords?: unknown;
+  ads?: unknown;
+  headlines?: unknown;
+  descriptions?: unknown;
+}
 
 // ─── Shape we read from the create-data payload ───────────────────────────
 // The Prisma model is GoogleAdsCampaignDraft with these relevant fields:
@@ -185,7 +230,7 @@ export function enforceDraftGuardrails(
     });
   }
 
-  // 4. Keywords. ─────────────────────────────────────────────────────────
+  // 4. Keywords (campaign-level, flat single-ad-group case). ────────────
   // keywords is Json on the model: [{ text, matchType }]. Count entries.
   const keywordsLen = Array.isArray(out.keywords) ? (out.keywords as unknown[]).length : 0;
   if (keywordsLen < PLAYBOOK_GUARDRAILS.MIN_KEYWORDS) {
@@ -195,6 +240,22 @@ export function enforceDraftGuardrails(
       actual: String(keywordsLen),
       severity: "error",
     });
+  }
+
+  // 4a. Banned keyword tokens (Local Services Ads policy). ──────────────
+  // Catches the 2026-06-02 failure mode: drafts shipped with "locksmith"
+  // keywords that Google's Local Services classifier silently dropped.
+  // See playbook §10.
+  if (Array.isArray(out.keywords)) {
+    const flatKeywordViolations = collectBannedKeywords(out.keywords);
+    for (const banned of flatKeywordViolations) {
+      violations.push({
+        field: "keywords",
+        expected: `no Local Services-restricted tokens (${PLAYBOOK_GUARDRAILS.BANNED_KEYWORD_TOKENS.join(", ")})`,
+        actual: banned,
+        severity: "error",
+      });
+    }
   }
 
   // 5. Negative keywords. ────────────────────────────────────────────────
@@ -223,8 +284,132 @@ export function enforceDraftGuardrails(
     }
   }
 
+  // 7. Per-ad-group enforcement (multi-ad-group themed campaigns). ──────
+  // If the draft uses the adGroups Json field (the 5-themed pattern from
+  // playbook §1), every ad group must independently satisfy the per-ad-group
+  // floors. This blocks the 2026-06-02 failure where 3 of 5 ad groups in
+  // each campaign shipped empty.
+  if (Array.isArray(out.adGroups) && out.adGroups.length > 0) {
+    const adGroupViolations = validateAdGroups(out.adGroups as AdGroupCheckShape[]);
+    for (const v of adGroupViolations) {
+      violations.push(v);
+    }
+  }
+
   if (violations.length > 0) return { ok: false, violations };
   return { ok: true, data: out, appliedFixes };
+}
+
+// ─── Helpers — banned-keyword detection + per-ad-group validation ─────
+
+/**
+ * Returns a list of keyword strings from the input that violate the Local
+ * Services Ads policy (contain a banned token or match a banned exact phrase).
+ * Used to populate violation entries. The input is the raw `keywords` Json —
+ * each entry expected to be `{ text, matchType }` but defensive against any
+ * shape (just looks for a `text` field).
+ */
+function collectBannedKeywords(rawKeywords: unknown): string[] {
+  if (!Array.isArray(rawKeywords)) return [];
+  const out: string[] = [];
+  for (const kw of rawKeywords) {
+    const text =
+      typeof kw === "string"
+        ? kw
+        : kw && typeof kw === "object" && "text" in (kw as Record<string, unknown>)
+          ? String((kw as Record<string, unknown>).text)
+          : "";
+    if (!text) continue;
+    const lower = text.toLowerCase().trim();
+    for (const exact of PLAYBOOK_GUARDRAILS.BANNED_KEYWORD_EXACT) {
+      if (lower === exact) out.push(text);
+    }
+    for (const token of PLAYBOOK_GUARDRAILS.BANNED_KEYWORD_TOKENS) {
+      if (lower.includes(token)) {
+        out.push(text);
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Per-ad-group structural checks. Returns one violation per failing ad group
+ * (qualified with the ad group name in `field` so the caller can identify
+ * which themed ad group is broken).
+ *
+ * Catches the 2026-06-02 failure pattern: 3 of 5 themed ad groups shipped
+ * empty (no keywords, no ads) and the campaign reported SERVING anyway.
+ */
+function validateAdGroups(adGroups: AdGroupCheckShape[]): GuardrailViolation[] {
+  const out: GuardrailViolation[] = [];
+  for (let i = 0; i < adGroups.length; i++) {
+    const ag = adGroups[i];
+    const label = ag?.name?.trim() || `ad group ${i + 1}`;
+
+    // Keywords per ad group
+    const kwCount = Array.isArray(ag?.keywords) ? (ag.keywords as unknown[]).length : 0;
+    if (kwCount < PLAYBOOK_GUARDRAILS.MIN_KEYWORDS_PER_AD_GROUP) {
+      out.push({
+        field: `adGroups[${label}].keywords`,
+        expected: `at least ${PLAYBOOK_GUARDRAILS.MIN_KEYWORDS_PER_AD_GROUP} per ad group`,
+        actual: String(kwCount),
+        severity: "error",
+      });
+    }
+
+    // Banned keywords per ad group
+    if (Array.isArray(ag?.keywords)) {
+      const banned = collectBannedKeywords(ag.keywords);
+      for (const b of banned) {
+        out.push({
+          field: `adGroups[${label}].keywords`,
+          expected: `no Local Services-restricted tokens (${PLAYBOOK_GUARDRAILS.BANNED_KEYWORD_TOKENS.join(", ")})`,
+          actual: b,
+          severity: "error",
+        });
+      }
+    }
+
+    // Ads per ad group
+    const adsCount = Array.isArray(ag?.ads) ? (ag.ads as unknown[]).length : 0;
+    if (adsCount < PLAYBOOK_GUARDRAILS.MIN_ADS_PER_AD_GROUP) {
+      out.push({
+        field: `adGroups[${label}].ads`,
+        expected: `at least ${PLAYBOOK_GUARDRAILS.MIN_ADS_PER_AD_GROUP} RSA per ad group`,
+        actual: String(adsCount),
+        severity: "error",
+      });
+    }
+
+    // Headlines per ad group (if specified at this level)
+    if (Array.isArray(ag?.headlines)) {
+      const hCount = (ag.headlines as unknown[]).length;
+      if (hCount < PLAYBOOK_GUARDRAILS.MIN_HEADLINES) {
+        out.push({
+          field: `adGroups[${label}].headlines`,
+          expected: `at least ${PLAYBOOK_GUARDRAILS.MIN_HEADLINES} per ad group`,
+          actual: String(hCount),
+          severity: "error",
+        });
+      }
+    }
+
+    // Descriptions per ad group (if specified at this level)
+    if (Array.isArray(ag?.descriptions)) {
+      const dCount = (ag.descriptions as unknown[]).length;
+      if (dCount < PLAYBOOK_GUARDRAILS.MIN_DESCRIPTIONS) {
+        out.push({
+          field: `adGroups[${label}].descriptions`,
+          expected: `at least ${PLAYBOOK_GUARDRAILS.MIN_DESCRIPTIONS} per ad group`,
+          actual: String(dCount),
+          severity: "error",
+        });
+      }
+    }
+  }
+  return out;
 }
 
 // ─── Strict variant — throws on violation ──────────────────────────────
