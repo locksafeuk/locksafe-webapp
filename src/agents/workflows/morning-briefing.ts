@@ -83,6 +83,8 @@ async function sendBriefing(ctx: WorkflowContext): Promise<void> {
     title: "Morning Briefing",
     message: lines.join("\n"),
     severity: "info",
+    bypassPolicyGate: true,
+    dedupeKey: `morning-briefing:${now.toISOString().slice(0, 10)}`,
   });
 }
 
