@@ -16,6 +16,7 @@ const ROUTE_TITLES: Array<{ test: (path: string) => boolean; title: string }> = 
   { test: (path) => path.startsWith("/admin/locksmiths"), title: "Locksmiths" },
   { test: (path) => path.startsWith("/admin/locksmith-teams"), title: "Locksmith Teams" },
   { test: (path) => path.startsWith("/admin/customers"), title: "Customers" },
+  { test: (path) => path.startsWith("/admin/whatsapp"), title: "WhatsApp Inbox" },
   { test: (path) => path.startsWith("/admin/payouts"), title: "Payouts" },
   { test: (path) => path.startsWith("/admin/payments"), title: "Payments" },
   { test: (path) => path.startsWith("/admin/refunds"), title: "Refunds" },

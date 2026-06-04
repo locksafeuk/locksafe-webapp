@@ -26,6 +26,11 @@ import {
   shouldStartJobRequest,
   isInJobRequestFlow,
 } from "@/lib/whatsapp-job-request";
+import {
+  recordIncomingWhatsAppMessage,
+  recordOutgoingWhatsAppMessage,
+  updateWhatsAppMessageStatus,
+} from "@/lib/whatsapp-inbox";
 
 // Check if OpenAI is configured for NLP
 const OPENAI_ENABLED = !!process.env.OPENAI_API_KEY;
@@ -188,14 +193,73 @@ export async function sendWhatsAppMessage(
     const data = await response.json();
 
     if (response.ok) {
+      const sentMessageId = data.messages?.[0]?.id as string | undefined;
+      const content =
+        message.type === "text"
+          ? message.text?.body
+          : message.type === "template"
+            ? `[template:${message.template?.name ?? "unknown"}]`
+            : "[interactive message]";
+
+      await recordOutgoingWhatsAppMessage({
+        phone: to,
+        messageType: message.type,
+        content,
+        providerMessageId: sentMessageId ?? null,
+        rawPayload: payload,
+      });
+
       console.log(`[WhatsApp] Message sent to ${to}`);
-      return { success: true, messageId: data.messages?.[0]?.id };
+      return { success: true, messageId: sentMessageId };
     }
 
     console.error("[WhatsApp] API error:", data);
+
+    const content =
+      message.type === "text"
+        ? message.text?.body
+        : message.type === "template"
+          ? `[template:${message.template?.name ?? "unknown"}]`
+          : "[interactive message]";
+
+    await recordOutgoingWhatsAppMessage({
+      phone: to,
+      messageType: message.type,
+      content,
+      providerMessageId: null,
+      rawPayload: {
+        request: payload,
+        response: data,
+      },
+    });
+
     return { success: false, error: data.error?.message || "Failed to send" };
   } catch (error) {
     console.error("[WhatsApp] Send error:", error);
+
+    const content =
+      message.type === "text"
+        ? message.text?.body
+        : message.type === "template"
+          ? `[template:${message.template?.name ?? "unknown"}]`
+          : "[interactive message]";
+
+    await recordOutgoingWhatsAppMessage({
+      phone: to,
+      messageType: message.type,
+      content,
+      providerMessageId: null,
+      rawPayload: {
+        request: {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: normalizePhoneNumber(to),
+          ...message,
+        },
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
+
     return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
   }
 }
@@ -648,6 +712,16 @@ export async function handleIncomingMessage(
   }
 
   console.log(`[WhatsApp] Received from ${phone}: "${messageText}" (button: ${buttonId})`);
+
+  await recordIncomingWhatsAppMessage({
+    phone,
+    waId: phone,
+    contactName: senderName !== "Customer" ? senderName : null,
+    messageType: message.type,
+    content: messageText || null,
+    providerMessageId: message.id,
+    rawPayload: message,
+  });
 
   // Check if user is in job request flow
   if (isInJobRequestFlow(phone)) {
@@ -1291,6 +1365,10 @@ export async function processWebhook(payload: WhatsAppWebhookPayload): Promise<v
       if (value.statuses) {
         for (const status of value.statuses) {
           console.log(`[WhatsApp] Message ${status.id} status: ${status.status}`);
+          await updateWhatsAppMessageStatus({
+            providerMessageId: status.id,
+            status: status.status,
+          });
         }
       }
     }
