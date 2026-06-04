@@ -1359,6 +1359,19 @@ model GoogleAdsCampaignDraft {
   pausedAt     DateTime?
   adminNotes   String?
 
+  // ── Post-publish verification (added 2026-06-04) ─────────────────────────
+  // After publish, a cron compares the live Google campaign against playbook
+  // structural floors (≥10 keywords per ad group, ≥1 RSA per ad group).
+  // Catches the 2026-06-02 failure mode where campaigns published as
+  // SERVING/ENABLED but had ad groups with zero keywords. See
+  // google-ads-campaign-playbook.md §12.
+  //
+  // verificationStatus: "ok" | "structural_failure" | "google_pending" | "api_error"
+  // verificationDetails: full VerificationResult blob for audit
+  lastVerifiedAt      DateTime?
+  verificationStatus  String?
+  verificationDetails Json?
+
   // Manual-vs-AI provenance + post-publish snapshot.
   // createdBy: "ai" (default existing rows) | "admin" (manual via UI)
   // publishedSnapshot: full live state pulled back via GAQL after a successful
