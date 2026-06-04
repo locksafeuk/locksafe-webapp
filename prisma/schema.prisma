@@ -66,6 +66,42 @@ model WhatsAppClickLog {
   @@index([actorId, clickedAt])
 }
 
+// Persistent WhatsApp inbox for admin-side in-app messaging.
+model WhatsAppConversation {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  waId              String?  @unique // WhatsApp wa_id when known (digits-only)
+  phone             String   // Normalized destination/source phone
+  contactName       String?
+  lastMessageAt     DateTime @default(now())
+  lastMessagePreview String?
+  unreadCount       Int      @default(0)
+  archived          Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  messages WhatsAppConversationMessage[]
+
+  @@index([phone])
+  @@index([lastMessageAt])
+}
+
+model WhatsAppConversationMessage {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  conversationId  String   @db.ObjectId
+  conversation    WhatsAppConversation @relation(fields: [conversationId], references: [id])
+
+  direction       String   // inbound | outbound
+  messageType     String   // text | interactive | template | status
+  content         String?
+  providerMessageId String?
+  status          String?  // sent | delivered | read | failed
+  rawPayload      Json?
+  createdAt       DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([providerMessageId])
+}
+
 // Admin user model
 model Admin {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId
