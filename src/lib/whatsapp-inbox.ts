@@ -1,6 +1,14 @@
 import prisma from "@/lib/db";
 import { Prisma } from "@prisma/client";
 
+export interface WhatsAppConversationFilters {
+  unreadOnly?: boolean;
+  urgentOnly?: boolean;
+  assignedToAdminId?: string;
+  unassignedOnly?: boolean;
+  search?: string;
+}
+
 function normalizePhone(phone: string): string {
   let normalized = (phone || "").replace(/\s+/g, "").replace(/[^\d+]/g, "");
   if (normalized.startsWith("+")) normalized = normalized.slice(1);
@@ -150,14 +158,52 @@ export async function updateWhatsAppMessageStatus(input: {
 }
 
 export async function listWhatsAppConversations() {
+  return listWhatsAppConversationsWithFilters();
+}
+
+export async function listWhatsAppConversationsWithFilters(filters: WhatsAppConversationFilters = {}) {
+  const and: Prisma.WhatsAppConversationWhereInput[] = [{ archived: false }];
+
+  if (filters.unreadOnly) {
+    and.push({ unreadCount: { gt: 0 } });
+  }
+
+  if (filters.urgentOnly) {
+    and.push({ isUrgent: true });
+  }
+
+  if (filters.assignedToAdminId) {
+    and.push({ assignedAdminId: filters.assignedToAdminId });
+  }
+
+  if (filters.unassignedOnly) {
+    and.push({ assignedAdminId: null });
+  }
+
+  const query = filters.search?.trim();
+  if (query) {
+    and.push({
+      OR: [
+        { phone: { contains: query } },
+        { waId: { contains: query } },
+        { contactName: { contains: query } },
+      ],
+    });
+  }
+
   return prisma.whatsAppConversation.findMany({
-    where: { archived: false },
+    where: { AND: and },
     orderBy: { lastMessageAt: "desc" },
     select: {
       id: true,
       phone: true,
       waId: true,
       contactName: true,
+      assignedAdminId: true,
+      assignedAdminEmail: true,
+      assignedAdminName: true,
+      assignedAt: true,
+      isUrgent: true,
       lastMessageAt: true,
       lastMessagePreview: true,
       unreadCount: true,
@@ -191,6 +237,11 @@ export async function getWhatsAppConversation(conversationId: string) {
       phone: true,
       waId: true,
       contactName: true,
+      assignedAdminId: true,
+      assignedAdminEmail: true,
+      assignedAdminName: true,
+      assignedAt: true,
+      isUrgent: true,
       unreadCount: true,
       lastMessageAt: true,
     },
@@ -201,5 +252,54 @@ export async function markWhatsAppConversationRead(conversationId: string) {
   await prisma.whatsAppConversation.update({
     where: { id: conversationId },
     data: { unreadCount: 0 },
+  });
+}
+
+export async function listWhatsAppInboxAssignees() {
+  return prisma.admin.findMany({
+    where: { isActive: true },
+    orderBy: { name: "asc" },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+    },
+  });
+}
+
+export async function assignWhatsAppConversation(
+  conversationId: string,
+  assignee: { id: string; email: string; name: string } | null,
+) {
+  return prisma.whatsAppConversation.update({
+    where: { id: conversationId },
+    data: assignee
+      ? {
+          assignedAdminId: assignee.id,
+          assignedAdminEmail: assignee.email,
+          assignedAdminName: assignee.name,
+          assignedAt: new Date(),
+        }
+      : {
+          assignedAdminId: null,
+          assignedAdminEmail: null,
+          assignedAdminName: null,
+          assignedAt: null,
+        },
+    select: {
+      id: true,
+      assignedAdminId: true,
+      assignedAdminEmail: true,
+      assignedAdminName: true,
+      assignedAt: true,
+    },
+  });
+}
+
+export async function setWhatsAppConversationUrgent(conversationId: string, isUrgent: boolean) {
+  return prisma.whatsAppConversation.update({
+    where: { id: conversationId },
+    data: { isUrgent },
+    select: { id: true, isUrgent: true },
   });
 }

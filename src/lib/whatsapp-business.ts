@@ -270,7 +270,7 @@ export async function sendWhatsAppMessage(
 export async function sendTextMessage(
   to: string,
   text: string
-): Promise<{ success: boolean; messageId?: string }> {
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
   return sendWhatsAppMessage(to, {
     type: "text",
     text: { body: text },
@@ -337,13 +337,14 @@ export async function sendListMessage(
 export async function sendTemplateMessage(
   to: string,
   templateName: string,
-  parameters: string[] = []
-): Promise<{ success: boolean; messageId?: string }> {
+  parameters: string[] = [],
+  options?: { languageCode?: string }
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
   return sendWhatsAppMessage(to, {
     type: "template",
     template: {
       name: templateName,
-      language: { code: "en_GB" },
+      language: { code: options?.languageCode || "en_GB" },
       components: parameters.length > 0
         ? [
             {

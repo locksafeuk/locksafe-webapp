@@ -4,7 +4,7 @@ import {
   getWhatsAppConversation,
   getWhatsAppConversationMessages,
 } from "@/lib/whatsapp-inbox";
-import { sendTextMessage } from "@/lib/whatsapp-business";
+import { sendTemplateMessage, sendTextMessage } from "@/lib/whatsapp-business";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +64,48 @@ export async function POST(
     ? (body as { text: string }).text.trim()
     : "";
 
+  const sendMode = typeof (body as { sendMode?: unknown })?.sendMode === "string"
+    ? (body as { sendMode: string }).sendMode
+    : "text";
+
+  if (sendMode === "template") {
+    const templateName = typeof (body as { templateName?: unknown })?.templateName === "string"
+      ? (body as { templateName: string }).templateName.trim()
+      : "";
+
+    const templateLanguage = typeof (body as { templateLanguage?: unknown })?.templateLanguage === "string"
+      ? (body as { templateLanguage: string }).templateLanguage.trim()
+      : "en_GB";
+
+    const templateParametersRaw = (body as { templateParameters?: unknown })?.templateParameters;
+    const templateParameters = Array.isArray(templateParametersRaw)
+      ? templateParametersRaw.filter((item): item is string => typeof item === "string").map((s) => s.trim()).filter(Boolean)
+      : [];
+
+    if (!templateName) {
+      return NextResponse.json({ success: false, error: "Template name is required" }, { status: 400 });
+    }
+
+    const templateResult = await sendTemplateMessage(
+      conversation.phone,
+      templateName,
+      templateParameters,
+      { languageCode: templateLanguage },
+    );
+
+    if (!templateResult.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: templateResult.error || "Failed to send WhatsApp template",
+        },
+        { status: 502 },
+      );
+    }
+
+    return NextResponse.json({ success: true, messageId: templateResult.messageId });
+  }
+
   if (!text) {
     return NextResponse.json({ success: false, error: "Message text is required" }, { status: 400 });
   }
@@ -73,7 +115,7 @@ export async function POST(
     return NextResponse.json(
       {
         success: false,
-        error: "Failed to send WhatsApp message",
+        error: result.error || "Failed to send WhatsApp message",
       },
       { status: 502 },
     );
