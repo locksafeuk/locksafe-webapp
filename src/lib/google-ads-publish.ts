@@ -321,12 +321,22 @@ export async function publishGoogleAdsDraft(draftId: string): Promise<PublishRes
           campaignBudget: budgetResource,
           containsEuPoliticalAdvertising: "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
           geoTargetTypeSetting,
+          // Forensic-validation traffic controls — playbook §15.
+          // Search-only, no expansion of any kind. Search Partners is OFF
+          // because partner traffic (Bing, DuckDuckGo, affiliate search,
+          // domain-park search) dilutes attribution and can't be A/B
+          // tested per-source. Clean Google Search signal first.
           networkSettings: {
             targetGoogleSearch: true,
-            targetSearchNetwork: true,
-            targetContentNetwork: false,
-            targetPartnerSearchNetwork: false,
+            targetSearchNetwork: false,        // ← was true: Search Partners DISABLED
+            targetContentNetwork: false,       // Display network DISABLED
+            targetPartnerSearchNetwork: false, // YouTube-search partners DISABLED
           },
+          // Block Google from auto-substituting a different landing page
+          // it thinks will convert better. Bypasses UTM attribution and
+          // routes traffic to pages that haven't passed our content
+          // guardrails. Off, no exceptions. Playbook §15.
+          urlExpansionOptOut: true,
           ...(draft.startDate ? { startDate: formatGoogleDate(draft.startDate) } : {}),
           ...(draft.endDate ? { endDate: formatGoogleDate(draft.endDate) } : {}),
           ...biddingPayload,
@@ -480,6 +490,9 @@ export async function publishGoogleAdsDraft(draftId: string): Promise<PublishRes
             campaign: campaignResource,
             type: "SEARCH_STANDARD",
             cpcBidMicros: gbpToMicros(2),
+            // Forensic-validation rule (playbook §15): no audience expansion,
+            // no auto-targeting. Stick to the keywords we set.
+            optimizedTargetingEnabled: false,
           },
         },
       ]);
@@ -750,6 +763,8 @@ async function publishAdGroups(
           campaign: campaignResource,
           type: "SEARCH_STANDARD",
           cpcBidMicros: gbpToMicros(2),
+          // Forensic-validation rule (playbook §15): no audience expansion.
+          optimizedTargetingEnabled: false,
         },
       }],
     );

@@ -27,6 +27,7 @@ const conforming = () => ({
   biddingStrategy: "MAXIMIZE_CONVERSIONS",
   targetCpa: null,
   channel: "SEARCH",
+  locationMatchType: "PRESENCE",
   geoTargets: ["2826"],
   languageTargets: ["1000"],
   headlines: Array.from({ length: 14 }, (_, i) => `H${i + 1}`),
@@ -292,6 +293,92 @@ describe("google-ads-draft-enforcement", () => {
     it("bans 'locksmith' in keywords (Local Services policy)", () => {
       expect(PLAYBOOK_GUARDRAILS.BANNED_KEYWORD_TOKENS).toContain("locksmith");
       expect(PLAYBOOK_GUARDRAILS.BANNED_KEYWORD_EXACT).toContain("lock replacement");
+    });
+
+    it("encodes forensic-validation traffic controls (§15)", () => {
+      expect(PLAYBOOK_GUARDRAILS.ADVERTISING_CHANNEL_TYPE).toBe("SEARCH");
+      expect(PLAYBOOK_GUARDRAILS.LOCATION_MATCH_TYPE).toBe("PRESENCE");
+    });
+  });
+
+  // ─── Forensic-validation enforcement (§15) ─────────────────────────────
+
+  describe("channel — HARD OVERRIDE to SEARCH", () => {
+    it("auto-overrides DISPLAY to SEARCH", () => {
+      const r = enforceDraftGuardrails({ ...conforming(), channel: "DISPLAY" });
+      expect(r.ok).toBe(true);
+      if (r.ok) {
+        expect(r.data.channel).toBe("SEARCH");
+        expect(r.appliedFixes.some((f) => f.field === "channel")).toBe(true);
+      }
+    });
+
+    it("respects allowOverride for explicit channel experiments", () => {
+      const r = enforceDraftGuardrails(
+        { ...conforming(), channel: "DISPLAY" },
+        { allowOverride: true },
+      );
+      expect(r.ok).toBe(true);
+      if (r.ok) expect(r.data.channel).toBe("DISPLAY");
+    });
+  });
+
+  describe("locationMatchType — HARD OVERRIDE to PRESENCE", () => {
+    it("auto-overrides PRESENCE_OR_INTEREST to PRESENCE", () => {
+      const r = enforceDraftGuardrails({
+        ...conforming(),
+        locationMatchType: "PRESENCE_OR_INTEREST",
+      });
+      expect(r.ok).toBe(true);
+      if (r.ok) {
+        expect(r.data.locationMatchType).toBe("PRESENCE");
+        expect(r.appliedFixes.some((f) => f.field === "locationMatchType")).toBe(true);
+      }
+    });
+  });
+
+  describe("UK geo allowlist (safety net)", () => {
+    it("accepts the country fallback ID (2826)", () => {
+      const r = enforceDraftGuardrails({ ...conforming(), geoTargets: ["2826"] });
+      expect(r.ok).toBe(true);
+    });
+
+    it("accepts known city IDs", () => {
+      const r = enforceDraftGuardrails({
+        ...conforming(),
+        geoTargets: ["1006517", "1006515"], // Yorkshire-ish
+      });
+      expect(r.ok).toBe(true);
+    });
+
+    it("rejects empty geoTargets", () => {
+      const r = enforceDraftGuardrails({ ...conforming(), geoTargets: [] });
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.violations.some((v) => v.field === "geoTargets")).toBe(true);
+      }
+    });
+
+    it("rejects a non-UK ID (a French/Irish ID, a typo)", () => {
+      const r = enforceDraftGuardrails({
+        ...conforming(),
+        geoTargets: ["1006517", "9999999"], // 9999999 not on UK allowlist
+      });
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        const v = r.violations.find(
+          (x) => x.field === "geoTargets" && x.actual === "9999999",
+        );
+        expect(v).toBeDefined();
+      }
+    });
+
+    it("rejects ALL geos when the only one is non-UK", () => {
+      const r = enforceDraftGuardrails({
+        ...conforming(),
+        geoTargets: ["12345"], // not on allowlist
+      });
+      expect(r.ok).toBe(false);
     });
   });
 

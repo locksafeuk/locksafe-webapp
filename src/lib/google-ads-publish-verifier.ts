@@ -58,8 +58,9 @@ const MIN_ADS_PER_AD_GROUP = PLAYBOOK_GUARDRAILS.MIN_ADS_PER_AD_GROUP;
 // ─── Result types ─────────────────────────────────────────────────────────
 
 export type VerificationStatus =
-  | "ok"                  // all ad groups meet structural floors
-  | "structural_failure"  // at least one ad group below floor
+  | "ok"                  // no issues, no warnings — everything matches intent
+  | "structural_failure"  // hard issue (empty ad group, banned settings) → auto-pause
+  | "drift_warning"       // drift from publishedSnapshot — admin decision required, NO auto-pause
   | "google_pending"      // Google hasn't finished review yet (retry later)
   | "api_error";          // GAQL query failed or campaign not found
 
@@ -73,14 +74,45 @@ export interface AdGroupVerificationDetail {
   issues: string[];
 }
 
+export interface CampaignNetworkSettings {
+  targetGoogleSearch: boolean | null;
+  targetSearchNetwork: boolean | null;        // false = no Search Partners
+  targetContentNetwork: boolean | null;       // false = no Display
+  targetPartnerSearchNetwork: boolean | null; // false = no YouTube partners
+}
+
+export interface CampaignGeoSettings {
+  positiveGeoTargetType: string | null; // "PRESENCE" only
+  negativeGeoTargetType: string | null; // "PRESENCE" only
+  /** All location criteria currently live on the campaign (geo target IDs). */
+  liveGeoTargets: string[];
+}
+
 export interface VerificationResult {
   status: VerificationStatus;
   campaignResourceName: string;
   campaignName: string;
   campaignStatus: string;
   adGroups: AdGroupVerificationDetail[];
-  /** Top-level human-readable issue summaries for alerts. */
+  /** Live network settings — must match forensic-validation rules. */
+  networkSettings: CampaignNetworkSettings;
+  /** Live geo settings — includes the per-campaign live geo target list. */
+  geoSettings: CampaignGeoSettings;
+  /** url_expansion_opt_out must be true to disable landing-page substitution. */
+  urlExpansionOptOut: boolean | null;
+  /** HARD issues — empty ad groups, Search Partners on, banned settings.
+   * These trigger structural_failure + auto-pause + critical Telegram alert. */
   issues: string[];
+  /** SOFT warnings — drift from publishedSnapshot. These trigger drift_warning
+   * + WARNING Telegram alert + admin decision required (revert vs accept).
+   * Never auto-pause. The publishedSnapshot stays immutable until an admin
+   * explicitly accepts the new live state as a new baseline. */
+  warnings: string[];
+  /** Structured drift details for the admin UI to drive revert/accept actions. */
+  drift?: {
+    geoTargetsAdded: string[];   // in live, not in publishedSnapshot
+    geoTargetsRemoved: string[]; // in publishedSnapshot, not in live
+  };
   verifiedAt: Date;
   error?: string;
 }
@@ -95,6 +127,29 @@ interface CampaignRow {
     name: string;
     status: string;
     resourceName: string;
+    urlExpansionOptOut?: boolean | null;
+    networkSettings?: {
+      targetGoogleSearch?: boolean | null;
+      targetSearchNetwork?: boolean | null;
+      targetContentNetwork?: boolean | null;
+      targetPartnerSearchNetwork?: boolean | null;
+    };
+    geoTargetTypeSetting?: {
+      positiveGeoTargetType?: string | null;
+      negativeGeoTargetType?: string | null;
+    };
+  };
+}
+
+interface CampaignLocationCriterionRow {
+  campaignCriterion: {
+    criterionId: string;
+    status: string;
+    type?: string;
+    location?: {
+      geoTargetConstant?: string; // "geoTargetConstants/2826"
+    };
+    negative?: boolean;
   };
 }
 
@@ -124,16 +179,33 @@ interface AdGroupAdRow {
 
 // ─── Read-only verifier ───────────────────────────────────────────────────
 
+export interface VerifyOptions {
+  /**
+   * The geo target IDs the draft was published with. When provided, the
+   * verifier flags any live geo ID NOT in this set ("geo_drift_added") and
+   * any draft ID missing from live ("geo_drift_removed"). This is the
+   * per-campaign precision check from playbook §15.
+   *
+   * Source-of-truth selection (in order of preference):
+   *   1. draft.publishedSnapshot.geoTargets  (immutable record at publish)
+   *   2. draft.geoTargets                    (current draft state — may be stale)
+   * `verifyAndActOnDraft` handles this selection automatically.
+   */
+  expectedGeoTargets?: string[];
+}
+
 /**
  * Query Google directly for the campaign's structural integrity. Returns
  * a structured verification result. Does NOT take any action.
  *
  * @param accountId  The internal GoogleAdsAccount.id (used to load credentials)
  * @param googleCampaignId  The numeric Google Ads campaign ID
+ * @param opts  Optional expected geo targets for per-campaign drift detection
  */
 export async function verifyPublishedCampaign(
   accountId: string,
   googleCampaignId: string,
+  opts: VerifyOptions = {},
 ): Promise<VerificationResult> {
   const verifiedAt = new Date();
   const empty: VerificationResult = {
@@ -142,7 +214,20 @@ export async function verifyPublishedCampaign(
     campaignName: "",
     campaignStatus: "",
     adGroups: [],
+    networkSettings: {
+      targetGoogleSearch: null,
+      targetSearchNetwork: null,
+      targetContentNetwork: null,
+      targetPartnerSearchNetwork: null,
+    },
+    geoSettings: {
+      positiveGeoTargetType: null,
+      negativeGeoTargetType: null,
+      liveGeoTargets: [],
+    },
+    urlExpansionOptOut: null,
     issues: [],
+    warnings: [],
     verifiedAt,
   };
 
@@ -156,13 +241,20 @@ export async function verifyPublishedCampaign(
   }
 
   try {
-    // 1. Campaign metadata
+    // 1. Campaign metadata — including the forensic-validation settings.
     const campaignRows = await client.query<CampaignRow>(`
       SELECT
         campaign.id,
         campaign.name,
         campaign.status,
-        campaign.resource_name
+        campaign.resource_name,
+        campaign.url_expansion_opt_out,
+        campaign.network_settings.target_google_search,
+        campaign.network_settings.target_search_network,
+        campaign.network_settings.target_content_network,
+        campaign.network_settings.target_partner_search_network,
+        campaign.geo_target_type_setting.positive_geo_target_type,
+        campaign.geo_target_type_setting.negative_geo_target_type
       FROM campaign
       WHERE campaign.id = ${asInt(googleCampaignId)}
       LIMIT 1
@@ -191,6 +283,7 @@ export async function verifyPublishedCampaign(
     if (!adGroupRows || adGroupRows.length === 0) {
       // Campaign exists but has zero ad groups at all — structural failure.
       return {
+        ...empty,
         status: "structural_failure",
         campaignResourceName: campaign.resourceName,
         campaignName: campaign.name,
@@ -258,8 +351,112 @@ export async function verifyPublishedCampaign(
       });
     }
 
+    // 4. Forensic-validation checks: network settings + URL expansion. ──
+    // Hard-coded expectations from playbook §15. Any deviation is a
+    // structural_failure regardless of how the campaign is performing.
+    const ns = campaign.networkSettings ?? {};
+    const networkSettings: CampaignNetworkSettings = {
+      targetGoogleSearch: ns.targetGoogleSearch ?? null,
+      targetSearchNetwork: ns.targetSearchNetwork ?? null,
+      targetContentNetwork: ns.targetContentNetwork ?? null,
+      targetPartnerSearchNetwork: ns.targetPartnerSearchNetwork ?? null,
+    };
+    if (networkSettings.targetSearchNetwork === true) {
+      topIssues.push(
+        "Search Partners is ENABLED on campaign (must be off per §15)",
+      );
+    }
+    if (networkSettings.targetContentNetwork === true) {
+      topIssues.push(
+        "Display Network is ENABLED on campaign (must be off per §15)",
+      );
+    }
+    if (networkSettings.targetPartnerSearchNetwork === true) {
+      topIssues.push(
+        "Partner Search Network is ENABLED on campaign (must be off per §15)",
+      );
+    }
+    const urlExpansionOptOut = campaign.urlExpansionOptOut ?? null;
+    if (urlExpansionOptOut === false) {
+      topIssues.push(
+        "Final URL expansion is ENABLED on campaign (must be opt-out per §15)",
+      );
+    }
+
+    // 5. Geo presence-only check. ────────────────────────────────────────
+    const gts = campaign.geoTargetTypeSetting ?? {};
+    if (gts.positiveGeoTargetType && gts.positiveGeoTargetType !== "PRESENCE") {
+      topIssues.push(
+        `Positive geo targeting is "${gts.positiveGeoTargetType}" (must be PRESENCE per §15)`,
+      );
+    }
+
+    // 6. Per-campaign geo drift check. ───────────────────────────────────
+    // Pull live LOCATION criteria and compare against the draft's
+    // expected geoTargets. This is the precise per-campaign check from
+    // playbook §15: "no area outside what we're targeting gets in".
+    const locationRows = await client.query<CampaignLocationCriterionRow>(`
+      SELECT
+        campaign_criterion.criterion_id,
+        campaign_criterion.status,
+        campaign_criterion.type,
+        campaign_criterion.location.geo_target_constant,
+        campaign_criterion.negative
+      FROM campaign_criterion
+      WHERE campaign.id = ${asInt(googleCampaignId)}
+        AND campaign_criterion.type = 'LOCATION'
+        AND campaign_criterion.status != 'REMOVED'
+    `);
+    const liveGeoTargets: string[] = (locationRows ?? [])
+      .filter((r) => r.campaignCriterion?.negative !== true) // only positive
+      .map((r) => {
+        // Extract numeric ID from "geoTargetConstants/2826"
+        const ref = r.campaignCriterion?.location?.geoTargetConstant ?? "";
+        const parts = ref.split("/");
+        return parts[parts.length - 1];
+      })
+      .filter((id) => /^\d+$/.test(id));
+
+    const geoSettings: CampaignGeoSettings = {
+      positiveGeoTargetType: gts.positiveGeoTargetType ?? null,
+      negativeGeoTargetType: gts.negativeGeoTargetType ?? null,
+      liveGeoTargets,
+    };
+
+    // Geo drift is a WARNING, not a hard issue. publishedSnapshot stays
+    // immutable until an admin explicitly accepts via the reconcile action.
+    // No auto-pause — admin makes the call.
+    const warnings: string[] = [];
+    let driftDetail: VerificationResult["drift"];
+    if (opts.expectedGeoTargets && opts.expectedGeoTargets.length > 0) {
+      const expectedSet = new Set(opts.expectedGeoTargets.map(String));
+      const liveSet = new Set(liveGeoTargets);
+      const added = liveGeoTargets.filter((id) => !expectedSet.has(id));
+      const removed = opts.expectedGeoTargets.filter(
+        (id) => !liveSet.has(String(id)),
+      );
+      if (added.length > 0 || removed.length > 0) {
+        driftDetail = { geoTargetsAdded: added, geoTargetsRemoved: removed };
+      }
+      if (added.length > 0) {
+        warnings.push(
+          `Geo drift: campaign is targeting locations NOT in the published baseline — added: ${added.join(", ")}`,
+        );
+      }
+      if (removed.length > 0) {
+        warnings.push(
+          `Geo drift: campaign is missing locations from the published baseline — removed: ${removed.join(", ")}`,
+        );
+      }
+    }
+
+    // Status precedence: hard issue (auto-pause) > drift warning > ok.
     const status: VerificationStatus =
-      topIssues.length > 0 ? "structural_failure" : "ok";
+      topIssues.length > 0
+        ? "structural_failure"
+        : warnings.length > 0
+          ? "drift_warning"
+          : "ok";
 
     return {
       status,
@@ -267,7 +464,12 @@ export async function verifyPublishedCampaign(
       campaignName: campaign.name,
       campaignStatus: campaign.status,
       adGroups: detailedAdGroups,
+      networkSettings,
+      geoSettings,
+      urlExpansionOptOut,
       issues: topIssues,
+      warnings,
+      ...(driftDetail ? { drift: driftDetail } : {}),
       verifiedAt,
     };
   } catch (err) {
@@ -285,9 +487,18 @@ export async function verifyPublishedCampaign(
 
 /**
  * Verify a draft's published campaign and act on the result:
- *   - structural_failure → pause campaign + Telegram alert + persist
+ *   - structural_failure → auto-pause campaign + critical Telegram alert + persist
+ *   - drift_warning      → NO auto-pause. Warning Telegram alert. Record audit
+ *                          entry. Admin chooses revert vs reconcile via:
+ *                          - POST /api/admin/google-ads/drafts/[id]/geo-revert
+ *                          - POST /api/admin/google-ads/drafts/[id]/geo-accept
  *   - ok                 → persist success
  *   - api_error          → persist for retry on next cron run
+ *
+ * Geo-drift source-of-truth: `draft.publishedSnapshot.geoTargets` (immutable
+ * at publish time). Falls back to `draft.geoTargets` for legacy drafts that
+ * predate snapshot capture. The publishedSnapshot is never silently rewritten
+ * by this function — only the admin reconcile action mutates it.
  *
  * @param draftId  GoogleAdsCampaignDraft.id (must already be published)
  */
@@ -303,6 +514,8 @@ export async function verifyAndActOnDraft(
       accountId: true,
       googleCampaignId: true,
       status: true,
+      geoTargets: true,
+      publishedSnapshot: true,
       verificationStatus: true,
     },
   });
@@ -315,9 +528,14 @@ export async function verifyAndActOnDraft(
     );
   }
 
+  // Resolve the expected geo targets for the drift check.
+  // Priority: publishedSnapshot.geoTargets > draft.geoTargets.
+  const expectedGeoTargets = extractExpectedGeoTargets(draft);
+
   const result = await verifyPublishedCampaign(
     draft.accountId,
     draft.googleCampaignId,
+    { expectedGeoTargets },
   );
 
   // Persist verification result on the draft (cast Json field)
@@ -332,52 +550,145 @@ export async function verifyAndActOnDraft(
   });
 
   if (result.status === "structural_failure") {
-    // 1. Auto-pause (best-effort — alert still fires if pause fails)
-    let pauseError: string | null = null;
-    try {
-      await pauseGoogleCampaign(draft.accountId, draft.googleCampaignId);
-      // Update draft status to PAUSED so it stops showing as PUBLISHED
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (prisma.googleAdsCampaignDraft as any).update({
-        where: { id: draftId },
-        data: { status: "PAUSED", pausedAt: new Date() },
-      });
-    } catch (err) {
-      pauseError = err instanceof Error ? err.message : String(err);
-      console.error(
-        `[publish-verifier] auto-pause failed for draft ${draftId}:`,
-        pauseError,
-      );
-    }
-
-    // 2. Telegram alert
-    const dedupeKey = `verify-fail:${draft.googleCampaignId}`;
-    try {
-      await sendAdminAlert({
-        title: pauseError
-          ? "🚨 Google Ads — verification failed (PAUSE ALSO FAILED)"
-          : "🚨 Google Ads — campaign auto-paused after publish",
-        message:
-          `Campaign: "${draft.name}" (Google ID ${draft.googleCampaignId})\n\n` +
-          `Structural issues:\n` +
-          result.issues.map((i) => `• ${i}`).join("\n") +
-          `\n\n` +
-          (pauseError
-            ? `Auto-pause failed: ${pauseError}\nMANUAL PAUSE REQUIRED.\n\n`
-            : `Campaign auto-paused. `) +
-          `Review: /admin/integrations/google-ads/drafts/${draftId}`,
-        severity: "error",
-        dedupeKey,
-      });
-    } catch (alertErr) {
-      console.error(
-        `[publish-verifier] Telegram alert failed for draft ${draftId}:`,
-        alertErr,
-      );
-    }
+    await handleStructuralFailure(draft, result);
+  } else if (result.status === "drift_warning") {
+    await handleDriftWarning(draft, result, expectedGeoTargets);
   }
 
   return result;
+}
+
+// ─── Status handlers ──────────────────────────────────────────────────────
+
+interface MinimalDraft {
+  id: string;
+  name: string;
+  accountId: string;
+  googleCampaignId: string;
+}
+
+async function handleStructuralFailure(
+  draft: MinimalDraft,
+  result: VerificationResult,
+): Promise<void> {
+  // 1. Auto-pause (best-effort — alert still fires if pause fails)
+  let pauseError: string | null = null;
+  try {
+    await pauseGoogleCampaign(draft.accountId, draft.googleCampaignId);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (prisma.googleAdsCampaignDraft as any).update({
+      where: { id: draft.id },
+      data: { status: "PAUSED", pausedAt: new Date() },
+    });
+  } catch (err) {
+    pauseError = err instanceof Error ? err.message : String(err);
+    console.error(
+      `[publish-verifier] auto-pause failed for draft ${draft.id}:`,
+      pauseError,
+    );
+  }
+
+  // 2. Telegram alert (severity=error)
+  try {
+    await sendAdminAlert({
+      title: pauseError
+        ? "🚨 Google Ads — verification failed (PAUSE ALSO FAILED)"
+        : "🚨 Google Ads — campaign auto-paused after publish",
+      message:
+        `Campaign: "${draft.name}" (Google ID ${draft.googleCampaignId})\n\n` +
+        `Structural issues:\n` +
+        result.issues.map((i) => `• ${i}`).join("\n") +
+        `\n\n` +
+        (pauseError
+          ? `Auto-pause failed: ${pauseError}\nMANUAL PAUSE REQUIRED.\n\n`
+          : `Campaign auto-paused. `) +
+        `Review: /admin/integrations/google-ads/drafts/${draft.id}`,
+      severity: "error",
+      dedupeKey: `verify-fail:${draft.googleCampaignId}`,
+    });
+  } catch (alertErr) {
+    console.error(
+      `[publish-verifier] Telegram alert failed for draft ${draft.id}:`,
+      alertErr,
+    );
+  }
+}
+
+async function handleDriftWarning(
+  draft: MinimalDraft,
+  result: VerificationResult,
+  expectedGeoTargets: string[],
+): Promise<void> {
+  // NO auto-pause for drift. publishedSnapshot stays immutable.
+  // Admin must explicitly revert or reconcile.
+
+  // 1. Audit log — record this drift detection with the full before/after.
+  const detail = result.drift ?? { geoTargetsAdded: [], geoTargetsRemoved: [] };
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (prisma as any).googleAdsGeoAuditEntry.create({
+      data: {
+        draftId: draft.id,
+        action: "drift_detected",
+        detectedAt: result.verifiedAt,
+        baselineSnapshot: expectedGeoTargets,
+        liveGeoTargets: result.geoSettings.liveGeoTargets,
+        geoTargetsAdded: detail.geoTargetsAdded,
+        geoTargetsRemoved: detail.geoTargetsRemoved,
+        actedBy: "cron",
+      },
+    });
+  } catch (auditErr) {
+    // Audit failures must not silently swallow the drift signal.
+    console.error(
+      `[publish-verifier] audit log write failed for draft ${draft.id}:`,
+      auditErr,
+    );
+  }
+
+  // 2. Telegram alert (severity=warning) — admin decision required.
+  try {
+    await sendAdminAlert({
+      title: "⚠️ Google Ads — geo target drift detected",
+      message:
+        `Campaign: "${draft.name}" (Google ID ${draft.googleCampaignId})\n\n` +
+        `Geo drift from publishedSnapshot baseline (campaign NOT auto-paused):\n` +
+        result.warnings.map((w) => `• ${w}`).join("\n") +
+        `\n\n` +
+        `Admin decision required — pick one:\n` +
+        `1. REVERT: push the original baseline back to Google\n` +
+        `   POST /api/admin/google-ads/drafts/${draft.id}/geo-revert\n` +
+        `2. ACCEPT: set the current live state as the new baseline\n` +
+        `   POST /api/admin/google-ads/drafts/${draft.id}/geo-accept\n\n` +
+        `Audit trail: /admin/integrations/google-ads/drafts/${draft.id}/audit`,
+      severity: "warning",
+      dedupeKey: `geo-drift:${draft.googleCampaignId}`,
+    });
+  } catch (alertErr) {
+    console.error(
+      `[publish-verifier] drift alert failed for draft ${draft.id}:`,
+      alertErr,
+    );
+  }
+}
+
+/**
+ * Resolves the geo targets used as the drift-detection baseline.
+ * Priority: publishedSnapshot.geoTargets > draft.geoTargets > [].
+ * Returns an empty array if neither has any — caller skips drift check.
+ */
+function extractExpectedGeoTargets(draft: {
+  geoTargets?: string[] | null;
+  publishedSnapshot?: unknown;
+}): string[] {
+  const snapshot = draft.publishedSnapshot;
+  if (snapshot && typeof snapshot === "object" && "geoTargets" in snapshot) {
+    const arr = (snapshot as { geoTargets?: unknown }).geoTargets;
+    if (Array.isArray(arr) && arr.length > 0) {
+      return arr.map(String);
+    }
+  }
+  return Array.isArray(draft.geoTargets) ? draft.geoTargets.map(String) : [];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────

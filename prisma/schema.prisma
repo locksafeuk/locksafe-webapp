@@ -1409,11 +1409,14 @@ model GoogleAdsCampaignDraft {
   // SERVING/ENABLED but had ad groups with zero keywords. See
   // google-ads-campaign-playbook.md §12.
   //
-  // verificationStatus: "ok" | "structural_failure" | "google_pending" | "api_error"
+  // verificationStatus: "ok" | "structural_failure" | "drift_warning" | "google_pending" | "api_error"
   // verificationDetails: full VerificationResult blob for audit
   lastVerifiedAt      DateTime?
   verificationStatus  String?
   verificationDetails Json?
+
+  // Forensic-validation geo-drift audit entries (added 2026-06-04, playbook §15).
+  geoAuditEntries     GoogleAdsGeoAuditEntry[]
 
   // Manual-vs-AI provenance + post-publish snapshot.
   // createdBy: "ai" (default existing rows) | "admin" (manual via UI)
@@ -1470,6 +1473,40 @@ model GoogleAdsCampaignDraft {
 // Google Ads Shared Negative Keyword List
 // One list → applied to multiple campaigns. Edit once, updates everywhere.
 // =========================================================================
+
+// Forensic-validation geo-drift audit trail (added 2026-06-04).
+// One entry per drift detection AND per admin remediation action. Lets us
+// answer: what changed, when, was it accepted/reverted, and by whom.
+// Source-of-truth model: publishedSnapshot.geoTargets is the immutable
+// baseline. It is only mutated by the explicit `accept_as_new_baseline`
+// action (recorded here). The cron's drift detection never silently
+// rewrites the baseline. See google-ads-publish-verifier.ts + playbook §15.
+model GoogleAdsGeoAuditEntry {
+  id      String                 @id @default(auto()) @map("_id") @db.ObjectId
+  draftId String                 @db.ObjectId
+  draft   GoogleAdsCampaignDraft @relation(fields: [draftId], references: [id])
+
+  // What kind of entry this is.
+  // - "drift_detected"           : cron found live != baseline
+  // - "reverted_to_baseline"     : admin pushed publishedSnapshot back to Google
+  // - "accepted_as_new_baseline" : admin updated publishedSnapshot to current live
+  action     String
+  detectedAt DateTime
+  actedAt    DateTime? // when an admin took action (revert/accept); null for pure detection
+  actedBy    String? // admin ID or "cron"
+
+  // The geo target ID arrays at the moment of detection / action.
+  baselineSnapshot   String[] @default([]) // publishedSnapshot.geoTargets at the time
+  liveGeoTargets     String[] @default([]) // Google live state at the time
+  geoTargetsAdded    String[] @default([]) // in live, not in baseline
+  geoTargetsRemoved  String[] @default([]) // in baseline, not in live
+  notes              String?
+
+  createdAt DateTime @default(now())
+
+  @@index([draftId, detectedAt])
+  @@index([action, detectedAt])
+}
 
 model GoogleAdsSharedNegativeList {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId

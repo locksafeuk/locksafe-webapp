@@ -77,7 +77,77 @@ export const PLAYBOOK_GUARDRAILS = {
    * flags even without "locksmith". Use qualified variants instead
    * (e.g. "door lock replacement" instead of "lock replacement"). */
   BANNED_KEYWORD_EXACT: ["lock replacement"] as const,
+
+  /** Forensic-validation traffic controls (added 2026-06-04, see
+   * playbook §15). Every campaign must be SEARCH only with PRESENCE-only
+   * geo. The publish path (google-ads-publish.ts) also forces:
+   *   - targetSearchNetwork: false  (no Search Partners)
+   *   - urlExpansionOptOut: true    (no auto landing-page substitution)
+   *   - optimizedTargetingEnabled: false  (per ad group; no audience expansion)
+   * These cannot be overridden per-draft. */
+  ADVERTISING_CHANNEL_TYPE: "SEARCH" as const,
+  LOCATION_MATCH_TYPE: "PRESENCE" as const,
 } as const;
+
+// ─── UK geo allowlist (safety net) ────────────────────────────────────────
+// Hardcoded set of valid UK GeoTargetConstant IDs. Catches obvious mistakes
+// like a non-UK ID slipping into geoTargets (an agent bug, a typo, a paste
+// from the wrong country).
+//
+// This is the COARSE check. The PRECISE check is in the post-publish
+// verifier, which compares live campaign criteria against the draft's
+// geoTargets (the per-campaign source of truth). Together they catch:
+//   - non-UK IDs (safety net here, at persist)
+//   - per-campaign cross-region drift (post-publish, against draft.geoTargets)
+//
+// Derived from `src/lib/google-ads-locations.ts` UK_GEO_IDS. Kept inline
+// rather than imported to keep this module light enough to call from any
+// persist callsite without dragging Prisma & friends into hot paths.
+//
+// To add a new UK city: add the ID here AND to UK_GEO_IDS in
+// google-ads-locations.ts. Both stay in sync.
+const UK_GEO_TARGET_IDS: ReadonlySet<string> = new Set<string>([
+  // Country fallback
+  "2826", // United Kingdom
+  // Regions (high level)
+  "20338", // England
+  "20339", // Wales
+  "20340", // Scotland
+  "20341", // Northern Ireland
+  // London + Greater London
+  "1006450", "9041107", "9041110",
+  // London boroughs (Inner + Outer)
+  "1006453", "1006459", "1006456", "9198373",
+  "9198785", "9198858", "9198805", "9208638",
+  "9046056", "9046054",
+  "1006465", "1006466", "1006467", "1006470", "1006471",
+  "1006468", "1006469",
+  "9046053", "9046051", "9046052", "9198371", "9046055",
+  "1006472", "9198370", "9198369", "1006473", "1006474",
+  "9046050", "9198374", "9198372",
+  // South East / South West / East
+  "1006598", "1006615", "1006607", "1006597", "1006596",
+  "1006608", "1006590", "1006589", "1006600", "1006601",
+  "1006602", "1006605",
+  "1006620", "1006628", "1006624", "1006621", "1006629",
+  "1006630", "1006631", "1006637",
+  "1006582", "1006576", "1006577", "1006578",
+  // East Midlands / West Midlands / North West / North East / Yorkshire
+  "1006552", "1006553", "1006554",
+  "1006544", "1006545", "1006546", "1006547", "1006548", "1006549", "1006550", "1006551",
+  "1006530", "1006531", "1006532", "1006533", "1006534", "1006535", "1006536",
+  "1006520", "1006521", "1006522", "1006523",
+  "1006510", "1006511", "1006512", "1006513", "1006514", "1006515", "1006516", "1006517",
+]);
+
+/**
+ * Returns true if the given Google geo target ID is on the UK allowlist.
+ * Conservative: unknown IDs are treated as non-UK to force a deliberate
+ * review before they slip into a campaign.
+ */
+export function isUkGeoTargetId(id: string): boolean {
+  return UK_GEO_TARGET_IDS.has(String(id).trim());
+}
 
 // ─── Per-ad-group input shape ──────────────────────────────────────────────
 /**
@@ -293,6 +363,67 @@ export function enforceDraftGuardrails(
     const adGroupViolations = validateAdGroups(out.adGroups as AdGroupCheckShape[]);
     for (const v of adGroupViolations) {
       violations.push(v);
+    }
+  }
+
+  // 8. Channel — HARD OVERRIDE to SEARCH (forensic-validation rule). ────
+  // No Display, no PMax, no Demand Gen, no Discovery, no Video.
+  // See playbook §15.
+  if (out.channel !== PLAYBOOK_GUARDRAILS.ADVERTISING_CHANNEL_TYPE) {
+    if (opts.allowOverride) {
+      // explicit admin override — caller logs.
+    } else {
+      appliedFixes.push({
+        field: "channel",
+        expected: PLAYBOOK_GUARDRAILS.ADVERTISING_CHANNEL_TYPE,
+        actual: String(out.channel ?? "undefined"),
+        severity: "error",
+      });
+      out.channel = PLAYBOOK_GUARDRAILS.ADVERTISING_CHANNEL_TYPE;
+    }
+  }
+
+  // 9. Location match type — HARD OVERRIDE to PRESENCE. ─────────────────
+  // PRESENCE = only people physically in the target area.
+  // PRESENCE_OR_INTEREST = also people searching about the area from
+  // anywhere — dilutes attribution, banned per playbook §15.
+  if (out.locationMatchType !== PLAYBOOK_GUARDRAILS.LOCATION_MATCH_TYPE) {
+    if (opts.allowOverride) {
+      // explicit admin override
+    } else {
+      appliedFixes.push({
+        field: "locationMatchType",
+        expected: PLAYBOOK_GUARDRAILS.LOCATION_MATCH_TYPE,
+        actual: String(out.locationMatchType ?? "undefined"),
+        severity: "error",
+      });
+      out.locationMatchType = PLAYBOOK_GUARDRAILS.LOCATION_MATCH_TYPE;
+    }
+  }
+
+  // 10. UK-only geo targets (safety net). ───────────────────────────────
+  // Catches non-UK IDs slipping in (agent bug, typo, paste from wrong
+  // country). The PRECISE per-campaign drift check is post-publish — see
+  // google-ads-publish-verifier.ts and playbook §15.
+  const geoTargets = Array.isArray(out.geoTargets)
+    ? (out.geoTargets as string[])
+    : [];
+  if (geoTargets.length === 0) {
+    violations.push({
+      field: "geoTargets",
+      expected: "at least one UK geo target ID",
+      actual: "empty",
+      severity: "error",
+    });
+  }
+  for (const geo of geoTargets) {
+    if (!isUkGeoTargetId(geo)) {
+      violations.push({
+        field: "geoTargets",
+        expected: "UK GeoTargetConstant ID (see UK_GEO_TARGET_IDS in google-ads-draft-enforcement.ts)",
+        actual: String(geo),
+        severity: "error",
+      });
     }
   }
 
