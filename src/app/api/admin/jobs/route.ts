@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { JobStatus } from "@prisma/client";
+import { extractUkPostcode, isCoordinatePair, normalizeUkPostcode } from "@/lib/location-display";
 
 // GET /api/admin/jobs - Get all jobs with filtering for admin
 export async function GET(request: NextRequest) {
@@ -122,13 +123,25 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       jobs: jobs.map((job) => ({
+        // Always emit postcode-like values; hide any legacy coordinate-string pollution.
+        _displayPostcode:
+          (job.postcode && !isCoordinatePair(job.postcode)
+            ? normalizeUkPostcode(job.postcode)
+            : null) ||
+          extractUkPostcode(job.address) ||
+          "Postcode missing",
         id: job.id,
         jobNumber: job.jobNumber,
         status: job.status,
         problemType: job.problemType,
         propertyType: job.propertyType,
         address: job.address,
-        postcode: job.postcode,
+        postcode:
+          (job.postcode && !isCoordinatePair(job.postcode)
+            ? normalizeUkPostcode(job.postcode)
+            : null) ||
+          extractUkPostcode(job.address) ||
+          "Postcode missing",
         assessmentFee: job.assessmentFee,
         assessmentPaid: job.assessmentPaid,
         createdAt: job.createdAt,

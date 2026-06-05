@@ -31,6 +31,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { WhatsAppButton } from "@/components/WhatsAppButton";
+import { extractUkPostcode, isCoordinatePair, normalizeUkPostcode } from "@/lib/location-display";
 
 interface Job {
   id: string;
@@ -130,6 +131,15 @@ const problemLabels: Record<string, string> = {
 };
 
 const NO_LOCKSMITH_STATUS = "NO_LOCKSMITH_AVAILABLE";
+
+function getDisplayPostcode(job: Pick<Job, "postcode" | "address">): string {
+  const rawPostcode = typeof job.postcode === "string" ? job.postcode.trim() : "";
+  if (rawPostcode && !isCoordinatePair(rawPostcode)) {
+    const normalized = normalizeUkPostcode(rawPostcode);
+    if (normalized) return normalized;
+  }
+  return extractUkPostcode(job.address) || "Postcode missing";
+}
 const noLocksmithStatusConfig = {
   bg: "bg-rose-100",
   text: "text-rose-700",
@@ -616,6 +626,13 @@ function AdminJobsContent() {
     .sort((a, b) => (a.distanceMiles ?? Number.MAX_SAFE_INTEGER) - (b.distanceMiles ?? Number.MAX_SAFE_INTEGER))
     .slice(0, 3);
 
+  const liveDispatchCount =
+    (summary?.statusCounts.ACCEPTED || 0) + (summary?.statusCounts.EN_ROUTE || 0);
+  const liveOnSiteCount =
+    (summary?.statusCounts.ARRIVED || 0) +
+    (summary?.statusCounts.DIAGNOSING || 0) +
+    (summary?.statusCounts.IN_PROGRESS || 0);
+
   return (
     <div className="p-4 lg:p-8">
       {/* Page Header */}
@@ -650,6 +667,33 @@ function AdminJobsContent() {
           </Link>
         </div>
       </div>
+
+      {/* Live OPS Quick Access */}
+      <Link
+        href="/admin/ops"
+        className="block bg-gradient-to-r from-sky-600 to-cyan-600 text-white rounded-xl p-4 lg:p-5 mb-4 lg:mb-6 shadow-sm hover:shadow-md transition-shadow"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <MapPin className="w-4 h-4" />
+              <span className="text-xs lg:text-sm font-semibold uppercase tracking-wide text-sky-100">
+                Live OPS
+              </span>
+            </div>
+            <h2 className="text-base lg:text-lg font-bold">Dispatch and Coverage Map</h2>
+            <p className="text-xs lg:text-sm text-sky-100 mt-1">
+              Track active jobs and locksmith movement in real time.
+            </p>
+          </div>
+          <div className="text-right min-w-[112px]">
+            <div className="text-2xl font-bold leading-none">{liveDispatchCount}</div>
+            <div className="text-xs text-sky-100">En Route / Accepted</div>
+            <div className="text-sm font-semibold mt-2">{liveOnSiteCount}</div>
+            <div className="text-xs text-sky-100">On Site</div>
+          </div>
+        </div>
+      </Link>
 
       {/* Summary Cards with Skeleton */}
       {loading ? (
@@ -835,6 +879,7 @@ function AdminJobsContent() {
           {/* Jobs List - Mobile Cards */}
           <div className="lg:hidden space-y-3">
             {jobs.map((job) => {
+              const displayPostcode = getDisplayPostcode(job);
               const statusConfig = getStatusConfigForJob(job);
               const deadline = getDeadlineStatus(job.confirmationDeadline);
 
@@ -873,7 +918,7 @@ function AdminJobsContent() {
                   </div>
 
                   <div className="text-sm text-slate-600 mb-2">
-                    {problemLabels[job.problemType] || job.problemType}
+                    {job.address}, {displayPostcode}
                   </div>
 
                   <div className="flex items-center gap-1 text-xs text-slate-500 mb-3">
@@ -909,7 +954,7 @@ function AdminJobsContent() {
                         <div className="mt-1">
                           <WhatsAppButton
                             phone={job.locksmith.phone}
-                            message={`Hi ${job.locksmith.name}, regarding job #${job.jobNumber} at ${job.address}, ${job.postcode} — `}
+                            message={`Hi ${job.locksmith.name}, regarding job #${job.jobNumber} at ${job.address}, ${displayPostcode} — `}
                             iconOnly
                             size="sm"
                             context={{ targetType: "locksmith", targetId: job.locksmith.id, jobId: job.id }}
@@ -1043,6 +1088,7 @@ function AdminJobsContent() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {jobs.map((job) => {
+                    const displayPostcode = getDisplayPostcode(job);
                     const statusConfig = getStatusConfigForJob(job);
                     const deadline = getDeadlineStatus(
                       job.confirmationDeadline,
@@ -1099,7 +1145,7 @@ function AdminJobsContent() {
                             {job.address}
                           </div>
                           <div className="text-xs text-slate-500">
-                            {job.postcode}
+                            {displayPostcode}
                           </div>
                         </td>
                         <td className="px-4 py-3 text-center">
@@ -1144,7 +1190,7 @@ function AdminJobsContent() {
                             {job.locksmith?.phone && (
                               <WhatsAppButton
                                 phone={job.locksmith.phone}
-                                message={`Hi ${job.locksmith.name}, regarding job #${job.jobNumber} at ${job.address}, ${job.postcode} — `}
+                                message={`Hi ${job.locksmith.name}, regarding job #${job.jobNumber} at ${job.address}, ${displayPostcode} — `}
                                 iconOnly
                                 size="sm"
                                 context={{ targetType: "locksmith", targetId: job.locksmith.id, jobId: job.id }}

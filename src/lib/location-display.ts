@@ -1,10 +1,13 @@
 const UK_POSTCODE_REGEX = /\b([A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2})\b/i;
+const UK_POSTCODE_COMPACT_REGEX = /^([A-Z]{1,2}\d[A-Z\d]?)(\d[A-Z]{2})$/i;
 
 export function normalizeUkPostcode(value: string | null | undefined): string | null {
   if (!value) return null;
   const compact = value.toUpperCase().replace(/\s+/g, "").trim();
   if (compact.length < 5) return null;
-  return compact.replace(/^(.+)(\d[A-Z]{2})$/, "$1 $2");
+  const match = compact.match(UK_POSTCODE_COMPACT_REGEX);
+  if (!match) return null;
+  return `${match[1]} ${match[2]}`;
 }
 
 export function extractUkPostcode(value: string | null | undefined): string | null {

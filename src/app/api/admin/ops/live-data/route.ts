@@ -2,12 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
 import { geocodePostcode } from "@/lib/locksmith-matcher";
-
-function normalizeUkPostcode(postcode: string): string {
-  const compact = postcode.replace(/\s+/g, "").toUpperCase();
-  if (compact.length <= 3) return compact;
-  return `${compact.slice(0, -3)} ${compact.slice(-3)}`;
-}
+import { extractUkPostcode, isCoordinatePair, normalizeUkPostcode } from "@/lib/location-display";
 
 async function geocodeAddressFallback(address: string, postcode?: string | null): Promise<{ latitude: number; longitude: number } | null> {
   try {
@@ -130,10 +125,13 @@ export async function GET(request: NextRequest) {
 
       if ((!latitude || !longitude) && job.postcode) {
         try {
-          const normalizedPostcode = normalizeUkPostcode(job.postcode);
+          const normalizedPostcode =
+            (job.postcode && !isCoordinatePair(job.postcode)
+              ? normalizeUkPostcode(job.postcode)
+              : null) ||
+            extractUkPostcode(job.address);
           const coords =
-            (await geocodePostcode(job.postcode)) ??
-            (normalizedPostcode !== job.postcode ? await geocodePostcode(normalizedPostcode) : null) ??
+            (normalizedPostcode ? await geocodePostcode(normalizedPostcode) : null) ??
             (job.address ? await geocodeAddressFallback(job.address, normalizedPostcode) : null);
           if (coords) {
             latitude = coords.latitude;
@@ -172,7 +170,12 @@ export async function GET(request: NextRequest) {
         status: job.status,
         problemType: job.problemType,
         propertyType: job.propertyType,
-        postcode: job.postcode,
+        postcode:
+          (job.postcode && !isCoordinatePair(job.postcode)
+            ? normalizeUkPostcode(job.postcode)
+            : null) ||
+          extractUkPostcode(job.address) ||
+          "Postcode missing",
         address: job.address,
         jobLat: latitude,
         jobLng: longitude,
