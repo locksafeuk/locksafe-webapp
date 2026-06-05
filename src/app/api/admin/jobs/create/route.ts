@@ -57,22 +57,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (isCoordinatePair(String(postcode))) {
+      return NextResponse.json(
+        { error: "Postcode must be a UK postcode format (e.g., SW1A 1AA), not coordinates" },
+        { status: 400 },
+      );
+    }
+
+    const normalizedPostcode = normalizeUkPostcode(String(postcode));
+    if (!normalizedPostcode) {
+      return NextResponse.json(
+        { error: "Invalid UK postcode format" },
+        { status: 400 },
+      );
+    }
+
     if (!customerId && (!customerName || !customerPhone)) {
-          if (isCoordinatePair(String(postcode))) {
-            return NextResponse.json(
-              { error: "Postcode must be a UK postcode format (e.g., SW1A 1AA), not coordinates" },
-              { status: 400 },
-            );
-          }
-
-          const normalizedPostcode = normalizeUkPostcode(String(postcode));
-          if (!normalizedPostcode) {
-            return NextResponse.json(
-              { error: "Invalid UK postcode format" },
-              { status: 400 },
-            );
-          }
-
       return NextResponse.json(
         { error: "Customer name and phone are required for new customers" },
         { status: 400 }

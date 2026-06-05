@@ -206,6 +206,7 @@ export async function PATCH(
     const addressChanged =
       typeof address === "string" &&
       address.trim() !== (existingJob.address || "").trim();
+    const existingPostcode = existingJob.postcode;
 
     async function maybeAttachRecomputedCoordinates(updateData: Record<string, unknown>) {
       if (!postcodeChanged && !addressChanged) return;
@@ -213,7 +214,7 @@ export async function PATCH(
       const effectivePostcode =
         typeof updateData.postcode === "string"
           ? updateData.postcode
-          : existingJob.postcode;
+          : existingPostcode;
 
       if (typeof effectivePostcode === "string" && effectivePostcode.trim()) {
         const coords = await geocodePostcode(effectivePostcode);
