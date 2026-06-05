@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
@@ -198,7 +198,6 @@ export default function AdminLocksmithsPage() {
   const [mapSearchError, setMapSearchError] = useState<string | null>(null);
   const [mapTargetLocation, setMapTargetLocation] = useState<{ lat: number; lng: number; label: string } | null>(null);
   const [nearestLocksmithIds, setNearestLocksmithIds] = useState<string[]>([]);
-  const liveLookupRequestIdRef = useRef(0);
 
   // Delete state
   const [deleteLocksmithId, setDeleteLocksmithId] = useState<string | null>(null);
@@ -1027,59 +1026,13 @@ export default function AdminLocksmithsPage() {
     }
   };
 
-  useEffect(() => {
-    if (viewMode !== "map") return;
-
-    const query = mapAddressQuery.trim();
-    if (!query) {
-      setMapTargetLocation(null);
-      setNearestLocksmithIds([]);
-      setMapSearchError(null);
-      setSearchingMapAddress(false);
-      return;
-    }
-
-    if (query.length < 5) {
-      return;
-    }
-
-    const requestId = ++liveLookupRequestIdRef.current;
-    setSearchingMapAddress(true);
-
-    const timer = setTimeout(async () => {
-      try {
-        const result = await geocodeAddressForMap(query);
-        if (requestId !== liveLookupRequestIdRef.current) return;
-
-        if (!result || result.error || !result.target) {
-          setMapSearchError(result?.error || "Unable to find this address.");
-          return;
-        }
-
-        setMapSearchError(null);
-        setMapTargetLocation(result.target);
-        setNearestLocksmithIds(computeNearestLocksmithIds(result.target));
-      } catch (error) {
-        if (requestId !== liveLookupRequestIdRef.current) return;
-        console.error("Live map geocode failed:", error);
-        setMapSearchError("Address search failed. Please try again.");
-      } finally {
-        if (requestId === liveLookupRequestIdRef.current) {
-          setSearchingMapAddress(false);
-        }
-      }
-    }, 650);
-
-    return () => clearTimeout(timer);
-  }, [mapAddressQuery, viewMode, geocodeAddressForMap, computeNearestLocksmithIds]);
-
   const clearMapSearch = () => {
     setMapTargetLocation(null);
     setNearestLocksmithIds([]);
     setMapSearchError(null);
   };
 
-  const mapLocksmiths = filteredLocksmiths
+  const mapLocksmiths = useMemo(() => filteredLocksmiths
     .filter(
       (ls): ls is Locksmith & { baseLat: number; baseLng: number } =>
         ls.baseLat != null && ls.baseLng != null,
@@ -1107,10 +1060,10 @@ export default function AdminLocksmithsPage() {
         return a.distanceMiles - b.distanceMiles;
       }
       return a.name.localeCompare(b.name);
-    });
+    }), [filteredLocksmiths, mapTargetLocation, nearestLocksmithIds]);
 
-  const mapNearestTop = mapLocksmiths.slice(0, 5);
-  const mapRailLocksmiths = [...mapLocksmiths].sort((a, b) => {
+  const mapNearestTop = useMemo(() => mapLocksmiths.slice(0, 5), [mapLocksmiths]);
+  const mapRailLocksmiths = useMemo(() => [...mapLocksmiths].sort((a, b) => {
     const statusRank = (locksmith: (typeof mapLocksmiths)[number]) => {
       if (!locksmith.isActive) return 2;
       if (!locksmith.isAvailable) return 1;
@@ -1125,7 +1078,7 @@ export default function AdminLocksmithsPage() {
     }
 
     return a.name.localeCompare(b.name);
-  });
+  }), [mapLocksmiths]);
   const isMapView = viewMode === "map";
   const selectedBaseLocationLabel = selectedLocksmith
     ? formatBaseLocationLabel(
@@ -1428,7 +1381,7 @@ export default function AdminLocksmithsPage() {
                 </Button>
               </div>
               <div className="mt-2 text-xs text-slate-500">
-                Blue pin updates automatically while you type the address.
+                The map only recenters when you press Find Closest or clear the search.
               </div>
               {mapSearchError && (
                 <div className="mt-2 text-sm text-red-600">{mapSearchError}</div>
