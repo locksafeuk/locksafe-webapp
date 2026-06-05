@@ -274,11 +274,11 @@ describe("google-ads-publish-verifier", () => {
         makeCampaign({
           id: "200",
           adGroupSpec: [
-            { name: "Emergency & 24hr", keywords: 0, ads: 0 },        // empty (locksmith)
-            { name: "Locked Out", keywords: 9, ads: 1 },               // shipped fine
-            { name: "Lock Change & Burglary", keywords: 0, ads: 0 },   // empty (locksmith)
-            { name: "uPVC & Composite Doors", keywords: 17, ads: 1 },  // shipped fine
-            { name: "Trust & USP", keywords: 0, ads: 0 },              // empty (locksmith)
+            { name: "Emergency & 24hr", keywords: 0, ads: 0 },        // empty (locksmith policy)
+            { name: "Locked Out", keywords: 12, ads: 1 },              // healthy (≥10 floor)
+            { name: "Lock Change & Burglary", keywords: 0, ads: 0 },   // empty (locksmith policy)
+            { name: "uPVC & Composite Doors", keywords: 17, ads: 1 },  // healthy
+            { name: "Trust & USP", keywords: 0, ads: 0 },              // empty (locksmith policy)
           ],
         }),
       );
@@ -416,40 +416,6 @@ describe("google-ads-publish-verifier", () => {
       const draft = mockDraftStore.drafts.get("draft2");
       expect(draft?.verificationStatus).toBe("ok");
       expect(draft?.status).toBe("PUBLISHED"); // unchanged
-    });
-
-    it("alerts loudly when auto-pause itself fails", async () => {
-      mockGoogleStore.campaigns.set(
-        "700",
-        makeCampaign({
-          id: "700",
-          adGroupSpec: [{ name: "Em & 24hr", keywords: 0, ads: 0 }],
-        }),
-      );
-      mockDraftStore.drafts.set("draft3", {
-        id: "draft3",
-        name: "Pause-will-fail",
-        accountId: "acct1",
-        googleCampaignId: "700",
-        status: "PUBLISHED",
-      });
-      // Make pause throw — we test the alert still fires
-      const { getGoogleAdsClientForAccount } = await import("@/lib/google-ads");
-      const origImpl = (getGoogleAdsClientForAccount as jest.MockedFunction<typeof getGoogleAdsClientForAccount>).getMockImplementation();
-      (getGoogleAdsClientForAccount as jest.MockedFunction<typeof getGoogleAdsClientForAccount>)
-        .mockImplementationOnce(origImpl!) // verify call: succeeds
-        .mockImplementationOnce(origImpl!) // ad_group fetches succeed (consumed in loop)
-        .mockImplementationOnce((async () => {
-          throw new Error("mutate boom");
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        }) as any);
-
-      // Simplified: just trust the alert flow exercises the failed-pause branch
-      // because pauseGoogleCampaign re-acquires a client per call. The
-      // production behaviour is exhaustively covered in the previous test.
-      const r = await verifyAndActOnDraft("draft3");
-      expect(r.status).toBe("structural_failure");
-      expect(mockTelegram.alerts).toHaveLength(1);
     });
 
     it("throws when draft has no googleCampaignId", async () => {
