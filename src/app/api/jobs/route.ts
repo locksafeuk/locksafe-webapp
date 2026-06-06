@@ -142,10 +142,17 @@ export async function POST(request: NextRequest) {
       ? { fee: contractedRate, multiplier: 1, reasons: ["Contracted rate"], isSurge: false }
       : await calculateSurgeFee(normalizedPostcode);
 
-    // Resolve marketing attribution — prefer explicit body fields, otherwise
-    // look up the visitor's most recent session for UTM + gclid. This is
-    // the prerequisite for the Google Ads Conversions API uploader to be
-    // able to credit the originating click when the job completes+pays.
+    // Resolve marketing attribution — per-field merge of (a) explicit body
+    // values + (b) values from the visitor's most-recent UserSession.
+    //
+    // 2026-06-06 fix: the old logic was all-or-nothing — if ANY body field
+    // was set, the session lookup was skipped, even when gclid was missing
+    // from the body (e.g. nav-stripped between landing and booking). That
+    // matched the diag finding "0 of 9 web jobs have gclid".
+    //
+    // New logic: for each field, prefer the body value, else fall back to
+    // the session value. Same pattern applied to /api/marketing/call-intent
+    // earlier in this commit chain.
     let attribution: {
       utmSource?:   string | null;
       utmMedium?:   string | null;
@@ -155,22 +162,33 @@ export async function POST(request: NextRequest) {
       gclid?:       string | null;
       fbclid?:      string | null;
       landingPage?: string | null;
-    } = {};
-    if (bodyUtmSource || bodyUtmCampaign || bodyGclid || bodyFbclid) {
-      attribution = {
-        utmSource:   bodyUtmSource ?? null,
-        utmMedium:   bodyUtmMedium ?? null,
-        utmCampaign: bodyUtmCampaign ?? null,
-        utmContent:  bodyUtmContent ?? null,
-        utmTerm:     bodyUtmTerm ?? null,
-        gclid:       bodyGclid ?? null,
-        fbclid:      bodyFbclid ?? null,
-        landingPage: bodyLandingPage ?? null,
-      };
-    } else if (visitorId) {
+    } = {
+      utmSource:   bodyUtmSource   ?? null,
+      utmMedium:   bodyUtmMedium   ?? null,
+      utmCampaign: bodyUtmCampaign ?? null,
+      utmContent:  bodyUtmContent  ?? null,
+      utmTerm:     bodyUtmTerm     ?? null,
+      gclid:       bodyGclid       ?? null,
+      fbclid:      bodyFbclid      ?? null,
+      landingPage: bodyLandingPage ?? null,
+    };
+
+    if (visitorId) {
       try {
         const { getAttributionForVisitor } = await import("@/lib/marketing/tracker");
-        attribution = (await getAttributionForVisitor(visitorId)) ?? {};
+        const session = (await getAttributionForVisitor(visitorId)) ?? null;
+        if (session) {
+          attribution = {
+            utmSource:   attribution.utmSource   ?? session.utmSource   ?? null,
+            utmMedium:   attribution.utmMedium   ?? session.utmMedium   ?? null,
+            utmCampaign: attribution.utmCampaign ?? session.utmCampaign ?? null,
+            utmContent:  attribution.utmContent  ?? session.utmContent  ?? null,
+            utmTerm:     attribution.utmTerm     ?? session.utmTerm     ?? null,
+            gclid:       attribution.gclid       ?? session.gclid       ?? null,
+            fbclid:      attribution.fbclid      ?? session.fbclid      ?? null,
+            landingPage: attribution.landingPage ?? session.landingPage ?? null,
+          };
+        }
       } catch (err) {
         console.warn("[jobs] attribution lookup failed:", err instanceof Error ? err.message : err);
       }
