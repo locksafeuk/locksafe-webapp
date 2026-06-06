@@ -85,9 +85,14 @@ Prereq after schema changes: `npx prisma generate && npm run db:push`.
   tuned values when enforced. Entry point: `POST /api/cron/self-improve` (run
   daily). `getTunedValue(key, fallback)` lets consumers read tuned values.
   Models: `TunableParameter` / `ParameterChange`.
-- ⏳ Pending: wire `getTunedValue` into the dispatch validator so tuned values
-  take effect; more outcome metrics (alert_noise_rate); per-tool executors for
-  resolved approvals beyond agent.pause/resume; per-agent daily budget caps.
+- ✅ Tuned values wired into dispatch: the `autoDispatch` tool reads
+  `getTunedValue("dispatch.minMatchScore", 70)` and
+  `("dispatch.maxAutoDistanceMiles", 5)` and passes them to the validator, so an
+  applied tuning changes real auto-dispatch behaviour (falls back to defaults).
+- ⏳ Pending (deliberate — each needs its own integration-tested change): more
+  outcome metrics (a real human-dismissal signal for alert_noise_rate);
+  per-tool executors for resolved approvals beyond agent.pause/resume; per-agent
+  daily budget caps in the heartbeat loop.
 
 ## Admin endpoints
 

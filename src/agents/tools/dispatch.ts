@@ -161,7 +161,20 @@ export const autoDispatchTool: AgentTool = {
     },
   ],
   async execute(params, context): Promise<ToolResult> {
-    const minScore = (params.minScore as number) || 70;
+    // Self-tuned thresholds (fall back to defaults; identical behaviour until the
+    // self-improvement loop applies a change). See src/agents/self-improvement.
+    let tunedMinScore = 70;
+    let tunedMaxDistance = 5;
+    try {
+      const { getTunedValue } = await import("@/agents/self-improvement/adapters/prisma");
+      [tunedMinScore, tunedMaxDistance] = await Promise.all([
+        getTunedValue("dispatch.minMatchScore", 70),
+        getTunedValue("dispatch.maxAutoDistanceMiles", 5),
+      ]);
+    } catch {
+      /* fall back to defaults */
+    }
+    const minScore = (params.minScore as number) || tunedMinScore;
 
     // If no jobId provided, find the oldest pending job
     let jobId = params.jobId as string | undefined;
@@ -214,6 +227,7 @@ export const autoDispatchTool: AgentTool = {
         jobId,
         jobStatus: String(job.status),
         minScore,
+        maxDistanceMiles: tunedMaxDistance,
         candidate: {
           locksmithId: tc.locksmithId,
           isVerified: true, // findBestLocksmiths only returns verified + active

@@ -32,11 +32,13 @@ export interface DispatchAutoArgs {
   jobId: string;
   jobStatus: string;
   minScore?: number;
+  /** Max distance for auto-dispatch (self-tunable; defaults to 5mi). */
+  maxDistanceMiles?: number;
   candidate: DispatchCandidateFacts | null;
 }
 
 const MIN_RATING = 4.0;
-const MAX_DISTANCE_MILES = 5;
+const DEFAULT_MAX_DISTANCE_MILES = 5;
 const DEFAULT_MIN_SCORE = 70;
 
 export function validateDispatchAuto(args: DispatchAutoArgs): ValidationResult {
@@ -66,8 +68,9 @@ export function validateDispatchAuto(args: DispatchAutoArgs): ValidationResult {
     return { ok: false, code: "below-min-rating", reason: `Rating ${c.rating} below minimum ${MIN_RATING}.` };
   }
 
-  if (c.distanceMiles > MAX_DISTANCE_MILES) {
-    return { ok: false, code: "too-far", reason: `Distance ${c.distanceMiles}mi exceeds ${MAX_DISTANCE_MILES}mi for auto-dispatch.` };
+  const maxDistance = typeof args.maxDistanceMiles === "number" ? args.maxDistanceMiles : DEFAULT_MAX_DISTANCE_MILES;
+  if (c.distanceMiles > maxDistance) {
+    return { ok: false, code: "too-far", reason: `Distance ${c.distanceMiles}mi exceeds ${maxDistance}mi for auto-dispatch.` };
   }
 
   if (!c.hasAssessmentFeeSet) {
