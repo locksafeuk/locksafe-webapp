@@ -64,6 +64,48 @@ export async function POST(request: NextRequest) {
 
     const source = pickString(body.source) ?? "website_call_button";
 
+    // Resolve attribution: prefer values in the request body (captured
+    // from the current URL at click time), fall back to the visitor's
+    // most-recent UserSession (the gclid that landed them on the site).
+    //
+    // This is THE fix for the "33 phone calls, 2 with gclid" problem
+    // 2026-06-06: the tel: link handler reads from window.location.search,
+    // which has lost the ?gclid=... param by the time the user clicks
+    // Call Now from a sub-page. UserSession persisted the gclid on
+    // landing, so we recover it here.
+    let bodyGclid = pickString(body.gclid);
+    let bodyFbclid = pickString(body.fbclid);
+    let bodyUtmSource = pickString(body.utmSource);
+    let bodyUtmMedium = pickString(body.utmMedium);
+    let bodyUtmCampaign = pickString(body.utmCampaign);
+    let bodyUtmContent = pickString(body.utmContent);
+    let bodyUtmTerm = pickString(body.utmTerm);
+    let bodyLandingPage = pickString(body.landingPage);
+
+    const haveAnyAttribution =
+      bodyGclid || bodyFbclid || bodyUtmSource || bodyUtmCampaign;
+    if (!haveAnyAttribution) {
+      try {
+        const { getAttributionForVisitor } = await import("@/lib/marketing/tracker");
+        const recovered = await getAttributionForVisitor(visitorId);
+        if (recovered) {
+          bodyGclid       = bodyGclid       ?? recovered.gclid       ?? undefined;
+          bodyFbclid      = bodyFbclid      ?? recovered.fbclid      ?? undefined;
+          bodyUtmSource   = bodyUtmSource   ?? recovered.utmSource   ?? undefined;
+          bodyUtmMedium   = bodyUtmMedium   ?? recovered.utmMedium   ?? undefined;
+          bodyUtmCampaign = bodyUtmCampaign ?? recovered.utmCampaign ?? undefined;
+          bodyUtmContent  = bodyUtmContent  ?? recovered.utmContent  ?? undefined;
+          bodyUtmTerm     = bodyUtmTerm     ?? recovered.utmTerm     ?? undefined;
+          bodyLandingPage = bodyLandingPage ?? recovered.landingPage ?? undefined;
+        }
+      } catch (err) {
+        console.warn(
+          "[call-intent] visitor-session attribution lookup failed:",
+          err instanceof Error ? err.message : err,
+        );
+      }
+    }
+
     const data = {
       visitorId,
       sessionId:   pickString(body.sessionId),
@@ -71,14 +113,14 @@ export async function POST(request: NextRequest) {
       buttonId:    pickString(body.buttonId),
       userAgent:   request.headers.get("user-agent") ?? undefined,
 
-      gclid:       pickString(body.gclid),
-      fbclid:      pickString(body.fbclid),
-      utmSource:   pickString(body.utmSource),
-      utmMedium:   pickString(body.utmMedium),
-      utmCampaign: pickString(body.utmCampaign),
-      utmContent:  pickString(body.utmContent),
-      utmTerm:     pickString(body.utmTerm),
-      landingPage: pickString(body.landingPage),
+      gclid:       bodyGclid,
+      fbclid:      bodyFbclid,
+      utmSource:   bodyUtmSource,
+      utmMedium:   bodyUtmMedium,
+      utmCampaign: bodyUtmCampaign,
+      utmContent:  bodyUtmContent,
+      utmTerm:     bodyUtmTerm,
+      landingPage: bodyLandingPage,
       pagePath:    pickString(body.pagePath),
     };
 
