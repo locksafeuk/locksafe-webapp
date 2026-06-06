@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+#
+# Pre-push gate — fail fast on an invalid Prisma schema BEFORE it reaches CI or a
+# Vercel deploy. (Prisma's `prisma generate` in the Vercel build rejects schema
+# errors, but only after the push; this catches them locally in ~1s.)
+#
+# Enable once per clone:
+#   git config core.hooksPath scripts/git-hooks
+#
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$ROOT_DIR"
+
+echo "[pre-push] Validating Prisma schema..."
+if ! npx prisma validate; then
+  echo "[pre-push] ❌ Prisma schema is invalid — push aborted. Fix prisma/schema.prisma and retry." >&2
+  exit 1
+fi
+echo "[pre-push] ✅ Prisma schema OK"
