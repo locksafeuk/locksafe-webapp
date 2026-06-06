@@ -9,6 +9,7 @@ import { shouldTriggerAuction, createAuction } from "@/lib/job-auction";
 import { calculateSurgeFee } from "@/lib/surge-pricing";
 import { getJobSourceLabel, getJobSourceType, sourceMatchesFilter, type JobSourceFilter } from "@/lib/job-source";
 import { isCoordinatePair, normalizeUkPostcode } from "@/lib/location-display";
+import { normalizePhoneNumber } from "@/lib/phone";
 
 // Geocode postcode to coordinates
 async function geocodePostcode(postcode: string): Promise<{ lat: number; lng: number } | null> {
@@ -95,17 +96,32 @@ export async function POST(request: NextRequest) {
 
     let customerIdToUse = customerId;
 
-    // If no customerId provided, create or find customer by phone
+    // If no customerId provided, create or find customer by phone.
+    //
+    // 2026-06-06 fix: normalize the phone BEFORE lookup/create. Without
+    // this, a customer who booked via web (entered `07...`) and then
+    // called (Retell normalized to `+44...`) ended up with TWO Customer
+    // records and two un-merged Jobs. See DD2-JOB198/249 incident.
     if (!customerIdToUse) {
+      const normalizedPhone = normalizePhoneNumber(phone);
       let customer = await prisma.customer.findFirst({
-        where: { phone },
+        where: { phone: normalizedPhone },
       });
+
+      if (!customer) {
+        // Also defensively look up the un-normalized form so we don't
+        // double-create against legacy raw-phone records that pre-date
+        // this fix.
+        customer = await prisma.customer.findFirst({
+          where: { phone },
+        });
+      }
 
       if (!customer) {
         customer = await prisma.customer.create({
           data: {
             name,
-            phone,
+            phone: normalizedPhone || phone,
           },
         });
       }
