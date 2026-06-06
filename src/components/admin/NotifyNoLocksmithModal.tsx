@@ -37,19 +37,19 @@ interface NotifyNoLocksmithModalProps {
 const SITE_URL = "https://locksafe.uk";
 const SUPPORT_PHONE = "+44 20 4577 1989";
 
+// NB: deliberately NO weblink in this SMS — we didn't fulfil the job, so a
+// link adds nothing for the customer, and links in SMS raise spam-filter /
+// blocking risk with Zadarma. Keep it short (≤2 GSM segments).
 function buildDefaultSms(args: {
   customerName: string;
   jobNumber: string;
   postcode: string;
-  jobId: string;
 }): string {
   const firstName = args.customerName.split(" ")[0] || args.customerName;
-  const url = `${SITE_URL}/customer/job/${args.jobId}`;
   return (
     `Hi ${firstName}, we’re really sorry — we couldn’t find an available verified locksmith in ${args.postcode} for ${args.jobNumber}. ` +
-    `No assessment fee has been charged. ` +
-    `If helpful, call our priority line ${SUPPORT_PHONE} and we’ll still try to hand-match someone nearby as quickly as possible. ` +
-    `You can also view your options here: ${url}.`
+    `You haven’t been charged anything. ` +
+    `If helpful, call our priority line ${SUPPORT_PHONE} and we’ll still try to hand-match someone nearby as quickly as possible.`
   );
 }
 
@@ -70,7 +70,6 @@ export function NotifyNoLocksmithModal({
           customerName: job.customer?.name || "there",
           jobNumber: job.jobNumber,
           postcode: job.postcode,
-          jobId: job.id,
         })
       : "",
   );
@@ -87,7 +86,6 @@ export function NotifyNoLocksmithModal({
         customerName: job.customer?.name || "there",
         jobNumber: job.jobNumber,
         postcode: job.postcode,
-        jobId: job.id,
       }),
     );
   }, [job?.id, job?.jobNumber, job?.postcode, job?.customer?.name]);

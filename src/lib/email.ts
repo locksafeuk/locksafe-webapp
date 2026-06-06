@@ -3427,7 +3427,7 @@ export async function sendNoLocksmithAvailableEmail(
             <ul class="checklist">
               <li>Call our <strong>priority dispatch line</strong> — we'll hand-match you with a vetted locksmith from our wider partner network, usually within 15 minutes.</li>
               <li>Expand your search radius from inside your job page (one tap) so locksmiths within a 25-mile range can see your request.</li>
-              <li>Or, if it's no longer urgent, cancel the job in one click and we'll refund the assessment fee in full.</li>
+              <li>Or, if it's no longer urgent, cancel the job in one click — you haven't paid anything.</li>
             </ul>
           </div>
 
@@ -3438,7 +3438,7 @@ export async function sendNoLocksmithAvailableEmail(
           </div>
 
           <div class="guarantee">
-            <strong>Our promise to you:</strong> if we genuinely can't get a verified locksmith out today, your <strong>£29 assessment fee is refunded in full, no questions asked</strong>. We only win when you win.
+            <strong>Our promise to you:</strong> you haven't been charged anything — you only ever pay an assessment fee after a locksmith accepts your job and you approve their fee. We only win when you win.
           </div>
 
           <p class="signoff">Sorry for the inconvenience — we're working on it right now.<br/>The LockSafe UK Dispatch Team</p>

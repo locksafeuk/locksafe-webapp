@@ -48,6 +48,8 @@ describe("retell prompt builder", () => {
     const prompt = buildRetellPrompt();
     expect(prompt).toContain("check-user(");
     expect(prompt).toContain("create-job(");
+    expect(prompt).toContain("customer_name");
+    expect(prompt).toContain("Required: customer_phone, customer_name, postcode, service_type.");
     expect(prompt).toContain("missing_fields");
     expect(prompt).toContain("sms_sent");
   });

@@ -71,20 +71,18 @@ export async function POST(request: NextRequest) {
       body.call?.caller_phone_number ||
       args.caller_phone_number;
 
-    const {
-      customer_id,
-      customer_phone,
-      customer_name,
-      customer_email,
-      postcode,
-      address,
-      exact_location,
-      service_type,
-      property_type,
-      urgency,
-      description,
-      emergency_details,
-    } = args;
+    const customer_id = args.customer_id || args.customerId;
+    const customer_phone = args.customer_phone || args.customerPhone;
+    const customer_name = args.customer_name || args.customerName;
+    const customer_email = args.customer_email || args.customerEmail;
+    const postcode = args.postcode;
+    const address = args.address;
+    const exact_location = args.exact_location || args.exactLocation;
+    const service_type = args.service_type || args.serviceType;
+    const property_type = args.property_type || args.propertyType;
+    const urgency = args.urgency;
+    const description = args.description;
+    const emergency_details = args.emergency_details || args.emergencyDetails;
 
     console.log("[Retell create-job] Request:", {
       retellCallId: retellCallId || "N/A",
@@ -115,7 +113,7 @@ export async function POST(request: NextRequest) {
     // ─── Resolve customer details ───
     // Priority: explicit args > Retell call context > customer_id lookup
     let customerPhone = customer_phone || callerPhoneFromRetell;
-    let customerName = customer_name || "Phone Customer";
+    let customerName = customer_name?.trim() || "";
     let customerEmail = customer_email;
 
     // If we have a customer_id, try to enrich missing fields from DB
@@ -128,7 +126,7 @@ export async function POST(request: NextRequest) {
         if (existingCustomer) {
           customerPhone = customerPhone || existingCustomer.phone;
           customerName =
-            customer_name || existingCustomer.name || customerName;
+            customer_name?.trim() || existingCustomer.name || customerName;
           customerEmail = customerEmail || existingCustomer.email || undefined;
           console.log(
             `[Retell create-job] Enriched from customer_id ${customer_id}: phone=${customerPhone}`
@@ -171,6 +169,20 @@ export async function POST(request: NextRequest) {
           fallback_action: "ask_caller",
           message:
             "I need your phone number to register the job. Could you confirm your phone number?",
+        },
+        { status: 200, headers: CORS_HEADERS }
+      );
+    }
+
+    if (!customerName || customerName === "Phone Customer") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Customer name is required",
+          missing_fields: ["customer_name"],
+          fallback_action: "ask_caller",
+          message:
+            "Could you please tell me your full name before I register this job?",
         },
         { status: 200, headers: CORS_HEADERS }
       );

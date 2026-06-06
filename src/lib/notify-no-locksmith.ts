@@ -54,19 +54,21 @@ export interface NotifyNoLocksmithResult {
  * Build the default SMS body. Kept under ~320 chars (max 2 GSM-7 segments)
  * to reduce splitting risk across SMS providers.
  */
+// NB: deliberately NO weblink in this SMS — we didn't fulfil the job, so a
+// link adds nothing, and links in SMS raise spam-filter / blocking risk with
+// Zadarma. The email version still carries the job link (links are fine there).
 export function buildNoLocksmithSms(input: {
   customerName: string;
   jobNumber: string;
   postcode: string;
   priorityPhone: string;
-  jobUrl: string;
 }): string {
   const firstName = input.customerName.split(" ")[0] || input.customerName;
   return (
     `LockSafe UK: Hi ${firstName}, honest update on ${input.jobNumber} — ` +
     `no verified locksmith free in ${input.postcode} right now. ` +
-    `Don't wait: call our priority line ${input.priorityPhone} and we'll hand-match you in ~15 mins. ` +
-    `Or widen radius/cancel here: ${input.jobUrl} — assessment fee fully refundable.`
+    `You haven't been charged anything. ` +
+    `Don't wait: call our priority line ${input.priorityPhone} and we'll hand-match you in ~15 mins.`
   );
 }
 
@@ -107,7 +109,6 @@ export async function notifyNoLocksmithAvailable(
           jobNumber: job.jobNumber,
           postcode: job.postcode,
           priorityPhone,
-          jobUrl,
         });
       result.smsResult = await sendSMS(customer.phone, message, {
         logContext: `no-locksmith:${job.jobNumber}`,
