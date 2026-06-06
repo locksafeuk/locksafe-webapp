@@ -79,6 +79,8 @@ model TunableParameter {
   metric     String // outcome metric this optimises
   /** The last applied change to value (for the hill-climb direction). */
   lastDelta  Float    @default(0)
+  /** The metric value observed at the previous run (the hill-climb baseline). */
+  lastMetric Float?
   updatedAt  DateTime @updatedAt
   createdAt  DateTime @default(now())
 }

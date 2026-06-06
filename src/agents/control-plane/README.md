@@ -51,6 +51,7 @@ agent, publish/pause a campaign, external email/SMS.
 | `CONTROL_PLANE_DISPATCH_ENFORCE` | block auto-dispatch when the validator rejects the candidate |
 | `CONTROL_PLANE_APPROVAL_ENFORCE` | route every `requiresApproval` tool to the approval queue instead of executing |
 | `CONTROL_PLANE_COO_DELEGATION` | COO heartbeat escalates stalled dispatch → CTO and low coverage → CMO |
+| `CONTROL_PLANE_SELFIMPROVE_ENFORCE` | self-improvement runner APPLIES tuned parameter values (else shadow: suggest + record only) |
 
 Tuning (optional): `TELEGRAM_QUIET_HOURS_START/END`, `TELEGRAM_ALERT_ERROR_COOLDOWN_MINUTES`.
 
@@ -78,13 +79,15 @@ Prereq after schema changes: `npx prisma generate && npm run db:push`.
   circular / duplicate). See `src/agents/core/delegation-guard.ts`.
 - ✅ COO→peer delegation: `src/agents/coo/escalation.ts` (flag-gated via
   `CONTROL_PLANE_COO_DELEGATION`).
-- ✅ Self-improvement foundation: bounded parameter registry + hill-climb
-  adjuster with rollback (`src/agents/self-improvement/`), plus
-  `TunableParameter` / `ParameterChange` models. Pure + tested; tuning runs in
-  shadow until an experiment runner applies changes.
-- ⏳ Pending: experiment runner that measures outcomes and applies tuned values
-  (currently the adjuster only suggests); per-tool executors for resolved
-  approvals beyond agent.pause/resume; per-agent daily budget caps.
+- ✅ Self-improvement loop (closed): bounded parameter registry + hill-climb
+  adjuster with rollback + experiment runner that measures real outcomes
+  (job_completion_rate from the Job table), records every decision, and applies
+  tuned values when enforced. Entry point: `POST /api/cron/self-improve` (run
+  daily). `getTunedValue(key, fallback)` lets consumers read tuned values.
+  Models: `TunableParameter` / `ParameterChange`.
+- ⏳ Pending: wire `getTunedValue` into the dispatch validator so tuned values
+  take effect; more outcome metrics (alert_noise_rate); per-tool executors for
+  resolved approvals beyond agent.pause/resume; per-agent daily budget caps.
 
 ## Admin endpoints
 
