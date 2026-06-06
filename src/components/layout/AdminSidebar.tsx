@@ -39,6 +39,7 @@ import {
   Crown,
   Brain,
   Sprout,
+  Gauge,
   MessageCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -146,6 +147,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/admin/voice-receptionist", label: "Voice AI", icon: Phone },
       { href: "/admin/agents", label: "AI Agents", icon: Bot },
+      { href: "/admin/agents/control-plane", label: "Control Plane", icon: Gauge },
       { href: "/admin/agents/approvals", label: "Approvals", icon: ShieldCheck },
     ],
   },
