@@ -89,10 +89,16 @@ Prereq after schema changes: `npx prisma generate && npm run db:push`.
   `getTunedValue("dispatch.minMatchScore", 70)` and
   `("dispatch.maxAutoDistanceMiles", 5)` and passes them to the validator, so an
   applied tuning changes real auto-dispatch behaviour (falls back to defaults).
-- ⏳ Pending (deliberate — each needs its own integration-tested change): more
-  outcome metrics (a real human-dismissal signal for alert_noise_rate);
-  per-tool executors for resolved approvals beyond agent.pause/resume; per-agent
-  daily budget caps in the heartbeat loop.
+- ✅ Per-agent daily budget caps: opt-in `Agent.dailyBudgetUsd` cap enforced in
+  the heartbeat loop (resets each UTC day). Inert when null. Pure core:
+  `src/agents/core/daily-budget.ts`.
+- ✅ Risky approval coverage: the central `requiresApproval` enforcement +
+  tool-backed resolver re-run ANY risky tool (comms/campaign included) on
+  approval, so bespoke per-action executors are unnecessary.
+- ⏳ Pending (its own focused change): a real `alert_noise_rate` metric — needs a
+  genuine human "dismissed as noise" signal AND the alert cooldown param wired
+  into the gate so tuning is causal (otherwise it would optimise against a metric
+  it can't move).
 
 ## Admin endpoints
 

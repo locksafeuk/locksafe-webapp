@@ -23,6 +23,7 @@ import { chat, Models } from '@/lib/llm-router';
 import type { LLMMessage } from '@/lib/llm-router';
 import { sendAdminAlert } from '@/lib/telegram';
 import { delegationBlockReason } from '@/agents/core/delegation-guard';
+import { evaluateDailyBudget } from '@/agents/core/daily-budget';
 import {
   getOperationalPolicy,
   isGuardianAgent,
@@ -428,6 +429,34 @@ export async function executeHeartbeat(agentId: string): Promise<HeartbeatResult
       };
     }
 
+    // Per-agent DAILY budget cap (opt-in; inert when dailyBudgetUsd is null).
+    // Throttles — not an error — so it returns success with no actions, like a
+    // paused agent. New-day reset + increment are persisted at step 6 below.
+    const dailyFields = dbAgent as unknown as {
+      dailyBudgetUsd: number | null;
+      dailyUsedUsd: number | null;
+      budgetDayStart: Date | null;
+    };
+    const dailyEval = evaluateDailyBudget(
+      {
+        dailyBudgetUsd: dailyFields.dailyBudgetUsd ?? null,
+        dailyUsedUsd: dailyFields.dailyUsedUsd ?? 0,
+        budgetDayStart: dailyFields.budgetDayStart ?? null,
+      },
+      now,
+    );
+    if (dailyEval.overCap) {
+      console.warn(`[Orchestrator] Agent ${agentId} daily budget cap reached ($${dailyFields.dailyBudgetUsd})`);
+      return {
+        success: true,
+        agentName: agentId,
+        actionsExecuted: 0,
+        costUsd: 0,
+        errors: [],
+        nextHeartbeat: getNextHeartbeatAt(agentId, now),
+      };
+    }
+
     // ── 2. Load SKILL.md system prompt ──────────────────────────────────────
     let systemPrompt = `You are the ${dbAgent.displayName} for LockSafe UK.\n${dbAgent.role}\n\nAnalyze the platform state and use your available tools to take appropriate actions.`;
     try {
@@ -674,12 +703,21 @@ export async function executeHeartbeat(agentId: string): Promise<HeartbeatResult
     }
 
     // ── 6. Persist results to DB ─────────────────────────────────────────────
-    await prisma.agent.update({
+    // Boundary cast: daily-budget fields aren't in the generated client until
+    // `prisma generate` runs after the schema change.
+    const agentUpdate = prisma.agent.update as unknown as (
+      args: { where: { id: string }; data: Record<string, unknown> },
+    ) => Promise<unknown>;
+    await agentUpdate({
       where: { id: dbAgent.id },
       data: {
         lastHeartbeat: now,
         budgetUsedUsd: { increment: totalCost },
         totalExecutions: { increment: actionsExecuted },
+        // Daily budget tracking: reset counter on a new UTC day, else increment.
+        ...(dailyEval.resetNeeded
+          ? { dailyUsedUsd: totalCost, budgetDayStart: dailyEval.dayStart }
+          : { dailyUsedUsd: { increment: totalCost } }),
       },
     });
 

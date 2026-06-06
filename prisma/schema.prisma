@@ -2531,6 +2531,11 @@ model Agent {
   budgetUsedUsd    Float    @default(0) // Current month usage
   budgetResetAt    DateTime @default(now()) // When budget resets
 
+  // Daily budget cap (optional, opt-in). Null = no daily cap (no behaviour change).
+  dailyBudgetUsd Float? // Per-day spend ceiling ($); when set, heartbeats stop once reached
+  dailyUsedUsd   Float     @default(0) // Spend in the current UTC day
+  budgetDayStart DateTime? // Start of the current daily window (UTC)
+
   // Heartbeat Configuration
   heartbeatEnabled  Boolean   @default(true)
   heartbeatCronExpr String    @default("*/30 * * * *") // Cron expression
