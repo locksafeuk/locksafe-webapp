@@ -180,8 +180,8 @@ export function AdminCoverageMap({
   const overlayGroupRef = useRef<L.LayerGroup | null>(null);
   const onLocksmithClickRef = useRef<typeof onLocksmithClick>(onLocksmithClick);
   const hasInitialFitRef = useRef(false);
-  const userMovedMapRef = useRef(false);
   const previousTargetKeyRef = useRef<string | null>(null);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
@@ -216,18 +216,26 @@ export function AdminCoverageMap({
 
     overlayGroupRef.current = L.layerGroup().addTo(map);
 
-    // Once user manually zooms or pans, stop forcing auto-fit on routine data refresh.
-    map.on("zoomstart", () => {
-      userMovedMapRef.current = true;
-    });
-    map.on("dragstart", () => {
-      userMovedMapRef.current = true;
-    });
-
     mapInstanceRef.current = map;
     setIsLoaded(true);
 
+    // Leaflet renders blank/grey tiles when its container's size is not final at
+    // init (the map lives inside a grid/tab that lays out after mount). Recompute
+    // size on the next frame and whenever the container resizes.
+    const invalidate = () => mapInstanceRef.current?.invalidateSize();
+    const raf = requestAnimationFrame(invalidate);
+    const timeout = setTimeout(invalidate, 300);
+
+    if (typeof ResizeObserver !== "undefined" && mapRef.current) {
+      resizeObserverRef.current = new ResizeObserver(() => invalidate());
+      resizeObserverRef.current.observe(mapRef.current);
+    }
+
     return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timeout);
+      resizeObserverRef.current?.disconnect();
+      resizeObserverRef.current = null;
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
@@ -349,14 +357,13 @@ export function AdminCoverageMap({
         : null;
       const targetChanged = targetKey !== previousTargetKeyRef.current;
 
-      if (!hasInitialFitRef.current || targetChanged || !userMovedMapRef.current) {
+      // Only recenter on the first load of valid data, or when the user runs a
+      // new address search (target changes). Routine data refreshes rebuild the
+      // markers but must NOT touch the viewport — otherwise the user's manual
+      // zoom/pan is wiped out.
+      if (!hasInitialFitRef.current || targetChanged) {
         map.fitBounds(bounds, { padding: [50, 50] });
         hasInitialFitRef.current = true;
-
-        // New searched address should recenter map and then allow manual control again.
-        if (targetChanged) {
-          userMovedMapRef.current = false;
-        }
       }
 
       previousTargetKeyRef.current = targetKey;
