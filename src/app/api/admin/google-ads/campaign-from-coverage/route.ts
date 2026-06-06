@@ -20,7 +20,7 @@ import prisma from "@/lib/db";
 import { verifyToken } from "@/lib/auth";
 import { getActiveCoverageGeoTargets } from "@/lib/google-ads-locations";
 import { enforceDistrictLandingForDraft } from "@/lib/google-ads-district-enforcer";
-import { enforceCoverageGate, enforceDraftGuardrails } from "@/lib/google-ads-draft-enforcement";
+import { enforceAccountSpendCap, enforceCoverageGate, enforceDraftGuardrails } from "@/lib/google-ads-draft-enforcement";
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
@@ -273,6 +273,20 @@ export async function POST(request: NextRequest) {
         message:
           "Coverage-driven campaign references cities that fail the ≥2-locksmith / 10mi gate. The legacy getActiveCoverageGeoTargets() helper drifted from canonical CampaignCoverageBuilder — investigate before retrying.",
         violations: coverageGate.violations,
+      },
+      { status: 422 },
+    );
+  }
+
+  // 4c. RULE #14 — per-account daily spend cap (2026-06-06).
+  const spendCap = await enforceAccountSpendCap(account.id, dailyBudget);
+  if (!spendCap.ok) {
+    return NextResponse.json(
+      {
+        error: "spend_cap_violation",
+        message:
+          "Coverage-driven campaign would push the account-wide live daily budget over the cap.",
+        violations: spendCap.violations,
       },
       { status: 422 },
     );

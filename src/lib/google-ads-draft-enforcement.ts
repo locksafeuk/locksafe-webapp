@@ -222,6 +222,124 @@ export interface EnforcementOptions {
   allowOverride?: boolean;
 }
 
+// ─── RULE #14 — per-account daily spend cap (2026-06-06) ─────────────────
+
+/**
+ * Hard cap on the sum of `dailyBudget` across every PUBLISHED+ENABLED
+ * draft for a given GoogleAdsAccount. Default £100/day. Overridable via
+ * env var `MAX_DAILY_ACCOUNT_SPEND_GBP`.
+ *
+ * Why this exists (2026-06-06): you can theoretically create 30 drafts
+ * at £20 each = £600/day with no rule stopping it. Today we caught the
+ * coverage gap (£165.85 over 7d with 0 attribution), but a SCALED
+ * version of the same mistake would burn five figures per week.
+ *
+ * The cap is checked BEFORE persist — a draft that would push the
+ * account-wide live budget over the cap is rejected with a clear
+ * error. The fix: pause an existing campaign OR ship at a lower
+ * dailyBudget.
+ */
+function getAccountDailyBudgetCap(): number {
+  const raw = process.env["MAX_DAILY_ACCOUNT_SPEND_GBP"];
+  if (raw) {
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  // £300 = up to 3-5 campaigns at £60-100 each.
+  //
+  // Why not lower: at our £5-8 CPC, £20/day = ~3 clicks/day = noise. Google's
+  // MAXIMIZE_CONVERSIONS needs ~30 conv/week to exit learning period. At a
+  // realistic 5-10% conversion rate that's 300-600 clicks/week = £60-120/day
+  // per campaign. £100 account-wide ÷ 3 campaigns = £33 each = too thin to
+  // ever teach the algorithm.
+  //
+  // Why not higher: this is a HARD cap, not a target. Headroom is good but
+  // the runaway scenario we're guarding against (someone unpauses all 30
+  // historical drafts at default budgets) gets caught at £300 just as well
+  // as £100, while still allowing serious operation.
+  //
+  // To raise further per-environment: set env MAX_DAILY_ACCOUNT_SPEND_GBP=X
+  // in Vercel. Lower values let you smoke-test the pipeline at no risk.
+  return 300;
+}
+
+export async function enforceAccountSpendCap(
+  accountId: string,
+  requestedDailyBudget: number,
+  opts: {
+    /** Override the live-budget lookup (tests). */
+    currentLiveBudget?: number;
+    /** Override the cap (tests / what-if). */
+    capOverride?: number;
+    /** Override accountId resolver (tests). */
+    excludeDraftId?: string;
+  } = {},
+): Promise<
+  | { ok: true; currentSpend: number; cap: number; headroom: number }
+  | { ok: false; violations: GuardrailViolation[] }
+> {
+  const cap = opts.capOverride ?? getAccountDailyBudgetCap();
+  if (!Number.isFinite(requestedDailyBudget) || requestedDailyBudget <= 0) {
+    return {
+      ok: false,
+      violations: [
+        {
+          field: "dailyBudget",
+          expected: "positive number",
+          actual: String(requestedDailyBudget),
+          severity: "error",
+        },
+      ],
+    };
+  }
+
+  let currentLiveBudget: number;
+  if (opts.currentLiveBudget !== undefined) {
+    currentLiveBudget = opts.currentLiveBudget;
+  } else {
+    // Lazy import — keep this module callable from edge contexts.
+    const { prisma: _prisma } = await import("@/lib/db");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const prisma = _prisma as any;
+    const rows = await prisma.googleAdsCampaignDraft.findMany({
+      where: {
+        accountId,
+        status: "PUBLISHED",
+        pausedAt: null,
+        ...(opts.excludeDraftId ? { id: { not: opts.excludeDraftId } } : {}),
+      },
+      select: { dailyBudget: true },
+    });
+    currentLiveBudget = rows.reduce(
+      (acc: number, r: { dailyBudget: number | null }) =>
+        acc + (r.dailyBudget ?? 0),
+      0,
+    );
+  }
+
+  const wouldBe = currentLiveBudget + requestedDailyBudget;
+  if (wouldBe > cap) {
+    return {
+      ok: false,
+      violations: [
+        {
+          field: "dailyBudget",
+          expected: `account-wide live budget ≤ £${cap} (current £${currentLiveBudget.toFixed(2)}, +£${requestedDailyBudget.toFixed(2)} would total £${wouldBe.toFixed(2)})`,
+          actual: `would exceed cap by £${(wouldBe - cap).toFixed(2)}`,
+          severity: "error",
+        },
+      ],
+    };
+  }
+
+  return {
+    ok: true,
+    currentSpend: currentLiveBudget,
+    cap,
+    headroom: cap - wouldBe,
+  };
+}
+
 /**
  * Async coverage gate — RULE #13 (the "stop going bankrupt" rule, 2026-06-06).
  *

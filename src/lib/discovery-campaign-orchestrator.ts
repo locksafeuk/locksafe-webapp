@@ -50,7 +50,7 @@ import { ensureOrSkip, districtSlug } from "@/lib/district-landing/ensure-landin
 import { SITE_URL } from "@/lib/config";
 import type { SeedCategory } from "@/agents/core/seed-bank";
 import type { IntelKeyword } from "@/lib/competitor-cross-validate";
-import { enforceCoverageGate, enforceDraftGuardrails } from "@/lib/google-ads-draft-enforcement";
+import { enforceAccountSpendCap, enforceCoverageGate, enforceDraftGuardrails } from "@/lib/google-ads-draft-enforcement";
 
 // Prisma schema includes new fields not always in the generated client
 // during DB schema-drift windows — keep the prisma reference loose so
@@ -418,6 +418,23 @@ export async function generateDiscoveryDrafts(
       );
       if (!coverageGate.ok) {
         const message = `coverage_violation: ${coverageGate.violations
+          .map((v) => `${v.field}=${v.actual} (expected ${v.expected})`)
+          .join("; ")}`;
+        result.errors.push(`${payload.data.name}: ${message}`);
+        result.drafts.push({ ...entry, error: message });
+        continue;
+      }
+
+      // RULE #14 — per-account daily spend cap. Reject any draft that
+      // would push live account-wide budget over the cap. Discovery
+      // orchestrator generates many drafts per run — without this it
+      // could trivially blow past the cap.
+      const spendCap = await enforceAccountSpendCap(
+        options.accountId,
+        Number((payload.data as { dailyBudget?: number }).dailyBudget ?? 0),
+      );
+      if (!spendCap.ok) {
+        const message = `spend_cap_violation: ${spendCap.violations
           .map((v) => `${v.field}=${v.actual} (expected ${v.expected})`)
           .join("; ")}`;
         result.errors.push(`${payload.data.name}: ${message}`);

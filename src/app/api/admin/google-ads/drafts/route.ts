@@ -13,7 +13,7 @@ import prisma from "@/lib/db";
 import { verifyToken } from "@/lib/auth";
 import { enforceDistrictLandingForDraft } from "@/lib/google-ads-district-enforcer";
 import { normalizeLocationMatchType } from "@/lib/google-ads-location-match-type";
-import { enforceCoverageGate, enforceDraftGuardrails } from "@/lib/google-ads-draft-enforcement";
+import { enforceAccountSpendCap, enforceCoverageGate, enforceDraftGuardrails } from "@/lib/google-ads-draft-enforcement";
 
 async function verifyAdmin() {
   const cookieStore = await cookies();
@@ -200,6 +200,23 @@ export async function POST(request: NextRequest) {
         message:
           "Draft targets one or more cities without enough locksmith coverage. Add covering locksmiths or remove the city. See /api/admin/google-ads/coverage for the live map.",
         violations: coverageGate.violations,
+      },
+      { status: 422 },
+    );
+  }
+
+  // RULE #14 — per-account daily spend cap (2026-06-06). Reject drafts
+  // that would push the live account-wide budget over the cap (default
+  // £100/day, env-overridable). Prevents the "30 campaigns × £20 = £600/day"
+  // runaway scenario. See enforceAccountSpendCap() docs.
+  const spendCap = await enforceAccountSpendCap(accountId, dailyBudget);
+  if (!spendCap.ok) {
+    return NextResponse.json(
+      {
+        error: "spend_cap_violation",
+        message:
+          "Draft would push the account-wide live daily budget over the cap. Pause an existing PUBLISHED campaign or lower this draft's dailyBudget.",
+        violations: spendCap.violations,
       },
       { status: 422 },
     );

@@ -18,6 +18,7 @@ import { generateDraftPlanForLocksmith } from "@/lib/google-ads-onboarding";
 import { extractDefaultAccountLearnings } from "@/lib/google-ads-learnings";
 import { enforceDistrictLandingForDraft } from "@/lib/google-ads-district-enforcer";
 import {
+  enforceAccountSpendCap,
   enforceCoverageGate,
   enforceDraftGuardrails,
   PLAYBOOK_GUARDRAILS,
@@ -115,6 +116,24 @@ export async function POST(
         violations: coverageGate.violations,
         opportunityId: opp.id,
         geoTargetId: opp.geoTargetId,
+      },
+      { status: 422 },
+    );
+  }
+
+  // RULE #14 — per-account daily spend cap (2026-06-06).
+  const spendCap = await enforceAccountSpendCap(
+    account.id,
+    build.plan.recommendedDailyBudget,
+  );
+  if (!spendCap.ok) {
+    return NextResponse.json(
+      {
+        error: "spend_cap_violation",
+        message:
+          "Opportunity Scout draft would push the account-wide live daily budget over the cap.",
+        violations: spendCap.violations,
+        opportunityId: opp.id,
       },
       { status: 422 },
     );

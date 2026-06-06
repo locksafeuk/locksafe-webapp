@@ -23,6 +23,7 @@ import { extractDefaultAccountLearnings } from "@/lib/google-ads-learnings";
 import { extractUkPostcode } from "@/lib/location-display";
 import { enforceDistrictLandingForDraft } from "@/lib/google-ads-district-enforcer";
 import {
+  enforceAccountSpendCap,
   enforceCoverageGate,
   enforceDraftGuardrails,
   isAutoPerLocksmithGenerationEnabled,
@@ -212,6 +213,21 @@ export async function POST(request: NextRequest) {
           message:
             "Locksmith's region lacks ≥2 active locksmiths within 10 miles. Cannot ship a per-locksmith campaign that would be the only coverage.",
           violations: coverageGate.violations,
+          locksmithId: locksmith.id,
+        },
+        { status: 422 },
+      );
+    }
+
+    // 4c. RULE #14 — per-account daily spend cap (2026-06-06).
+    const spendCap = await enforceAccountSpendCap(account.id, plan.recommendedDailyBudget);
+    if (!spendCap.ok) {
+      return NextResponse.json(
+        {
+          error: "spend_cap_violation",
+          message:
+            "Per-locksmith draft would push the account-wide live daily budget over the cap.",
+          violations: spendCap.violations,
           locksmithId: locksmith.id,
         },
         { status: 422 },
