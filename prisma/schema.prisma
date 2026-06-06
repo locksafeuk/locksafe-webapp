@@ -10,6 +10,63 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// Control plane (agent autonomy redesign — see AGENT_AUTONOMY_REDESIGN_*.md)
+// ────────────────────────────────────────────────────────────────────────────
+
+// Every action an agent proposes, recorded BEFORE validation for a full audit
+// trail (what the agent wanted to do, independent of whether it ran).
+model AgentProposal {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  agent        String
+  actionType   String
+  args         String // JSON
+  rationale    String   @default("")
+  evidenceRefs String[] @default([])
+
+  // Pipeline decision + validator outcome
+  decision         String // execute | approve | reject (initial classification)
+  finalDecision    String? // executed | executed-idempotent | queued-for-approval | rejected | execute-failed
+  validationCode   String? // machine-readable validator code (e.g. "no-demand")
+  validationReason String?
+  idempotencyKey   String?
+
+  // True = dry-run (shadow mode): decided + recorded but NOT acted on.
+  shadow Boolean @default(false)
+
+  proposedAt DateTime  @default(now())
+  resolvedAt DateTime?
+
+  @@index([agent, proposedAt(sort: Desc)])
+  @@index([actionType, decision, proposedAt(sort: Desc)])
+  @@index([shadow, proposedAt(sort: Desc)])
+}
+
+// Distributed lock so the PM2 runner and the Vercel cron can never run the same
+// agent concurrently (eliminates double-fire / double-spend).
+model AgentHeartbeatLock {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  agent      String   @unique
+  nodeId     String
+  acquiredAt DateTime @default(now())
+  expiresAt  DateTime
+
+  @@index([expiresAt])
+}
+
+// Idempotency ledger: a repeated action (same key) returns the prior result
+// instead of executing again.
+model ActionIdempotency {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  key        String   @unique
+  actionType String
+  result     String // JSON ExecutionResult
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+
+  @@index([expiresAt])
+}
+
 // Stripe onboarding reminder log for auditing admin sends
 model StripeReminderLog {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId

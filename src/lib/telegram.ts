@@ -37,6 +37,37 @@ const TELEGRAM_NEW_JOB_DEDUPE_MINUTES = Math.max(
   Number.parseInt(process.env.TELEGRAM_NEW_JOB_DEDUPE_MINUTES || "1440", 10) || 1440,
 );
 
+// Quiet hours: by default, advisory admin/agent alerts are held overnight
+// (Europe/London) so heartbeats can't page at 3am. Genuinely actionable alerts
+// (e.g. COO dispatch, infra incidents) pass bypassQuietHours and still page.
+const TELEGRAM_QUIET_HOURS_ENABLED = process.env.TELEGRAM_QUIET_HOURS_ENABLED !== "false";
+const TELEGRAM_QUIET_HOURS_START = ((): number => {
+  const n = Number.parseInt(process.env.TELEGRAM_QUIET_HOURS_START ?? "22", 10);
+  return Number.isFinite(n) ? Math.min(23, Math.max(0, n)) : 22;
+})();
+const TELEGRAM_QUIET_HOURS_END = ((): number => {
+  const n = Number.parseInt(process.env.TELEGRAM_QUIET_HOURS_END ?? "7", 10);
+  return Number.isFinite(n) ? Math.min(23, Math.max(0, n)) : 7;
+})();
+
+function isWithinQuietHours(now: Date = new Date()): boolean {
+  if (!TELEGRAM_QUIET_HOURS_ENABLED) return false;
+  const start = TELEGRAM_QUIET_HOURS_START;
+  const end = TELEGRAM_QUIET_HOURS_END;
+  if (start === end) return false;
+
+  const hourStr = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    hour: "2-digit",
+    hour12: false,
+  }).format(now);
+  let hour = Number.parseInt(hourStr, 10);
+  if (hour === 24) hour = 0; // some runtimes format midnight as "24"
+
+  // Window may wrap past midnight (e.g. 22 -> 07).
+  return start < end ? hour >= start && hour < end : hour >= start || hour < end;
+}
+
 // Best-effort in-process dedupe to reduce noisy repeated admin alerts.
 // Repeats are keyed by severity+title unless a caller provides dedupeKey.
 const adminAlertCooldownCache = new Map<string, number>();
@@ -183,8 +214,12 @@ async function recordNewJobNotificationSent(jobId: string, cooldownMs: number): 
 function getAdminAlertCooldownMs(severity: "info" | "warning" | "error"): number {
   const infoMinutes = Number(process.env.TELEGRAM_ALERT_INFO_COOLDOWN_MINUTES ?? "60");
   const warningMinutes = Number(process.env.TELEGRAM_ALERT_WARNING_COOLDOWN_MINUTES ?? "15");
+  // Previously 0 — which disabled dedupe for critical alerts entirely, so a
+  // persistent P1 condition re-paged on every heartbeat. Give it a real default
+  // window (still overridable per-call, and true pages can pass cooldownMsOverride: 0).
+  const errorMinutes = Number(process.env.TELEGRAM_ALERT_ERROR_COOLDOWN_MINUTES ?? "30");
 
-  if (severity === "error") return 0;
+  if (severity === "error") return Math.max(0, errorMinutes) * 60 * 1000;
   if (severity === "warning") return Math.max(0, warningMinutes) * 60 * 1000;
   return Math.max(0, infoMinutes) * 60 * 1000;
 }
@@ -922,11 +957,38 @@ export async function sendAdminAlert(data: {
   message: string;
   severity?: "info" | "warning" | "error";
   bypassPolicyGate?: boolean;
+  bypassQuietHours?: boolean;
   dedupeKey?: string;
   cooldownMsOverride?: number;
   topic?: "agents" | "social";
   topicThreadId?: number;
 }): Promise<boolean> {
+  // CONTROL-PLANE alert gate. Shadow by default (records the would-be decision,
+  // never blocks); enforce when CONTROL_PLANE_ALERT_ENFORCE=true (suppresses
+  // alerts the deterministic validator rejects, e.g. the false "zero jobs" P1).
+  // Dynamic import + try/catch so the control plane can never break alerts.
+  try {
+    const cp = await import("@/agents/control-plane/shadow/alert-shadow");
+    const gateInput = {
+      title: data.title,
+      message: data.message,
+      severity: data.severity ?? ("info" as const),
+      bypassQuietHours: data.bypassQuietHours,
+    };
+    if (cp.isAlertEnforcementEnabled()) {
+      const gate = await cp.evaluateAlert(gateInput, { shadow: false });
+      if (!gate.allow) {
+        console.log(`[control-plane:enforce] alert suppressed code=${gate.code ?? ""} title="${data.title}"`);
+        return true; // suppressed by the control plane (consistent with other gates)
+      }
+    } else {
+      // Shadow: fire-and-forget, never blocks the live send.
+      void cp.evaluateAlert(gateInput, { shadow: true }).catch(() => {});
+    }
+  } catch (err) {
+    console.warn("[control-plane] alert gate unavailable, sending via legacy path:", err);
+  }
+
   // Runtime alert-sensitivity gate for admin/agent topic noise control.
   // Defaults are handled by operational policy module if DB fields are null.
   if (!data.bypassPolicyGate) {
@@ -966,6 +1028,16 @@ export async function sendAdminAlert(data: {
 
   const severity = data.severity || "info";
   const icon = icons[severity];
+
+  // Quiet hours: hold advisory alerts overnight so heartbeats can't page at 3am.
+  // Genuinely actionable alerts (COO dispatch, infra incidents) set
+  // bypassQuietHours and still get through.
+  if (!data.bypassQuietHours && isWithinQuietHours()) {
+    console.log(
+      `[Telegram][quiet-hours] suppressed alert severity=${severity} title=${data.title}`,
+    );
+    return true;
+  }
 
   // Spam guard: repeated alerts with the same dedupe key are suppressed.
   // Default key normalizes dynamic numeric/id fragments in titles.

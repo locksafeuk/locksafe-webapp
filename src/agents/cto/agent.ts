@@ -190,12 +190,15 @@ export async function getCTOStatus(): Promise<{
   if (errorRate > 0.05) databaseHealth = "degraded";
   if (errorRate > 0.1) databaseHealth = "critical";
 
-  // Fire Telegram alert if system health degrades
+  // Fire Telegram alert if system health degrades. This is a genuine infra
+  // signal (real error rate / DB health), so it pages even during quiet hours —
+  // only critical DB failure bypasses the overnight hold to avoid noise.
   if (errorRate > 0.005 || databaseHealth !== "healthy") {
     sendAdminAlert({
       title: `🚨 CTO Alert: System Health ${databaseHealth === "critical" ? "Critical" : "Degraded"}`,
       message: `Error rate: ${(errorRate * 100).toFixed(2)}% (${recentErrors} errors in last hour)\nDB health: ${databaseHealth}\n\nThreshold: >0.5% error rate or DB not healthy.`,
       severity: databaseHealth === "critical" ? "error" : "warning",
+      bypassQuietHours: databaseHealth === "critical",
     }).catch(() => {});
   }
 
