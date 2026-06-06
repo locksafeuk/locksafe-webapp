@@ -76,31 +76,40 @@ const NON_LOCKSMITH = [
 const UK_POSTCODE = /\b([A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2})\b/i;
 const NON_UK_COUNTRY = [/\baustralia\b/i, /\bcanada\b/i, /\busa\b/i, /\bunited states\b/i, /\bnew zealand\b/i];
 const EMAIL_REGEX = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
-const EMAIL_BLOCKLIST = ["example.com", "sentry.io", "wixpress.com", "squarespace.com", "wordpress.com", "cloudflare.com", "noreply", "no-reply", "postmaster", "webmaster"];
+const EMAIL_BLOCKLIST = [
+  "example.com", "sentry.io", "wixpress.com", "squarespace.com", "wordpress.com",
+  "cloudflare.com", "noreply", "no-reply", "postmaster", "webmaster",
+  // placeholder/template junk seen in real scrapes
+  "email.com", "domain.com", "yourdomain", "locksafe.internal", "@2x", "your@",
+];
+/** Retina image filenames (logo@2x.png) match the email regex — reject them. */
+const EMAIL_FILE_EXT = /\.(png|jpe?g|gif|webp|svg|ico|css|js|woff2?)$/i;
 
 const isChain = (name: string) => CHAIN_KEYWORDS.some((k) => name.toLowerCase().includes(k));
 const hasStrong = (t: string) => LOCKSMITH_STRONG.some((p) => p.test(t));
 const hasNeg = (t: string) => NON_LOCKSMITH.some((p) => p.test(t));
 const nonUkPhone = (phone: string) => {
-  const c = phone.replace(/\s+/g, "").trim();
+  const c = phone.replace(/[^\d+]/g, "");
   if (!c) return false;
   if (c.startsWith("+")) return !c.startsWith("+44");
   if (c.startsWith("00")) return !c.startsWith("0044");
+  // NANP-style 10-digit local number, e.g. "(949) 998-3899" — US/Canada.
+  // UK national numbers always start with 0. This was the leak that admitted
+  // Irvine CA / Hamilton AL / Cambridge MA locksmiths as "UK" leads.
+  if (/^[2-9]\d{9}$/.test(c)) return true;
   return false;
 };
 function looksLocksmith(name: string, address: string, website: string): boolean {
   const t = `${name} ${address} ${website}`;
   return hasStrong(t) && !hasNeg(t);
 }
-function looksUk(city: string, address: string, phone: string, website: string): boolean {
-  const a = address.toLowerCase();
+function looksUk(_city: string, address: string, phone: string, website: string): boolean {
   if (NON_UK_COUNTRY.some((p) => p.test(address)) || nonUkPhone(phone)) return false;
-  return (
-    (city.length > 1 && a.includes(city.toLowerCase())) ||
-    UK_POSTCODE.test(address) ||
-    /\.co\.uk\b|\.uk\b/i.test(website) ||
-    (Boolean(phone) && !nonUkPhone(phone))
-  );
+  // Require POSITIVE UK evidence. City-name-in-address is NOT enough — many UK
+  // city names exist in the US (Irvine, Hamilton, Cambridge, Oxford…).
+  const compact = phone.replace(/[^\d+]/g, "");
+  const ukPhone = /^(\+44|0044|0)\d/.test(compact);
+  return UK_POSTCODE.test(address) || /\.co\.uk\b|\.uk\b/i.test(website) || ukPhone;
 }
 
 interface SerperPlace {
@@ -164,7 +173,10 @@ async function findEmail(website: string): Promise<string> {
       const html = (await res.text()).slice(0, 300_000);
       const emails = [...new Set((html.match(EMAIL_REGEX) ?? [])
         .map((m) => m.toLowerCase().trim().replace(/[),.;]+$/, ""))
-        .filter((e) => e.includes("@") && !EMAIL_BLOCKLIST.some((b) => e.includes(b))))];
+        .filter((e) =>
+          e.includes("@") &&
+          !EMAIL_FILE_EXT.test(e) &&
+          !EMAIL_BLOCKLIST.some((b) => e.includes(b))))];
       if (emails.length) return emails[0];
     } catch { /* ignore */ }
   }

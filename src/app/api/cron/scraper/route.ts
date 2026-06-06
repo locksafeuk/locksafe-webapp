@@ -430,7 +430,17 @@ const EMAIL_BLOCKLIST = [
   "no-reply",
   "postmaster",
   "webmaster",
+  // placeholder/template junk seen in real scrapes
+  "email.com",
+  "domain.com",
+  "yourdomain",
+  "locksafe.internal",
+  "@2x",
+  "your@",
 ];
+
+/** Retina image filenames (logo@2x.png) match the email regex — reject them. */
+const EMAIL_FILE_EXT_PATTERN = /\.(png|jpe?g|gif|webp|svg|ico|css|js|woff2?)$/i;
 
 function hasStrongLocksmithSignal(text: string): boolean {
   return LOCKSMITH_STRONG_PATTERNS.some((p) => p.test(text));
@@ -441,23 +451,28 @@ function hasNonLocksmithSignal(text: string): boolean {
 }
 
 function isDefinitelyNonUkPhone(phone: string): boolean {
-  const compact = phone.replace(/\s+/g, "").trim();
+  const compact = phone.replace(/[^\d+]/g, "");
   if (!compact) return false;
   if (compact.startsWith("+")) return !compact.startsWith("+44");
   if (compact.startsWith("00")) return !compact.startsWith("0044");
+  // NANP-style 10-digit local number, e.g. "(949) 998-3899" — US/Canada.
+  // UK national numbers always start with 0. This leak admitted US locksmiths
+  // in same-named cities (Irvine CA, Hamilton AL, Cambridge MA, Oxford KS…).
+  if (/^[2-9]\d{9}$/.test(compact)) return true;
   return false;
 }
 
-function looksUkEnough(city: string, address: string, phone: string, website: string): boolean {
-  const lowerAddress = address.toLowerCase();
-  const cityInAddress = city.length > 1 && lowerAddress.includes(city.toLowerCase());
+function looksUkEnough(_city: string, address: string, phone: string, website: string): boolean {
   const hasUkPostcode = UK_POSTCODE_PATTERN.test(address);
   const hasUkDomain = /\.co\.uk\b|\.uk\b/i.test(website);
-  const isUkPhone = Boolean(phone) && !isDefinitelyNonUkPhone(phone);
+  const compact = phone.replace(/[^\d+]/g, "");
+  const hasUkPhone = /^(\+44|0044|0)\d/.test(compact);
   const nonUkCountry = NON_UK_COUNTRY_TERMS.some((p) => p.test(address));
 
   if (nonUkCountry || isDefinitelyNonUkPhone(phone)) return false;
-  return cityInAddress || hasUkPostcode || hasUkDomain || isUkPhone;
+  // Require POSITIVE UK evidence. "City name appears in address" is NOT enough
+  // — many UK city names exist in the US and were leaking through.
+  return hasUkPostcode || hasUkDomain || hasUkPhone;
 }
 
 function looksLikeStrictLocksmith(lead: Pick<ScrapedLead, "name" | "address" | "website">): boolean {
@@ -475,7 +490,12 @@ function extractEmailsFromHtml(html: string): string[] {
   const matches = html.match(EMAIL_REGEX) ?? [];
   const emails = matches
     .map((m) => sanitizeEmail(m))
-    .filter((e) => e.includes("@") && !EMAIL_BLOCKLIST.some((b) => e.includes(b)));
+    .filter(
+      (e) =>
+        e.includes("@") &&
+        !EMAIL_FILE_EXT_PATTERN.test(e) &&
+        !EMAIL_BLOCKLIST.some((b) => e.includes(b)),
+    );
   return [...new Set(emails)];
 }
 

@@ -65,11 +65,30 @@ const NON_UK_COUNTRY_TERMS = [
 
 function isDefinitelyNonUkPhone(phone: string | null): boolean {
   if (!phone) return false;
-  const compact = phone.replace(/\s+/g, "").trim();
+  const compact = phone.replace(/[^\d+]/g, "");
   if (!compact) return false;
   if (compact.startsWith("+")) return !compact.startsWith("+44");
   if (compact.startsWith("00")) return !compact.startsWith("0044");
+  // NANP-style 10-digit local number, e.g. "(949) 998-3899" — US/Canada.
+  // UK national numbers always start with 0. Catches US locksmiths scraped in
+  // same-named cities (Irvine CA, Hamilton AL, Cambridge MA, Oxford KS…).
+  if (/^[2-9]\d{9}$/.test(compact)) return true;
   return false;
+}
+
+/** Junk "emails" that leaked into the email column (image filenames matched the
+ *  email regex, template placeholders, internal markers). */
+const JUNK_EMAIL_PATTERNS = [
+  /\.(png|jpe?g|gif|webp|svg|ico|css|js|woff2?)$/i,
+  /@2x/i,
+  /locksafe\.internal/i,
+  /^your@|@email\.com$|@domain\.com$|yourdomain/i,
+  /^user@domain/i,
+  /^no-email-found@/i,
+];
+function isJunkEmail(email: string | null): boolean {
+  if (!email) return false;
+  return JUNK_EMAIL_PATTERNS.some((p) => p.test(email));
 }
 
 function classifyLead(lead: LeadRow): { remove: boolean; reasons: string[] } {
@@ -143,14 +162,35 @@ async function main() {
     }
   }
 
-  if (!apply || flagged.length === 0) return;
+  // ── Junk email pass: image filenames / placeholders in the email column ──
+  const junkEmailLeads = leads.filter((l) => isJunkEmail(l.email));
+  console.log(`\nLeads with junk email values (will be set to null): ${junkEmailLeads.length}`);
+  for (const l of junkEmailLeads.slice(0, 15)) {
+    console.log(`- ${l.name} | ${l.city} | email=${l.email}`);
+  }
 
-  const ids = flagged.map((f) => f.lead.id);
-  const result = await (prisma as unknown as {
-    locksmithLead: { deleteMany: (a: unknown) => Promise<{ count: number }> };
-  }).locksmithLead.deleteMany({ where: { id: { in: ids } } });
+  if (!apply) return;
 
-  console.log(`\nDeleted leads: ${result.count}`);
+  if (flagged.length > 0) {
+    const ids = flagged.map((f) => f.lead.id);
+    const result = await (prisma as unknown as {
+      locksmithLead: { deleteMany: (a: unknown) => Promise<{ count: number }> };
+    }).locksmithLead.deleteMany({ where: { id: { in: ids } } });
+    console.log(`\nDeleted leads: ${result.count}`);
+  }
+
+  // Null junk emails on surviving leads so the email channel skips them and
+  // the enrich cron can retry properly.
+  const survivingJunk = junkEmailLeads.filter((l) => !flagged.some((f) => f.lead.id === l.id));
+  if (survivingJunk.length > 0) {
+    const res = await (prisma as unknown as {
+      locksmithLead: { updateMany: (a: unknown) => Promise<{ count: number }> };
+    }).locksmithLead.updateMany({
+      where: { id: { in: survivingJunk.map((l) => l.id) } },
+      data: { email: null },
+    });
+    console.log(`Cleared junk emails: ${res.count}`);
+  }
 }
 
 main()
