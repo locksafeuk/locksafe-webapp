@@ -95,10 +95,12 @@ Prereq after schema changes: `npx prisma generate && npm run db:push`.
 - ✅ Risky approval coverage: the central `requiresApproval` enforcement +
   tool-backed resolver re-run ANY risky tool (comms/campaign included) on
   approval, so bespoke per-action executors are unnecessary.
-- ⏳ Pending (its own focused change): a real `alert_noise_rate` metric — needs a
-  genuine human "dismissed as noise" signal AND the alert cooldown param wired
-  into the gate so tuning is causal (otherwise it would optimise against a metric
-  it can't move).
+- ✅ alert_noise_rate (causal, closed): human "mark as noise" signal
+  (`AgentProposal.dismissedAsNoise`, dashboard button + `/api/admin/agents/proposals`),
+  the alert cooldown param wired into the gate (`recentlySentSameAlert` derived
+  from the tuned `alert.errorCooldownMinutes` window), and the metric enabled in
+  the runner. So tuning the cooldown now causally moves the measured noise rate —
+  no bogus optimisation.
 
 ## Admin endpoints
 

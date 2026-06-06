@@ -27,6 +27,8 @@ import {
 import type { AlertFacts, AlertKind, AlertRaiseArgs } from "../validators/alert";
 import type { FactProvider } from "../ports";
 import type { AlertSeverity, Proposal } from "../types";
+import { normaliseForKey } from "../registry";
+import { getTunedValue } from "@/agents/self-improvement/adapters/prisma";
 
 const ACTIVE_JOB_STATES = [
   "PENDING", "SCHEDULED", "ACCEPTED", "EN_ROUTE", "ARRIVED",
@@ -65,18 +67,30 @@ function isWithinUkQuietHours(now: Date, startHour = 22, endHour = 7): boolean {
   return startHour < endHour ? hour >= startHour && hour < endHour : hour >= startHour || hour < endHour;
 }
 
-async function buildAlertFacts(bypassQuietHours: boolean, now: Date): Promise<AlertFacts> {
+async function buildAlertFacts(title: string, bypassQuietHours: boolean, now: Date): Promise<AlertFacts> {
   const since24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  const [openJobCount, recentJobCount24h] = await Promise.all([
+
+  // Cooldown is self-tunable: a same-key alert seen within the tuned window
+  // counts as a recent duplicate. This is what makes alert.errorCooldownMinutes
+  // CAUSALLY affect the alert_noise_rate metric (longer cooldown → more
+  // duplicate suppression → fewer noisy repeats).
+  const cooldownMinutes = await getTunedValue("alert.errorCooldownMinutes", 30);
+  const cooldownSince = new Date(now.getTime() - Math.max(0, cooldownMinutes) * 60 * 1000);
+  const idempotencyKey = `alert.raise:${normaliseForKey(title)}`;
+
+  const [openJobCount, recentJobCount24h, recentSameCount] = await Promise.all([
     prisma.job.count({ where: { status: { in: ACTIVE_JOB_STATES as never } } }),
     prisma.job.count({ where: { createdAt: { gte: since24h } } }),
+    prisma.agentProposal.count({
+      where: { actionType: "alert.raise", idempotencyKey, proposedAt: { gte: cooldownSince } },
+    }),
   ]);
+
   return {
     openJobCount,
     recentJobCount24h,
     withinQuietHours: isWithinUkQuietHours(now),
-    // In shadow/enforce we leave dedupe to the legacy cooldown path for now.
-    recentlySentSameAlert: false,
+    recentlySentSameAlert: recentSameCount > 0,
     bypassQuietHours,
   };
 }
@@ -126,7 +140,7 @@ export async function evaluateAlert(
       proposedAt: now.toISOString(),
     };
 
-    const facts = await buildAlertFacts(bypassQuietHours, now);
+    const facts = await buildAlertFacts(input.title, bypassQuietHours, now);
     const factProvider: FactProvider = { factsFor: async () => facts as unknown as Record<string, unknown> };
 
     // A no-op executor for the allowed branch — the real Telegram send stays in

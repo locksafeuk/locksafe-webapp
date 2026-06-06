@@ -34,6 +34,12 @@ model AgentProposal {
   // True = dry-run (shadow mode): decided + recorded but NOT acted on.
   shadow Boolean @default(false)
 
+  // Human "this alert was noise" signal (for alert.raise proposals) — feeds the
+  // alert_noise_rate self-improvement metric.
+  dismissedAsNoise Boolean   @default(false)
+  dismissedAt      DateTime?
+  dismissedBy      String?
+
   proposedAt DateTime  @default(now())
   resolvedAt DateTime?
 

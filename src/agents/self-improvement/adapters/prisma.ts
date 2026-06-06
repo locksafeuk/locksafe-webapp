@@ -23,10 +23,14 @@ interface ChangeDelegate {
 interface JobDelegate {
   count(args?: { where?: Where }): Promise<number>;
 }
+interface ProposalDelegate {
+  count(args: { where: Where }): Promise<number>;
+}
 interface SelfImproveClient {
   tunableParameter: TunableDelegate;
   parameterChange: ChangeDelegate;
   job: JobDelegate;
+  agentProposal: ProposalDelegate;
 }
 const db = prisma as unknown as SelfImproveClient;
 
@@ -93,6 +97,16 @@ export class PrismaMetricProvider implements MetricProvider {
       ]);
       if (created === 0) return null; // no demand → don't tune blind
       return completed / created;
+    }
+
+    if (metric === "alert_noise_rate") {
+      // sent = alerts the gate allowed (not rejected); dismissed = human-marked noise.
+      const [sent, dismissed] = await Promise.all([
+        db.agentProposal.count({ where: { actionType: "alert.raise", proposedAt: { gte: since }, decision: { not: "reject" } } }),
+        db.agentProposal.count({ where: { actionType: "alert.raise", proposedAt: { gte: since }, dismissedAsNoise: true } }),
+      ]);
+      if (sent === 0) return null; // no alerts → don't tune blind
+      return dismissed / sent;
     }
 
     // Other metrics not yet wired → hold.

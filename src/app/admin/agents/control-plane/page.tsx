@@ -47,6 +47,24 @@ interface Snapshot {
   locks: Array<{ agent: string; nodeId: string; expiresAt: string }>;
 }
 
+interface NoiseAlert {
+  id: string;
+  agent: string;
+  title: string;
+  decision: string;
+  validationCode: string | null;
+  shadow: boolean;
+  dismissedAsNoise: boolean;
+  proposedAt: string;
+}
+interface NoiseResp {
+  windowHours: number;
+  sent: number;
+  dismissed: number;
+  noiseRate: number | null;
+  alerts: NoiseAlert[];
+}
+
 function Pill({ on, label }: { on: boolean; label: string }) {
   return (
     <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${on ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
@@ -58,6 +76,7 @@ function Pill({ on, label }: { on: boolean; label: string }) {
 
 export default function ControlPlaneDashboard() {
   const [data, setData] = useState<Snapshot | null>(null);
+  const [noise, setNoise] = useState<NoiseResp | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -65,15 +84,34 @@ export default function ControlPlaneDashboard() {
   const load = useCallback(async () => {
     try {
       setError(null);
-      const res = await fetch("/api/admin/agents/control-plane", { credentials: "include" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setData(await res.json());
+      const [cpRes, npRes] = await Promise.all([
+        fetch("/api/admin/agents/control-plane", { credentials: "include" }),
+        fetch("/api/admin/agents/proposals", { credentials: "include" }),
+      ]);
+      if (!cpRes.ok) throw new Error(`HTTP ${cpRes.status}`);
+      setData(await cpRes.json());
+      if (npRes.ok) setNoise(await npRes.json());
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
     } finally {
       setLoading(false);
     }
   }, []);
+
+  async function markNoise(proposalId: string) {
+    setBusy(proposalId);
+    try {
+      await fetch("/api/admin/agents/proposals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ proposalId, dismissedAsNoise: true }),
+      });
+      await load();
+    } finally {
+      setBusy(null);
+    }
+  }
 
   useEffect(() => {
     load();
@@ -175,6 +213,43 @@ export default function ControlPlaneDashboard() {
           </div>
         )}
       </section>
+
+      {/* Recent alerts + noise signal */}
+      {noise && (
+        <section className="bg-white rounded-xl shadow-sm p-4">
+          <h2 className="font-semibold text-sm text-slate-900 mb-1">Recent alerts (last {noise.windowHours}h)</h2>
+          <p className="text-xs text-slate-500 mb-3">
+            Noise rate: {noise.noiseRate == null ? "n/a" : `${Math.round(noise.noiseRate * 100)}%`} ({noise.dismissed}/{noise.sent} marked noise)
+          </p>
+          {noise.alerts.length === 0 ? (
+            <div className="text-sm text-slate-500">No alerts in the window.</div>
+          ) : (
+            <div className="space-y-1 max-h-72 overflow-y-auto">
+              {noise.alerts.map((a) => (
+                <div key={a.id} className="flex items-center justify-between gap-3 border border-slate-100 rounded-lg px-3 py-1.5">
+                  <div className="min-w-0">
+                    <div className="text-xs text-slate-900 truncate">{a.title}</div>
+                    <div className="text-[11px] text-slate-400">
+                      {a.agent} · {a.decision}{a.validationCode ? ` (${a.validationCode})` : ""}{a.shadow ? " · shadow" : ""}
+                    </div>
+                  </div>
+                  {a.dismissedAsNoise ? (
+                    <span className="text-[11px] text-amber-600 shrink-0">noise</span>
+                  ) : (
+                    <button
+                      disabled={busy === a.id}
+                      onClick={() => markNoise(a.id)}
+                      className="text-[11px] px-2 py-1 rounded-lg border border-slate-300 hover:bg-slate-50 shrink-0 disabled:opacity-50"
+                    >
+                      Mark noise
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Agent health */}
       <section className="bg-white rounded-xl shadow-sm p-4 overflow-x-auto">
