@@ -164,7 +164,7 @@ async function sendInvoiceEmail(data: {
     jobNumber: string;
     postcode: string;
     problemType: string;
-    assessmentFee: number;
+    assessmentFee: number | null; // Job.assessmentFee is nullable; body coalesces with ?? 0
     signedAt: Date | null;
     property: { address: string; reference: string | null } | null;
     customer: { name: string };

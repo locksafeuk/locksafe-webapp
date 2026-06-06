@@ -45,6 +45,33 @@ function getAgentAlertCooldownMs(priority: string, isGuardian: boolean): number 
   return minutes * 60 * 1000;
 }
 
+/**
+ * Per-agent alert cadence — wording-proof rate limit.
+ *
+ * The LLM rephrases the same condition on every heartbeat, which defeats any
+ * content-based dedupe. So regardless of wording, an agent may only page once
+ * per its minimum interval. Defaults: executives (CTO/CEO/CMO/…) 12h ≈ max
+ * twice a day within waking hours; COO 60m (dispatch guardian stays responsive).
+ * Override per agent via AGENT_ALERT_MIN_INTERVAL_MINUTES_<AGENT> (e.g. _CTO).
+ *
+ * Genuine infra alerts (CTO system-health) call sendAdminAlert directly and are
+ * NOT affected by this cadence.
+ */
+export function getAgentAlertMinIntervalMs(agentName: string): number {
+  const a = agentName.toLowerCase();
+  const envKey = `AGENT_ALERT_MIN_INTERVAL_MINUTES_${a.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
+  const defaults: Record<string, number> = { coo: 60 };
+  const fallback = defaults[a] ?? 720; // 12h
+  const minutes = Number(process.env[envKey] ?? fallback);
+  return Math.max(0, Number.isFinite(minutes) ? minutes : fallback) * 60 * 1000;
+}
+
+/** Pure: should this alert be held because the agent paged too recently? */
+export function shouldHoldForCadence(lastSentAt: Date | null, now: Date, minIntervalMs: number): boolean {
+  if (!lastSentAt || minIntervalMs <= 0) return false;
+  return now.getTime() - lastSentAt.getTime() < minIntervalMs;
+}
+
 // Short, stable fingerprint of an alert's *meaning* (numbers/ids/timestamps
 // stripped) so identical recurring alerts collapse onto one dedupe key while a
 // genuinely different incident gets its own key and pages immediately.
@@ -241,6 +268,38 @@ export const sendTelegramAlertTool: AgentTool = {
     } catch (e) {
       // Fail open — if policy lookup fails, fall through to send (legacy behaviour)
       console.warn("[Telegram][gating] policy lookup failed, allowing message:", e);
+    }
+
+    // Per-agent cadence cap — wording-proof. Looks up the agent's LAST sent
+    // alert in the audit records (prefix match, so the LLM's phrasing is
+    // irrelevant) and holds anything inside the minimum interval. Fail OPEN on
+    // lookup errors so a DB blip can never mute a real incident.
+    try {
+      const minIntervalMs = getAgentAlertMinIntervalMs(context.agentName);
+      if (minIntervalMs > 0) {
+        const lastSent = await prisma.agentDecision.findFirst({
+          where: {
+            agent: "system-alerts",
+            platform: "global",
+            action: { startsWith: `telegram_admin_alert:agent-alert:${context.agentName.toLowerCase()}` },
+          },
+          orderBy: { createdAt: "desc" },
+          select: { createdAt: true },
+        });
+        if (shouldHoldForCadence(lastSent?.createdAt ?? null, new Date(), minIntervalMs)) {
+          const nextAllowedAt = new Date((lastSent as { createdAt: Date }).createdAt.getTime() + minIntervalMs);
+          console.log(
+            `[Telegram][cadence] ${context.agentName} alert held — last sent ${lastSent?.createdAt.toISOString()}, ` +
+            `min interval ${Math.round(minIntervalMs / 60000)}m, next allowed ${nextAllowedAt.toISOString()}`,
+          );
+          return {
+            success: true,
+            data: { sent: false, suppressed: true, reason: "agent-cadence", nextAllowedAt },
+          };
+        }
+      }
+    } catch (e) {
+      console.warn("[Telegram][cadence] lookup failed, allowing alert:", e);
     }
 
     const priorityEmoji = {
