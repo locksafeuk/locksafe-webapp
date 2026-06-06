@@ -14,6 +14,7 @@ import { sendAdminAlert } from "@/lib/telegram";
 import { notifyNearbyLocksmiths } from "@/lib/job-notifications";
 import type { AgentConfig } from "@/agents/core/types";
 import { COO_HEARTBEAT_CRON } from "@/agents/heartbeat-schedules";
+import { planCooEscalations } from "@/agents/coo/escalation";
 
 // Agent configuration
 export const COO_AGENT_CONFIG: AgentConfig = {
@@ -236,6 +237,33 @@ export async function runCOOHeartbeat(): Promise<void> {
           dedupeKey: "coo:operations-alert",
           cooldownMsOverride: 30 * 60 * 1000, // 30-min cooldown — repeated ops alerts are noise
         });
+      }
+      return ctx;
+    })
+    .step("escalate-to-peers", async (ctx) => {
+      // Peer escalation (flag-gated, default OFF). delegateTask has circular +
+      // duplicate guards, so repeated heartbeats won't re-file the same task.
+      if (process.env.CONTROL_PLANE_COO_DELEGATION !== "true") return ctx;
+
+      const availableLocksmiths = await prisma.locksmith.count({
+        where: { isActive: true, isAvailable: true },
+      });
+      const escalations = planCooEscalations({
+        stuckJobCount: ctx.stuckJobCount,
+        unassignedEmergencyCount: ctx.unassignedEmergencyCount,
+        sweptCount: ctx.sweptCount,
+        sweepNotified: ctx.sweepNotified,
+        availableLocksmiths,
+      });
+      for (const e of escalations) {
+        await delegateTask(agent.id, e.toAgent, {
+          title: e.title,
+          description: e.description,
+          priority: e.priority,
+        }).catch((err) => console.error(`[COO] escalation to ${e.toAgent} failed:`, err));
+      }
+      if (escalations.length > 0) {
+        console.log(`[COO] Escalated to peers: ${escalations.map((e) => e.toAgent).join(", ")}`);
       }
       return ctx;
     })

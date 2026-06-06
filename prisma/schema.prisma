@@ -67,6 +67,39 @@ model ActionIdempotency {
   @@index([expiresAt])
 }
 
+// Self-improvement: a parameter the system may auto-tune within hard bounds.
+model TunableParameter {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  key        String   @unique
+  value      Float
+  min        Float
+  max        Float
+  step       Float
+  betterWhen String // "higher" | "lower"
+  metric     String // outcome metric this optimises
+  /** The last applied change to value (for the hill-climb direction). */
+  lastDelta  Float    @default(0)
+  updatedAt  DateTime @updatedAt
+  createdAt  DateTime @default(now())
+}
+
+// Self-improvement: an auto-tuning decision (changelog + rollback audit).
+model ParameterChange {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  key          String
+  fromValue    Float
+  toValue      Float
+  action       String // explore | continue | rollback | hold
+  reason       String
+  metricBefore Float?
+  metricAfter  Float?
+  /** True = suggestion only (shadow); false = actually applied. */
+  shadow       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  @@index([key, createdAt(sort: Desc)])
+}
+
 // Stripe onboarding reminder log for auditing admin sends
 model StripeReminderLog {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId
