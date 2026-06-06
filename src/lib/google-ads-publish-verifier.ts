@@ -98,8 +98,14 @@ export interface VerificationResult {
   networkSettings: CampaignNetworkSettings;
   /** Live geo settings — includes the per-campaign live geo target list. */
   geoSettings: CampaignGeoSettings;
-  /** url_expansion_opt_out must be true to disable landing-page substitution. */
-  urlExpansionOptOut: boolean | null;
+  /**
+   * @deprecated Always null. The Google Ads field `url_expansion_opt_out`
+   * was PERFORMANCE_MAX only and has been removed from current API. For
+   * SEARCH campaigns we keep AI Max OFF (default) which is the equivalent
+   * control. Kept on the type to avoid breaking persisted verification
+   * records; new verifications always write null.
+   */
+  urlExpansionOptOut: null;
   /** HARD issues — empty ad groups, Search Partners on, banned settings.
    * These trigger structural_failure + auto-pause + critical Telegram alert. */
   issues: string[];
@@ -127,7 +133,6 @@ interface CampaignRow {
     name: string;
     status: string;
     resourceName: string;
-    urlExpansionOptOut?: boolean | null;
     networkSettings?: {
       targetGoogleSearch?: boolean | null;
       targetSearchNetwork?: boolean | null;
@@ -248,7 +253,6 @@ export async function verifyPublishedCampaign(
         campaign.name,
         campaign.status,
         campaign.resource_name,
-        campaign.url_expansion_opt_out,
         campaign.network_settings.target_google_search,
         campaign.network_settings.target_search_network,
         campaign.network_settings.target_content_network,
@@ -376,12 +380,14 @@ export async function verifyPublishedCampaign(
         "Partner Search Network is ENABLED on campaign (must be off per §15)",
       );
     }
-    const urlExpansionOptOut = campaign.urlExpansionOptOut ?? null;
-    if (urlExpansionOptOut === false) {
-      topIssues.push(
-        "Final URL expansion is ENABLED on campaign (must be opt-out per §15)",
-      );
-    }
+    // URL EXPANSION — playbook §15. The PMax-only field
+    // `url_expansion_opt_out` was removed from current API. For SEARCH
+    // campaigns the equivalent control is AI Max being OFF, which is
+    // the default. We never opt SEARCH campaigns INTO AI Max from the
+    // publish path, so URL expansion is structurally impossible here.
+    // The verifier records null on this field for parity with the
+    // VerificationResult shape.
+    const urlExpansionOptOut = null;
 
     // 5. Geo presence-only check. ────────────────────────────────────────
     const gts = campaign.geoTargetTypeSetting ?? {};

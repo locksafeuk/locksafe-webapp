@@ -82,8 +82,13 @@ export const PLAYBOOK_GUARDRAILS = {
    * playbook §15). Every campaign must be SEARCH only with PRESENCE-only
    * geo. The publish path (google-ads-publish.ts) also forces:
    *   - targetSearchNetwork: false  (no Search Partners)
-   *   - urlExpansionOptOut: true    (no auto landing-page substitution)
-   *   - optimizedTargetingEnabled: false  (per ad group; no audience expansion)
+   *   - targetContentNetwork: false (no Display network)
+   *   - targetPartnerSearchNetwork: false (no YouTube-search partners)
+   *   - optimizedTargetingEnabled: false (per ad group; no audience expansion)
+   * URL expansion: NOT sent on create. The legacy field
+   * Campaign.url_expansion_opt_out was PERFORMANCE_MAX only and has been
+   * REMOVED from current API. For SEARCH campaigns with AI Max OFF (our
+   * default — we never opt in), URL expansion does not happen.
    * These cannot be overridden per-draft. */
   ADVERTISING_CHANNEL_TYPE: "SEARCH" as const,
   LOCATION_MATCH_TYPE: "PRESENCE" as const,

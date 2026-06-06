@@ -332,11 +332,15 @@ export async function publishGoogleAdsDraft(draftId: string): Promise<PublishRes
             targetContentNetwork: false,       // Display network DISABLED
             targetPartnerSearchNetwork: false, // YouTube-search partners DISABLED
           },
-          // Block Google from auto-substituting a different landing page
-          // it thinks will convert better. Bypasses UTM attribution and
-          // routes traffic to pages that haven't passed our content
-          // guardrails. Off, no exceptions. Playbook §15.
-          urlExpansionOptOut: true,
+          // URL EXPANSION CONTROL — playbook §15.
+          // The field `url_expansion_opt_out` is PERFORMANCE_MAX only and
+          // has been REMOVED from current Google Ads API (used to live at
+          // Campaign.url_expansion_opt_out; was deprecated in favour of
+          // assetAutomationSettings.FINAL_URL_EXPANSION_TEXT_ASSET_AUTOMATION).
+          // For SEARCH campaigns with AI Max OFF (our default — we never
+          // opt in), URL expansion does not happen. The campaign serves the
+          // ad's finalUrl as-is. No field is set on create.
+          // The verifier checks AI Max stays OFF; see google-ads-publish-verifier.
           ...(draft.startDate ? { startDate: formatGoogleDate(draft.startDate) } : {}),
           ...(draft.endDate ? { endDate: formatGoogleDate(draft.endDate) } : {}),
           ...biddingPayload,

@@ -30,7 +30,6 @@ interface MockCampaign {
   targetSearchNetwork?: boolean;
   targetContentNetwork?: boolean;
   targetPartnerSearchNetwork?: boolean;
-  urlExpansionOptOut?: boolean;
   positiveGeoTargetType?: string;
   liveGeoTargets?: string[]; // location criteria currently on the campaign
 }
@@ -109,8 +108,6 @@ jest.mock("@/lib/google-ads", () => {
                   name: camp.name,
                   status: camp.status,
                   resourceName: camp.resourceName,
-                  urlExpansionOptOut:
-                    camp.urlExpansionOptOut === undefined ? true : camp.urlExpansionOptOut,
                   networkSettings: {
                     targetGoogleSearch: true,
                     targetSearchNetwork:
@@ -465,17 +462,11 @@ describe("google-ads-publish-verifier", () => {
       expect(r.issues.some((i) => i.includes("Display Network"))).toBe(true);
     });
 
-    it("flags URL expansion enabled as structural_failure", async () => {
-      const c = makeCampaign({
-        id: "820",
-        adGroupSpec: [{ name: "ok", keywords: 12, ads: 1 }],
-      });
-      c.urlExpansionOptOut = false;
-      mockGoogleStore.campaigns.set("820", c);
-      const r = await verifyPublishedCampaign("acct1", "820");
-      expect(r.status).toBe("structural_failure");
-      expect(r.issues.some((i) => i.includes("URL expansion"))).toBe(true);
-    });
+    // URL expansion (campaign.url_expansion_opt_out) was PERFORMANCE_MAX
+    // only and is REMOVED from current Google Ads API. The publish path no
+    // longer sends it and the verifier no longer reads it. For SEARCH
+    // campaigns, the equivalent control is AI Max for Search staying OFF
+    // (default). Test removed — would assert behavior on a removed field.
 
     it("flags PRESENCE_OR_INTEREST geo targeting as structural_failure", async () => {
       const c = makeCampaign({
