@@ -20,7 +20,10 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth";
-import { computeCoverageMap } from "@/lib/campaign-coverage-builder";
+import {
+  computeCoverageMap,
+  fetchLocksmithsMissingBaseLocation,
+} from "@/lib/campaign-coverage-builder";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -61,7 +64,10 @@ export async function GET(request: Request) {
     }
   }
 
-  const map = await computeCoverageMap(opts);
+  const [map, missingBaseLocation] = await Promise.all([
+    computeCoverageMap(opts),
+    fetchLocksmithsMissingBaseLocation(),
+  ]);
 
   const sorted = [...map.entries].sort((a, b) => {
     if (a.eligible !== b.eligible) return a.eligible ? -1 : 1;
@@ -74,6 +80,11 @@ export async function GET(request: Request) {
       excludedGeoCount: map.entries.length - map.eligibleGeoIds.length,
       activeLocksmithCount: map.activeLocksmithCount,
       skippedLocksmithCount: map.skippedLocksmithCount,
+      // Locksmiths who would qualify if they set base location — they
+      // are isActive + onboardingCompleted but have null baseLat/baseLng,
+      // so the coverage builder skips them. Chasing these to set their
+      // location unlocks coverage with zero recruitment effort.
+      missingBaseLocationCount: missingBaseLocation.length,
       computedAt: map.computedAt.toISOString(),
       effectiveRadiusMiles: opts.radiusMiles ?? 10,
       effectiveMinLocksmithsPerGeo: opts.minLocksmithsPerGeo ?? 2,
@@ -86,6 +97,16 @@ export async function GET(request: Request) {
       excludedReason: e.excludedReason,
       locksmithCount: e.locksmithCount,
       coveringLocksmiths: e.covering.map((l) => ({ id: l.id, name: l.name })),
+    })),
+    // The recruitment gap — these locksmiths would change the eligible
+    // map immediately if they set baseLat/baseLng. Ranked by totalJobs
+    // (highest-value first) so admins can prioritise outreach.
+    missingBaseLocation: missingBaseLocation.map((l) => ({
+      id: l.id,
+      name: l.name,
+      companyName: l.companyName,
+      baseAddress: l.baseAddress,
+      totalJobs: l.totalJobs,
     })),
   });
 }

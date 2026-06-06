@@ -161,6 +161,56 @@ async function fetchActiveLocksmithsWithCoords(): Promise<LocksmithCoveragePoint
     }));
 }
 
+/**
+ * Locksmiths who are isActive + onboardingCompleted but are MISSING
+ * baseLat/baseLng — they'd potentially qualify for coverage if their
+ * base location were set. Surfaces the recruitment+chase opportunity.
+ *
+ * Returns ONLY the fields needed for the admin "chase to set base
+ * location" workflow.
+ */
+export interface MissingBaseLocationLocksmith {
+  id: string;
+  name: string;
+  companyName: string | null;
+  baseAddress: string | null;
+  email: string;
+  phone: string;
+  totalJobs: number;
+}
+
+export async function fetchLocksmithsMissingBaseLocation(): Promise<MissingBaseLocationLocksmith[]> {
+  const rows = await prisma.locksmith.findMany({
+    where: {
+      isActive: true,
+      onboardingCompleted: true,
+      OR: [
+        { baseLat: null },
+        { baseLng: null },
+      ],
+    },
+    select: {
+      id: true,
+      name: true,
+      companyName: true,
+      baseAddress: true,
+      email: true,
+      phone: true,
+      totalJobs: true,
+    },
+    orderBy: { totalJobs: "desc" },
+  });
+  return rows.map((r: MissingBaseLocationLocksmith) => ({
+    id: r.id,
+    name: r.name,
+    companyName: r.companyName ?? null,
+    baseAddress: r.baseAddress ?? null,
+    email: r.email,
+    phone: r.phone,
+    totalJobs: r.totalJobs ?? 0,
+  }));
+}
+
 // ─── Core builder ─────────────────────────────────────────────────────────
 
 /**
