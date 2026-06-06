@@ -77,9 +77,9 @@ model TunableParameter {
   step       Float
   betterWhen String // "higher" | "lower"
   metric     String // outcome metric this optimises
-  /** The last applied change to value (for the hill-climb direction). */
+  /// The last applied change to value (for the hill-climb direction).
   lastDelta  Float    @default(0)
-  /** The metric value observed at the previous run (the hill-climb baseline). */
+  /// The metric value observed at the previous run (the hill-climb baseline).
   lastMetric Float?
   updatedAt  DateTime @updatedAt
   createdAt  DateTime @default(now())
@@ -95,7 +95,7 @@ model ParameterChange {
   reason       String
   metricBefore Float?
   metricAfter  Float?
-  /** True = suggestion only (shadow); false = actually applied. */
+  /// True = suggestion only (shadow); false = actually applied.
   shadow       Boolean  @default(true)
   createdAt    DateTime @default(now())
 
