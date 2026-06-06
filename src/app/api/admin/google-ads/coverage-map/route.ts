@@ -99,14 +99,19 @@ export async function GET(request: Request) {
       coveringLocksmiths: e.covering.map((l) => ({ id: l.id, name: l.name })),
     })),
     // The recruitment gap — these locksmiths would change the eligible
-    // map immediately if they set baseLat/baseLng. Ranked by totalJobs
-    // (highest-value first) so admins can prioritise outreach.
+    // map immediately if they set baseLat/baseLng. Ordered: fully
+    // onboarded first (the "easy chase"), then in-onboarding.
+    // `hasAddressButNoCoords: true` flags geocoding failures (address
+    // present but coords didn't resolve) — those are a bug to fix, not
+    // a chase.
     missingBaseLocation: missingBaseLocation.map((l) => ({
       id: l.id,
       name: l.name,
       companyName: l.companyName,
       baseAddress: l.baseAddress,
       totalJobs: l.totalJobs,
+      onboardingCompleted: l.onboardingCompleted,
+      hasAddressButNoCoords: l.hasAddressButNoCoords,
     })),
   });
 }

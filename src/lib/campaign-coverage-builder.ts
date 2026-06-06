@@ -179,11 +179,22 @@ export interface MissingBaseLocationLocksmith {
   totalJobs: number;
 }
 
-export async function fetchLocksmithsMissingBaseLocation(): Promise<MissingBaseLocationLocksmith[]> {
+export async function fetchLocksmithsMissingBaseLocation(): Promise<
+  Array<MissingBaseLocationLocksmith & {
+    onboardingCompleted: boolean;
+    isActive: boolean;
+    hasAddressButNoCoords: boolean;
+  }>
+> {
+  // Cast wider net: any isActive locksmith (regardless of onboarding state)
+  // who lacks baseLat or baseLng. Surfaces both:
+  //   • Fully onboarded but never set base location
+  //   • In-onboarding locksmiths still to set base location
+  //   • Locksmiths with a baseAddress but missing geocoded lat/lng
+  //     (= address was entered but geocoding never resolved)
   const rows = await prisma.locksmith.findMany({
     where: {
       isActive: true,
-      onboardingCompleted: true,
       OR: [
         { baseLat: null },
         { baseLng: null },
@@ -194,13 +205,22 @@ export async function fetchLocksmithsMissingBaseLocation(): Promise<MissingBaseL
       name: true,
       companyName: true,
       baseAddress: true,
+      baseLat: true,
+      baseLng: true,
       email: true,
       phone: true,
       totalJobs: true,
+      onboardingCompleted: true,
+      isActive: true,
     },
-    orderBy: { totalJobs: "desc" },
+    orderBy: [{ onboardingCompleted: "desc" }, { totalJobs: "desc" }],
   });
-  return rows.map((r: MissingBaseLocationLocksmith) => ({
+  return rows.map((r: MissingBaseLocationLocksmith & {
+    baseLat: number | null;
+    baseLng: number | null;
+    onboardingCompleted: boolean;
+    isActive: boolean;
+  }) => ({
     id: r.id,
     name: r.name,
     companyName: r.companyName ?? null,
@@ -208,6 +228,11 @@ export async function fetchLocksmithsMissingBaseLocation(): Promise<MissingBaseL
     email: r.email,
     phone: r.phone,
     totalJobs: r.totalJobs ?? 0,
+    onboardingCompleted: r.onboardingCompleted,
+    isActive: r.isActive,
+    // Geocoding failure signal: they entered an address but coords didn't
+    // resolve. Distinct from "never set base location at all".
+    hasAddressButNoCoords: !!r.baseAddress && (r.baseLat == null || r.baseLng == null),
   }));
 }
 
