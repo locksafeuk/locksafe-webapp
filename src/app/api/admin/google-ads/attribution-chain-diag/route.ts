@@ -90,7 +90,7 @@ export async function GET() {
       conversionUploadStatus: true,
       conversionUploadedAt: true,
       conversionUploadError: true,
-      paymentReceived: true,
+      completedAt: true,
     },
   });
 
@@ -115,7 +115,7 @@ export async function GET() {
       where: { createdAt: { gte: since }, gclid: { not: null } },
     });
     const matched = await prisma.callIntent.count({
-      where: { createdAt: { gte: since }, matchedJobId: { not: null } },
+      where: { createdAt: { gte: since }, jobId: { not: null } },
     });
     callIntents = { total: totalIntents, withGclid, matched };
   } catch {
@@ -164,7 +164,7 @@ export async function GET() {
         gclid_prefix: j.gclid ? j.gclid.slice(0, 8) : null,
         utmSource: j.utmSource,
         utmCampaign: j.utmCampaign,
-        paymentReceived: j.paymentReceived,
+        completedAt: j.completedAt,
         conversionUploadStatus: j.conversionUploadStatus,
         conversionUploadError: j.conversionUploadError,
       })),
