@@ -422,6 +422,82 @@ export async function createEmergencyJob(
 
     console.log(`[Job Service] Job created: ${job.jobNumber} (${job.id})`);
 
+    // ── CallIntent → Job bridge (2026-06-06 fix) ────────────────────────
+    // Diag showed 0 of 33 CallIntents in last 30d matched to a Job. The
+    // matcher stamps CallIntent.matched=true + retellCallId when the call
+    // comes in, but until now nothing wrote CallIntent.jobId or copied
+    // the CallIntent's gclid/utms onto the Job. Without that bridge the
+    // Stripe-webhook conversion upload reads Job.gclid=null and skips —
+    // so Google Ads never learns which clicks produced paid jobs.
+    //
+    // Now: when we create a PHONE_INITIATED job with a retellCallId,
+    // look up the matching CallIntent, copy its attribution onto the
+    // Job, and stamp the Job back onto the CallIntent for audit.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const prismaAny = prisma as any;
+    if (input.retellCallId) {
+      try {
+        const intent = await prismaAny.callIntent.findFirst({
+          where: { retellCallId: input.retellCallId },
+          select: {
+            id: true,
+            gclid: true,
+            fbclid: true,
+            utmSource: true,
+            utmMedium: true,
+            utmCampaign: true,
+            utmContent: true,
+            utmTerm: true,
+            landingPage: true,
+            visitorId: true,
+          },
+          orderBy: { matchedAt: "desc" },
+        });
+        if (intent) {
+          // Stamp the Job with attribution recovered from the CallIntent.
+          // Skip individual fields if they're null on the intent.
+          const attribution: Record<string, string> = {};
+          if (intent.gclid)       attribution.gclid       = intent.gclid;
+          if (intent.fbclid)      attribution.fbclid      = intent.fbclid;
+          if (intent.utmSource)   attribution.utmSource   = intent.utmSource;
+          if (intent.utmMedium)   attribution.utmMedium   = intent.utmMedium;
+          if (intent.utmCampaign) attribution.utmCampaign = intent.utmCampaign;
+          if (intent.utmContent)  attribution.utmContent  = intent.utmContent;
+          if (intent.utmTerm)     attribution.utmTerm     = intent.utmTerm;
+          if (intent.landingPage) attribution.landingPage = intent.landingPage;
+          if (intent.visitorId)   attribution.visitorId   = intent.visitorId;
+
+          if (Object.keys(attribution).length > 0) {
+            await prismaAny.job.update({
+              where: { id: job.id },
+              data: attribution,
+            });
+            console.log(
+              `[Job Service] CallIntent attribution copied to job ${job.jobNumber}`,
+              { intentId: intent.id, hasGclid: !!intent.gclid, fields: Object.keys(attribution) },
+            );
+          }
+
+          // Stamp the Job back onto the CallIntent so future lookups +
+          // audit reports can join cleanly.
+          await prismaAny.callIntent.update({
+            where: { id: intent.id },
+            data: { jobId: job.id },
+          });
+        } else {
+          console.log(
+            `[Job Service] No CallIntent matched retellCallId=${input.retellCallId} for job ${job.jobNumber}`,
+          );
+        }
+      } catch (err) {
+        // Non-fatal — never let attribution bookkeeping break job creation.
+        console.warn(
+          `[Job Service] CallIntent→Job bridge failed for ${job.jobNumber}:`,
+          err instanceof Error ? err.message : err,
+        );
+      }
+    }
+
     // 4. Find nearby locksmiths
     let notificationResult = { notifiedCount: 0, locksmithIds: [] as string[] };
 
