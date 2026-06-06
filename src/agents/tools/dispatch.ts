@@ -239,7 +239,7 @@ export const autoDispatchTool: AgentTool = {
           hasAssessmentFeeSet: tc.hasAssessmentFeeSet,
         },
       };
-      if (cp.isDispatchEnforcementEnabled()) {
+      if (await cp.isDispatchEnforcementEnabled()) {
         const gate = await cp.evaluateDispatch(gateInput, { shadow: false, agent: context.agentName });
         if (!gate.allow) {
           return { success: false, error: `Control plane blocked auto-dispatch (${gate.code ?? "rejected"})` };

@@ -133,7 +133,16 @@ export async function executeTool(
   // control-plane approval queue instead of executing, when
   // CONTROL_PLANE_APPROVAL_ENFORCE=true. The action runs later via the approval
   // resolver (which calls executeTool with bypassApproval). Default OFF.
-  if (tool.requiresApproval && !opts?.bypassApproval && process.env.CONTROL_PLANE_APPROVAL_ENFORCE === "true") {
+  let approvalEnforce = false;
+  if (tool.requiresApproval && !opts?.bypassApproval) {
+    try {
+      const { isApprovalEnforced } = await import("@/agents/control-plane/policy");
+      approvalEnforce = await isApprovalEnforced();
+    } catch {
+      approvalEnforce = process.env.CONTROL_PLANE_APPROVAL_ENFORCE === "true";
+    }
+  }
+  if (tool.requiresApproval && !opts?.bypassApproval && approvalEnforce) {
     try {
       const { PrismaApprovalGateway } = await import("@/agents/control-plane/adapters/prisma-approvals");
       const approvalId = await new PrismaApprovalGateway().enqueue({

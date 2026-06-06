@@ -975,7 +975,7 @@ export async function sendAdminAlert(data: {
       severity: data.severity ?? ("info" as const),
       bypassQuietHours: data.bypassQuietHours,
     };
-    if (cp.isAlertEnforcementEnabled()) {
+    if (await cp.isAlertEnforcementEnabled()) {
       const gate = await cp.evaluateAlert(gateInput, { shadow: false });
       if (!gate.allow) {
         console.log(`[control-plane:enforce] alert suppressed code=${gate.code ?? ""} title="${data.title}"`);

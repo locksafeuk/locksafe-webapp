@@ -25,9 +25,10 @@ import type { DispatchAutoArgs } from "../validators/dispatch";
 import type { FactProvider } from "../ports";
 import type { Proposal } from "../types";
 
-/** Enforcement flag — default OFF (shadow only). */
-export function isDispatchEnforcementEnabled(): boolean {
-  return process.env.CONTROL_PLANE_DISPATCH_ENFORCE === "true";
+/** Enforcement flag — DB-backed (dashboard toggle) with env fallback + kill switch. */
+export async function isDispatchEnforcementEnabled(): Promise<boolean> {
+  const { isDispatchEnforced } = await import("../policy");
+  return isDispatchEnforced();
 }
 
 export interface DispatchGateResult {

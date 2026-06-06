@@ -32,7 +32,7 @@ interface Approval {
 
 interface Snapshot {
   generatedAt: string;
-  enforcement: { alerts: boolean; dispatch: boolean; approvals: boolean };
+  enforcement: { alert: boolean; dispatch: boolean; approvals: boolean; selfImprove: boolean; killSwitch: boolean };
   agents: AgentHealth[];
   decisions24h: {
     total: number;
@@ -65,12 +65,17 @@ interface NoiseResp {
   alerts: NoiseAlert[];
 }
 
-function Pill({ on, label }: { on: boolean; label: string }) {
+function FlagToggle({ flag, on, label, busy, onToggle }: { flag: string; on: boolean; label: string; busy: boolean; onToggle: (flag: string, value: boolean) => void }) {
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${on ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+    <button
+      disabled={busy}
+      onClick={() => onToggle(flag, !on)}
+      title="Click to toggle (instant; no redeploy)"
+      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium border disabled:opacity-50 ${on ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-slate-100 text-slate-500 border-slate-200"}`}
+    >
       <span className={`w-1.5 h-1.5 rounded-full ${on ? "bg-emerald-500" : "bg-slate-400"}`} />
       {label}: {on ? "ENFORCE" : "shadow"}
-    </span>
+    </button>
   );
 }
 
@@ -97,6 +102,21 @@ export default function ControlPlaneDashboard() {
       setLoading(false);
     }
   }, []);
+
+  async function toggleFlag(flag: string, value: boolean) {
+    setBusy(`flag:${flag}`);
+    try {
+      await fetch("/api/admin/agents/control-plane", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ flag, value }),
+      });
+      await load();
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function markNoise(proposalId: string) {
     setBusy(proposalId);
@@ -145,9 +165,22 @@ export default function ControlPlaneDashboard() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-semibold text-slate-900">Agent Control Plane</h1>
         <div className="flex items-center gap-2 flex-wrap">
-          <Pill on={data.enforcement.alerts} label="Alerts" />
-          <Pill on={data.enforcement.dispatch} label="Dispatch" />
-          <Pill on={data.enforcement.approvals} label="Approvals" />
+          {data.enforcement.killSwitch && (
+            <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-red-100 text-red-700 border border-red-200">
+              KILL SWITCH — all shadow
+            </span>
+          )}
+          <FlagToggle flag="alert" on={data.enforcement.alert} label="Alerts" busy={busy === "flag:alert"} onToggle={toggleFlag} />
+          <FlagToggle flag="dispatch" on={data.enforcement.dispatch} label="Dispatch" busy={busy === "flag:dispatch"} onToggle={toggleFlag} />
+          <FlagToggle flag="approvals" on={data.enforcement.approvals} label="Approvals" busy={busy === "flag:approvals"} onToggle={toggleFlag} />
+          <FlagToggle flag="selfImprove" on={data.enforcement.selfImprove} label="Self-improve" busy={busy === "flag:selfImprove"} onToggle={toggleFlag} />
+          <button
+            onClick={() => toggleFlag("killSwitch", !data.enforcement.killSwitch)}
+            disabled={busy === "flag:killSwitch"}
+            className={`text-xs px-2 py-1 rounded-lg border disabled:opacity-50 ${data.enforcement.killSwitch ? "bg-red-600 text-white border-red-600" : "border-red-300 text-red-600 hover:bg-red-50"}`}
+          >
+            {data.enforcement.killSwitch ? "Disable kill switch" : "Kill switch"}
+          </button>
           <button onClick={load} className="text-xs px-2 py-1 border border-slate-300 rounded-lg hover:bg-slate-50">Refresh</button>
         </div>
       </div>

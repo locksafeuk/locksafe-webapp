@@ -43,6 +43,16 @@ propose → validate (deterministic) → classify → execute | approve | reject
 agent, publish/pause a campaign, external email/SMS.
 **Safe** (auto when valid): dispatch, notify-nearby, reads/stats, alerts.
 
+## Runtime toggles (no redeploy)
+
+The enforcement flags below are now **DB-backed and toggleable one-click from
+`/admin/agents/control-plane`** (stored on the global `MarketingPolicy` row,
+cached 15s). Precedence: `enforced = !killSwitch && (dbFlag ?? envFlag)` — a DB
+toggle overrides the env var; when unset, the env var is the fallback; the
+**kill switch** forces everything back to shadow instantly. Flipping a toggle
+takes effect within ~15s on both Vercel and the PM2 runner — no env edit, no
+restart. The env vars below remain valid as defaults/fallback.
+
 ## Feature flags (all default OFF = shadow/observe only)
 
 | Env var | Effect when `true` |

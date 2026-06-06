@@ -1786,6 +1786,14 @@ model MarketingPolicy {
   alertSensitivity               String?  @default("workflow") // all | workflow | critical
   nonWorkflowHeartbeatMultiplier Int?     @default(1)
 
+  // Control-plane enforcement toggles (global row). Null = fall back to the
+  // CONTROL_PLANE_*_ENFORCE env var. cpKillSwitch forces everything to shadow.
+  cpAlertEnforce       Boolean?
+  cpDispatchEnforce    Boolean?
+  cpApprovalEnforce    Boolean?
+  cpSelfImproveEnforce Boolean?
+  cpKillSwitch         Boolean? @default(false)
+
   // Audit
   updatedBy String?
   notes     String?

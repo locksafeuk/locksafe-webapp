@@ -8,10 +8,11 @@
  * active heartbeat locks. Admin-authed.
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth";
 import prisma from "@/lib/db";
+import { getControlPlaneFlags, setControlPlaneFlag, type ControlPlaneFlagKey } from "@/agents/control-plane/policy";
 
 async function verifyAdmin() {
   const cookieStore = await cookies();
@@ -28,6 +29,7 @@ export async function GET() {
 
   const now = new Date();
   const since24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const flags = await getControlPlaneFlags();
 
   const [agents, pendingApprovals, recentProposals, locks] = await Promise.all([
     prisma.agent.findMany({
@@ -90,11 +92,7 @@ export async function GET() {
   return NextResponse.json({
     success: true,
     generatedAt: now.toISOString(),
-    enforcement: {
-      alerts: process.env.CONTROL_PLANE_ALERT_ENFORCE === "true",
-      dispatch: process.env.CONTROL_PLANE_DISPATCH_ENFORCE === "true",
-      approvals: process.env.CONTROL_PLANE_APPROVAL_ENFORCE === "true",
-    },
+    enforcement: flags,
     agents: agentHealth,
     decisions24h: {
       total: recentProposals.length,
@@ -111,4 +109,27 @@ export async function GET() {
     },
     locks: locks.map((l) => ({ agent: l.agent, nodeId: l.nodeId, expiresAt: l.expiresAt })),
   });
+}
+
+/**
+ * Toggle a control-plane enforcement flag (or the kill switch) at runtime — no
+ * redeploy, no PM2 restart. Body: { flag: "alert"|"dispatch"|"approvals"|"selfImprove"|"killSwitch", value: boolean | null }.
+ * value=null clears the override (back to env fallback).
+ */
+export async function POST(req: NextRequest) {
+  const admin = await verifyAdmin();
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const body = await req.json().catch(() => ({}));
+  const flag = String(body?.flag || "");
+  const valid = ["alert", "dispatch", "approvals", "selfImprove", "killSwitch"];
+  if (!valid.includes(flag)) {
+    return NextResponse.json({ error: `flag must be one of: ${valid.join(", ")}` }, { status: 400 });
+  }
+  const value = body?.value === null ? null : body?.value === true;
+
+  const adminId = (admin as { sub?: string; id?: string }).sub || (admin as { id?: string }).id || "admin";
+  const flags = await setControlPlaneFlag(flag as ControlPlaneFlagKey | "killSwitch", value, adminId);
+
+  return NextResponse.json({ success: true, flags });
 }

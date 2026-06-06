@@ -40,9 +40,10 @@ const INFRA_HINTS = /\b(error rate|db |database|latency|uptime|deploy|deployment
 const ZERO_JOBS_HINTS = /\b(zero|0\/0|no (completed|pending|jobs)|no jobs)\b/i;
 const JOB_HINTS = /\b(job|jobs|complet|dispatch|utilization|utilisation)\b/i;
 
-/** Enforcement flag — default OFF (shadow only). */
-export function isAlertEnforcementEnabled(): boolean {
-  return process.env.CONTROL_PLANE_ALERT_ENFORCE === "true";
+/** Enforcement flag — DB-backed (dashboard toggle) with env fallback + kill switch. */
+export async function isAlertEnforcementEnabled(): Promise<boolean> {
+  const { isAlertEnforced } = await import("../policy");
+  return isAlertEnforced();
 }
 
 function inferKind(text: string): AlertKind {

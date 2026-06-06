@@ -12,8 +12,9 @@ import { adjustParameter } from "./adjuster";
 import type { MetricProvider, ParameterStore } from "./ports";
 import type { TunableParam } from "./parameters";
 
-export function isSelfImprovementEnforced(): boolean {
-  return process.env.CONTROL_PLANE_SELFIMPROVE_ENFORCE === "true";
+export async function isSelfImprovementEnforced(): Promise<boolean> {
+  const { isSelfImproveEnforced } = await import("@/agents/control-plane/policy");
+  return isSelfImproveEnforced();
 }
 
 export interface ParamRunResult {
@@ -38,7 +39,7 @@ export async function runSelfImprovement(
   deps: { metrics: MetricProvider; store: ParameterStore },
   opts: { enforce?: boolean } = {},
 ): Promise<SelfImprovementReport> {
-  const enforce = opts.enforce ?? isSelfImprovementEnforced();
+  const enforce = opts.enforce ?? (await isSelfImprovementEnforced());
   const params = await deps.store.loadAll();
   const results: ParamRunResult[] = [];
 
