@@ -138,6 +138,13 @@ const nextConfig = {
         destination: 'https://www.locksafe.uk/:path*',
         permanent: true,
       },
+      // Short branded link for SMS/print outreach: locksafe.uk/join
+      // Compresses the long onboarding URL into a clean, trackable link.
+      {
+        source: '/join',
+        destination: '/for-locksmiths?utm_source=sms&utm_medium=outreach&utm_campaign=locksmith-invite',
+        permanent: false,
+      },
       // Legacy Shopify product URLs — redirect to home
       {
         source: '/products/:slug*',

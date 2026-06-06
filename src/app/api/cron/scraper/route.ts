@@ -54,6 +54,22 @@ const QUERY_VARIANTS_PER_CITY = Math.max(
   Math.min(7, Number(process.env.SCRAPER_QUERY_VARIANTS ?? "4") || 4),
 );
 
+/**
+ * Cities to PRIORITISE to the very front of the queue every run — e.g. a region
+ * with rising organic demand we urgently need supply for. Comma-separated,
+ * matched case-insensitively. Cities listed here are scraped first and are
+ * included even if already "covered". Set via env, e.g.:
+ *   SCRAPER_PRIORITY_CITIES="Dundee,Glasgow,Edinburgh,Aberdeen,Newcastle upon Tyne"
+ */
+const PRIORITY_CITIES: string[] = (process.env.SCRAPER_PRIORITY_CITIES ?? "")
+  .split(",")
+  .map((c) => c.trim())
+  .filter(Boolean);
+const PRIORITY_CITY_SET = new Set(PRIORITY_CITIES.map((c) => c.toLowerCase()));
+function isPriorityCity(city: string): boolean {
+  return PRIORITY_CITY_SET.has(city.toLowerCase());
+}
+
 /** Credit-saver mode: scrape only uncovered/recruit-target cities by default. */
 const SCRAPER_GAP_ONLY_MODE =
   (process.env.SCRAPER_GAP_ONLY_MODE ?? "true").toLowerCase() !== "false";
@@ -567,23 +583,20 @@ async function getRecruitTargetCities(): Promise<Set<string>> {
 }
 
 /**
- * Sorts UK_CITIES to put the highest-priority targets first:
- *   1. Cities in GoogleAdsOpportunity RECRUIT list (high-value gaps)
- *   2. Cities with no locksmiths in LocksmithCoverage
- *   3. All other cities
+ * Sorts cities to put the highest-priority targets first:
+ *   3. Cities in SCRAPER_PRIORITY_CITIES (urgent demand regions) — always first
+ *   2. Cities in GoogleAdsOpportunity RECRUIT list (high-value gaps)
+ *   1. Cities with no locksmiths in LocksmithCoverage
+ *   0. All other cities
  */
 function prioritizeCities(
   cities: string[],
   coveredCities: Set<string>,
   recruitTargets: Set<string>,
 ): string[] {
-  return [...cities].sort((a, b) => {
-    const scoreA =
-      recruitTargets.has(a) ? 2 : !coveredCities.has(a) ? 1 : 0;
-    const scoreB =
-      recruitTargets.has(b) ? 2 : !coveredCities.has(b) ? 1 : 0;
-    return scoreB - scoreA; // higher score first
-  });
+  const score = (c: string) =>
+    isPriorityCity(c) ? 3 : recruitTargets.has(c) ? 2 : !coveredCities.has(c) ? 1 : 0;
+  return [...cities].sort((a, b) => score(b) - score(a));
 }
 
 function buildCityQueue(
@@ -594,7 +607,8 @@ function buildCityQueue(
   if (!SCRAPER_GAP_ONLY_MODE) return prioritizedCities;
 
   const gapCities = prioritizedCities.filter(
-    (city) => recruitTargets.has(city) || !coveredCities.has(city),
+    (city) =>
+      isPriorityCity(city) || recruitTargets.has(city) || !coveredCities.has(city),
   );
   if (gapCities.length > 0) return gapCities;
 
@@ -754,12 +768,18 @@ export async function GET(request: NextRequest) {
     getRecruitTargetCities(),
   ]);
 
+  // Merge any priority cities that aren't already in the base list so a region
+  // can be targeted even if it isn't one of the built-in UK_CITIES.
+  const baseCities = [...new Set([...PRIORITY_CITIES, ...UK_CITIES])];
   const prioritizedCities = prioritizeCities(
-    UK_CITIES,
+    baseCities,
     coveredCities,
     recruitTargets,
   );
   const cityQueue = buildCityQueue(prioritizedCities, coveredCities, recruitTargets);
+  if (PRIORITY_CITIES.length > 0) {
+    console.log(`[scraper-cron] Priority cities (scraped first): ${PRIORITY_CITIES.join(", ")}`);
+  }
 
   // ── Step 2: Load or create scraper progress ─────────────────────────────
   type ProgressRecord = {

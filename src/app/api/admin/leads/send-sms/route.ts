@@ -25,11 +25,10 @@ function isUKMobile(phone: string): boolean {
 
 function buildSms(name: string, city: string): string {
   const firstName = name.split(/\s+/)[0];
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://www.locksafe.uk";
-  const signupUrl = `${baseUrl}/for-locksmiths?utm_source=sms&utm_medium=outreach&utm_campaign=locksmith-invite`;
+  const signupUrl = "https://locksafe.uk/join";
   return (
     `Hi ${firstName}, I'm Alex from LockSafe UK. ` +
-    `We're looking for trusted locksmiths in ${city} — we send you paid jobs, you keep 100% of the call-out fee. ` +
+    `We're signing up trusted locksmiths in ${city} — steady paid jobs in your area, low commission, no monthly fees. ` +
     `Join free here: ${signupUrl}\n\nReply STOP to opt out.`
   );
 }
