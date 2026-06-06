@@ -22,6 +22,7 @@ import {
 import { chat, Models } from '@/lib/llm-router';
 import type { LLMMessage } from '@/lib/llm-router';
 import { sendAdminAlert } from '@/lib/telegram';
+import { delegationBlockReason } from '@/agents/core/delegation-guard';
 import {
   getOperationalPolicy,
   isGuardianAgent,
@@ -807,6 +808,27 @@ export async function delegateTask(
     const { prisma } = await import('@/lib/prisma');
     const targetAgent = await prisma.agent.findUnique({ where: { name: toAgent } });
     if (targetAgent) {
+      // Deterministic anti-loop guards — prevent the A↔B ping-pong and
+      // repair-task storms that delegation can otherwise create.
+      const [reciprocalOpen, duplicateOpen] = await Promise.all([
+        prisma.agentTask.count({
+          where: { agentId: fromAgentId, delegatedFrom: targetAgent.id, status: { in: ["pending", "in_progress"] } },
+        }),
+        prisma.agentTask.count({
+          where: { agentId: targetAgent.id, delegatedFrom: fromAgentId, title: task.title, status: { in: ["pending", "in_progress"] } },
+        }),
+      ]);
+      const block = delegationBlockReason({
+        fromAgentId,
+        targetAgentId: targetAgent.id,
+        reciprocalOpenCount: reciprocalOpen,
+        duplicateOpenCount: duplicateOpen,
+      });
+      if (block) {
+        console.warn(`[Orchestrator] Blocked ${block}: ${fromAgentId} → ${toAgent} ("${task.title}")`);
+        return null;
+      }
+
       const dbTask = await prisma.agentTask.create({
         data: {
           agentId: targetAgent.id,

@@ -126,6 +126,18 @@ const nextConfig = {
   },
   async redirects() {
     return [
+      // Canonical host guard: apex -> www (308 permanent).
+      // www is the canonical host; every canonical tag, the sitemap, robots
+      // and OG URLs use https://www.locksafe.uk. This keeps the redirect
+      // direction in sync with the canonical direction so Google can index
+      // a single, non-redirecting canonical. Enforced in code so it can't
+      // silently regress if the Vercel domain primary setting changes.
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'locksafe.uk' }],
+        destination: 'https://www.locksafe.uk/:path*',
+        permanent: true,
+      },
       // Legacy Shopify product URLs — redirect to home
       {
         source: '/products/:slug*',

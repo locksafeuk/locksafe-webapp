@@ -78,7 +78,8 @@ export function canAgentUseTool(toolName: string, permissions: string[]): boolea
 export async function executeTool(
   toolName: string,
   params: Record<string, unknown>,
-  context: AgentContext
+  context: AgentContext,
+  opts?: { bypassApproval?: boolean }
 ): Promise<ToolResult> {
   const tool = getTool(toolName);
 
@@ -126,6 +127,29 @@ export async function executeTool(
         `Example call: ${JSON.stringify(exampleObj)}. ` +
         `Do NOT retry with the same empty/partial arguments — supply every required field.`,
     };
+  }
+
+  // Central governance gate: risky tools (requiresApproval) route to the
+  // control-plane approval queue instead of executing, when
+  // CONTROL_PLANE_APPROVAL_ENFORCE=true. The action runs later via the approval
+  // resolver (which calls executeTool with bypassApproval). Default OFF.
+  if (tool.requiresApproval && !opts?.bypassApproval && process.env.CONTROL_PLANE_APPROVAL_ENFORCE === "true") {
+    try {
+      const { PrismaApprovalGateway } = await import("@/agents/control-plane/adapters/prisma-approvals");
+      const approvalId = await new PrismaApprovalGateway().enqueue({
+        agent: context.agentName,
+        actionType: `tool:${toolName}`,
+        args: params,
+        reason: `Tool "${toolName}" requires human approval before it can run`,
+      });
+      return { success: true, data: { queuedForApproval: true, approvalId, tool: toolName } };
+    } catch (err) {
+      // Fail SAFE: if a risky action cannot be queued, do NOT execute it.
+      return {
+        success: false,
+        error: `Approval queue unavailable; risky tool "${toolName}" was not executed: ${err instanceof Error ? err.message : "unknown"}`,
+      };
+    }
   }
 
   try {

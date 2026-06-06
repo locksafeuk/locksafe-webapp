@@ -203,6 +203,40 @@ export const autoDispatchTool: AgentTool = {
       };
     }
 
+    // CONTROL-PLANE dispatch gate. Shadow by default (records the would-be
+    // decision, never blocks); enforce when CONTROL_PLANE_DISPATCH_ENFORCE=true
+    // (refuses to dispatch when the deterministic validator rejects). Wrapped so
+    // the control plane can never break dispatch — fail open to the legacy path.
+    try {
+      const cp = await import("@/agents/control-plane/shadow/dispatch-shadow");
+      const tc = matchResult.topCandidate;
+      const gateInput = {
+        jobId,
+        jobStatus: String(job.status),
+        minScore,
+        candidate: {
+          locksmithId: tc.locksmithId,
+          isVerified: true, // findBestLocksmiths only returns verified + active
+          isActive: true,
+          isAvailable: tc.isAvailable,
+          distanceMiles: tc.distanceMiles,
+          rating: tc.rating,
+          matchScore: tc.matchScore,
+          hasAssessmentFeeSet: tc.hasAssessmentFeeSet,
+        },
+      };
+      if (cp.isDispatchEnforcementEnabled()) {
+        const gate = await cp.evaluateDispatch(gateInput, { shadow: false, agent: context.agentName });
+        if (!gate.allow) {
+          return { success: false, error: `Control plane blocked auto-dispatch (${gate.code ?? "rejected"})` };
+        }
+      } else {
+        void cp.evaluateDispatch(gateInput, { shadow: true, agent: context.agentName }).catch(() => {});
+      }
+    } catch (err) {
+      console.warn("[control-plane] dispatch gate unavailable, proceeding via legacy path:", err);
+    }
+
     // Dispatch to the top candidate
     const dispatchResult = await autoDispatchJob(
       jobId,

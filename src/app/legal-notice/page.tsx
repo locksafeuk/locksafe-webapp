@@ -8,7 +8,7 @@ import { SUPPORT_EMAIL, SUPPORT_PHONE } from "@/lib/config";
 export const metadata: Metadata = {
   title: "Legal Notice & Company Information | LockSafe UK",
   description: "Company information, regulatory details, and legal notices for LockSafe UK in compliance with the UK Electronic Commerce Regulations 2002.",
-  alternates: { canonical: "https://locksafe.uk/legal-notice" },
+  alternates: { canonical: "https://www.locksafe.uk/legal-notice" },
 };
 
 export default function LegalNoticePage() {

@@ -10,6 +10,63 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// Control plane (agent autonomy redesign — see AGENT_AUTONOMY_REDESIGN_*.md)
+// ────────────────────────────────────────────────────────────────────────────
+
+// Every action an agent proposes, recorded BEFORE validation for a full audit
+// trail (what the agent wanted to do, independent of whether it ran).
+model AgentProposal {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  agent        String
+  actionType   String
+  args         String // JSON
+  rationale    String   @default("")
+  evidenceRefs String[] @default([])
+
+  // Pipeline decision + validator outcome
+  decision         String // execute | approve | reject (initial classification)
+  finalDecision    String? // executed | executed-idempotent | queued-for-approval | rejected | execute-failed
+  validationCode   String? // machine-readable validator code (e.g. "no-demand")
+  validationReason String?
+  idempotencyKey   String?
+
+  // True = dry-run (shadow mode): decided + recorded but NOT acted on.
+  shadow Boolean @default(false)
+
+  proposedAt DateTime  @default(now())
+  resolvedAt DateTime?
+
+  @@index([agent, proposedAt(sort: Desc)])
+  @@index([actionType, decision, proposedAt(sort: Desc)])
+  @@index([shadow, proposedAt(sort: Desc)])
+}
+
+// Distributed lock so the PM2 runner and the Vercel cron can never run the same
+// agent concurrently (eliminates double-fire / double-spend).
+model AgentHeartbeatLock {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  agent      String   @unique
+  nodeId     String
+  acquiredAt DateTime @default(now())
+  expiresAt  DateTime
+
+  @@index([expiresAt])
+}
+
+// Idempotency ledger: a repeated action (same key) returns the prior result
+// instead of executing again.
+model ActionIdempotency {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  key        String   @unique
+  actionType String
+  result     String // JSON ExecutionResult
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+
+  @@index([expiresAt])
+}
+
 // Stripe onboarding reminder log for auditing admin sends
 model StripeReminderLog {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId
@@ -1402,6 +1459,22 @@ model GoogleAdsCampaignDraft {
   pausedAt     DateTime?
   adminNotes   String?
 
+  // ── Post-publish verification (added 2026-06-04) ─────────────────────────
+  // After publish, a cron compares the live Google campaign against playbook
+  // structural floors (≥10 keywords per ad group, ≥1 RSA per ad group).
+  // Catches the 2026-06-02 failure mode where campaigns published as
+  // SERVING/ENABLED but had ad groups with zero keywords. See
+  // google-ads-campaign-playbook.md §12.
+  //
+  // verificationStatus: "ok" | "structural_failure" | "drift_warning" | "google_pending" | "api_error"
+  // verificationDetails: full VerificationResult blob for audit
+  lastVerifiedAt      DateTime?
+  verificationStatus  String?
+  verificationDetails Json?
+
+  // Forensic-validation geo-drift audit entries (added 2026-06-04, playbook §15).
+  geoAuditEntries     GoogleAdsGeoAuditEntry[]
+
   // Manual-vs-AI provenance + post-publish snapshot.
   // createdBy: "ai" (default existing rows) | "admin" (manual via UI)
   // publishedSnapshot: full live state pulled back via GAQL after a successful
@@ -1457,6 +1530,40 @@ model GoogleAdsCampaignDraft {
 // Google Ads Shared Negative Keyword List
 // One list → applied to multiple campaigns. Edit once, updates everywhere.
 // =========================================================================
+
+// Forensic-validation geo-drift audit trail (added 2026-06-04).
+// One entry per drift detection AND per admin remediation action. Lets us
+// answer: what changed, when, was it accepted/reverted, and by whom.
+// Source-of-truth model: publishedSnapshot.geoTargets is the immutable
+// baseline. It is only mutated by the explicit `accept_as_new_baseline`
+// action (recorded here). The cron's drift detection never silently
+// rewrites the baseline. See google-ads-publish-verifier.ts + playbook §15.
+model GoogleAdsGeoAuditEntry {
+  id      String                 @id @default(auto()) @map("_id") @db.ObjectId
+  draftId String                 @db.ObjectId
+  draft   GoogleAdsCampaignDraft @relation(fields: [draftId], references: [id])
+
+  // What kind of entry this is.
+  // - "drift_detected"           : cron found live != baseline
+  // - "reverted_to_baseline"     : admin pushed publishedSnapshot back to Google
+  // - "accepted_as_new_baseline" : admin updated publishedSnapshot to current live
+  action     String
+  detectedAt DateTime
+  actedAt    DateTime? // when an admin took action (revert/accept); null for pure detection
+  actedBy    String? // admin ID or "cron"
+
+  // The geo target ID arrays at the moment of detection / action.
+  baselineSnapshot   String[] @default([]) // publishedSnapshot.geoTargets at the time
+  liveGeoTargets     String[] @default([]) // Google live state at the time
+  geoTargetsAdded    String[] @default([]) // in live, not in baseline
+  geoTargetsRemoved  String[] @default([]) // in baseline, not in live
+  notes              String?
+
+  createdAt DateTime @default(now())
+
+  @@index([draftId, detectedAt])
+  @@index([action, detectedAt])
+}
 
 model GoogleAdsSharedNegativeList {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId

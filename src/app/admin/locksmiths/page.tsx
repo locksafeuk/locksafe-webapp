@@ -918,7 +918,11 @@ export default function AdminLocksmithsPage() {
   };
 
   // Filter locksmiths by search and status
-  const filteredLocksmiths = locksmiths.filter((ls) => {
+  // Memoized so the array keeps a stable identity between renders. Without this,
+  // a new array was produced on every render, which made `mapLocksmiths` (and the
+  // map effect that depends on it) re-run constantly — rebuilding all markers and
+  // re-fitting the viewport (the "glitching" + "zoom snaps back" symptoms).
+  const filteredLocksmiths = useMemo(() => locksmiths.filter((ls) => {
     const matchesSearch =
       ls.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       ls.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -934,7 +938,7 @@ export default function AdminLocksmithsPage() {
     if (statusFilter === "photo_unverified") matchesFilter = ls.profileImage !== null && ls.profilePhotoVerified === false;
 
     return matchesSearch && matchesFilter;
-  });
+  }), [locksmiths, searchQuery, statusFilter]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-GB", {

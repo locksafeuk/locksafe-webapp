@@ -22,11 +22,16 @@ function getAgentAlertCooldownMs(priority: string, isGuardian: boolean): number 
   // (0 conversions, campaign still learning) doesn't repeat every heartbeat.
   //   Guardian (COO, CTO) critical  : 30 min  — operational issues need fast re-alert
   //   Non-guardian (CEO, CMO) critical: 60 min — strategic/marketing issues, once/hr is enough
+  // Note: the heartbeat runner fires roughly hourly, so a critical cooldown
+  // SHORTER than the heartbeat interval means a persistent condition re-pages on
+  // every single run. Guardian critical is therefore held for 2h by default;
+  // because the dedupe key is content-aware (see below), a genuinely DIFFERENT
+  // critical still pages immediately — only identical repeats are collapsed.
   const defaults = {
-    low: isGuardian ? 30 : 240,
-    medium: isGuardian ? 20 : 180,
-    high: isGuardian ? 15 : 180,
-    critical: isGuardian ? 30 : 60,
+    low: isGuardian ? 60 : 240,
+    medium: isGuardian ? 60 : 180,
+    high: isGuardian ? 60 : 180,
+    critical: isGuardian ? 120 : 120,
   };
 
   const fromEnv = {
@@ -38,6 +43,25 @@ function getAgentAlertCooldownMs(priority: string, isGuardian: boolean): number 
 
   const minutes = Math.max(0, fromEnv[priority as keyof typeof fromEnv] ?? defaults.medium);
   return minutes * 60 * 1000;
+}
+
+// Short, stable fingerprint of an alert's *meaning* (numbers/ids/timestamps
+// stripped) so identical recurring alerts collapse onto one dedupe key while a
+// genuinely different incident gets its own key and pages immediately.
+function alertContentFingerprint(message: string): string {
+  const normalized = message
+    .toLowerCase()
+    .replace(/\b\d+(\.\d+)?\b/g, "#") // numbers
+    .replace(/\b[a-f0-9]{6,}\b/gi, "{id}") // ids/hashes
+    .replace(/[^a-z#{} ]/g, " ") // punctuation/emoji
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 160);
+  let hash = 0;
+  for (let i = 0; i < normalized.length; i += 1) {
+    hash = (hash * 31 + normalized.charCodeAt(i)) | 0;
+  }
+  return (hash >>> 0).toString(36);
 }
 
 async function getZeroImpression7PlusDayCampaigns(): Promise<string[]> {
@@ -139,6 +163,53 @@ export const sendTelegramAlertTool: AgentTool = {
       }
     }
 
+    // Guard against the recurring false-positive CTO "platform outage" P1.
+    // The CTO heartbeat keeps raising "zero completed jobs today" as CRITICAL,
+    // but zero completions only means an OUTAGE when there is unmet demand —
+    // i.e. jobs sitting in the pipeline that aren't progressing. If there are no
+    // open jobs AND nothing came in over the last 24h, this is simply NO DEMAND
+    // (idle platform), not an agent/system failure, and must not page anyone.
+    if (context.agentName.toLowerCase() === "cto" && priority === "critical") {
+      const lower = message.toLowerCase();
+      const looksLikeNoJobsAlert =
+        (lower.includes("zero") || lower.includes("0/0") || lower.includes("no jobs") ||
+          lower.includes("no completed") || lower.includes("no pending")) &&
+        (lower.includes("job") || lower.includes("complet"));
+      if (looksLikeNoJobsAlert) {
+        try {
+          // Non-terminal states = work that is in-flight and therefore "demand".
+          const ACTIVE_JOB_STATES = [
+            "PENDING", "SCHEDULED", "ACCEPTED", "EN_ROUTE", "ARRIVED",
+            "DIAGNOSING", "QUOTED", "QUOTE_ACCEPTED", "IN_PROGRESS",
+            "PENDING_CUSTOMER_CONFIRMATION",
+          ];
+          const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+          const [openJobs, recentJobs] = await Promise.all([
+            prisma.job.count({ where: { status: { in: ACTIVE_JOB_STATES as never } } }),
+            prisma.job.count({ where: { createdAt: { gte: since24h } } }),
+          ]);
+          if (openJobs === 0 && recentJobs === 0) {
+            console.log(
+              "[Telegram][guard] Suppressed false-positive CTO critical: zero completions but " +
+              "no open or recent jobs — no demand, not an outage.",
+            );
+            return {
+              success: true,
+              data: {
+                sent: false,
+                suppressed: true,
+                reason: "no-demand-zero-jobs",
+                openJobs,
+                recentJobs,
+              },
+            };
+          }
+        } catch (e) {
+          console.warn("[Telegram][guard] CTO no-demand verification failed, allowing alert:", e);
+        }
+      }
+    }
+
     // Sensitivity gating — non-workflow agents (CEO/CMO/copywriter/ads/social)
     // are noisy. Only let them through to Telegram if their priority meets the
     // operational policy threshold:
@@ -187,11 +258,19 @@ export const sendTelegramAlertTool: AgentTool = {
     const severity = severityByPriority[priority] ?? "info";
 
     // Collapse noisy executive/marketing heartbeat summaries into one shared
-    // non-guardian lane so CEO and CMO don't both page within minutes.
+    // non-guardian lane so CEO and CMO don't both page within minutes. For
+    // guardian/critical alerts, key on the agent + a fingerprint of the message
+    // so the SAME recurring condition is held for the cooldown, but a genuinely
+    // different incident still pages immediately.
     const dedupeKey = !isGuardian && priority !== "critical"
       ? `agent-alert:non-guardian:${priority.toLowerCase()}`
-      : `agent-alert:${context.agentName.toLowerCase()}`;
+      : `agent-alert:${context.agentName.toLowerCase()}:${alertContentFingerprint(message)}`;
     const cooldownMs = getAgentAlertCooldownMs(priority, isGuardian);
+
+    // Quiet hours: hold advisory agent chatter overnight. The COO is the 24/7
+    // dispatch guardian — a stuck/unassigned job at 3am is a real emergency for a
+    // locksmith platform — so only COO alerts page during quiet hours.
+    const bypassQuietHours = context.agentName.toLowerCase() === "coo";
 
     const title = `${priorityEmoji[priority as keyof typeof priorityEmoji]} Agent Alert: ${context.agentName.toUpperCase()} (${priority.toUpperCase()})`;
 
@@ -203,6 +282,7 @@ export const sendTelegramAlertTool: AgentTool = {
         dedupeKey,
         cooldownMsOverride: cooldownMs,
         bypassPolicyGate: true,
+        bypassQuietHours,
       });
 
       return {

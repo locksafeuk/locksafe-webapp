@@ -62,3 +62,6 @@ playwright-report/
 test-results/
 test-reports/
 .env.vercel.prod
+
+reports/daily-checks/
+reports/reliability/

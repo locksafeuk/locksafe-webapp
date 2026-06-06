@@ -49,13 +49,128 @@ export const PLAYBOOK_GUARDRAILS = {
    * variance; reject only drafts that are dramatically thin. */
   MIN_KEYWORDS: 40,
 
+  /** PER-AD-GROUP minimum keywords. Catches the 2026-06-02 failure mode where
+   * the generator shipped 3 of 5 themed ad groups EMPTY because their keyword
+   * vocabulary (containing "locksmith") hit Local Services policy and dropped.
+   * Empty ad groups serve zero impressions even when the campaign reports SERVING. */
+  MIN_KEYWORDS_PER_AD_GROUP: 10,
+
+  /** PER-AD-GROUP minimum ads. The Lock Change & Burglary ad group in
+   * Yorkshire | Final shipped with zero ads — it appeared Eligible but
+   * couldn't serve. Same root cause as MIN_KEYWORDS_PER_AD_GROUP. */
+  MIN_ADS_PER_AD_GROUP: 1,
+
   /** Playbook target = 128 negatives (the shared list verbatim). Same slack
    * rationale as above. */
   MIN_NEGATIVE_KEYWORDS: 100,
 
   /** Every draft must land on a city/district page that returned 200 before publish. */
   REQUIRE_FINAL_URL: true,
+
+  /** Local Services Ads policy: keywords containing these tokens get flagged
+   * and dropped silently by Google. Until the account is enrolled in Local
+   * Services Ads, the autonomous draft path must not include them. See
+   * google-ads-campaign-playbook.md §10. */
+  BANNED_KEYWORD_TOKENS: ["locksmith"] as const,
+
+  /** Single-word keywords that Google's Local Services classifier still
+   * flags even without "locksmith". Use qualified variants instead
+   * (e.g. "door lock replacement" instead of "lock replacement"). */
+  BANNED_KEYWORD_EXACT: ["lock replacement"] as const,
+
+  /** Forensic-validation traffic controls (added 2026-06-04, see
+   * playbook §15). Every campaign must be SEARCH only with PRESENCE-only
+   * geo. The publish path (google-ads-publish.ts) also forces:
+   *   - targetSearchNetwork: false  (no Search Partners)
+   *   - urlExpansionOptOut: true    (no auto landing-page substitution)
+   *   - optimizedTargetingEnabled: false  (per ad group; no audience expansion)
+   * These cannot be overridden per-draft. */
+  ADVERTISING_CHANNEL_TYPE: "SEARCH" as const,
+  LOCATION_MATCH_TYPE: "PRESENCE" as const,
 } as const;
+
+// ─── UK geo allowlist (safety net) ────────────────────────────────────────
+// Hardcoded set of valid UK GeoTargetConstant IDs. Catches obvious mistakes
+// like a non-UK ID slipping into geoTargets (an agent bug, a typo, a paste
+// from the wrong country).
+//
+// This is the COARSE check. The PRECISE check is in the post-publish
+// verifier, which compares live campaign criteria against the draft's
+// geoTargets (the per-campaign source of truth). Together they catch:
+//   - non-UK IDs (safety net here, at persist)
+//   - per-campaign cross-region drift (post-publish, against draft.geoTargets)
+//
+// Derived from `src/lib/google-ads-locations.ts` UK_GEO_IDS. Kept inline
+// rather than imported to keep this module light enough to call from any
+// persist callsite without dragging Prisma & friends into hot paths.
+//
+// To add a new UK city: add the ID here AND to UK_GEO_IDS in
+// google-ads-locations.ts. Both stay in sync.
+const UK_GEO_TARGET_IDS: ReadonlySet<string> = new Set<string>([
+  // Country fallback
+  "2826", // United Kingdom
+  // Regions (high level)
+  "20338", // England
+  "20339", // Wales
+  "20340", // Scotland
+  "20341", // Northern Ireland
+  // London + Greater London
+  "1006450", "9041107", "9041110",
+  // London boroughs (Inner + Outer)
+  "1006453", "1006459", "1006456", "9198373",
+  "9198785", "9198858", "9198805", "9208638",
+  "9046056", "9046054",
+  "1006465", "1006466", "1006467", "1006470", "1006471",
+  "1006468", "1006469",
+  "9046053", "9046051", "9046052", "9198371", "9046055",
+  "1006472", "9198370", "9198369", "1006473", "1006474",
+  "9046050", "9198374", "9198372",
+  // South East / South West / East
+  "1006598", "1006615", "1006607", "1006597", "1006596",
+  "1006608", "1006590", "1006589", "1006600", "1006601",
+  "1006602", "1006605",
+  "1006620", "1006628", "1006624", "1006621", "1006629",
+  "1006630", "1006631", "1006637",
+  "1006582", "1006576", "1006577", "1006578",
+  // East Midlands / West Midlands / North West / North East / Yorkshire
+  "1006552", "1006553", "1006554",
+  "1006544", "1006545", "1006546", "1006547", "1006548", "1006549", "1006550", "1006551",
+  "1006530", "1006531", "1006532", "1006533", "1006534", "1006535", "1006536",
+  "1006520", "1006521", "1006522", "1006523",
+  "1006510", "1006511", "1006512", "1006513", "1006514", "1006515", "1006516", "1006517",
+]);
+
+/**
+ * Returns true if the given Google geo target ID is on the UK allowlist.
+ * Conservative: unknown IDs are treated as non-UK to force a deliberate
+ * review before they slip into a campaign.
+ */
+export function isUkGeoTargetId(id: string): boolean {
+  return UK_GEO_TARGET_IDS.has(String(id).trim());
+}
+
+// ─── Per-ad-group input shape ──────────────────────────────────────────────
+/**
+ * Loose shape for the per-ad-group payload found in
+ * `GoogleAdsCampaignDraft.adGroups` (Json). The webapp's draft generator
+ * populates this when building multi-ad-group themed campaigns. The
+ * canonical shape per the 2026-06-02 published drafts is:
+ *
+ *   adGroups: [
+ *     { name: "Emergency & 24hr", keywords: [...], ads: [{ headlines, descriptions, finalUrl }] },
+ *     { name: "Locked Out", keywords: [...], ads: [...] },
+ *     ...
+ *   ]
+ *
+ * Callers may pass partials; we treat missing fields as zero-length arrays.
+ */
+export interface AdGroupCheckShape {
+  name?: string;
+  keywords?: unknown;
+  ads?: unknown;
+  headlines?: unknown;
+  descriptions?: unknown;
+}
 
 // ─── Shape we read from the create-data payload ───────────────────────────
 // The Prisma model is GoogleAdsCampaignDraft with these relevant fields:
@@ -185,7 +300,7 @@ export function enforceDraftGuardrails(
     });
   }
 
-  // 4. Keywords. ─────────────────────────────────────────────────────────
+  // 4. Keywords (campaign-level, flat single-ad-group case). ────────────
   // keywords is Json on the model: [{ text, matchType }]. Count entries.
   const keywordsLen = Array.isArray(out.keywords) ? (out.keywords as unknown[]).length : 0;
   if (keywordsLen < PLAYBOOK_GUARDRAILS.MIN_KEYWORDS) {
@@ -195,6 +310,22 @@ export function enforceDraftGuardrails(
       actual: String(keywordsLen),
       severity: "error",
     });
+  }
+
+  // 4a. Banned keyword tokens (Local Services Ads policy). ──────────────
+  // Catches the 2026-06-02 failure mode: drafts shipped with "locksmith"
+  // keywords that Google's Local Services classifier silently dropped.
+  // See playbook §10.
+  if (Array.isArray(out.keywords)) {
+    const flatKeywordViolations = collectBannedKeywords(out.keywords);
+    for (const banned of flatKeywordViolations) {
+      violations.push({
+        field: "keywords",
+        expected: `no Local Services-restricted tokens (${PLAYBOOK_GUARDRAILS.BANNED_KEYWORD_TOKENS.join(", ")})`,
+        actual: banned,
+        severity: "error",
+      });
+    }
   }
 
   // 5. Negative keywords. ────────────────────────────────────────────────
@@ -223,8 +354,193 @@ export function enforceDraftGuardrails(
     }
   }
 
+  // 7. Per-ad-group enforcement (multi-ad-group themed campaigns). ──────
+  // If the draft uses the adGroups Json field (the 5-themed pattern from
+  // playbook §1), every ad group must independently satisfy the per-ad-group
+  // floors. This blocks the 2026-06-02 failure where 3 of 5 ad groups in
+  // each campaign shipped empty.
+  if (Array.isArray(out.adGroups) && out.adGroups.length > 0) {
+    const adGroupViolations = validateAdGroups(out.adGroups as AdGroupCheckShape[]);
+    for (const v of adGroupViolations) {
+      violations.push(v);
+    }
+  }
+
+  // 8. Channel — HARD OVERRIDE to SEARCH (forensic-validation rule). ────
+  // No Display, no PMax, no Demand Gen, no Discovery, no Video.
+  // See playbook §15.
+  if (out.channel !== PLAYBOOK_GUARDRAILS.ADVERTISING_CHANNEL_TYPE) {
+    if (opts.allowOverride) {
+      // explicit admin override — caller logs.
+    } else {
+      appliedFixes.push({
+        field: "channel",
+        expected: PLAYBOOK_GUARDRAILS.ADVERTISING_CHANNEL_TYPE,
+        actual: String(out.channel ?? "undefined"),
+        severity: "error",
+      });
+      out.channel = PLAYBOOK_GUARDRAILS.ADVERTISING_CHANNEL_TYPE;
+    }
+  }
+
+  // 9. Location match type — HARD OVERRIDE to PRESENCE. ─────────────────
+  // PRESENCE = only people physically in the target area.
+  // PRESENCE_OR_INTEREST = also people searching about the area from
+  // anywhere — dilutes attribution, banned per playbook §15.
+  if (out.locationMatchType !== PLAYBOOK_GUARDRAILS.LOCATION_MATCH_TYPE) {
+    if (opts.allowOverride) {
+      // explicit admin override
+    } else {
+      appliedFixes.push({
+        field: "locationMatchType",
+        expected: PLAYBOOK_GUARDRAILS.LOCATION_MATCH_TYPE,
+        actual: String(out.locationMatchType ?? "undefined"),
+        severity: "error",
+      });
+      out.locationMatchType = PLAYBOOK_GUARDRAILS.LOCATION_MATCH_TYPE;
+    }
+  }
+
+  // 10. UK-only geo targets (safety net). ───────────────────────────────
+  // Catches non-UK IDs slipping in (agent bug, typo, paste from wrong
+  // country). The PRECISE per-campaign drift check is post-publish — see
+  // google-ads-publish-verifier.ts and playbook §15.
+  const geoTargets = Array.isArray(out.geoTargets)
+    ? (out.geoTargets as string[])
+    : [];
+  if (geoTargets.length === 0) {
+    violations.push({
+      field: "geoTargets",
+      expected: "at least one UK geo target ID",
+      actual: "empty",
+      severity: "error",
+    });
+  }
+  for (const geo of geoTargets) {
+    if (!isUkGeoTargetId(geo)) {
+      violations.push({
+        field: "geoTargets",
+        expected: "UK GeoTargetConstant ID (see UK_GEO_TARGET_IDS in google-ads-draft-enforcement.ts)",
+        actual: String(geo),
+        severity: "error",
+      });
+    }
+  }
+
   if (violations.length > 0) return { ok: false, violations };
   return { ok: true, data: out, appliedFixes };
+}
+
+// ─── Helpers — banned-keyword detection + per-ad-group validation ─────
+
+/**
+ * Returns a list of keyword strings from the input that violate the Local
+ * Services Ads policy (contain a banned token or match a banned exact phrase).
+ * Used to populate violation entries. The input is the raw `keywords` Json —
+ * each entry expected to be `{ text, matchType }` but defensive against any
+ * shape (just looks for a `text` field).
+ */
+function collectBannedKeywords(rawKeywords: unknown): string[] {
+  if (!Array.isArray(rawKeywords)) return [];
+  const out: string[] = [];
+  for (const kw of rawKeywords) {
+    const text =
+      typeof kw === "string"
+        ? kw
+        : kw && typeof kw === "object" && "text" in (kw as Record<string, unknown>)
+          ? String((kw as Record<string, unknown>).text)
+          : "";
+    if (!text) continue;
+    const lower = text.toLowerCase().trim();
+    for (const exact of PLAYBOOK_GUARDRAILS.BANNED_KEYWORD_EXACT) {
+      if (lower === exact) out.push(text);
+    }
+    for (const token of PLAYBOOK_GUARDRAILS.BANNED_KEYWORD_TOKENS) {
+      if (lower.includes(token)) {
+        out.push(text);
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Per-ad-group structural checks. Returns one violation per failing ad group
+ * (qualified with the ad group name in `field` so the caller can identify
+ * which themed ad group is broken).
+ *
+ * Catches the 2026-06-02 failure pattern: 3 of 5 themed ad groups shipped
+ * empty (no keywords, no ads) and the campaign reported SERVING anyway.
+ */
+function validateAdGroups(adGroups: AdGroupCheckShape[]): GuardrailViolation[] {
+  const out: GuardrailViolation[] = [];
+  for (let i = 0; i < adGroups.length; i++) {
+    const ag = adGroups[i];
+    const label = ag?.name?.trim() || `ad group ${i + 1}`;
+
+    // Keywords per ad group
+    const kwCount = Array.isArray(ag?.keywords) ? (ag.keywords as unknown[]).length : 0;
+    if (kwCount < PLAYBOOK_GUARDRAILS.MIN_KEYWORDS_PER_AD_GROUP) {
+      out.push({
+        field: `adGroups[${label}].keywords`,
+        expected: `at least ${PLAYBOOK_GUARDRAILS.MIN_KEYWORDS_PER_AD_GROUP} per ad group`,
+        actual: String(kwCount),
+        severity: "error",
+      });
+    }
+
+    // Banned keywords per ad group
+    if (Array.isArray(ag?.keywords)) {
+      const banned = collectBannedKeywords(ag.keywords);
+      for (const b of banned) {
+        out.push({
+          field: `adGroups[${label}].keywords`,
+          expected: `no Local Services-restricted tokens (${PLAYBOOK_GUARDRAILS.BANNED_KEYWORD_TOKENS.join(", ")})`,
+          actual: b,
+          severity: "error",
+        });
+      }
+    }
+
+    // Ads per ad group
+    const adsCount = Array.isArray(ag?.ads) ? (ag.ads as unknown[]).length : 0;
+    if (adsCount < PLAYBOOK_GUARDRAILS.MIN_ADS_PER_AD_GROUP) {
+      out.push({
+        field: `adGroups[${label}].ads`,
+        expected: `at least ${PLAYBOOK_GUARDRAILS.MIN_ADS_PER_AD_GROUP} RSA per ad group`,
+        actual: String(adsCount),
+        severity: "error",
+      });
+    }
+
+    // Headlines per ad group (if specified at this level)
+    if (Array.isArray(ag?.headlines)) {
+      const hCount = (ag.headlines as unknown[]).length;
+      if (hCount < PLAYBOOK_GUARDRAILS.MIN_HEADLINES) {
+        out.push({
+          field: `adGroups[${label}].headlines`,
+          expected: `at least ${PLAYBOOK_GUARDRAILS.MIN_HEADLINES} per ad group`,
+          actual: String(hCount),
+          severity: "error",
+        });
+      }
+    }
+
+    // Descriptions per ad group (if specified at this level)
+    if (Array.isArray(ag?.descriptions)) {
+      const dCount = (ag.descriptions as unknown[]).length;
+      if (dCount < PLAYBOOK_GUARDRAILS.MIN_DESCRIPTIONS) {
+        out.push({
+          field: `adGroups[${label}].descriptions`,
+          expected: `at least ${PLAYBOOK_GUARDRAILS.MIN_DESCRIPTIONS} per ad group`,
+          actual: String(dCount),
+          severity: "error",
+        });
+      }
+    }
+  }
+  return out;
 }
 
 // ─── Strict variant — throws on violation ──────────────────────────────

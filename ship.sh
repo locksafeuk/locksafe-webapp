@@ -43,10 +43,12 @@ else
   echo "✓ Committed: $MSG"
 fi
 
-# 3. Push.
-echo "▶ Pushing to origin/main..."
-git push origin main || { echo "✗ Push failed (check network / GitHub auth)."; exit 1; }
-echo "✓ Pushed."
+# 3. Push the CURRENT branch (not hardcoded main) so the commit you just made
+#    actually reaches origin and matches what gets deployed.
+BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+echo "▶ Pushing to origin/${BRANCH}..."
+git push -u origin "$BRANCH" || { echo "✗ Push failed (check network / GitHub auth)."; exit 1; }
+echo "✓ Pushed ${BRANCH}."
 
 # 4. Deploy (unless --no-deploy).
 if [[ "$DEPLOY" == "1" ]]; then

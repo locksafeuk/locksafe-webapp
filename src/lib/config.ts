@@ -30,8 +30,11 @@ const configuredLocksmithAdminWhatsapp =
   toWhatsappPhone(configuredLocksmithAdminPhoneTel);
 
 export const siteConfig = {
-  // Main site URL - change this in .env when you buy a domain
-  url: process.env.NEXT_PUBLIC_SITE_URL || "https://locksafe.uk",
+  // Main site URL - change this in .env when you buy a domain.
+  // NOTE: www is the canonical host (apex 308-redirects to www), so this
+  // default and NEXT_PUBLIC_SITE_URL must use www to keep canonical tags,
+  // sitemap, robots and OG URLs consistent with the redirect direction.
+  url: process.env.NEXT_PUBLIC_SITE_URL || "https://www.locksafe.uk",
 
   // Site name
   name: "LockSafe UK",

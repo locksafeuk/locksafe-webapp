@@ -1,0 +1,49 @@
+# Command Usage Map (docs excluding cleanup)
+
+| Command | Doc refs |
+|---|---:|
+| audit-district-content.command | 0 |
+| backfill-coverage-v2.command | 0 |
+| check-alias.command | 0 |
+| cleanup-corrupt-featured-engineer-names.command | 0 |
+| commit-phase2-launchers.command | 0 |
+| coverage-density-by-area.command | 0 |
+| create-conversion-action.command | 0 |
+| deploy-autopause-fix.command | 0 |
+| deploy-locksmith-in-hub.command | 0 |
+| deploy-quote-total-fix.command | 0 |
+| deploy-self-diagnose.command | 0 |
+| deploy-status-fix.command | 0 |
+| deploy-tel-link-attribution.command | 0 |
+| deploy-tracker-fix.command | 0 |
+| deploy.command | 0 |
+| diag-district-state.command | 0 |
+| diag-route-registration.command | 0 |
+| fix-deploy.command | 0 |
+| fix-locksmith-route-collision.command | 0 |
+| force-pause-removed-campaigns.command | 0 |
+| hotfix-district-dynamic-params.command | 0 |
+| hotfix-force-dynamic.command | 0 |
+| hotfix-prisma-schema.command | 0 |
+| hotfix-remove-static-cache-override.command | 0 |
+| launch-discovery-campaigns-LIVE.command | 0 |
+| recommend-recruitment.command | 0 |
+| recompose-discovery-drafts.command | 0 |
+| reconcile-campaign-drift.command | 0 |
+| remediate-removed-drift.command | 0 |
+| review-discovery-campaigns.command | 0 |
+| run-district-landings-build.command | 0 |
+| run-phase2a-tests.command | 0 |
+| run-phase2b-budget-caps.command | 0 |
+| run-phase2b-intent-score.command | 0 |
+| run-phase2b-shark-saturation.command | 0 |
+| run-phase2c-campaign-generator.command | 0 |
+| run-phase2c-orchestrator.command | 0 |
+| run-phase3a-tests-and-deploy.command | 0 |
+| run-phase3b-tests-and-deploy.command | 0 |
+| seed-keyword-bank.command | 0 |
+| smoketest.command | 0 |
+| triage.command | 0 |
+| unlock-and-deploy.command | 0 |
+| verify-attribution.command | 0 |
+| verify-session-attribution.command | 0 |
