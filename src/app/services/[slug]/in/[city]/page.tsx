@@ -84,6 +84,8 @@ export default async function ServiceGeoPage({ params }: Props) {
   if (!service || !cityData) notFound();
 
   const nearby = getNearbyCities(city).slice(0, 6);
+  const isAutoServiceJourney = /(car|auto|vehicle)/i.test(slug);
+  const requestHref = isAutoServiceJourney ? "/request?type=auto" : "/request";
 
   const breadcrumbs = [
     { name: "Home", url: "/" },
@@ -199,7 +201,7 @@ export default async function ServiceGeoPage({ params }: Props) {
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <Link
-              href="/request"
+              href={requestHref}
               className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-amber-500 hover:bg-amber-400 text-slate-900 text-base font-semibold transition-colors"
             >
               Get a verified {cityData.name} locksmith
@@ -317,7 +319,7 @@ export default async function ServiceGeoPage({ params }: Props) {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-14 sm:py-20 text-center">
           <h2 className="text-2xl sm:text-3xl font-bold mb-3">{localTitle} — transparent price up-front</h2>
           <Link
-            href="/request"
+            href={requestHref}
             className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-amber-500 hover:bg-amber-400 text-slate-900 text-base font-semibold transition-colors"
           >
             Post a job in 90 seconds

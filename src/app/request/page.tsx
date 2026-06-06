@@ -42,7 +42,7 @@ const propertyTypes = [
   { id: "house", label: "House", icon: Home },
   { id: "flat", label: "Flat/Apartment", icon: Building },
   { id: "commercial", label: "Commercial", icon: Building2 },
-  { id: "car", label: "Vehicle", icon: Car },
+  { id: "car", label: "Auto Emergency", icon: Car },
 ];
 
 // Request type context messages
@@ -50,6 +50,11 @@ const requestTypeContext: Record<string, { title: string; subtitle: string; urge
   emergency: {
     title: "Emergency Lockout Help",
     subtitle: "We'll get a locksmith to you FAST. Average response: 15 minutes.",
+    urgentBanner: true,
+  },
+  auto: {
+    title: "Auto Emergency Locksmith Help",
+    subtitle: "Locked out of your car? We'll find a nearby auto locksmith fast.",
     urgentBanner: true,
   },
   scheduled: {
@@ -112,6 +117,12 @@ function RequestPageContent() {
     // Pre-select problem type based on request type
     if (requestType === "emergency") {
       setFormData((prev) => ({ ...prev, problemType: prev.problemType || "lockout" }));
+    } else if (requestType === "auto") {
+      setFormData((prev) => ({
+        ...prev,
+        problemType: prev.problemType || "lockout",
+        propertyType: prev.propertyType || "car",
+      }));
     } else if (requestType === "security") {
       setFormData((prev) => ({ ...prev, problemType: prev.problemType || "lost-keys" }));
     }

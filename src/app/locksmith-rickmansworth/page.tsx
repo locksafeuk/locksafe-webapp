@@ -326,7 +326,7 @@ export default function LocksmithRickmansworthPage() {
                     +44 20 4577 1989
                   </Button>
                 </a>
-                <Link href="/request" className="group">
+                <Link href="/request?type=auto" className="group">
                   <Button className="w-full sm:w-auto bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white px-8 py-7 text-xl font-bold rounded-2xl border border-white/20 transition-all duration-300 group-hover:border-white/40">
                     Get Instant Quote
                     <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
@@ -987,7 +987,7 @@ export default function LocksmithRickmansworthPage() {
                     +44 20 4577 1989
                   </Button>
                 </a>
-                <Link href="/request">
+                <Link href="/request?type=auto">
                   <Button className="w-full sm:w-auto bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white px-10 py-7 text-xl font-bold rounded-2xl border border-white/20">
                     Request Online
                     <ArrowRight className="w-5 h-5 ml-2" />

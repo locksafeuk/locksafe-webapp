@@ -67,6 +67,7 @@ interface LocksmithEntry {
 const STATUS_COLOR: Record<string, string> = {
   PHONE_INITIATED: "#dc2626",   // red-600
   PENDING: "#ef4444",           // red
+  SCHEDULED: "#eab308",         // yellow
   ACCEPTED: "#f97316",          // orange
   EN_ROUTE: "#f59e0b",          // amber
   ARRIVED: "#10b981",           // emerald
@@ -80,6 +81,7 @@ const STATUS_COLOR: Record<string, string> = {
 const STATUS_LABEL: Record<string, string> = {
   PHONE_INITIATED: "Phone Initiated",
   PENDING: "Pending",
+  SCHEDULED: "Scheduled",
   ACCEPTED: "Accepted",
   EN_ROUTE: "En Route",
   ARRIVED: "Arrived",
@@ -124,7 +126,7 @@ function distanceMilesBetween(
 }
 
 function StatusIcon({ status }: { status: string }) {
-  if (status === "PENDING") return <AlertCircle className="w-3.5 h-3.5" />;
+  if (status === "PENDING" || status === "SCHEDULED") return <AlertCircle className="w-3.5 h-3.5" />;
   if (status === "EN_ROUTE" || status === "ACCEPTED") return <TruckIcon className="w-3.5 h-3.5" />;
   if (["ARRIVED", "DIAGNOSING", "IN_PROGRESS"].includes(status)) return <Wrench className="w-3.5 h-3.5" />;
   return <HelpCircle className="w-3.5 h-3.5" />;
@@ -472,6 +474,7 @@ export default function AdminOpsPage() {
             { key: "all", label: "All" },
             { key: "PHONE_INITIATED", label: "Phone" },
             { key: "PENDING", label: "Pending" },
+            { key: "SCHEDULED", label: "Scheduled" },
             { key: "ACCEPTED", label: "Accepted" },
             { key: "EN_ROUTE", label: "En Route" },
             { key: "ARRIVED", label: "Arrived" },

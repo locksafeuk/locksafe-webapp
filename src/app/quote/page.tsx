@@ -171,7 +171,7 @@ export default function QuotePage() {
               {problems.map((p) => (
                 <Link
                   key={p.slug}
-                  href={`/request?type=emergency&problem=${p.slug}`}
+                  href={`/request?type=${p.slug === "car-lockout" ? "auto" : "emergency"}&problem=${p.slug}`}
                   prefetch={false}
                   className="group bg-white border-2 border-slate-200 hover:border-orange-400 hover:shadow-lg rounded-xl p-4 text-center transition-all"
                 >

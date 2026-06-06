@@ -41,6 +41,7 @@ async function requireAdmin(request: NextRequest) {
 const ACTIVE_STATUSES = [
   "PHONE_INITIATED",
   "PENDING",
+  "SCHEDULED",
   "ACCEPTED",
   "EN_ROUTE",
   "ARRIVED",
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest) {
     const [jobs, locksmiths] = await Promise.all([
       prisma.job.findMany({
         where: {
-          status: { in: ACTIVE_STATUSES as unknown as ("PHONE_INITIATED" | "PENDING" | "ACCEPTED" | "EN_ROUTE" | "ARRIVED" | "DIAGNOSING" | "QUOTED" | "QUOTE_ACCEPTED" | "IN_PROGRESS" | "PENDING_CUSTOMER_CONFIRMATION")[] },
+          status: { in: ACTIVE_STATUSES as unknown as ("PHONE_INITIATED" | "PENDING" | "SCHEDULED" | "ACCEPTED" | "EN_ROUTE" | "ARRIVED" | "DIAGNOSING" | "QUOTED" | "QUOTE_ACCEPTED" | "IN_PROGRESS" | "PENDING_CUSTOMER_CONFIRMATION")[] },
         },
         select: {
           id: true,
@@ -201,7 +202,7 @@ export async function GET(request: NextRequest) {
     // Summary stats
     const stats = {
       total: enriched.length,
-      pending: enriched.filter((j) => j.status === "PENDING" || j.status === "PHONE_INITIATED").length,
+      pending: enriched.filter((j) => j.status === "PENDING" || j.status === "PHONE_INITIATED" || j.status === "SCHEDULED").length,
       enRoute: enriched.filter((j) => j.status === "EN_ROUTE").length,
       onSite: enriched.filter((j) =>
         ["ARRIVED", "DIAGNOSING", "QUOTED", "QUOTE_ACCEPTED", "IN_PROGRESS", "PENDING_CUSTOMER_CONFIRMATION"].includes(j.status)

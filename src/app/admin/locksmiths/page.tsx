@@ -37,6 +37,7 @@ import {
   BadgeCheck,
   Calendar,
   Clock,
+  Car,
   Download,
   FileImage,
   Trash2,
@@ -79,6 +80,7 @@ interface Locksmith {
   stripeConnectOnboarded: boolean;
   stripeConnectVerified: boolean;
   yearsExperience: number;
+  services: string[];
   coverageAreas: string[];
   createdAt: string;
   // Location fields
@@ -173,6 +175,11 @@ function ChannelBadges({
       )}
     </span>
   );
+}
+
+function isAutoLocksmith(services: string[] | null | undefined) {
+  if (!services || services.length === 0) return false;
+  return services.some((service) => service.trim().toLowerCase() === "automotive");
 }
 
 export default function AdminLocksmithsPage() {
@@ -281,6 +288,7 @@ export default function AdminLocksmithsPage() {
           stripeConnectOnboarded: boolean;
           stripeConnectVerified: boolean;
           yearsExperience: number;
+          services?: string[];
           coverageAreas: string[];
           createdAt: string;
           baseLat?: number | null;
@@ -327,6 +335,7 @@ export default function AdminLocksmithsPage() {
           stripeConnectOnboarded: ls.stripeConnectOnboarded,
           stripeConnectVerified: ls.stripeConnectVerified,
           yearsExperience: ls.yearsExperience,
+          services: ls.services || [],
           coverageAreas: ls.coverageAreas,
           createdAt: ls.createdAt,
           baseLat: ls.baseLat || null,
@@ -933,6 +942,7 @@ export default function AdminLocksmithsPage() {
     if (statusFilter === "available") matchesFilter = ls.isAvailable === true;
     if (statusFilter === "unavailable") matchesFilter = ls.isAvailable === false;
     if (statusFilter === "scheduled") matchesFilter = ls.scheduleEnabled === true;
+    if (statusFilter === "auto") matchesFilter = isAutoLocksmith(ls.services);
     if (statusFilter === "stripe_pending") matchesFilter = ls.stripeConnectId !== null && !ls.stripeConnectVerified;
     if (statusFilter === "insurance_pending") matchesFilter = ls.insuranceStatus === "pending" && ls.insuranceDocumentUrl !== null;
     if (statusFilter === "photo_unverified") matchesFilter = ls.profileImage !== null && ls.profilePhotoVerified === false;
@@ -1101,6 +1111,7 @@ export default function AdminLocksmithsPage() {
   const totalLocksmithsCount = locksmiths.length;
   const verifiedCount = locksmiths.filter((ls) => ls.isVerified).length;
   const availableCount = locksmiths.filter((ls) => ls.isAvailable).length;
+  const autoCount = locksmiths.filter((ls) => isAutoLocksmith(ls.services)).length;
   const totalEarnings = locksmiths.reduce((sum, ls) => sum + ls.totalEarnings, 0);
   // App adoption across channels: native (iOS/Android) and PWA (web push).
   const iosCount = locksmiths.filter((ls) => ls.nativeTokenPlatform === "ios").length;
@@ -1159,7 +1170,7 @@ export default function AdminLocksmithsPage() {
         </div>
         {/* Stats Cards */}
         {!isMapView && (
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5 lg:gap-4 mb-3 lg:mb-4">
+          <div className="grid grid-cols-2 lg:grid-cols-6 gap-2.5 lg:gap-4 mb-3 lg:mb-4">
             <div className="bg-white rounded-xl p-2.5 lg:p-4 shadow-sm">
             <div className={isMapView ? "text-[10px] lg:text-[11px] text-slate-500" : "text-[11px] lg:text-sm text-slate-500"}>Total Locksmiths</div>
               <div className={isMapView ? "text-base lg:text-lg font-bold text-slate-900 leading-tight" : "text-lg lg:text-2xl font-bold text-slate-900 leading-tight"}>{totalLocksmithsCount}</div>
@@ -1174,6 +1185,12 @@ export default function AdminLocksmithsPage() {
             <div className={isMapView ? "text-[10px] lg:text-[11px] text-slate-500" : "text-[11px] lg:text-sm text-slate-500"}>Available Now</div>
             <div className={isMapView ? "text-base lg:text-lg font-bold text-emerald-600 leading-tight" : "text-lg lg:text-2xl font-bold text-emerald-600 leading-tight"}>
                 {availableCount}
+            </div>
+            </div>
+            <div className="bg-white rounded-xl p-2.5 lg:p-4 shadow-sm">
+            <div className={isMapView ? "text-[10px] lg:text-[11px] text-slate-500" : "text-[11px] lg:text-sm text-slate-500"}>AUTO Locksmiths</div>
+            <div className={isMapView ? "text-base lg:text-lg font-bold text-indigo-600 leading-tight" : "text-lg lg:text-2xl font-bold text-indigo-600 leading-tight"}>
+              {autoCount}
             </div>
             </div>
             <div className="bg-white rounded-xl p-2.5 lg:p-4 shadow-sm">
@@ -1217,6 +1234,7 @@ export default function AdminLocksmithsPage() {
                 <option value="available">Available Now</option>
                 <option value="unavailable">Unavailable</option>
                 <option value="scheduled">Has Schedule</option>
+                <option value="auto">Auto Locksmiths</option>
                 <option value="verified">Verified</option>
                 <option value="unverified">Unverified</option>
                 <option value="active">Account Active</option>
@@ -1546,6 +1564,12 @@ export default function AdminLocksmithsPage() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-medium text-slate-900">{ls.name}</span>
                             <ChannelBadges nativePlatform={ls.nativeTokenPlatform} onPwa={ls.onPwa} webPushPlatform={ls.webPushPlatform} />
+                            {isAutoLocksmith(ls.services) && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-[10px] font-semibold border border-indigo-200">
+                                <Car className="w-3 h-3" />
+                                AUTO
+                              </span>
+                            )}
                             {ls.isVerified && (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-[10px] font-semibold border border-green-200">
                                 <Shield className="w-3 h-3 fill-green-600 text-green-600" />
@@ -1771,6 +1795,12 @@ export default function AdminLocksmithsPage() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <h2 className="text-xl font-bold text-slate-900">{selectedLocksmith.name}</h2>
                         <ChannelBadges nativePlatform={selectedLocksmith.nativeTokenPlatform} onPwa={selectedLocksmith.onPwa} webPushPlatform={selectedLocksmith.webPushPlatform} />
+                        {isAutoLocksmith(selectedLocksmith.services) && (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm font-semibold border border-indigo-200">
+                            <Car className="w-4 h-4" />
+                            AUTO
+                          </span>
+                        )}
                         {selectedLocksmith.isVerified && (
                           <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-semibold border border-green-200">
                             <Shield className="w-4 h-4 fill-green-600 text-green-600" />
@@ -1799,6 +1829,11 @@ export default function AdminLocksmithsPage() {
               <div className="p-6 space-y-6">
                 {/* Status Badges */}
                 <div className="flex flex-wrap gap-2">
+                  {isAutoLocksmith(selectedLocksmith.services) && (
+                    <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm font-medium flex items-center gap-1">
+                      <Car className="w-4 h-4" /> AUTO Locksmith
+                    </span>
+                  )}
                   {selectedLocksmith.isVerified ? (
                     <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium flex items-center gap-1">
                       <CheckCircle2 className="w-4 h-4" /> Verified

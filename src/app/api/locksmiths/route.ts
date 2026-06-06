@@ -53,6 +53,7 @@ export async function GET(request: NextRequest) {
         stripeConnectOnboarded: true,
         stripeConnectVerified: true,
         yearsExperience: true,
+        services: true,
         coverageAreas: true,
         baseLat: true,
         baseLng: true,

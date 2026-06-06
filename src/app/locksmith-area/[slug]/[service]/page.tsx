@@ -81,6 +81,8 @@ export default async function PostcodeServicePage({ params }: Props) {
   const data = getPostcodeBySlug(slug);
   const serviceData = getServiceBySlug(service);
   if (!data || !serviceData) notFound();
+  const isAutoServiceJourney = /(car|auto|vehicle)/i.test(service);
+  const requestHref = isAutoServiceJourney ? "/request?type=auto" : "/request";
 
   const breadcrumbs = [
     { name: "Home", url: "/" },
@@ -205,7 +207,7 @@ export default async function PostcodeServicePage({ params }: Props) {
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <Link
-              href="/request"
+              href={requestHref}
               className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-amber-500 hover:bg-amber-400 text-slate-900 text-base font-semibold transition-colors"
             >
               Get a {data.postcode} locksmith
@@ -363,7 +365,7 @@ export default async function PostcodeServicePage({ params }: Props) {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-14 sm:py-20 text-center">
           <h2 className="text-2xl sm:text-3xl font-bold mb-3">{localisedTitle}</h2>
           <Link
-            href="/request"
+            href={requestHref}
             className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-amber-500 hover:bg-amber-400 text-slate-900 text-base font-semibold transition-colors"
           >
             Post a job in 90 seconds

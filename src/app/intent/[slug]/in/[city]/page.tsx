@@ -120,6 +120,9 @@ export default async function IntentGeoPage({ params }: Props) {
     .filter((s): s is NonNullable<ReturnType<typeof getServiceBySlug>> => Boolean(s));
 
   const nearby = getNearbyCities(city).slice(0, 6);
+  const autoIntentSignal = [slug, landing.pillarKeyword || "", ...landing.intentTags].join(" ");
+  const isAutoIntentJourney = /(car|auto|vehicle|automotive)/i.test(autoIntentSignal);
+  const requestHref = isAutoIntentJourney ? "/request?type=auto" : "/request";
 
   const breadcrumbs = [
     { name: "Home", url: "/" },
@@ -214,6 +217,7 @@ export default async function IntentGeoPage({ params }: Props) {
           heroSubcopy: localisedSubcopy,
         }}
         ctaLabel={`Get a ${cityData.name} locksmith`}
+        ctaHref={requestHref}
       />
 
       {/* City-context strip */}
@@ -355,7 +359,7 @@ export default async function IntentGeoPage({ params }: Props) {
             Post the job, pick the locksmith. Average {cityData.name} response: {cityData.avgResponseTime}.
           </p>
           <Link
-            href="/request"
+            href={requestHref}
             className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-amber-500 hover:bg-amber-400 text-slate-900 text-base font-semibold transition-colors"
           >
             Post a job in 90 seconds

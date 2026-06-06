@@ -91,6 +91,9 @@ export default async function IntentPage({ params }: Props) {
   for (const l of relatedLandings) {
     resolvedRelated[l.slug] = { slug: l.slug, title: l.title, intro: l.intro };
   }
+  const autoIntentSignal = [slug, landing.pillarKeyword || "", ...landing.intentTags].join(" ");
+  const isAutoIntentJourney = /(car|auto|vehicle|automotive)/i.test(autoIntentSignal);
+  const requestHref = isAutoIntentJourney ? "/request?type=auto" : "/request";
 
   const breadcrumbs = [
     { name: "Home", url: "/" },
@@ -177,6 +180,7 @@ export default async function IntentPage({ params }: Props) {
           emotionalHook: picked.emotionalHook,
           heroSubcopy: picked.heroSubcopy,
         }}
+        ctaHref={requestHref}
       />
 
       {/* Intro / TL;DR — feeds speakable */}
@@ -232,7 +236,7 @@ export default async function IntentPage({ params }: Props) {
               </h2>
             </div>
             <Link
-              href="/request"
+              href={requestHref}
               className="self-start sm:self-end inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium transition-colors"
             >
               Post a job
@@ -331,7 +335,7 @@ export default async function IntentPage({ params }: Props) {
             Post the job, pick the locksmith, watch them arrive on GPS. Paper trail every time.
           </p>
           <Link
-            href="/request"
+            href={requestHref}
             className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-amber-500 hover:bg-amber-400 text-slate-900 text-base font-semibold transition-colors"
           >
             Post a job in 90 seconds
