@@ -23,6 +23,7 @@ import { extractDefaultAccountLearnings } from "@/lib/google-ads-learnings";
 import { extractUkPostcode } from "@/lib/location-display";
 import { enforceDistrictLandingForDraft } from "@/lib/google-ads-district-enforcer";
 import {
+  enforceCoverageGate,
   enforceDraftGuardrails,
   isAutoPerLocksmithGenerationEnabled,
   PLAYBOOK_GUARDRAILS,
@@ -199,6 +200,23 @@ export async function POST(request: NextRequest) {
         finalUrl: enforcedLanding.finalUrl,
         learnings,
       });
+
+    // 4b. RULE #13 — coverage gate (2026-06-06). Even per-locksmith drafts
+    // must target geos with ≥2 active locksmiths within 10mi — a single
+    // locksmith on holiday → ads spend → noLocksmithAvailable spike.
+    const coverageGate = await enforceCoverageGate(geoTargets);
+    if (!coverageGate.ok) {
+      return NextResponse.json(
+        {
+          error: "coverage_violation",
+          message:
+            "Locksmith's region lacks ≥2 active locksmiths within 10 miles. Cannot ship a per-locksmith campaign that would be the only coverage.",
+          violations: coverageGate.violations,
+          locksmithId: locksmith.id,
+        },
+        { status: 422 },
+      );
+    }
 
     // 5. Persist as PENDING_APPROVAL draft (gated by structural guardrails)
     const enforced = enforceDraftGuardrails({

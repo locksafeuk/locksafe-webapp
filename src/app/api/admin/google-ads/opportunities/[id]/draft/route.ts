@@ -18,6 +18,7 @@ import { generateDraftPlanForLocksmith } from "@/lib/google-ads-onboarding";
 import { extractDefaultAccountLearnings } from "@/lib/google-ads-learnings";
 import { enforceDistrictLandingForDraft } from "@/lib/google-ads-district-enforcer";
 import {
+  enforceCoverageGate,
   enforceDraftGuardrails,
   PLAYBOOK_GUARDRAILS,
 } from "@/lib/google-ads-draft-enforcement";
@@ -101,6 +102,23 @@ export async function POST(
     dailyBudget: body.dailyBudget ?? 5,
     finalUrl: enforcedLanding.finalUrl,
   });
+
+  // RULE #13 — coverage gate (2026-06-06). Opportunity Scout proposes a geo;
+  // we still require ≥2 active locksmiths within 10mi or we won't ship.
+  const coverageGate = await enforceCoverageGate([opp.geoTargetId]);
+  if (!coverageGate.ok) {
+    return NextResponse.json(
+      {
+        error: "coverage_violation",
+        message:
+          "Opportunity geo lacks ≥2 active locksmiths within 10 miles. Scout cannot ship a draft here until coverage improves.",
+        violations: coverageGate.violations,
+        opportunityId: opp.id,
+        geoTargetId: opp.geoTargetId,
+      },
+      { status: 422 },
+    );
+  }
 
   const enforced = enforceDraftGuardrails({
     accountId: account.id,

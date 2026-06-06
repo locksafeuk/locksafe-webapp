@@ -20,7 +20,7 @@ import prisma from "@/lib/db";
 import { verifyToken } from "@/lib/auth";
 import { getActiveCoverageGeoTargets } from "@/lib/google-ads-locations";
 import { enforceDistrictLandingForDraft } from "@/lib/google-ads-district-enforcer";
-import { enforceDraftGuardrails } from "@/lib/google-ads-draft-enforcement";
+import { enforceCoverageGate, enforceDraftGuardrails } from "@/lib/google-ads-draft-enforcement";
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
@@ -259,6 +259,23 @@ export async function POST(request: NextRequest) {
         `Existing draft "${existing.name}" geo targets refreshed to match ` +
         `${activeLocksmithCount} active locksmith(s): ${coverageSummary.join(", ")}.`,
     });
+  }
+
+  // 4b. RULE #13 — coverage gate (2026-06-06). This route uses
+  // getActiveCoverageGeoTargets (legacy heuristic) — re-validate against
+  // the strict 10mi/≥2-locksmith rule before persisting. Catches any drift
+  // between the legacy coverage source and the canonical builder.
+  const coverageGate = await enforceCoverageGate(geoTargets);
+  if (!coverageGate.ok) {
+    return NextResponse.json(
+      {
+        error: "coverage_violation",
+        message:
+          "Coverage-driven campaign references cities that fail the ≥2-locksmith / 10mi gate. The legacy getActiveCoverageGeoTargets() helper drifted from canonical CampaignCoverageBuilder — investigate before retrying.",
+        violations: coverageGate.violations,
+      },
+      { status: 422 },
+    );
   }
 
   // 5. Create new draft (gated by structural guardrails)

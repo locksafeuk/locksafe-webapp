@@ -13,7 +13,7 @@ import prisma from "@/lib/db";
 import { verifyToken } from "@/lib/auth";
 import { enforceDistrictLandingForDraft } from "@/lib/google-ads-district-enforcer";
 import { normalizeLocationMatchType } from "@/lib/google-ads-location-match-type";
-import { enforceDraftGuardrails } from "@/lib/google-ads-draft-enforcement";
+import { enforceCoverageGate, enforceDraftGuardrails } from "@/lib/google-ads-draft-enforcement";
 
 async function verifyAdmin() {
   const cookieStore = await cookies();
@@ -187,6 +187,23 @@ export async function POST(request: NextRequest) {
   }
 
   const status = body.approveImmediately ? "APPROVED" : "PENDING_APPROVAL";
+
+  // RULE #13 — coverage gate (2026-06-06). Reject drafts targeting cities
+  // without enough active locksmiths within 10 miles. Stops the Liverpool
+  // Test failure mode (paid clicks → no locksmith can attend → 0 conv).
+  // See enforceCoverageGate() docs.
+  const coverageGate = await enforceCoverageGate(geoTargets);
+  if (!coverageGate.ok) {
+    return NextResponse.json(
+      {
+        error: "coverage_violation",
+        message:
+          "Draft targets one or more cities without enough locksmith coverage. Add covering locksmiths or remove the city. See /api/admin/google-ads/coverage for the live map.",
+        violations: coverageGate.violations,
+      },
+      { status: 422 },
+    );
+  }
 
   const enforced = enforceDraftGuardrails({
     accountId,

@@ -50,7 +50,7 @@ import { ensureOrSkip, districtSlug } from "@/lib/district-landing/ensure-landin
 import { SITE_URL } from "@/lib/config";
 import type { SeedCategory } from "@/agents/core/seed-bank";
 import type { IntelKeyword } from "@/lib/competitor-cross-validate";
-import { enforceDraftGuardrails } from "@/lib/google-ads-draft-enforcement";
+import { enforceCoverageGate, enforceDraftGuardrails } from "@/lib/google-ads-draft-enforcement";
 
 // Prisma schema includes new fields not always in the generated client
 // during DB schema-drift windows — keep the prisma reference loose so
@@ -406,6 +406,22 @@ export async function generateDiscoveryDrafts(
       if (existing) {
         result.draftsSkipped++;
         result.drafts.push({ ...entry, skippedReason: "name exists" });
+        continue;
+      }
+
+      // RULE #13 — coverage gate. Discovery orchestrator generates many
+      // drafts at once across regions; reject any whose geos lack ≥2
+      // active locksmiths within 10mi. Surfaces as a per-draft error
+      // so the rest of the batch continues.
+      const coverageGate = await enforceCoverageGate(
+        (payload.data as { geoTargets?: readonly string[] }).geoTargets ?? null,
+      );
+      if (!coverageGate.ok) {
+        const message = `coverage_violation: ${coverageGate.violations
+          .map((v) => `${v.field}=${v.actual} (expected ${v.expected})`)
+          .join("; ")}`;
+        result.errors.push(`${payload.data.name}: ${message}`);
+        result.drafts.push({ ...entry, error: message });
         continue;
       }
 

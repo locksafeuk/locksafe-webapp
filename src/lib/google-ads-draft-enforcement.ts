@@ -223,10 +223,115 @@ export interface EnforcementOptions {
 }
 
 /**
+ * Async coverage gate — RULE #13 (the "stop going bankrupt" rule, 2026-06-06).
+ *
+ * Every geo target on the draft must be in the LIVE coverage map. That is,
+ * at least MIN_LOCKSMITHS_PER_GEO (default 2) ACTIVE locksmiths must have
+ * their base location within RADIUS_MILES (default 10) of the city centroid.
+ *
+ * Why this is separate from enforceDraftGuardrails():
+ *   1. Coverage is computed from the DB (async), the rest are pure checks.
+ *   2. Coverage changes hourly (locksmiths join/leave/suspend) — re-runs
+ *      against fresh data are cheap, no need to cache via the sync path.
+ *   3. Surface a distinct error so admins see "geo-not-covered" as its own
+ *      class of violation, not buried in 12 other reasons.
+ *
+ * Caller pattern at every draft-persist site:
+ *
+ *   const coverageGate = await enforceCoverageGate(body.geoTargets);
+ *   if (!coverageGate.ok) {
+ *     return NextResponse.json({ error: "coverage_violation", violations: coverageGate.violations }, { status: 422 });
+ *   }
+ *   const enforced = enforceDraftGuardrails(data);
+ *   if (!enforced.ok) { ... }
+ *
+ * Returns the SAME violation shape as enforceDraftGuardrails for uniform
+ * admin-UI handling. `unknownGeoIds` are surfaced separately because they
+ * indicate an out-of-allowlist input (caller may want to fall back to a
+ * different check rather than reject — for now we reject defensively).
+ */
+export async function enforceCoverageGate(
+  geoTargets: readonly string[] | undefined | null,
+): Promise<
+  | { ok: true; eligibleGeoIds: string[] }
+  | { ok: false; violations: GuardrailViolation[] }
+> {
+  const targets = (geoTargets ?? []).map(String).filter((s) => s.trim() !== "");
+  if (targets.length === 0) {
+    return {
+      ok: false,
+      violations: [
+        {
+          field: "geoTargets",
+          expected: "at least one UK geo target ID with ≥2 locksmiths within 10 miles",
+          actual: "empty",
+          severity: "error",
+        },
+      ],
+    };
+  }
+
+  // Lazy import to keep the enforcement module callable from edge contexts
+  // that don't drag the coverage builder + Prisma in unless needed.
+  const { computeCoverageMap } = await import("@/lib/campaign-coverage-builder");
+  const map = await computeCoverageMap();
+
+  const eligibleSet = new Set(map.eligibleGeoIds);
+  const allKnown = new Set(map.entries.map((e) => e.geoId));
+
+  const violations: GuardrailViolation[] = [];
+  const eligible: string[] = [];
+
+  for (const geoId of targets) {
+    if (eligibleSet.has(geoId)) {
+      eligible.push(geoId);
+      continue;
+    }
+    if (!allKnown.has(geoId)) {
+      // Geo is in UK allowlist (caller has presumably checked) but NOT in
+      // our city-centroid coverage model. Reject — better to surface the
+      // gap than silently allow uncovered borough/postcode IDs through.
+      violations.push({
+        field: "geoTargets",
+        expected:
+          "city geo ID with coverage data (see /api/admin/google-ads/coverage)",
+        actual: `${geoId} — no coverage map entry; add to UK_CITY_CENTROIDS to opt in`,
+        severity: "error",
+      });
+      continue;
+    }
+    const entry = map.entries.find((e) => e.geoId === geoId)!;
+    violations.push({
+      field: "geoTargets",
+      expected: `≥${
+        // hardcoded label for now — value lives in coverage builder.
+        2
+      } locksmiths within 10mi of ${entry.cityName}`,
+      actual: `${entry.locksmithCount} (${
+        entry.excludedReason === "no_locksmiths"
+          ? "zero coverage — Liverpool Test pattern"
+          : "below floor — single point of failure"
+      })`,
+      severity: "error",
+    });
+  }
+
+  if (violations.length > 0) return { ok: false, violations };
+  return { ok: true, eligibleGeoIds: eligible };
+}
+
+/**
  * Validate and auto-correct draft create-data against the playbook guardrails.
  *
  * Caller pattern:
  *
+ *   // 1. Coverage gate (DB-dependent, the "stop going bankrupt" rule).
+ *   const coverage = await enforceCoverageGate(data.geoTargets);
+ *   if (!coverage.ok) {
+ *     return NextResponse.json({ error: "coverage_violation", violations: coverage.violations }, { status: 422 });
+ *   }
+ *
+ *   // 2. Structural guardrails (sync, all the other rules).
  *   const enforced = enforceDraftGuardrails(data);
  *   if (!enforced.ok) {
  *     return NextResponse.json({ error: "guardrail_violation", violations: enforced.violations }, { status: 422 });
@@ -234,6 +339,7 @@ export interface EnforcementOptions {
  *   if (enforced.appliedFixes.length > 0) {
  *     console.warn("[ads] draft auto-corrected at persist", enforced.appliedFixes);
  *   }
+ *
  *   const draft = await prisma.googleAdsCampaignDraft.create({ data: enforced.data });
  */
 export function enforceDraftGuardrails(
