@@ -19,6 +19,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyCronAuth } from "@/lib/cron-auth";
 import prisma from "@/lib/db";
 import { sendAdminAlert } from "@/lib/telegram";
+import { fetchOutcode } from "@/lib/postcodes-io";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -68,6 +69,50 @@ const PRIORITY_CITIES: string[] = (process.env.SCRAPER_PRIORITY_CITIES ?? "")
 const PRIORITY_CITY_SET = new Set(PRIORITY_CITIES.map((c) => c.toLowerCase()));
 function isPriorityCity(city: string): boolean {
   return PRIORITY_CITY_SET.has(city.toLowerCase());
+}
+
+/**
+ * Demand-driven self-calibration. Reads the SAME live job data the Live Ops
+ * page uses and auto-prioritises areas with proven demand but NO locksmith —
+ * i.e. jobs flagged "no locksmith available" or left unassigned. Those towns
+ * are scraped first on every run, so supply recruitment automatically follows
+ * real customer demand and keeps improving without manual retargeting.
+ */
+const DEMAND_CALIBRATION_ENABLED =
+  (process.env.SCRAPER_DEMAND_CALIBRATION ?? "true").toLowerCase() !== "false";
+const DEMAND_LOOKBACK_DAYS = Math.max(
+  1,
+  Math.min(180, Number(process.env.SCRAPER_DEMAND_LOOKBACK_DAYS ?? "45") || 45),
+);
+/** Cap distinct outcodes resolved per run (bounds postcodes.io calls). */
+const DEMAND_MAX_OUTCODES = 25;
+
+/** Outcode → town cache (persists across warm invocations). */
+const outcodeTownCache = new Map<string, string | null>();
+
+/** Extract the outward code from a UK postcode, e.g. "DD2 1ER" → "DD2". */
+function outcodeOf(postcode?: string | null): string | null {
+  if (!postcode) return null;
+  const full = postcode.toUpperCase().trim();
+  const m = full.match(/^([A-Z]{1,2}\d[A-Z\d]?)\s*\d[A-Z]{2}$/);
+  if (m) return m[1];
+  const head = full.split(/\s+/)[0];
+  return /^[A-Z]{1,2}\d[A-Z\d]?$/.test(head) ? head : null;
+}
+
+/** Resolve an outcode to its anchor town via postcodes.io (cached). */
+async function outcodeToTown(outcode: string): Promise<string | null> {
+  if (outcodeTownCache.has(outcode)) return outcodeTownCache.get(outcode) ?? null;
+  let town: string | null = null;
+  try {
+    const info = await fetchOutcode(outcode);
+    town = info?.anchorTown ?? null;
+    if (town) town = town.replace(/\s+City$/i, "").trim(); // "Dundee City" → "Dundee"
+  } catch {
+    town = null;
+  }
+  outcodeTownCache.set(outcode, town);
+  return town;
 }
 
 /** Credit-saver mode: scrape only uncovered/recruit-target cities by default. */
@@ -583,8 +628,66 @@ async function getRecruitTargetCities(): Promise<Set<string>> {
 }
 
 /**
+ * Reads live job data (the Live Ops source) and returns towns with proven
+ * demand but no locksmith — jobs explicitly flagged "no locksmith available",
+ * or jobs left unassigned past a grace window (nobody took them = no supply).
+ * Ranked by job count, mapped postcode-outcode → town. This is the self-
+ * calibrating signal: where customers ask and no one can serve them, recruit.
+ */
+async function getDemandGapCities(): Promise<string[]> {
+  if (!DEMAND_CALIBRATION_ENABLED) return [];
+  try {
+    const now = Date.now();
+    const since = new Date(now - DEMAND_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
+    const staleUnassignedBefore = new Date(now - 45 * 60 * 1000);
+
+    const jobs = (await (
+      prisma as unknown as {
+        job: { findMany: (a: unknown) => Promise<{ postcode: string | null }[]> };
+      }
+    ).job.findMany({
+      where: {
+        createdAt: { gte: since },
+        OR: [
+          { noLocksmithNotifiedAt: { not: null } },
+          { AND: [{ locksmithId: null }, { createdAt: { lte: staleUnassignedBefore } }] },
+        ],
+      },
+      select: { postcode: true },
+      take: 3000,
+    })) as { postcode: string | null }[];
+
+    // Rank outcodes by how many unmet-demand jobs they produced.
+    const byOutcode = new Map<string, number>();
+    for (const j of jobs) {
+      const oc = outcodeOf(j.postcode);
+      if (oc) byOutcode.set(oc, (byOutcode.get(oc) ?? 0) + 1);
+    }
+    const ranked = [...byOutcode.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, DEMAND_MAX_OUTCODES);
+
+    const towns: string[] = [];
+    for (const [oc] of ranked) {
+      const town = await outcodeToTown(oc);
+      if (town && !towns.some((t) => t.toLowerCase() === town.toLowerCase())) {
+        towns.push(town);
+      }
+    }
+    if (towns.length) {
+      console.log(`[scraper-cron] Demand-gap towns (unmet jobs → recruit here): ${towns.join(", ")}`);
+    }
+    return towns;
+  } catch (e) {
+    console.warn(`[scraper-cron] demand calibration failed (continuing): ${e instanceof Error ? e.message : String(e)}`);
+    return [];
+  }
+}
+
+/**
  * Sorts cities to put the highest-priority targets first:
- *   3. Cities in SCRAPER_PRIORITY_CITIES (urgent demand regions) — always first
+ *   4. Demand-gap towns from live jobs (unmet demand, no locksmith) — first
+ *   3. Cities in SCRAPER_PRIORITY_CITIES (manually pinned regions)
  *   2. Cities in GoogleAdsOpportunity RECRUIT list (high-value gaps)
  *   1. Cities with no locksmiths in LocksmithCoverage
  *   0. All other cities
@@ -593,9 +696,18 @@ function prioritizeCities(
   cities: string[],
   coveredCities: Set<string>,
   recruitTargets: Set<string>,
+  demandGap: Set<string>,
 ): string[] {
   const score = (c: string) =>
-    isPriorityCity(c) ? 3 : recruitTargets.has(c) ? 2 : !coveredCities.has(c) ? 1 : 0;
+    demandGap.has(c.toLowerCase())
+      ? 4
+      : isPriorityCity(c)
+        ? 3
+        : recruitTargets.has(c)
+          ? 2
+          : !coveredCities.has(c)
+            ? 1
+            : 0;
   return [...cities].sort((a, b) => score(b) - score(a));
 }
 
@@ -603,12 +715,16 @@ function buildCityQueue(
   prioritizedCities: string[],
   coveredCities: Set<string>,
   recruitTargets: Set<string>,
+  demandGap: Set<string>,
 ): string[] {
   if (!SCRAPER_GAP_ONLY_MODE) return prioritizedCities;
 
   const gapCities = prioritizedCities.filter(
     (city) =>
-      isPriorityCity(city) || recruitTargets.has(city) || !coveredCities.has(city),
+      demandGap.has(city.toLowerCase()) ||
+      isPriorityCity(city) ||
+      recruitTargets.has(city) ||
+      !coveredCities.has(city),
   );
   if (gapCities.length > 0) return gapCities;
 
@@ -762,23 +878,33 @@ export async function GET(request: NextRequest) {
     process.env.NEXT_PUBLIC_SITE_URL || "https://www.locksafe.uk";
   const cronSecret = process.env.CRON_SECRET || "dev-secret";
 
-  // ── Step 1: Load coverage data ──────────────────────────────────────────
-  const [coveredCities, recruitTargets] = await Promise.all([
+  // ── Step 1: Load coverage + live-demand data ────────────────────────────
+  const [coveredCities, recruitTargets, demandGapCities] = await Promise.all([
     getCoveredCities(),
     getRecruitTargetCities(),
+    getDemandGapCities(), // self-calibration: towns with jobs but no locksmith
   ]);
+  const demandGapSet = new Set(demandGapCities.map((c) => c.toLowerCase()));
 
-  // Merge any priority cities that aren't already in the base list so a region
-  // can be targeted even if it isn't one of the built-in UK_CITIES.
-  const baseCities = [...new Set([...PRIORITY_CITIES, ...UK_CITIES])];
+  // Merge demand-gap towns + pinned priority cities into the base list so a
+  // region can be targeted even if it isn't one of the built-in UK_CITIES.
+  const baseCities = [
+    ...new Set([...demandGapCities, ...PRIORITY_CITIES, ...UK_CITIES]),
+  ];
   const prioritizedCities = prioritizeCities(
     baseCities,
     coveredCities,
     recruitTargets,
+    demandGapSet,
   );
-  const cityQueue = buildCityQueue(prioritizedCities, coveredCities, recruitTargets);
+  const cityQueue = buildCityQueue(
+    prioritizedCities,
+    coveredCities,
+    recruitTargets,
+    demandGapSet,
+  );
   if (PRIORITY_CITIES.length > 0) {
-    console.log(`[scraper-cron] Priority cities (scraped first): ${PRIORITY_CITIES.join(", ")}`);
+    console.log(`[scraper-cron] Pinned priority cities: ${PRIORITY_CITIES.join(", ")}`);
   }
 
   // ── Step 2: Load or create scraper progress ─────────────────────────────
@@ -1002,6 +1128,8 @@ export async function GET(request: NextRequest) {
     uncoveredCities: prioritizedCities.length - coveredCities.size,
     scraperGapOnlyMode: SCRAPER_GAP_ONLY_MODE,
     recruitTargets: recruitTargets.size,
+    demandGapCities,
+    pinnedPriorityCities: PRIORITY_CITIES,
     queryVariantsPerCity: QUERY_VARIANTS_PER_CITY,
     serpCallsThisRun: engine.serpCallsThisRun,
     emailLookupsThisRun: engine.emailLookupsThisRun,

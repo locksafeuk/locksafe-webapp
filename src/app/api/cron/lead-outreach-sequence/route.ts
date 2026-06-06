@@ -3,6 +3,7 @@ import { verifyCronAuth } from "@/lib/cron-auth";
 import { sendAdminAlert } from "@/lib/telegram";
 import { prisma } from "@/lib/prisma";
 import { getActiveSmsProvider, isSmsProviderConfigured, sendSMS } from "@/lib/sms";
+import { sendTemplateMessage } from "@/lib/whatsapp-business";
 
 type Track = "independent" | "manager";
 type Style = "direct" | "benefit";
@@ -109,6 +110,99 @@ async function runSmsOutreach(): Promise<SmsOutreachSummary> {
   }
 
   return { enabled: true, attempted: leads.length, sent, failed };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WhatsApp outreach (gated) — third channel, layered after SMS.
+//
+// WhatsApp business-initiated (cold) messages MUST use a Meta-APPROVED template;
+// free-form text is not allowed. So this passes a template name + variables to
+// the WhatsApp Business API. It is OFF by default — to turn it on you need:
+//   1. A template approved in Meta WhatsApp Manager (body with {{1}}=first name,
+//      {{2}}=town; put the join link in the template body/button).
+//   2. WHATSAPP_OUTREACH_ENABLED=true and WHATSAPP_RECRUIT_TEMPLATE=<template_name>.
+//
+// It targets the SAME phone-only `new` pool as SMS, and runs AFTER the SMS phase
+// — so if SMS is also enabled, those leads are already "contacted" and WhatsApp
+// only picks up what SMS didn't reach (no double-messaging the same lead).
+// ─────────────────────────────────────────────────────────────────────────────
+const WHATSAPP_OUTREACH_ENABLED =
+  (process.env.WHATSAPP_OUTREACH_ENABLED ?? "false").toLowerCase() === "true";
+const WHATSAPP_OUTREACH_MAX_PER_RUN = Math.max(
+  1,
+  Math.min(500, Number(process.env.WHATSAPP_OUTREACH_MAX_PER_RUN ?? "40") || 40),
+);
+const WHATSAPP_RECRUIT_TEMPLATE =
+  process.env.WHATSAPP_RECRUIT_TEMPLATE || "locksmith_recruit_invite";
+
+function whatsappConfigured(): boolean {
+  return Boolean(process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
+}
+
+type WhatsAppOutreachSummary = {
+  enabled: boolean;
+  attempted: number;
+  sent: number;
+  failed: number;
+  template?: string;
+  message?: string;
+};
+
+/**
+ * Contact phone-reachable `new` leads via an approved WhatsApp template.
+ * Marks each as `contacted` / `contactedBy: "whatsapp-seq"`.
+ */
+async function runWhatsAppOutreach(): Promise<WhatsAppOutreachSummary> {
+  if (!WHATSAPP_OUTREACH_ENABLED) {
+    return { enabled: false, attempted: 0, sent: 0, failed: 0, message: "WHATSAPP_OUTREACH_ENABLED is not true" };
+  }
+  if (!whatsappConfigured()) {
+    return { enabled: true, attempted: 0, sent: 0, failed: 0, message: "WhatsApp Business API not configured (WHATSAPP_ACCESS_TOKEN / WHATSAPP_PHONE_NUMBER_ID)" };
+  }
+
+  const candidates = (await (prisma as unknown as {
+    locksmithLead: { findMany: (a: unknown) => Promise<Array<{ id: string; name: string; city: string; phone: string | null }>> };
+  }).locksmithLead.findMany({
+    where: {
+      status: "new",
+      email: null,
+      OR: [
+        { phone: { startsWith: "07" } },
+        { phone: { startsWith: "+447" } },
+        { phone: { startsWith: "00447" } },
+      ],
+    },
+    select: { id: true, name: true, city: true, phone: true },
+    orderBy: { createdAt: "desc" },
+    take: WHATSAPP_OUTREACH_MAX_PER_RUN * 2,
+  }));
+
+  const leads = candidates
+    .filter((l) => l.phone && isUKMobile(l.phone))
+    .slice(0, WHATSAPP_OUTREACH_MAX_PER_RUN);
+
+  let sent = 0;
+  let failed = 0;
+  for (const lead of leads) {
+    try {
+      const firstName = lead.name.split(/\s+/)[0];
+      // Template variables: {{1}} = first name, {{2}} = town.
+      const result = await sendTemplateMessage(lead.phone!, WHATSAPP_RECRUIT_TEMPLATE, [firstName, lead.city]);
+      if (!result.success) { failed++; continue; }
+      await (prisma as unknown as {
+        locksmithLead: { update: (a: unknown) => Promise<unknown> };
+      }).locksmithLead.update({
+        where: { id: lead.id },
+        data: { status: "contacted", contactedAt: new Date(), contactedBy: "whatsapp-seq" },
+      });
+      sent++;
+      await new Promise((r) => setTimeout(r, 300));
+    } catch {
+      failed++;
+    }
+  }
+
+  return { enabled: true, attempted: leads.length, sent, failed, template: WHATSAPP_RECRUIT_TEMPLATE };
 }
 
 type SequenceResult = {
@@ -251,17 +345,20 @@ export async function GET(request: NextRequest) {
 
   // SMS phase — reaches the phone-only backlog the email touches cannot.
   const sms = await runSmsOutreach();
+  // WhatsApp phase — third channel, picks up phone-only leads SMS didn't reach.
+  const whatsapp = await runWhatsAppOutreach();
+
+  const emailAttempted = results.reduce((sum, r) => sum + r.attempted, 0);
+  const emailSent = results.reduce((sum, r) => sum + r.sent, 0);
+  const emailFailed = results.reduce((sum, r) => sum + r.failed, 0);
 
   const summary = {
-    attempted: results.reduce((sum, r) => sum + r.attempted, 0) + sms.attempted,
-    sent: results.reduce((sum, r) => sum + r.sent, 0) + sms.sent,
-    failed: results.reduce((sum, r) => sum + r.failed, 0) + sms.failed,
-    email: {
-      attempted: results.reduce((sum, r) => sum + r.attempted, 0),
-      sent: results.reduce((sum, r) => sum + r.sent, 0),
-      failed: results.reduce((sum, r) => sum + r.failed, 0),
-    },
+    attempted: emailAttempted + sms.attempted + whatsapp.attempted,
+    sent: emailSent + sms.sent + whatsapp.sent,
+    failed: emailFailed + sms.failed + whatsapp.failed,
+    email: { attempted: emailAttempted, sent: emailSent, failed: emailFailed },
     sms,
+    whatsapp,
   };
 
   if (summary.sent > 0) {
@@ -277,12 +374,16 @@ export async function GET(request: NextRequest) {
       const smsLine = sms.enabled
         ? `\n• SMS (phone-only) → sent ${sms.sent}${sms.failed ? ` (failed ${sms.failed})` : ""}`
         : "";
+      const whatsappLine = whatsapp.enabled
+        ? `\n• WhatsApp (phone-only) → sent ${whatsapp.sent}${whatsapp.failed ? ` (failed ${whatsapp.failed})` : ""}`
+        : "";
 
       const body =
         `Sent: ${summary.sent} · Failed: ${summary.failed} · Attempted: ${summary.attempted}\n` +
         `Run: ${now.toISOString()}` +
         (perTouchLines ? `\n\n${perTouchLines}` : "") +
-        smsLine;
+        smsLine +
+        whatsappLine;
 
       await sendAdminAlert({
         title: "Outreach digest",
