@@ -35,6 +35,7 @@
     "scraper:status": "node_modules/.bin/ts-node -r tsconfig-paths/register --project tsconfig.scripts.json scripts/check-scraper-status.ts",
     "scraper:diagnose": "node_modules/.bin/ts-node -r tsconfig-paths/register --project tsconfig.scripts.json scripts/scraper-gap-diagnostic.ts",
     "scrape:focus": "node_modules/.bin/ts-node -r tsconfig-paths/register --project tsconfig.scripts.json scripts/scrape-focus.ts",
+    "leads:validate-sms": "node_modules/.bin/ts-node -r tsconfig-paths/register --project tsconfig.scripts.json scripts/validate-sms-leads.ts",
     "scraper:cleanup:dry": "node_modules/.bin/ts-node -r tsconfig-paths/register --project tsconfig.scripts.json scripts/cleanup-non-locksmith-leads.ts",
     "scraper:cleanup:apply": "node_modules/.bin/ts-node -r tsconfig-paths/register --project tsconfig.scripts.json scripts/cleanup-non-locksmith-leads.ts --apply",
     "holding:metrics": "bun run scripts/send-holding-metrics.ts",

@@ -70,14 +70,12 @@ async function runSmsOutreach(): Promise<SmsOutreachSummary> {
   const candidates = (await (prisma as unknown as {
     locksmithLead: { findMany: (a: unknown) => Promise<Array<{ id: string; name: string; city: string; phone: string | null }>> };
   }).locksmithLead.findMany({
+    // Filter UK mobiles in JS (below), not via Prisma startsWith — a "+447"
+    // prefix becomes an invalid Mongo regex (leading + is a quantifier).
     where: {
       status: "new",
       email: null,
-      OR: [
-        { phone: { startsWith: "07" } },
-        { phone: { startsWith: "+447" } },
-        { phone: { startsWith: "00447" } },
-      ],
+      phone: { not: null },
     },
     select: { id: true, name: true, city: true, phone: true },
     orderBy: { createdAt: "desc" },
@@ -163,14 +161,12 @@ async function runWhatsAppOutreach(): Promise<WhatsAppOutreachSummary> {
   const candidates = (await (prisma as unknown as {
     locksmithLead: { findMany: (a: unknown) => Promise<Array<{ id: string; name: string; city: string; phone: string | null }>> };
   }).locksmithLead.findMany({
+    // Filter UK mobiles in JS (below), not via Prisma startsWith — a "+447"
+    // prefix becomes an invalid Mongo regex (leading + is a quantifier).
     where: {
       status: "new",
       email: null,
-      OR: [
-        { phone: { startsWith: "07" } },
-        { phone: { startsWith: "+447" } },
-        { phone: { startsWith: "00447" } },
-      ],
+      phone: { not: null },
     },
     select: { id: true, name: true, city: true, phone: true },
     orderBy: { createdAt: "desc" },

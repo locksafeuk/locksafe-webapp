@@ -83,17 +83,16 @@ export async function POST(req: NextRequest) {
 
   // Bulk-all: send to every new lead with a UK mobile number
   if (body.mode === "bulk-all") {
+    // NB: filter UK mobiles in JS (below). Don't use Prisma `startsWith: "+447"`
+    // — the leading + becomes an invalid Mongo regex quantifier and the query
+    // throws (error 51111).
     const allLeads = await prisma.locksmithLead.findMany({
       where: {
         status: "new",
-        OR: [
-          { phone: { startsWith: "07" } },
-          { phone: { startsWith: "+447" } },
-          { phone: { startsWith: "00447" } },
-        ],
+        phone: { not: null },
       },
     });
-    // Re-validate with the strict regex before sending
+    // Strict UK-mobile re-validation before sending.
     const leads = allLeads.filter(l => l.phone && isUKMobile(l.phone));
     let sent = 0;
     let failed = 0;
