@@ -1,4 +1,5 @@
 import { verifyToken } from "@/lib/auth";
+import { resolveCustomerDisplayName } from "@/lib/customer-name";
 import prisma from "@/lib/db";
 import { appendJobActivity } from "@/lib/job-activity";
 import {
@@ -76,6 +77,19 @@ export async function POST(
       );
     }
 
+    const voiceCall = job.retellCallId
+      ? await prisma.voiceCall.findUnique({
+          where: { retellCallId: job.retellCallId },
+          select: { callerName: true },
+        })
+      : null;
+
+    const resolvedCustomerName = resolveCustomerDisplayName({
+      primaryName: job.customer.name,
+      fallbackName: voiceCall?.callerName,
+      defaultName: "Customer",
+    });
+
     // Validate the chosen channels have the required contact info.
     if (channels.includes("sms") && !job.customer.phone) {
       return NextResponse.json(
@@ -98,7 +112,7 @@ export async function POST(
         problemType: job.problemType,
       },
       customer: {
-        name: job.customer.name,
+        name: resolvedCustomerName,
         phone: job.customer.phone,
         email: job.customer.email,
       },

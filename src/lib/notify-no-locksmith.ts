@@ -12,6 +12,7 @@
  */
 
 import { SITE_URL, SUPPORT_PHONE, siteConfig } from "@/lib/config";
+import { resolveCustomerDisplayName } from "@/lib/customer-name";
 import { sendNoLocksmithAvailableEmail } from "@/lib/email";
 import { sendSMS, type SMSResult } from "@/lib/sms";
 
@@ -63,7 +64,11 @@ export function buildNoLocksmithSms(input: {
   postcode: string;
   priorityPhone: string;
 }): string {
-  const firstName = input.customerName.split(" ")[0] || input.customerName;
+  const displayName = resolveCustomerDisplayName({
+    primaryName: input.customerName,
+    defaultName: "Customer",
+  });
+  const firstName = displayName.split(" ")[0] || displayName;
   return (
     `LockSafe UK: Hi ${firstName}, honest update on ${input.jobNumber} — ` +
     `no verified locksmith free in ${input.postcode} right now. ` +
@@ -86,6 +91,10 @@ export async function notifyNoLocksmithAvailable(
   const { job, customer, channels, customSmsMessage } = input;
   const priorityPhone = SUPPORT_PHONE || siteConfig.phone;
   const jobUrl = buildJobUrl(job.id);
+  const resolvedCustomerName = resolveCustomerDisplayName({
+    primaryName: customer.name,
+    defaultName: "Customer",
+  });
 
   const channelsAttempted: NotifyChannel[] = [];
   const channelsSent: NotifyChannel[] = [];
@@ -105,7 +114,7 @@ export async function notifyNoLocksmithAvailable(
       const message =
         customSmsMessage?.trim() ||
         buildNoLocksmithSms({
-          customerName: customer.name,
+          customerName: resolvedCustomerName,
           jobNumber: job.jobNumber,
           postcode: job.postcode,
           priorityPhone,
@@ -126,7 +135,7 @@ export async function notifyNoLocksmithAvailable(
       };
     } else {
       result.emailResult = await sendNoLocksmithAvailableEmail(customer.email, {
-        customerName: customer.name,
+        customerName: resolvedCustomerName,
         jobNumber: job.jobNumber,
         postcode: job.postcode,
         problemType: job.problemType ?? undefined,

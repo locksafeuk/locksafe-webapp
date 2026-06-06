@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { JobStatus } from "@prisma/client";
 import { extractUkPostcode, isCoordinatePair, normalizeUkPostcode } from "@/lib/location-display";
+import { isPlaceholderCustomerName, resolveCustomerDisplayName } from "@/lib/customer-name";
 
 // GET /api/admin/jobs - Get all jobs with filtering for admin
 export async function GET(request: NextRequest) {
@@ -93,6 +94,27 @@ export async function GET(request: NextRequest) {
       prisma.job.count({ where }),
     ]);
 
+    const placeholderRetellIds = jobs
+      .filter((job) => isPlaceholderCustomerName(job.customer?.name) && !!job.retellCallId)
+      .map((job) => job.retellCallId as string);
+
+    const voiceCalls = placeholderRetellIds.length
+      ? await prisma.voiceCall.findMany({
+          where: {
+            retellCallId: { in: placeholderRetellIds },
+            callerName: { not: null },
+          },
+          select: {
+            retellCallId: true,
+            callerName: true,
+          },
+        })
+      : [];
+
+    const callerNameByRetellId = new Map(
+      voiceCalls.map((v) => [v.retellCallId, v.callerName || ""]),
+    );
+
     // Get counts by status for summary
     const statusCounts = await prisma.job.groupBy({
       by: ["status"],
@@ -154,7 +176,18 @@ export async function GET(request: NextRequest) {
         autoCompletedAt: job.autoCompletedAt,
         noLocksmithNotifiedAt: job.noLocksmithNotifiedAt,
         noLocksmithNotifiedChannels: job.noLocksmithNotifiedChannels,
-        customer: job.customer,
+        customer: job.customer
+          ? {
+              ...job.customer,
+              name: resolveCustomerDisplayName({
+                primaryName: job.customer.name,
+                fallbackName: job.retellCallId
+                  ? callerNameByRetellId.get(job.retellCallId)
+                  : null,
+                defaultName: "Customer",
+              }),
+            }
+          : null,
         locksmith: job.locksmith,
         quote: job.quote,
         signature: job.signature,
