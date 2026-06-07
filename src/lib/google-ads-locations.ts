@@ -246,6 +246,17 @@ export const UK_CITY_CENTROIDS: Record<string, { lat: number; lng: number }> = {
   salisbury: { lat: 51.0688, lng: -1.7945 },
   truro: { lat: 50.2632, lng: -5.0510 },
   carlisle: { lat: 54.8925, lng: -2.9329 },
+  // ── London boroughs (added 2026-06-07 for outer-London campaign strategy) ──
+  // Central London (city of London centroid) misses our actual locksmith
+  // distribution — the dense cluster is in the East/Stratford corridor.
+  // Adding each cluster-relevant borough centroid lets the coverage rule
+  // qualify the right zones without changing the 10mi/≥2 default.
+  // See playbook §16.4 (Recruitment is the leverage) + §20 phase 5.
+  newham: { lat: 51.5260, lng: 0.0354 },           // Stratford anchor (E15/E20)
+  redbridge: { lat: 51.5790, lng: 0.0780 },        // Ilford (IG)
+  havering: { lat: 51.5780, lng: 0.1834 },         // Romford (RM)
+  "tower hamlets": { lat: 51.5203, lng: -0.0293 }, // Bow / Bethnal Green (E1-E3)
+  greenwich: { lat: 51.4934, lng: 0.0098 },        // Greenwich (SE10) southeast anchor
 };
 
 /** Haversine distance between two points in MILES (UK marketers think in miles). */
