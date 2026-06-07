@@ -43,14 +43,14 @@ async function verifyAdmin() {
 }
 
 /**
- * Default SMS body. NO URLS — Zadarma rejects SMS containing web links
- * unless a pre-approved template is used. Keeping it link-free so the
- * message delivers reliably. Locksmiths know where to log in.
+ * Default SMS body. Sent via Twilio (primary SMS provider), which allows
+ * web links — the login link survives delivery. If the message ever routes
+ * through Zadarma, its sanitizer strips URLs automatically at send time.
  *
- * ~140 chars — one SMS segment. {name} → first name per recipient.
+ * {name} → first name per recipient.
  */
 const DEFAULT_MESSAGE_TEMPLATE =
-  "Hi {name}, LockSafe: your base location isn't set on your profile yet, so we can't send you nearby jobs. Please log in and set your postcode. Thanks!";
+  "Hi {name}, LockSafe: your base location isn't set on your profile yet, so we can't send you nearby jobs. Set your postcode here: https://www.locksafe.uk/locksmith/settings Thanks!";
 
 function renderMessage(template: string, locksmithName: string): string {
   return template.replace(/\{name\}/g, locksmithName.split(" ")[0] || locksmithName);

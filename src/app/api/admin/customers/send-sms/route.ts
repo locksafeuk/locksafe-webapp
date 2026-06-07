@@ -15,7 +15,7 @@
  * Body:
  *   {
  *     phone:     string,    // E.164 or UK 07... format
- *     message:   string,    // SMS body (will be sent as-is, no URLs through Zadarma)
+ *     message:   string,    // SMS body (sent as-is; links allowed via Twilio — Zadarma fallback strips URLs)
  *     jobId?:    string,    // optional — for audit linkage
  *     reason?:   string,    // free-text reason for the SMS (audit)
  *     dryRun?:   boolean,   // default true
