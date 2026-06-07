@@ -221,10 +221,14 @@ function getMessageContentSummary(
   }
 
   if (messageType === "interactive") {
-    const interactiveReply =
-      "interactive" in message
-        ? message.interactive?.button_reply?.title || message.interactive?.list_reply?.title
-        : undefined;
+    const interactiveReply = (() => {
+      if (!("interactive" in message) || !message.interactive) {
+        return undefined;
+      }
+
+      const incomingInteractive = message.interactive as Partial<NonNullable<WhatsAppIncomingMessage["interactive"]>>;
+      return incomingInteractive.button_reply?.title || incomingInteractive.list_reply?.title;
+    })();
 
     return {
       messageType,
@@ -1427,10 +1431,13 @@ type WhatsAppEchoMessage = Partial<WhatsAppIncomingMessage> & {
 };
 
 function getEchoMessages(value: WhatsAppWebhookPayload["entry"][number]["changes"][number]["value"]) {
+  const valueRecord = value as Record<string, unknown>;
+  const smbMessageEchoes = Array.isArray(valueRecord.smb_message_echoes)
+    ? (valueRecord.smb_message_echoes as unknown[])
+    : [];
+
   const rawMessages = [
-    ...(Array.isArray((value as { smb_message_echoes?: unknown }).smb_message_echoes)
-      ? ((value as { smb_message_echoes: unknown[] }).smb_message_echoes as unknown[])
-      : []),
+    ...smbMessageEchoes,
     ...(Array.isArray((value as { messages?: unknown }).messages)
       ? ((value as { messages: unknown[] }).messages as unknown[])
       : []),
