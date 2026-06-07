@@ -127,8 +127,10 @@ export async function GET(request: NextRequest) {
   const startTime = Date.now();
   const elapsed = () => Date.now() - startTime;
 
-  // Fetch leads that have a website but no email
-  type LeadRow = { id: string; name: string; website: string };
+  // Fetch leads that have a website but no email. Leads already checked with
+  // no email found carry an "[enrich] no-email-found" marker in notes — skip
+  // them so we don't re-fetch the same site every run.
+  type LeadRow = { id: string; name: string; website: string; notes: string | null };
   const leads = (await (
     prisma as unknown as {
       locksmithLead: { findMany: (a: unknown) => Promise<LeadRow[]> };
@@ -138,8 +140,9 @@ export async function GET(request: NextRequest) {
       website: { not: null },
       email: null,
       status: { not: "not_interested" },
+      NOT: { notes: { contains: "[enrich] no-email-found" } },
     },
-    select: { id: true, name: true, website: true },
+    select: { id: true, name: true, website: true, notes: true },
     take: BATCH_SIZE,
     orderBy: { createdAt: "desc" }, // newest first — most recently scraped leads get enriched first
   })) as LeadRow[];
@@ -174,17 +177,21 @@ export async function GET(request: NextRequest) {
         failed++;
       }
     } else {
-      // Mark website as checked but no email found — use a placeholder so we
-      // don't re-process this lead on every run. We store a sentinel in the
-      // notes field rather than polluting the email column.
+      // Mark website as checked but no email found. The sentinel goes in the
+      // NOTES field (appended, never overwriting outreach history) — NOT the
+      // email column. The old code wrote "no-email-found@locksafe.internal"
+      // into email, which inflated email-contactable counts and would have
+      // bounced; the query above skips leads carrying this marker.
       try {
+        const marker = "[enrich] no-email-found";
+        const newNotes = lead.notes ? `${lead.notes}\n${marker}` : marker;
         await (
           prisma as unknown as {
             locksmithLead: { update: (a: unknown) => Promise<unknown> };
           }
         ).locksmithLead.update({
           where: { id: lead.id },
-          data: { email: "no-email-found@locksafe.internal" },
+          data: { notes: newNotes },
         });
       } catch {
         // ignore
