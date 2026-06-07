@@ -649,6 +649,118 @@ export async function pausePublishedDraft(
   return { draftId, pausedAt };
 }
 
+/**
+ * Resume a paused Google Ads campaign (set status back to ENABLED).
+ * Optionally bumps the campaign's daily budget at the same time —
+ * common workflow when un-pausing a forensic-validation test campaign
+ * (£20/day) for real Smart Bidding (£60-100/day).
+ *
+ * Throws if `newDailyBudgetGbp` would push the account-wide live budget
+ * over `MAX_DAILY_ACCOUNT_SPEND_GBP` (Rule #14, playbook §17). The
+ * spend cap check excludes the draft being resumed (since it's the one
+ * about to change). Caller should also confirm coverage hasn't drifted
+ * before resume — that check is done at draft-persist time only.
+ */
+export async function resumePublishedDraft(
+  draftId: string,
+  opts: { newDailyBudgetGbp?: number } = {},
+): Promise<{
+  draftId: string;
+  resumedAt: Date;
+  campaignResourceName: string;
+  previousDailyBudget: number;
+  newDailyBudget: number;
+}> {
+  const draft = await prisma.googleAdsCampaignDraft.findUnique({
+    where: { id: draftId },
+  });
+  if (!draft) throw new Error(`Draft ${draftId} not found`);
+  if (!draft.googleCampaignId) {
+    throw new Error(`Draft ${draftId} has no published campaign to resume`);
+  }
+  const client = await getGoogleAdsClientForAccount(draft.accountId);
+  if (!client) throw new Error(`No active GoogleAdsAccount for draft ${draftId}`);
+
+  const newBudget = opts.newDailyBudgetGbp ?? draft.dailyBudget;
+  if (!Number.isFinite(newBudget) || newBudget <= 0) {
+    throw new Error(`Invalid newDailyBudgetGbp: ${newBudget}`);
+  }
+
+  // RULE #14 — account spend cap (excludes the draft being resumed
+  // since its budget is being replaced, not added).
+  const { enforceAccountSpendCap } = await import("@/lib/google-ads-draft-enforcement");
+  const spendCheck = await enforceAccountSpendCap(draft.accountId, newBudget, {
+    excludeDraftId: draftId,
+  });
+  if (!spendCheck.ok) {
+    const reasons = spendCheck.violations.map((v) => v.actual).join("; ");
+    throw new Error(
+      `Resume would exceed account daily spend cap: ${reasons}. Pause another campaign first or set MAX_DAILY_ACCOUNT_SPEND_GBP higher.`,
+    );
+  }
+
+  const campaignResourceName = buildResourceName(
+    client.customerIdPlain,
+    "campaigns",
+    draft.googleCampaignId,
+  );
+
+  // 1. If budget changed, mutate the campaign's budget resource on Google.
+  const previousDailyBudget = draft.dailyBudget ?? 0;
+  if (newBudget !== previousDailyBudget) {
+    // Find the budget resource name via GAQL.
+    const budgetRows = await client.query<{
+      campaign: { campaignBudget: string };
+    }>(`
+      SELECT campaign.campaign_budget
+      FROM campaign
+      WHERE campaign.id = ${draft.googleCampaignId}
+      LIMIT 1
+    `);
+    const budgetResourceName = budgetRows?.[0]?.campaign?.campaignBudget;
+    if (!budgetResourceName) {
+      throw new Error(`Could not resolve campaign budget resource for ${draft.googleCampaignId}`);
+    }
+    await client.mutate("campaignBudgets", [
+      {
+        update: {
+          resourceName: budgetResourceName,
+          amountMicros: gbpToMicros(newBudget),
+        },
+        updateMask: "amount_micros",
+      },
+    ]);
+  }
+
+  // 2. Flip the campaign status to ENABLED.
+  await client.mutate("campaigns", [
+    {
+      update: { resourceName: campaignResourceName, status: "ENABLED" },
+      updateMask: "status",
+    },
+  ]);
+
+  // 3. Update the draft row — clear pausedAt, set status back to PUBLISHED,
+  //    store the new budget.
+  const resumedAt = new Date();
+  await prisma.googleAdsCampaignDraft.update({
+    where: { id: draftId },
+    data: {
+      status: "PUBLISHED",
+      pausedAt: null,
+      dailyBudget: newBudget,
+    },
+  });
+
+  return {
+    draftId,
+    resumedAt,
+    campaignResourceName,
+    previousDailyBudget,
+    newDailyBudget: newBudget,
+  };
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Format a Date as YYYYMMDD for Google Ads API. */
