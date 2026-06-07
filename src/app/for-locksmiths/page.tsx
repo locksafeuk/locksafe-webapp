@@ -9,6 +9,7 @@ import {
   SITE_NAME,
   getFullUrl,
 } from "@/lib/config";
+import { buildWhatsAppUrl } from "@/lib/whatsapp-link";
 import {
   ArrowRight,
   Award,
@@ -28,7 +29,11 @@ import {
 import type { Metadata } from "next";
 import Link from "next/link";
 
-const locksmithAdminWhatsappUrl = `https://wa.me/${LOCKSMITH_ADMIN_WHATSAPP}?text=${encodeURIComponent("Hi LockSafe admin team, I'm a locksmith and I need support.")}`;
+const locksmithAdminWhatsappUrl =
+  buildWhatsAppUrl(
+    LOCKSMITH_ADMIN_WHATSAPP,
+    "Hi LockSafe admin team, I'm a locksmith and I need support.",
+  ) || "#";
 
 export const metadata: Metadata = {
   title: `For Locksmiths | ${SITE_NAME} - Join Our Platform`,

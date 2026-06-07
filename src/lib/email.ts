@@ -181,11 +181,16 @@ import {
   SITE_URL,
   SUPPORT_EMAIL,
 } from "./config";
+import { buildWhatsAppUrl } from "./whatsapp-link";
 
 const getResend = () => new Resend(process.env.RESEND_API_KEY);
 
 const FROM_EMAIL = "LockSafe UK <noreply@locksafe.uk>";
-const LOCKSMITH_ADMIN_WHATSAPP_URL = `https://wa.me/${LOCKSMITH_ADMIN_WHATSAPP}?text=${encodeURIComponent("Hi LockSafe admin team, I need support with my locksmith account.")}`;
+const LOCKSMITH_ADMIN_WHATSAPP_URL =
+  buildWhatsAppUrl(
+    LOCKSMITH_ADMIN_WHATSAPP,
+    "Hi LockSafe admin team, I need support with my locksmith account.",
+  ) || "#";
 
 interface EmailData {
   to: string;
