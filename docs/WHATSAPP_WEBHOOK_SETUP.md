@@ -2,6 +2,33 @@
 
 This guide will walk you through setting up the WhatsApp Business API webhook step-by-step.
 
+## Provider Modes
+
+The admin inbox and webhook routes in this app can now run in two transport modes:
+
+- `WHATSAPP_PROVIDER=meta`: direct Meta Cloud API
+- `WHATSAPP_PROVIDER=360dialog`: 360dialog-hosted WhatsApp API with Coexistence support
+
+For `360dialog`, set:
+
+- `WHATSAPP_PROVIDER=360dialog`
+- `WHATSAPP_API_BASE_URL=https://waba-v2.360dialog.io` (optional; this is the default)
+- `WHATSAPP_360DIALOG_API_KEY=...`
+- `WHATSAPP_VERIFY_TOKEN=...`
+
+For `meta`, keep using:
+
+- `WHATSAPP_PHONE_NUMBER_ID=...`
+- `WHATSAPP_ACCESS_TOKEN=...`
+- `WHATSAPP_VERIFY_TOKEN=...`
+- `WHATSAPP_BUSINESS_ACCOUNT_ID=...`
+
+Notes:
+
+- The admin UI at `/admin/whatsapp` does not need to change when switching provider.
+- 360dialog supports WhatsApp Coexistence and forwards additional events such as `smb_message_echoes`, which this app now accepts.
+- Meta HMAC verification via `META_APP_SECRET` is only applied in direct Meta mode.
+
 ## Your Current Setup
 
 From your screenshots, you have:

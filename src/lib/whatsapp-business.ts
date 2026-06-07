@@ -138,15 +138,108 @@ type ConversationState =
 // CONFIGURATION
 // ============================================
 
-const WHATSAPP_API_URL = "https://graph.facebook.com/v18.0";
+const META_WHATSAPP_API_URL = "https://graph.facebook.com/v18.0";
+const D360_WHATSAPP_API_URL = "https://waba-v2.360dialog.io";
+
+type WhatsAppProvider = "meta" | "360dialog";
+
+interface WhatsAppProviderConfig {
+  provider: WhatsAppProvider;
+  apiBaseUrl: string;
+  phoneNumberId?: string;
+  accessToken?: string;
+  apiKey?: string;
+  verifyToken?: string;
+  businessAccountId?: string;
+}
 
 function getConfig() {
+  const rawProvider = (process.env.WHATSAPP_PROVIDER || "meta").trim().toLowerCase();
+  const provider: WhatsAppProvider = rawProvider === "360dialog" ? "360dialog" : "meta";
+
   return {
+    provider,
+    apiBaseUrl:
+      process.env.WHATSAPP_API_BASE_URL ||
+      (provider === "360dialog" ? D360_WHATSAPP_API_URL : META_WHATSAPP_API_URL),
     phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
     accessToken: process.env.WHATSAPP_ACCESS_TOKEN,
+    apiKey: process.env.WHATSAPP_360DIALOG_API_KEY,
     verifyToken: process.env.WHATSAPP_VERIFY_TOKEN,
     businessAccountId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID,
+  } satisfies WhatsAppProviderConfig;
+}
+
+function isWhatsAppConfigured(config: WhatsAppProviderConfig): boolean {
+  if (config.provider === "360dialog") {
+    return Boolean(config.apiKey);
+  }
+
+  return Boolean(config.phoneNumberId && config.accessToken);
+}
+
+function getSendEndpoint(config: WhatsAppProviderConfig): string {
+  if (config.provider === "360dialog") {
+    return `${config.apiBaseUrl}/messages`;
+  }
+
+  return `${config.apiBaseUrl}/${config.phoneNumberId}/messages`;
+}
+
+function getSendHeaders(config: WhatsAppProviderConfig): HeadersInit {
+  if (config.provider === "360dialog") {
+    return {
+      "Content-Type": "application/json",
+      "D360-API-KEY": config.apiKey || "",
+    };
+  }
+
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${config.accessToken}`,
   };
+}
+
+function getMessageContentSummary(
+  message: Partial<WhatsAppMessage> | Partial<WhatsAppIncomingMessage>,
+): { messageType: string; content: string | null } {
+  const messageType = message.type || "unknown";
+
+  if (messageType === "text") {
+    return {
+      messageType,
+      content: "text" in message ? message.text?.body || null : null,
+    };
+  }
+
+  if (messageType === "template") {
+    const templateName = "template" in message ? message.template?.name : undefined;
+    return {
+      messageType,
+      content: `[template:${templateName ?? "unknown"}]`,
+    };
+  }
+
+  if (messageType === "interactive") {
+    const interactiveReply =
+      "interactive" in message
+        ? message.interactive?.button_reply?.title || message.interactive?.list_reply?.title
+        : undefined;
+
+    return {
+      messageType,
+      content: interactiveReply || "[interactive message]",
+    };
+  }
+
+  if (messageType === "button") {
+    return {
+      messageType,
+      content: "button" in message ? message.button?.text || null : null,
+    };
+  }
+
+  return { messageType, content: `[${messageType}]` };
 }
 
 // In-memory session store (use Redis in production)
@@ -165,7 +258,7 @@ export async function sendWhatsAppMessage(
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   const config = getConfig();
 
-  if (!config.phoneNumberId || !config.accessToken) {
+  if (!isWhatsAppConfigured(config)) {
     console.warn("[WhatsApp] Not configured - message not sent");
     return { success: false, error: "WhatsApp not configured" };
   }
@@ -178,32 +271,21 @@ export async function sendWhatsAppMessage(
       ...message,
     };
 
-    const response = await fetch(
-      `${WHATSAPP_API_URL}/${config.phoneNumberId}/messages`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${config.accessToken}`,
-        },
-        body: JSON.stringify(payload),
-      }
-    );
+    const response = await fetch(getSendEndpoint(config), {
+      method: "POST",
+      headers: getSendHeaders(config),
+      body: JSON.stringify(payload),
+    });
 
     const data = await response.json();
+    const { messageType, content } = getMessageContentSummary({ ...message, type: message.type });
 
     if (response.ok) {
       const sentMessageId = data.messages?.[0]?.id as string | undefined;
-      const content =
-        message.type === "text"
-          ? message.text?.body
-          : message.type === "template"
-            ? `[template:${message.template?.name ?? "unknown"}]`
-            : "[interactive message]";
 
       await recordOutgoingWhatsAppMessage({
         phone: to,
-        messageType: message.type,
+        messageType,
         content,
         providerMessageId: sentMessageId ?? null,
         rawPayload: payload,
@@ -215,16 +297,9 @@ export async function sendWhatsAppMessage(
 
     console.error("[WhatsApp] API error:", data);
 
-    const content =
-      message.type === "text"
-        ? message.text?.body
-        : message.type === "template"
-          ? `[template:${message.template?.name ?? "unknown"}]`
-          : "[interactive message]";
-
     await recordOutgoingWhatsAppMessage({
       phone: to,
-      messageType: message.type,
+      messageType,
       content,
       providerMessageId: null,
       rawPayload: {
@@ -236,17 +311,11 @@ export async function sendWhatsAppMessage(
     return { success: false, error: data.error?.message || "Failed to send" };
   } catch (error) {
     console.error("[WhatsApp] Send error:", error);
-
-    const content =
-      message.type === "text"
-        ? message.text?.body
-        : message.type === "template"
-          ? `[template:${message.template?.name ?? "unknown"}]`
-          : "[interactive message]";
+    const { messageType, content } = getMessageContentSummary({ ...message, type: message.type });
 
     await recordOutgoingWhatsAppMessage({
       phone: to,
-      messageType: message.type,
+      messageType,
       content,
       providerMessageId: null,
       rawPayload: {
@@ -1319,10 +1388,20 @@ export function verifyWebhook(params: {
 export function verifyWebhookSignature(
   rawBody: string,
   signatureHeader: string | null,
-): { configured: boolean; valid: boolean } {
+): { configured: boolean; valid: boolean; warning?: string } {
+  const config = getConfig();
+  if (config.provider !== "meta") {
+    return { configured: false, valid: false };
+  }
+
   const appSecret = process.env.META_APP_SECRET;
   if (!appSecret) {
-    return { configured: false, valid: false };
+    return {
+      configured: false,
+      valid: false,
+      warning:
+        "[WhatsApp Webhook] META_APP_SECRET not configured — accepting unsigned payload. Set the secret in Vercel to enable HMAC verification.",
+    };
   }
   if (!signatureHeader || !signatureHeader.startsWith("sha256=")) {
     return { configured: true, valid: false };
@@ -1340,6 +1419,52 @@ export function verifyWebhookSignature(
   }
 }
 
+type WhatsAppEchoMessage = Partial<WhatsAppIncomingMessage> & {
+  to?: string;
+  from?: string;
+  id?: string;
+  type?: string;
+};
+
+function getEchoMessages(value: WhatsAppWebhookPayload["entry"][number]["changes"][number]["value"]) {
+  const rawMessages = [
+    ...(Array.isArray((value as { smb_message_echoes?: unknown }).smb_message_echoes)
+      ? ((value as { smb_message_echoes: unknown[] }).smb_message_echoes as unknown[])
+      : []),
+    ...(Array.isArray((value as { messages?: unknown }).messages)
+      ? ((value as { messages: unknown[] }).messages as unknown[])
+      : []),
+  ];
+
+  return rawMessages.filter((message): message is WhatsAppEchoMessage => Boolean(message && typeof message === "object"));
+}
+
+async function handleCoexistenceEchoes(
+  changeField: string,
+  value: WhatsAppWebhookPayload["entry"][number]["changes"][number]["value"],
+) {
+  if (changeField !== "smb_message_echoes") {
+    return;
+  }
+
+  for (const message of getEchoMessages(value)) {
+    const phone = normalizePhoneNumber(message.to || message.from || "");
+    if (!phone) continue;
+
+    const { messageType, content } = getMessageContentSummary(message);
+    await recordOutgoingWhatsAppMessage({
+      phone,
+      messageType,
+      content,
+      providerMessageId: message.id ?? null,
+      rawPayload: {
+        event: changeField,
+        message,
+      },
+    });
+  }
+}
+
 /**
  * Process incoming webhook payload
  */
@@ -1351,9 +1476,10 @@ export async function processWebhook(payload: WhatsAppWebhookPayload): Promise<v
   for (const entry of payload.entry) {
     for (const change of entry.changes) {
       const value = change.value;
+      await handleCoexistenceEchoes(change.field, value);
 
       // Handle incoming messages
-      if (value.messages) {
+      if (change.field === "messages" && value.messages) {
         for (const message of value.messages) {
           const contact = value.contacts?.find((c) => c.wa_id === message.from);
           const senderName = contact?.profile?.name || "Customer";

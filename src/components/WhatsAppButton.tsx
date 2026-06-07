@@ -45,11 +45,11 @@ const ICON_ONLY_SIZE_CLASSES: Record<
 /**
  * Click-to-chat WhatsApp button.
  *
- * Opens an explicit WhatsApp Web chat URL in a new tab.
+ * Opens the installed WhatsApp app via deep link.
  *
- * Outbound identity is whichever WhatsApp account is logged into the browser
- * session, so admin operations stay on the LockSafe Business account when
- * WhatsApp Web is logged in.
+ * Outbound identity is whichever WhatsApp account is logged into the desktop
+ * app, so admin operations stay on the LockSafe Business account when the app
+ * is logged in.
  *
  * If `phone` cannot be normalised, the button renders disabled with a
  * tooltip explaining why (so Ops can spot missing data).
@@ -91,9 +91,7 @@ export function WhatsAppButton({
 
   const handleClick = () => {
     if (!context) return;
-    // Fire-and-forget. The browser opens the new tab via the anchor's
-    // default action in the same user gesture, so this fetch doesn't
-    // block or race the navigation. Errors are silently ignored.
+    // Fire-and-forget click audit. Navigation continues immediately.
     try {
       fetch("/api/admin/whatsapp/click", {
         method: "POST",
@@ -114,10 +112,8 @@ export function WhatsAppButton({
   return (
     <a
       href={url}
-      target="_blank"
-      rel="noopener noreferrer"
       onClick={handleClick}
-      title={iconOnly ? `${label} (Web)${message ? `: ${message.slice(0, 60)}` : ""}` : undefined}
+      title={iconOnly ? `${label} (App)${message ? `: ${message.slice(0, 60)}` : ""}` : undefined}
       className={`${baseClass} bg-[#25D366] hover:bg-[#1ebe57] text-white`}
     >
       <MessageCircle className="w-4 h-4" aria-hidden="true" />

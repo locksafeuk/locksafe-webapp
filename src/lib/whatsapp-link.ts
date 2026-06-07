@@ -2,10 +2,10 @@
  * WhatsApp click-to-chat link helpers.
  *
  * Pure utility — no React, no I/O. Used by `<WhatsAppButton>` to construct
- * `https://web.whatsapp.com/send?phone=<intlphone>&text=<message>` URLs.
+ * `whatsapp://send?phone=<intlphone>&text=<message>` deep links.
  *
- * We prefer explicit WhatsApp Web URLs for admin flows so clicks stay in the
- * browser session that is logged into the LockSafe Business account.
+ * We prefer app-protocol deep links so desktop clicks hand off directly to the
+ * installed WhatsApp app instead of opening a browser-based WhatsApp Web view.
  *
  * Outbound identity is the LockSafe business number (+447818333989), enforced
  * operationally by the admin device being logged into WhatsApp Business
@@ -47,7 +47,7 @@ export function normalisePhoneForWa(
 }
 
 /**
- * Build a `https://web.whatsapp.com/send?...` URL with an optional pre-filled
+ * Build a `whatsapp://send?...` deep link with an optional pre-filled
  * message.
  * Returns `null` if the phone cannot be normalised.
  */
@@ -60,8 +60,7 @@ export function buildWhatsAppWebUrl(
 
   const query = new URLSearchParams({ phone: normalised });
   if (message) query.set("text", message);
-
-  return `https://web.whatsapp.com/send?${query.toString()}`;
+  return `whatsapp://send?${query.toString()}`;
 }
 
 /**

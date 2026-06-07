@@ -91,10 +91,8 @@ export async function POST(request: NextRequest) {
     const signatureHeader = request.headers.get("x-hub-signature-256");
 
     const sig = verifyWebhookSignature(rawBody, signatureHeader);
-    if (!sig.configured) {
-      console.warn(
-        "[WhatsApp Webhook] META_APP_SECRET not configured — accepting unsigned payload. Set the secret in Vercel to enable HMAC verification.",
-      );
+    if (!sig.configured && sig.warning) {
+      console.warn(sig.warning);
     } else if (!sig.valid) {
       console.warn("[WhatsApp Webhook] Invalid signature — rejecting request");
       await logSuspiciousActivity({
