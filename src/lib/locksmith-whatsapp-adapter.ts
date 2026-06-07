@@ -39,13 +39,15 @@ export function phoneVariants(raw: string): string[] {
     : digits.startsWith("0")
       ? `44${digits.slice(1)}`
       : digits;
-  const national = `0${intl.slice(2)}`;
+  const bare = intl.slice(2); // e.g. 7377555299 (no prefix at all)
+  const national = `0${bare}`;
   return [
     `+${intl}`,
     intl,
     national,
+    bare,
     // spaced variants commonly stored from forms
-    `+${intl.slice(0, 2)} ${intl.slice(2)}`,
+    `+${intl.slice(0, 2)} ${bare}`,
     `${national.slice(0, 5)} ${national.slice(5)}`,
   ];
 }
