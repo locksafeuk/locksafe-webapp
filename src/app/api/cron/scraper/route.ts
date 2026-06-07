@@ -450,6 +450,21 @@ function hasNonLocksmithSignal(text: string): boolean {
   return NON_LOCKSMITH_PATTERNS.some((p) => p.test(text));
 }
 
+/**
+ * Normalize a UK phone to a stable dedup key: digits only, +44/0044/44 prefixes
+ * collapsed to leading 0. "+44 1603 812613" and "01603 812613" → same key.
+ * Without this, the same business re-scraped under a different place ID slips
+ * past the placeId dedup (Serper vs legacy IDs differ).
+ */
+function normalizePhoneKey(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+  let d = phone.replace(/[^\d+]/g, "");
+  if (d.startsWith("+44")) d = "0" + d.slice(3);
+  else if (d.startsWith("0044")) d = "0" + d.slice(4);
+  else if (d.startsWith("44") && d.length >= 11) d = "0" + d.slice(2);
+  return d.length >= 10 ? d : null;
+}
+
 function isDefinitelyNonUkPhone(phone: string): boolean {
   const compact = phone.replace(/[^\d+]/g, "");
   if (!compact) return false;
@@ -788,6 +803,7 @@ function newFunnelStats(): FunnelStats {
 async function scrapeCity(
   city: string,
   seen: Set<string>,
+  seenPhones: Set<string>,
   engine: ScrapeEngine,
   queries: Array<(c: string) => string>,
   stats: FunnelStats,
@@ -811,6 +827,10 @@ async function scrapeCity(
       stats.candidates++;
 
       if (seen.has(lead.placeId)) { stats.dedup++; continue; }
+      // Phone-level dedup: same business re-scraped under a different place ID
+      // (Serper vs legacy IDs) must not create a duplicate lead.
+      const phoneKey = normalizePhoneKey(lead.phone);
+      if (phoneKey && seenPhones.has(phoneKey)) { stats.dedup++; continue; }
       if (isChain(lead.name)) { stats.chain++; continue; }
       if (!looksLikeStrictLocksmith(lead)) { stats.notLocksmith++; continue; }
       if (!looksUkEnough(city, lead.address, lead.phone, lead.website)) { stats.nonUk++; continue; }
@@ -833,6 +853,7 @@ async function scrapeCity(
       else stats.savedNoEmail++;
 
       seen.add(lead.placeId);
+      if (phoneKey) seenPhones.add(phoneKey);
       leads.push(lead);
     }
 
@@ -997,17 +1018,22 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // ── Step 3: Pre-load existing place IDs for dedup ───────────────────────
-  type LeadId = { googlePlaceId: string };
+  // ── Step 3: Pre-load existing place IDs + phones for dedup ──────────────
+  type LeadKey = { googlePlaceId: string; phone: string | null };
   const existingLeads = (await (
     prisma as unknown as {
-      locksmithLead: { findMany: (a: unknown) => Promise<LeadId[]> };
+      locksmithLead: { findMany: (a: unknown) => Promise<LeadKey[]> };
     }
   ).locksmithLead.findMany({
-    select: { googlePlaceId: true },
-  })) as LeadId[];
+    select: { googlePlaceId: true, phone: true },
+  })) as LeadKey[];
 
   const seen = new Set<string>(existingLeads.map((l) => l.googlePlaceId));
+  const seenPhones = new Set<string>();
+  for (const l of existingLeads) {
+    const k = normalizePhoneKey(l.phone);
+    if (k) seenPhones.add(k);
+  }
 
   // ── Step 4: Scrape cities until time budget is exhausted ─────────────────
   const completedThisRun: string[] = [];
@@ -1031,7 +1057,7 @@ export async function GET(request: NextRequest) {
 
     console.log(`[scraper-cron] Scraping: ${city}`);
 
-    const cityLeads = await scrapeCity(city, seen, engine, activeQueries, funnel);
+    const cityLeads = await scrapeCity(city, seen, seenPhones, engine, activeQueries, funnel);
     leadsFoundThisRun += cityLeads.length;
 
     // Upsert leads to DB

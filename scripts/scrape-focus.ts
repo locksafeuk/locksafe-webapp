@@ -88,6 +88,16 @@ const EMAIL_FILE_EXT = /\.(png|jpe?g|gif|webp|svg|ico|css|js|woff2?)$/i;
 const isChain = (name: string) => CHAIN_KEYWORDS.some((k) => name.toLowerCase().includes(k));
 const hasStrong = (t: string) => LOCKSMITH_STRONG.some((p) => p.test(t));
 const hasNeg = (t: string) => NON_LOCKSMITH.some((p) => p.test(t));
+/** Normalize a UK phone to a dedup key: +44/0044/44 prefixes → leading 0. */
+function normalizePhoneKey(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+  let d = phone.replace(/[^\d+]/g, "");
+  if (d.startsWith("+44")) d = "0" + d.slice(3);
+  else if (d.startsWith("0044")) d = "0" + d.slice(4);
+  else if (d.startsWith("44") && d.length >= 11) d = "0" + d.slice(2);
+  return d.length >= 10 ? d : null;
+}
+
 const nonUkPhone = (phone: string) => {
   const c = phone.replace(/[^\d+]/g, "");
   if (!c) return false;
@@ -198,9 +208,17 @@ async function main() {
   console.log(`\n=== Focus scrape: ${cities.length} cities ===`);
   console.log(cities.join(", ") + "\n");
 
-  // Pre-load existing place IDs for dedup.
-  const existing = (await prisma.locksmithLead.findMany({ select: { googlePlaceId: true } })) as { googlePlaceId: string }[];
+  // Pre-load existing place IDs AND normalized phones for dedup — the same
+  // business re-scraped under a different place ID must not duplicate.
+  const existing = (await prisma.locksmithLead.findMany({
+    select: { googlePlaceId: true, phone: true },
+  })) as { googlePlaceId: string; phone: string | null }[];
   const seen = new Set(existing.map((l) => l.googlePlaceId));
+  const seenPhones = new Set<string>();
+  for (const l of existing) {
+    const k = normalizePhoneKey(l.phone);
+    if (k) seenPhones.add(k);
+  }
 
   let saved = 0, savedNoEmail = 0, skippedDedup = 0, skippedFilter = 0;
 
@@ -213,6 +231,8 @@ async function main() {
         if (cityScoped.has(lead.placeId)) continue;
         cityScoped.add(lead.placeId);
         if (seen.has(lead.placeId)) { skippedDedup++; continue; }
+        const phoneKey = normalizePhoneKey(lead.phone);
+        if (phoneKey && seenPhones.has(phoneKey)) { skippedDedup++; continue; }
         if (!looksLocksmith(lead.name, lead.address, lead.website)) { skippedFilter++; continue; }
         if (!looksUk(city, lead.address, lead.phone, lead.website)) { skippedFilter++; continue; }
         if (!lead.phone && !lead.website) { skippedFilter++; continue; }
@@ -235,6 +255,7 @@ async function main() {
             },
           });
           seen.add(lead.placeId);
+          if (phoneKey) seenPhones.add(phoneKey);
           saved++; cityKept++;
           if (!lead.email) savedNoEmail++;
         } catch { /* dup / constraint — skip */ }
