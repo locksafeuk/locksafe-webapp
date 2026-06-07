@@ -375,6 +375,25 @@ export async function sendWhatsAppMessage(
       return { success: false, error: "Unsupported message type for Twilio WhatsApp" };
     }
 
+    // Remember the numbered options so a bare "1"/"2"/"3" reply can be
+    // mapped back to the corresponding button id (no native buttons on
+    // Twilio freeform messages).
+    if (message.type === "interactive" && message.interactive) {
+      const options: Array<{ id: string; title: string }> = [];
+      for (const button of message.interactive.action.buttons || []) {
+        options.push({ id: button.reply.id, title: button.reply.title });
+      }
+      for (const section of message.interactive.action.sections || []) {
+        for (const row of section.rows) {
+          options.push({ id: row.id, title: row.title });
+        }
+      }
+      if (options.length > 0) {
+        const session = getSession(to);
+        updateSession(to, { context: { ...session.context, lastMenuOptions: options } });
+      }
+    }
+
     try {
       const result = await sendViaTwilioWhatsApp(config, to, body);
 
@@ -929,6 +948,19 @@ export async function handleIncomingMessage(
     messageText = message.button.text;
   }
 
+  // Twilio flattened menus: map a bare option number ("1", "2", …) back to
+  // the button id/title of the last menu we sent to this customer.
+  if (!buttonId && /^\d{1,2}$/.test(messageText.trim())) {
+    const options = getSession(phone).context.lastMenuOptions as
+      | Array<{ id: string; title: string }>
+      | undefined;
+    const index = Number.parseInt(messageText.trim(), 10) - 1;
+    if (options && index >= 0 && index < options.length) {
+      buttonId = options[index].id;
+      messageText = options[index].title;
+    }
+  }
+
   console.log(`[WhatsApp] Received from ${phone}: "${messageText}" (button: ${buttonId})`);
 
   await recordIncomingWhatsAppMessage({
@@ -1008,7 +1040,14 @@ async function handleGreeting(phone: string, name: string, message: string): Pro
     return;
   }
 
-  if (message.includes("help") || message.includes("support") || message.includes("problem")) {
+  if (
+    message.includes("help") ||
+    message.includes("support") ||
+    message.includes("problem") ||
+    message.includes("agent") ||
+    message.includes("speak") ||
+    message.includes("human")
+  ) {
     await sendEscalationOptions(phone);
     return;
   }
