@@ -140,8 +140,9 @@ type ConversationState =
 
 const META_WHATSAPP_API_URL = "https://graph.facebook.com/v18.0";
 const D360_WHATSAPP_API_URL = "https://waba-v2.360dialog.io";
+const TWILIO_API_URL = "https://api.twilio.com/2010-04-01";
 
-type WhatsAppProvider = "meta" | "360dialog";
+type WhatsAppProvider = "meta" | "360dialog" | "twilio";
 
 interface WhatsAppProviderConfig {
   provider: WhatsAppProvider;
@@ -151,28 +152,46 @@ interface WhatsAppProviderConfig {
   apiKey?: string;
   verifyToken?: string;
   businessAccountId?: string;
+  twilioAccountSid?: string;
+  twilioAuthToken?: string;
+  twilioWhatsAppNumber?: string;
 }
 
 function getConfig() {
   const rawProvider = (process.env.WHATSAPP_PROVIDER || "meta").trim().toLowerCase();
-  const provider: WhatsAppProvider = rawProvider === "360dialog" ? "360dialog" : "meta";
+  const provider: WhatsAppProvider =
+    rawProvider === "360dialog" ? "360dialog" : rawProvider === "twilio" ? "twilio" : "meta";
 
   return {
     provider,
     apiBaseUrl:
       process.env.WHATSAPP_API_BASE_URL ||
-      (provider === "360dialog" ? D360_WHATSAPP_API_URL : META_WHATSAPP_API_URL),
+      (provider === "360dialog"
+        ? D360_WHATSAPP_API_URL
+        : provider === "twilio"
+          ? TWILIO_API_URL
+          : META_WHATSAPP_API_URL),
     phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
     accessToken: process.env.WHATSAPP_ACCESS_TOKEN,
     apiKey: process.env.WHATSAPP_360DIALOG_API_KEY,
     verifyToken: process.env.WHATSAPP_VERIFY_TOKEN,
     businessAccountId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID,
+    twilioAccountSid: process.env.TWILIO_ACCOUNT_SID,
+    twilioAuthToken: process.env.TWILIO_AUTH_TOKEN,
+    twilioWhatsAppNumber:
+      process.env.TWILIO_WHATSAPP_NUMBER || process.env.TWILIO_PHONE_NUMBER,
   } satisfies WhatsAppProviderConfig;
 }
 
 function isWhatsAppConfigured(config: WhatsAppProviderConfig): boolean {
   if (config.provider === "360dialog") {
     return Boolean(config.apiKey);
+  }
+
+  if (config.provider === "twilio") {
+    return Boolean(
+      config.twilioAccountSid && config.twilioAuthToken && config.twilioWhatsAppNumber,
+    );
   }
 
   return Boolean(config.phoneNumberId && config.accessToken);
@@ -246,6 +265,85 @@ function getMessageContentSummary(
   return { messageType, content: `[${messageType}]` };
 }
 
+/**
+ * Flatten a structured WhatsApp message (interactive buttons/lists) into a
+ * plain-text body for providers without native interactive support (Twilio
+ * freeform messages). Options are rendered as numbered lines; the customer
+ * replies with the number or the option text.
+ */
+function flattenMessageToText(
+  message: Omit<WhatsAppMessage, "messaging_product" | "recipient_type" | "to">,
+): string {
+  if (message.type === "text" && message.text) {
+    return message.text.body;
+  }
+
+  if (message.type === "interactive" && message.interactive) {
+    const parts: string[] = [];
+    if (message.interactive.header?.text) parts.push(`*${message.interactive.header.text}*`);
+    parts.push(message.interactive.body.text);
+
+    const options: string[] = [];
+    for (const button of message.interactive.action.buttons || []) {
+      options.push(button.reply.title);
+    }
+    for (const section of message.interactive.action.sections || []) {
+      for (const row of section.rows) {
+        options.push(row.description ? `${row.title} — ${row.description}` : row.title);
+      }
+    }
+    if (options.length > 0) {
+      parts.push(options.map((option, index) => `${index + 1}. ${option}`).join("\n"));
+      parts.push("Reply with the option number or text.");
+    }
+    if (message.interactive.footer?.text) parts.push(`_${message.interactive.footer.text}_`);
+    return parts.join("\n\n");
+  }
+
+  if (message.type === "template" && message.template) {
+    return `[template:${message.template.name}]`;
+  }
+
+  return "";
+}
+
+/**
+ * Send a WhatsApp message through the Twilio Messages API.
+ */
+async function sendViaTwilioWhatsApp(
+  config: WhatsAppProviderConfig,
+  to: string,
+  body: string,
+): Promise<{ ok: boolean; messageId?: string; error?: string; raw?: unknown }> {
+  const from = (config.twilioWhatsAppNumber || "").trim();
+  const normalizedFrom = from.startsWith("whatsapp:") ? from : `whatsapp:${from}`;
+  const normalizedTo = `whatsapp:+${normalizePhoneNumber(to)}`;
+
+  const response = await fetch(
+    `${TWILIO_API_URL}/Accounts/${config.twilioAccountSid}/Messages.json`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Authorization: `Basic ${Buffer.from(
+          `${config.twilioAccountSid}:${config.twilioAuthToken}`,
+        ).toString("base64")}`,
+      },
+      body: new URLSearchParams({
+        From: normalizedFrom,
+        To: normalizedTo,
+        Body: body,
+      }),
+    },
+  );
+
+  const data = (await response.json()) as { sid?: string; message?: string };
+  if (response.ok) {
+    return { ok: true, messageId: data.sid, raw: data };
+  }
+  return { ok: false, error: data.message || `Twilio error ${response.status}`, raw: data };
+}
+
 // In-memory session store (use Redis in production)
 const sessions = new Map<string, CustomerSession>();
 
@@ -265,6 +363,52 @@ export async function sendWhatsAppMessage(
   if (!isWhatsAppConfigured(config)) {
     console.warn("[WhatsApp] Not configured - message not sent");
     return { success: false, error: "WhatsApp not configured" };
+  }
+
+  // Twilio path: freeform text only — interactive messages are flattened
+  // to numbered text options (Twilio interactive requires Content API templates).
+  if (config.provider === "twilio") {
+    const { messageType, content } = getMessageContentSummary({ ...message, type: message.type });
+    const body = flattenMessageToText(message);
+
+    if (!body) {
+      return { success: false, error: "Unsupported message type for Twilio WhatsApp" };
+    }
+
+    try {
+      const result = await sendViaTwilioWhatsApp(config, to, body);
+
+      await recordOutgoingWhatsAppMessage({
+        phone: to,
+        messageType,
+        content,
+        providerMessageId: result.messageId ?? null,
+        rawPayload: { provider: "twilio", to, body, response: result.raw },
+      });
+
+      if (result.ok) {
+        console.log(`[WhatsApp/Twilio] Message sent to ${to}`);
+        return { success: true, messageId: result.messageId };
+      }
+
+      console.error("[WhatsApp/Twilio] API error:", result.error);
+      return { success: false, error: result.error || "Failed to send" };
+    } catch (error) {
+      console.error("[WhatsApp/Twilio] Send error:", error);
+      await recordOutgoingWhatsAppMessage({
+        phone: to,
+        messageType,
+        content,
+        providerMessageId: null,
+        rawPayload: {
+          provider: "twilio",
+          to,
+          body,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      });
+      return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+    }
   }
 
   try {

@@ -20,8 +20,15 @@ function getAlphaSenderId() {
   const raw = (process.env.TWILIO_ALPHANUMERIC_SENDER_ID || "").trim();
   if (!raw) return "";
 
-  // Twilio sender IDs are typically 1-11 alphanumeric characters.
-  const cleaned = raw.replace(/[^a-z0-9]/gi, "").slice(0, 11);
+  // Twilio alphanumeric sender IDs: up to 11 chars, letters/digits/spaces
+  // (at least one letter). e.g. "LockSafe UK".
+  const cleaned = raw
+    .replace(/[^a-z0-9 ]/gi, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 11)
+    .trim();
+  if (!/[a-z]/i.test(cleaned)) return "";
   return cleaned;
 }
 
