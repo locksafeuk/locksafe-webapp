@@ -474,6 +474,7 @@ model Locksmith {
   onboardingCompleted      Boolean   @default(false)
   onboardingLastInteractionAt DateTime? // Last interaction relevant to onboarding reminders
   firstLocksmithLoginAt    DateTime? // First successful locksmith login (for one-time post-login onboarding email)
+  tourCompletedAt          DateTime? // Web walkthrough finished/skipped (null = auto-start tour on dashboard)
   insuranceDocumentUrl     String? // Uploaded insurance document
   certificationDocumentUrl String? // Uploaded locksmith certification
   additionalDocumentUrls   String[] // Any additional supporting documents
@@ -787,8 +788,8 @@ model Job {
   latitude  Float?
   longitude Float?
 
-  // Assessment fee
-  assessmentFee  Float   @default(29.00)
+  // Assessment fee — null until a locksmith's application is accepted (locksmith sets his own call-out fee)
+  assessmentFee  Float?
   assessmentPaid Boolean @default(false)
   acceptedEta    Int? // ETA in minutes that was agreed upon
 

@@ -36,6 +36,7 @@ import { useAuth } from "@/components/auth/AuthContext";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { AvailabilityToggle } from "@/components/locksmith/AvailabilityToggle";
 import { AvailabilitySchedule } from "@/components/locksmith/AvailabilitySchedule";
+import { OnboardingTour } from "@/components/locksmith/OnboardingTour";
 import { extractUkPostcode, formatBaseLocationLabel, normalizeUkPostcode } from "@/lib/location-display";
 
 // Dynamically import CoverageMap to avoid SSR issues with Leaflet
@@ -593,6 +594,9 @@ export default function LocksmithSettingsPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-4xl">
+      {/* Onboarding walkthrough — settings chapter (call-out fee ⭐ → schedule → base location ⭐) */}
+      {user?.id && <OnboardingTour page="settings" locksmithId={user.id} />}
+
       {/* Header */}
       <div className="mb-6 sm:mb-8">
         <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Settings</h1>
@@ -733,7 +737,7 @@ export default function LocksmithSettingsPage() {
       </div>
 
       {/* Assessment Fee Setup */}
-      <div className="bg-white rounded-2xl shadow-sm mb-6 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-sm mb-6 overflow-hidden" data-tour="callout-fee" id="callout-fee">
         <div className="p-4 sm:p-6 border-b border-slate-100">
           <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
             <PoundSterling className="w-5 h-5 text-orange-500" />
@@ -808,7 +812,7 @@ export default function LocksmithSettingsPage() {
       </div>
 
       {/* Coverage Area - Radius Based */}
-      <div className="bg-white rounded-2xl shadow-sm mb-6 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-sm mb-6 overflow-hidden" data-tour="base-location" id="base-location">
         <div className="p-4 sm:p-6 border-b border-slate-100">
           <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
             <MapPin className="w-5 h-5 text-orange-500" />
@@ -1275,7 +1279,7 @@ export default function LocksmithSettingsPage() {
 
       {/* Availability Schedule */}
       {user?.id && (
-        <div className="mb-6">
+        <div className="mb-6" data-tour="schedule" id="schedule">
           <AvailabilitySchedule
             locksmithId={user.id}
             onUpdate={() => {

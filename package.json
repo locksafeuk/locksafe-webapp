@@ -70,10 +70,10 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cookies-next": "^6.1.1",
+    "driver.js": "^1.4.0",
     "expo-notifications": "^55.0.23",
     "jose": "^6.2.3",
     "jsonwebtoken": "^9.0.3",
-    "web-push": "^3.6.7",
     "jspdf": "^4.1.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.475.0",
@@ -90,6 +90,7 @@
     "tailwindcss-animate": "^1.0.7",
     "twilio": "^6.0.2",
     "twitter-api-v2": "^1.29.0",
+    "web-push": "^3.6.7",
     "zod": "^4.3.6"
   },
   "devDependencies": {
