@@ -114,6 +114,7 @@ export default function LocksmithSettingsPage() {
   const [baseAddress, setBaseAddress] = useState("");
   const [coverageRadius, setCoverageRadius] = useState(10);
   const [locationLoading, setLocationLoading] = useState(false);
+  const [savingLocation, setSavingLocation] = useState(false);
   const [postcode, setPostcode] = useState("");
   const [showLocationEditor, setShowLocationEditor] = useState(false);
 
@@ -209,6 +210,7 @@ export default function LocksmithSettingsPage() {
         setBaseLat(latitude);
         setBaseLng(longitude);
 
+        let addr = "Location set";
         // Reverse geocode to get address
         try {
           const response = await fetch(
@@ -220,19 +222,24 @@ export default function LocksmithSettingsPage() {
             if (resolvedPostcode) {
               setPostcode(resolvedPostcode);
               setBaseAddress(resolvedPostcode);
+              addr = resolvedPostcode;
             } else {
               const parts = data.display_name.split(", ");
               const shortAddress = parts.slice(0, 3).join(", ");
               setBaseAddress(shortAddress);
+              addr = shortAddress;
             }
           }
         } catch (err) {
           console.error("Reverse geocoding failed:", err);
-          setBaseAddress(postcode ? normalizeUkPostcode(postcode) || "Location set" : "Location set");
+          addr = postcode ? normalizeUkPostcode(postcode) || "Location set" : "Location set";
+          setBaseAddress(addr);
         }
 
-        setLocationLoading(false);
         setShowLocationEditor(false);
+        // Auto-save to database immediately so locksmiths don't need to scroll to "Save Changes"
+        await saveLocationToServer(latitude, longitude, addr);
+        setLocationLoading(false);
       },
       (err) => {
         console.error("Geolocation error:", err);
@@ -261,13 +268,19 @@ export default function LocksmithSettingsPage() {
 
       if (data && data.length > 0) {
         const { lat, lon, display_name } = data[0];
-        setBaseLat(Number.parseFloat(lat));
-        setBaseLng(Number.parseFloat(lon));
+        const parsedLat = Number.parseFloat(lat);
+        const parsedLng = Number.parseFloat(lon);
+        setBaseLat(parsedLat);
+        setBaseLng(parsedLng);
         const resolvedPostcode = extractUkPostcode(display_name) || normalizeUkPostcode(postcode);
-        setBaseAddress(resolvedPostcode || "Location set");
+        const addr = resolvedPostcode || "Location set";
+        setBaseAddress(addr);
         if (resolvedPostcode) setPostcode(resolvedPostcode);
         setShowLocationEditor(false);
         setPostcode("");
+        // Auto-save to database immediately — locksmiths used to think clicking "Set"
+        // was enough and wouldn't scroll down to click "Save Changes" at the bottom.
+        await saveLocationToServer(parsedLat, parsedLng, addr);
       } else {
         setError("Could not find that postcode. Please check and try again.");
       }
@@ -276,6 +289,39 @@ export default function LocksmithSettingsPage() {
       setError("Failed to look up postcode. Please try again.");
     } finally {
       setLocationLoading(false);
+    }
+  };
+
+  // Auto-save just the location fields to the database immediately after geocoding.
+  // This fixes the bug where locksmiths see the green "Base Location" banner (after clicking
+  // "Set") and think the data is already saved — it wasn't, they still needed to scroll to
+  // "Save Changes" at the bottom of the page.
+  const saveLocationToServer = async (lat: number, lng: number, addr: string) => {
+    if (!user?.id) return;
+    setSavingLocation(true);
+    try {
+      const response = await fetch("/api/locksmith/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          locksmithId: user.id,
+          baseLat: lat,
+          baseLng: lng,
+          baseAddress: addr,
+          coverageRadius,
+        }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setSuccessMessage("Base location saved successfully");
+        setTimeout(() => setSuccessMessage(null), 3000);
+      } else {
+        setError(data.error || "Failed to save base location. Please try again.");
+      }
+    } catch {
+      setError("Failed to save base location. Please try again.");
+    } finally {
+      setSavingLocation(false);
     }
   };
 
@@ -824,20 +870,30 @@ export default function LocksmithSettingsPage() {
         <div className="p-4 sm:p-6 space-y-4">
           {/* Current Location Display */}
           {baseLat && baseLng && !showLocationEditor ? (
-            <div className="p-4 bg-green-50 border border-green-200 rounded-xl">
+            <div className={`p-4 rounded-xl border ${savingLocation ? "bg-blue-50 border-blue-200" : "bg-green-50 border-green-200"}`}>
               <div className="flex items-start gap-3">
-                <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                {savingLocation ? (
+                  <Loader2 className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                )}
                 <div className="flex-1">
-                  <p className="font-medium text-green-800">Base Location</p>
-                  <p className="text-sm text-green-700">{formatBaseLocationLabel(baseAddress, postcode)}</p>
+                  <p className={`font-medium ${savingLocation ? "text-blue-800" : "text-green-800"}`}>
+                    {savingLocation ? "Saving location…" : "Base Location Saved"}
+                  </p>
+                  <p className={`text-sm ${savingLocation ? "text-blue-700" : "text-green-700"}`}>
+                    {formatBaseLocationLabel(baseAddress, postcode)}
+                  </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowLocationEditor(true)}
-                  className="text-sm text-green-700 hover:text-green-800 underline"
-                >
-                  Change
-                </button>
+                {!savingLocation && (
+                  <button
+                    type="button"
+                    onClick={() => setShowLocationEditor(true)}
+                    className="text-sm text-green-700 hover:text-green-800 underline"
+                  >
+                    Change
+                  </button>
+                )}
               </div>
             </div>
           ) : (
@@ -923,7 +979,27 @@ export default function LocksmithSettingsPage() {
               <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
               <select
                 value={coverageRadius}
-                onChange={(e) => setCoverageRadius(Number(e.target.value))}
+                onChange={async (e) => {
+                  const newRadius = Number(e.target.value);
+                  setCoverageRadius(newRadius);
+                  // Auto-save radius immediately if a base location is already set
+                  if (user?.id && baseLat && baseLng) {
+                    try {
+                      const res = await fetch("/api/locksmith/profile", {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ locksmithId: user.id, coverageRadius: newRadius }),
+                      });
+                      const d = await res.json();
+                      if (d.success) {
+                        setSuccessMessage("Coverage radius updated");
+                        setTimeout(() => setSuccessMessage(null), 2000);
+                      }
+                    } catch {
+                      // non-critical: main Save Changes will still save it
+                    }
+                  }
+                }}
                 className="w-full pl-11 pr-10 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all appearance-none bg-white"
               >
                 {RADIUS_OPTIONS.map((option) => (
