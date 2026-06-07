@@ -18,11 +18,15 @@ import {
   handleLocksmithCommand,
   handleLocksmithCallback,
   registerLocksmithChat,
+  getActiveJobs,
+  getEarningsSummary,
   type LocksmithBotContext,
   type LocksmithCommand,
   type LocksmithBotMessage,
 } from "@/lib/locksmith-bot";
 import { getLocksmithCompleteness } from "@/lib/locksmith-completeness";
+import { chat, Models, type LLMMessage } from "@/lib/llm-router";
+import { upsertConversationByPhone, getWhatsAppConversationMessages } from "@/lib/whatsapp-inbox";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://www.locksafe.uk";
 const JOIN_URL = process.env.LOCKSMITH_JOIN_URL || "https://locksafe.uk/join";
@@ -280,6 +284,11 @@ export async function handleLocksmithWhatsApp(
     }
   }
 
+  // Human escalation — message is already in the admin WhatsApp inbox
+  if (/^(support|agent|human)\b/i.test(text.trim())) {
+    return "👍 Got it — I've flagged this for the LockSafe team. A real person will reply to you right here, usually within working hours. Feel free to add any details in the meantime.";
+  }
+
   const { command, args } = parseLocksmithText(text);
 
   if (command === "profile") {
@@ -298,16 +307,118 @@ export async function handleLocksmithWhatsApp(
     return converted;
   }
 
-  // Fallback: NLP (same behaviour as the Telegram webhook)
+  // Fallback: conversational AI (Ollama-first via llm-router, OpenAI emergency fallback)
   try {
-    const { processNaturalLanguageQuery } = await import("@/lib/openclaw-nlp");
-    const nlp = await processNaturalLanguageQuery(text, "locksmith", identity.id);
-    if (nlp?.response) return htmlToWhatsApp(nlp.response);
-  } catch {
-    // NLP unavailable — fall through to help hint
+    const reply = await handleLocksmithAIChat(identity.id, identity.name, phone, text);
+    if (reply) return reply;
+  } catch (error) {
+    console.error("[LocksmithWA] AI chat error:", error);
   }
 
   return `I didn't catch that. Reply *help* for everything I can do — or *profile* to check your setup, *jobs* for your active jobs.`;
+}
+
+// ============================================
+// CONVERSATIONAL AI (free-text chat experience)
+// ============================================
+
+async function buildLocksmithContextBlock(locksmithId: string): Promise<string> {
+  const [locksmith, completeness, activeJobs, earnings] = await Promise.all([
+    prisma.locksmith.findUnique({
+      where: { id: locksmithId },
+      select: { name: true, isAvailable: true, defaultAssessmentFee: true, coverageRadius: true, baseAddress: true },
+    }),
+    getLocksmithCompleteness(locksmithId).catch(() => null),
+    getActiveJobs(locksmithId).catch(() => ({ jobs: [] })),
+    getEarningsSummary(locksmithId).catch(() => null),
+  ]);
+
+  const lines: string[] = [];
+  if (locksmith) {
+    lines.push(`Name: ${locksmith.name}`);
+    lines.push(`Currently: ${locksmith.isAvailable ? "AVAILABLE for jobs" : "OFFLINE (not receiving jobs)"}`);
+    if (locksmith.defaultAssessmentFee != null) lines.push(`Call-out fee: £${locksmith.defaultAssessmentFee}`);
+    if (locksmith.baseAddress) lines.push(`Base: ${locksmith.baseAddress} (radius ${locksmith.coverageRadius} miles)`);
+  }
+  if (completeness) {
+    lines.push(`Profile completeness: ${completeness.score}%${completeness.blockingDispatch ? " — BLOCKED from receiving jobs until required items are done" : ""}`);
+    if (completeness.missing.length > 0) {
+      lines.push(`Missing items: ${completeness.missing.map((m) => m.label).join("; ")}`);
+    }
+  }
+  if (activeJobs.jobs.length > 0) {
+    lines.push(
+      `Active jobs (${activeJobs.jobs.length}): ` +
+        activeJobs.jobs
+          .slice(0, 5)
+          .map((j) => `${j.jobNumber} [${j.status}] ${j.problemType} @ ${j.postcode}`)
+          .join(" | "),
+    );
+  } else {
+    lines.push("Active jobs: none right now");
+  }
+  if (earnings) {
+    lines.push(
+      `Earnings: today £${earnings.today.toFixed(2)}, this week £${earnings.thisWeek.toFixed(2)}, this month £${earnings.thisMonth.toFixed(2)}, pending payout £${earnings.pendingPayout.toFixed(2)}, lifetime £${earnings.totalEarnings.toFixed(2)} (${earnings.jobsCompleted} jobs completed)`,
+    );
+  }
+  return lines.join("\n");
+}
+
+async function getRecentChatHistory(phone: string, limit = 10): Promise<LLMMessage[]> {
+  try {
+    const conversation = await upsertConversationByPhone({ phone });
+    const messages = await getWhatsAppConversationMessages(conversation.id);
+    return messages
+      .filter((m) => m.content && m.content.trim().length > 0)
+      .slice(-limit)
+      .map((m) => ({
+        role: m.direction === "inbound" ? ("user" as const) : ("assistant" as const),
+        content: (m.content as string).slice(0, 600),
+      }));
+  } catch {
+    return [];
+  }
+}
+
+export async function handleLocksmithAIChat(
+  locksmithId: string,
+  name: string,
+  phone: string,
+  text: string,
+): Promise<string | null> {
+  const [contextBlock, history] = await Promise.all([
+    buildLocksmithContextBlock(locksmithId),
+    getRecentChatHistory(phone),
+  ]);
+
+  const system: LLMMessage = {
+    role: "system",
+    content: [
+      "You are the LockSafe UK assistant chatting with one of our locksmiths on WhatsApp. LockSafe is a UK locksmith dispatch platform: customers book emergency/planned jobs, we dispatch vetted locksmiths, payment flows through the platform (Stripe), and locksmiths set their own rates.",
+      `LIVE DATA for this locksmith (trust this over anything else):\n${contextBlock}`,
+      "You can tell them about quick keyword commands: 'jobs', 'pending', 'earnings', 'stats', 'profile' (setup checklist), 'install' (app install), 'available'/'offline' (availability), 'accept <job no>', 'decline <job no>'.",
+      `Key links: settings https://www.locksafe.uk/locksmith/settings · dashboard https://www.locksafe.uk/locksmith/dashboard · app install https://www.locksafe.uk/install`,
+      "Style: WhatsApp message — short (2-6 sentences), friendly, professional. Use *bold* sparingly, no markdown headers, no bullet walls. Answer the question directly first.",
+      "Rules: never invent job, payment or customer data beyond LIVE DATA. Money/dispute/refund issues or anything you can't resolve → tell them to reply 'support' so the team picks it up (a human reads this inbox). Never promise specific job volumes or earnings. UK context only.",
+    ].join("\n\n"),
+  };
+
+  const response = await chat(
+    Models.HERMES,
+    [system, ...history, { role: "user", content: text }],
+    {
+      temperature: 0.4,
+      maxTokens: 350,
+      timeoutMs: 10_000,
+      allowOpenAIFallback: true,
+    },
+  );
+
+  const reply = response?.content?.trim();
+  if (!reply) return null;
+  console.log(`[LocksmithWA] AI chat reply for ${name} via ${response.model}`);
+  return reply;
 }
 
 // ============================================
