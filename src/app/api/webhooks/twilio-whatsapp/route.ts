@@ -178,10 +178,14 @@ export async function POST(request: NextRequest) {
 
       const senderName = params.ProfileName || "Customer";
 
-      // Process asynchronously to respond quickly
-      handleIncomingMessage(incoming, senderName).catch((error) => {
+      // IMPORTANT: await — on serverless, fire-and-forget work freezes when
+      // the response is sent, delaying replies by up to a minute. Processing
+      // is sub-second; Twilio's webhook timeout is 15s.
+      try {
+        await handleIncomingMessage(incoming, senderName);
+      } catch (error) {
         console.error("[Twilio WhatsApp Webhook] Processing error:", error);
-      });
+      }
     }
 
     return twimlResponse();
