@@ -57,20 +57,62 @@ type InboundIdentity =
   | { kind: "lead"; id: string; name: string; city: string; status: string }
   | { kind: "unknown" };
 
+/**
+ * Regex that matches the number's significant digits regardless of how the
+ * stored value is formatted ("020 8852 7495", "+44 20 8852 8850", "07…").
+ * Real data audit (2026-06-07): 64% of lead phones contain spaces.
+ */
+function flexibleDigitsRegex(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  const intl = digits.startsWith("44")
+    ? digits
+    : digits.startsWith("0")
+      ? `44${digits.slice(1)}`
+      : digits;
+  const significant = intl.slice(2); // drop country code → e.g. 7377555299
+  return `${significant.split("").join("[\\s\\-().]*")}[\\s\\-().]*$`;
+}
+
 export async function identifyInboundPhone(phone: string): Promise<InboundIdentity> {
   const variants = phoneVariants(phone);
+  const regex = flexibleDigitsRegex(phone);
 
+  // 1) Fast exact-variant match
   const locksmith = await prisma.locksmith.findFirst({
     where: { phone: { in: variants }, isActive: true },
     select: { id: true, name: true, whatsappChatId: true },
   });
   if (locksmith) return { kind: "locksmith", ...locksmith };
 
+  // 2) Format-agnostic fallback (handles spaced/dashed stored numbers)
+  const rawLocksmith = (await prisma.locksmith.findRaw({
+    filter: { phone: { $regex: regex }, isActive: true },
+    options: { limit: 1, projection: { name: 1, whatsappChatId: 1 } },
+  })) as unknown as Array<{ _id: { $oid: string }; name: string; whatsappChatId?: string | null }>;
+  if (rawLocksmith?.length > 0) {
+    const doc = rawLocksmith[0];
+    return {
+      kind: "locksmith",
+      id: doc._id.$oid,
+      name: doc.name,
+      whatsappChatId: doc.whatsappChatId ?? null,
+    };
+  }
+
   const lead = await prisma.locksmithLead.findFirst({
     where: { phone: { in: variants }, status: { not: "onboarded" } },
     select: { id: true, name: true, city: true, status: true },
   });
   if (lead) return { kind: "lead", ...lead };
+
+  const rawLead = (await prisma.locksmithLead.findRaw({
+    filter: { phone: { $regex: regex }, status: { $ne: "onboarded" } },
+    options: { limit: 1, projection: { name: 1, city: 1, status: 1 } },
+  })) as unknown as Array<{ _id: { $oid: string }; name: string; city: string; status: string }>;
+  if (rawLead?.length > 0) {
+    const doc = rawLead[0];
+    return { kind: "lead", id: doc._id.$oid, name: doc.name, city: doc.city, status: doc.status };
+  }
 
   return { kind: "unknown" };
 }
