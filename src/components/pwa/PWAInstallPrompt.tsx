@@ -18,6 +18,7 @@ export default function PWAInstallPrompt() {
   const [isIOS, setIsIOS] = useState(false);
   const [isAndroid, setIsAndroid] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
+  const [forceInstallFlow, setForceInstallFlow] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [installing, setInstalling] = useState(false);
 
@@ -30,6 +31,10 @@ export default function PWAInstallPrompt() {
     setIsStandalone(standalone);
 
     if (standalone) return;
+
+    const searchParams = new URLSearchParams(window.location.search);
+    const isForcedInstall = searchParams.get("install") === "1";
+    setForceInstallFlow(isForcedInstall);
 
     // Detect platform
     const userAgent = window.navigator.userAgent.toLowerCase();
@@ -44,16 +49,22 @@ export default function PWAInstallPrompt() {
     // Check if mobile device
     const isMobile = isIOSDevice || isAndroidDevice || window.innerWidth < 768;
 
-    if (!isMobile) return;
+    if (!isMobile && !isForcedInstall) return;
 
-    // Check if dismissed recently
-    const dismissedData = localStorage.getItem(STORAGE_KEY);
-    if (dismissedData) {
-      const { timestamp } = JSON.parse(dismissedData);
-      const daysSinceDismissed = (Date.now() - timestamp) / (1000 * 60 * 60 * 24);
-      if (daysSinceDismissed < SHOW_AGAIN_AFTER_DAYS) {
-        return;
+    if (!isForcedInstall) {
+      // Check if dismissed recently
+      const dismissedData = localStorage.getItem(STORAGE_KEY);
+      if (dismissedData) {
+        const { timestamp } = JSON.parse(dismissedData);
+        const daysSinceDismissed = (Date.now() - timestamp) / (1000 * 60 * 60 * 24);
+        if (daysSinceDismissed < SHOW_AGAIN_AFTER_DAYS) {
+          return;
+        }
       }
+    } else {
+      localStorage.removeItem(STORAGE_KEY);
+      setShowPrompt(true);
+      recordPWAPromptShown();
     }
 
     // Listen for beforeinstallprompt (Android Chrome)
@@ -63,7 +74,7 @@ export default function PWAInstallPrompt() {
       setTimeout(() => {
         setShowPrompt(true);
         recordPWAPromptShown();
-      }, 2500);
+      }, isForcedInstall ? 0 : 2500);
     };
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstall);
@@ -73,7 +84,7 @@ export default function PWAInstallPrompt() {
       setTimeout(() => {
         setShowPrompt(true);
         recordPWAPromptShown();
-      }, 2500);
+      }, isForcedInstall ? 0 : 2500);
     }
 
     return () => {
@@ -95,9 +106,11 @@ export default function PWAInstallPrompt() {
   }, [deferredPrompt]);
 
   const handleDismiss = useCallback(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ timestamp: Date.now() }));
+    if (!forceInstallFlow) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ timestamp: Date.now() }));
+    }
     setShowPrompt(false);
-  }, []);
+  }, [forceInstallFlow]);
 
   const handleRemindLater = useCallback(() => {
     setShowPrompt(false);
