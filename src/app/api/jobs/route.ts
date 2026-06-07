@@ -220,7 +220,8 @@ export async function POST(request: NextRequest) {
         postcode: normalizedPostcode,
         address,
         description,
-        assessmentFee: surge.fee,
+        // assessmentFee left null — the locksmith sets his own call-out fee when applying;
+        // surge.fee is only an estimate shown to the customer, not a committed price.
         // Scheduled booking
         scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
         isScheduled: !!scheduledFor,

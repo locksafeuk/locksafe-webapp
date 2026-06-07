@@ -114,7 +114,7 @@ export async function GET(request: NextRequest) {
       if (job.quote?.total) {
         monthlyData[monthKey].revenue += job.quote.total;
       } else {
-        monthlyData[monthKey].revenue += job.assessmentFee;
+        monthlyData[monthKey].revenue += job.assessmentFee ?? 0;
       }
     }
 

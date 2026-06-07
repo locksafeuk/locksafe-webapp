@@ -83,7 +83,7 @@ interface CustomerDetail {
     propertyType: string;
     address: string;
     postcode: string;
-    assessmentFee: number;
+    assessmentFee: number | null;
     quoteTotal: number | null;
     quoteAccepted: boolean;
     locksmith: { id: string; name: string } | null;
@@ -855,7 +855,9 @@ export default function AdminCustomersPage() {
                                 <div className="text-sm font-medium">
                                   {job.quoteAccepted && job.quoteTotal
                                     ? `£${job.quoteTotal.toFixed(2)}`
-                                    : `£${job.assessmentFee.toFixed(2)}`}
+                                    : job.locksmith && job.assessmentFee
+                                      ? `£${job.assessmentFee.toFixed(2)}`
+                                      : "—"}
                                 </div>
                                 <div className="text-xs text-slate-400">
                                   {formatDate(job.createdAt)}

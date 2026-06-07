@@ -165,9 +165,9 @@ export async function PATCH(
       postcode: job.postcode || undefined,
       address: job.address || undefined,
       eta: eta || job.estimatedArrival || undefined,
-      assessmentFee: job.assessmentFee,
+      assessmentFee: job.assessmentFee ?? undefined,
       quotedAmount: job.quote?.total,
-      finalAmount: job.quote?.total || job.assessmentFee,
+      finalAmount: job.quote?.total || job.assessmentFee || undefined,
     };
 
     // Send SMS notification when locksmith is en route
@@ -237,7 +237,7 @@ export async function PATCH(
     if (normalizedStatus === "PENDING_CUSTOMER_CONFIRMATION" && job.customer?.email && job.locksmith) {
       const baseUrl = request.headers.get("origin") || request.headers.get("host") || SITE_URL;
       const confirmationUrl = `${baseUrl.startsWith("http") ? baseUrl : `https://${baseUrl}`}/customer/job/${job.id}`;
-      const quoteTotal = job.quote?.total || job.assessmentFee;
+      const quoteTotal = job.quote?.total || job.assessmentFee || 0;
 
       // Send SMS notification to customer
       sendJobNotification("work_completed", {

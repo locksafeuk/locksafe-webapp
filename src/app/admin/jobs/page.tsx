@@ -968,10 +968,9 @@ function AdminJobsContent() {
                     <div className="text-sm">
                       <span className="text-slate-500">Total: </span>
                       <span className="font-bold text-slate-900">
-                        £
-                        {(job.quote?.total || job.assessmentFee || 0).toFixed(
-                          2,
-                        )}
+                        {job.quote?.total || (job.locksmith && job.assessmentFee)
+                          ? `£${(job.quote?.total || job.assessmentFee || 0).toFixed(2)}`
+                          : "—"}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1164,12 +1163,9 @@ function AdminJobsContent() {
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="text-sm font-semibold text-slate-900">
-                            £
-                            {(
-                              job.quote?.total ||
-                              job.assessmentFee ||
-                              0
-                            ).toFixed(2)}
+                            {job.quote?.total || (job.locksmith && job.assessmentFee)
+                              ? `£${(job.quote?.total || job.assessmentFee || 0).toFixed(2)}`
+                              : "—"}
                           </div>
                           {job.totalPaid && job.totalPaid > 0 && (
                             <div className="text-xs text-green-600">

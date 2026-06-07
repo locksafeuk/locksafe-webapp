@@ -449,7 +449,8 @@ export async function findBestLocksmiths(
 export async function autoDispatchJob(
   jobId: string,
   locksmithId: string,
-  assessmentFee: number,
+  // Null when the job has no fee yet — falls back to the locksmith's own default fee
+  assessmentFee: number | null,
   etaMinutes: number,
   options?: { sendNotifications?: boolean },
 ): Promise<{ success: boolean; message: string; applicationId?: string }> {
@@ -498,12 +499,15 @@ export async function autoDispatchJob(
       };
     }
 
+    // Resolve fee: explicit fee, else the locksmith's own default call-out fee
+    const resolvedFee = assessmentFee ?? locksmith.defaultAssessmentFee ?? 29.0;
+
     // Create application
     const application = await prisma.locksmithApplication.create({
       data: {
         jobId,
         locksmithId,
-        assessmentFee,
+        assessmentFee: resolvedFee,
         eta: etaMinutes,
         message: "Auto-dispatched by intelligent matching system",
         status: "pending",
@@ -525,7 +529,7 @@ export async function autoDispatchJob(
           postcode: job.postcode,
           address: job.address,
           problemType: job.problemType,
-          assessmentFee,
+          assessmentFee: resolvedFee,
         });
 
         console.log(`[Dispatch] SMS notification sent to ${locksmith.name}`);

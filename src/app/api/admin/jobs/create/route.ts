@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
       postcode,
       address,
       description,
-      assessmentFee = 29.0,
+      assessmentFee = null, // Unknown until a locksmith accepts and sets his own call-out fee
     } = body;
 
     // Validate required fields
@@ -171,7 +171,9 @@ export async function POST(request: NextRequest) {
         description: description || null,
         latitude,
         longitude,
-        assessmentFee,
+        // Only set when the admin explicitly provided a fee; otherwise stays
+        // null until a locksmith accepts and sets his own call-out fee
+        ...(assessmentFee != null ? { assessmentFee } : {}),
         isEmergency: urgency === "emergency",
       },
       include: {

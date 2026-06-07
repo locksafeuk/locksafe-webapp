@@ -217,9 +217,6 @@ export async function createJob(input: CreateJobInput): Promise<CreateJobResult>
   // Generate job number
   const jobNumber = await generateJobNumber(postcode);
 
-  // Default assessment fee
-  const assessmentFee = 29;
-
   // Map service type to problem type
   const problemTypeMap: Record<string, string> = {
     locked_out: "Locked Out",
@@ -263,7 +260,7 @@ export async function createJob(input: CreateJobInput): Promise<CreateJobResult>
       problemType,
       propertyType: mappedPropertyType,
       description: description || problemType,
-      assessmentFee,
+      // assessmentFee left null — set when a locksmith's application is accepted
       status: "PENDING",
       createdVia,
       continueToken,

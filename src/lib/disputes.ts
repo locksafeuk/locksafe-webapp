@@ -99,7 +99,7 @@ export async function buildDisputeEvidence(jobId: string): Promise<DisputeEviden
     jobNumber: job.jobNumber,
     customerName: job.customer?.name ?? "Unknown",
     locksmithName: job.locksmith?.name ?? "Unknown",
-    amount: job.quote?.total ?? job.assessmentFee,
+    amount: job.quote?.total ?? job.assessmentFee ?? 0,
     timeline,
     photos: job.photos.map((p) => ({ type: p.type, url: p.url })),
     hasSignature: !!job.signature,

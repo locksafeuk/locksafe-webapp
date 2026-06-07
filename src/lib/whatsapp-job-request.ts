@@ -724,7 +724,7 @@ async function handlePropertyTypeResponse(
       `*📱 WHAT HAPPENS NEXT:*\n\n` +
       `1️⃣ Check your email & SMS - you'll receive a link to your dashboard\n\n` +
       `2️⃣ ${session.data.isNewAccount ? "Set your password to log in\n\n3️⃣ " : ""}View quotes from local locksmiths (usually within minutes)\n\n` +
-      `${session.data.isNewAccount ? "4️⃣" : "3️⃣"} Choose a locksmith and pay the assessment fee online (~£29)\n\n` +
+      `${session.data.isNewAccount ? "4️⃣" : "3️⃣"} Choose a locksmith and pay their call-out fee online (each locksmith sets their own)\n\n` +
       `${session.data.isNewAccount ? "5️⃣" : "4️⃣"} Your locksmith will then head to you!\n\n` +
       `━━━━━━━━━━━━━━━━━━━━━\n\n` +
       `⚠️ *IMPORTANT:* No locksmith is dispatched yet - you must accept a quote on your dashboard first.`
@@ -770,7 +770,7 @@ async function handlePostJobQuestion(
       `   • Their price\n` +
       `   • How quickly they can arrive\n\n` +
       `3. You choose which quote to accept on your dashboard\n\n` +
-      `4. You pay the assessment fee online (~£29)\n\n` +
+      `4. You pay the locksmith's call-out fee online (each locksmith sets their own)\n\n` +
       `5. ONLY THEN does the locksmith head to you\n\n` +
       `6. They diagnose the problem and give you a full quote\n\n` +
       `7. You can accept or decline - no obligation\n\n` +

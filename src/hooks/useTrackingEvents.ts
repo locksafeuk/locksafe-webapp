@@ -237,7 +237,7 @@ export function useTrackingEvents(config: TrackingConfig = defaultConfig) {
           case "assessment_paid":
           case "begin_checkout":
             metaPixel.trackInitiateCheckout(
-              data.assessmentFee || data.value || 29,
+              data.assessmentFee || data.value || 0,
               data.jobId || "",
               catalogId
             );

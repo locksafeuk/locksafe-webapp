@@ -30,7 +30,7 @@ interface Payment {
   job: {
     id: string;
     jobNumber: string;
-    assessmentFee: number;
+    assessmentFee: number | null;
     assessmentPaid: boolean;
     customer: {
       name: string;
@@ -176,8 +176,8 @@ export default function AdminPaymentsPage() {
   };
 
   const calculateDeduction = (payment: Payment) => {
-    if (payment.type === "quote" && payment.job.assessmentPaid && payment.job.assessmentFee > 0) {
-      return payment.job.assessmentFee;
+    if (payment.type === "quote" && payment.job.assessmentPaid && (payment.job.assessmentFee ?? 0) > 0) {
+      return payment.job.assessmentFee ?? 0;
     }
     return 0;
   };

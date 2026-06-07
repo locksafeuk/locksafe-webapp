@@ -78,7 +78,7 @@ export async function sendSignatureReminder(jobId: string, reminderNumber: numbe
     }
 
     const confirmUrl = `${SITE_URL}/customer/job/${job.id}`;
-    const totalAmount = job.quote?.total || job.assessmentFee;
+    const totalAmount = job.quote?.total || job.assessmentFee || 0;
 
     // Calculate time remaining
     const deadline = job.confirmationDeadline;

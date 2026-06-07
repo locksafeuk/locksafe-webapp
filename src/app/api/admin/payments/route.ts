@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
     // Calculate deductions (assessment fees that were applied to work quotes)
     const totalDeductions = payments
       .filter(p => p.type === "quote" && p.status === "succeeded" && p.job.assessmentPaid)
-      .reduce((sum, p) => sum + p.job.assessmentFee, 0);
+      .reduce((sum, p) => sum + (p.job.assessmentFee ?? 0), 0);
 
     const thisMonthPayments = succeededPayments.filter(
       p => new Date(p.createdAt) >= thisMonthStart
