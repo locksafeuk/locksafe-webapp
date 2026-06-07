@@ -26,6 +26,7 @@ import { cookies } from "next/headers";
 import { prisma as _prisma } from "@/lib/db";
 import { verifyToken } from "@/lib/auth";
 import { sendSMS } from "@/lib/sms";
+import { createShortLink } from "@/lib/short-link";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const prisma = _prisma as any;
@@ -43,14 +44,14 @@ async function verifyAdmin() {
 }
 
 /**
- * Default SMS body. Sent via Twilio (primary SMS provider), which allows
- * web links — the login link survives delivery. If the message ever routes
- * through Zadarma, its sanitizer strips URLs automatically at send time.
- *
- * {name} → first name per recipient.
+ * Default SMS body. GSM-7 only, one segment. {name} → first name,
+ * {link} → per-locksmith branded short link (locksafe.uk/r/xxxxxx)
+ * pointing at settings — clicks are logged on the ShortLink model.
  */
 const DEFAULT_MESSAGE_TEMPLATE =
-  "Hi {name}, LockSafe: your base location isn't set on your profile yet, so we can't send you nearby jobs. Set your postcode here: https://www.locksafe.uk/locksmith/settings Thanks!";
+  "Hi {name}, LockSafe: set your base postcode so we can send you nearby jobs: {link} Takes 1 min. Thanks!";
+
+const SETTINGS_URL = "https://www.locksafe.uk/locksmith/settings";
 
 function renderMessage(template: string, locksmithName: string): string {
   return template.replace(/\{name\}/g, locksmithName.split(" ")[0] || locksmithName);
@@ -135,7 +136,14 @@ export async function POST(request: NextRequest) {
   const results = await Promise.all(
     entries.map(async (e: typeof entries[0]) => {
       try {
-        const smsResult = await sendSMS(e.phone, e.messagePreview, {
+        // Per-locksmith branded short link (clicks logged on ShortLink)
+        const shortLink = await createShortLink({
+          targetUrl: SETTINGS_URL,
+          purpose: "base_location",
+          locksmithId: e.locksmithId,
+        });
+        const messageBody = e.messagePreview.replace(/\{link\}/g, shortLink);
+        const smsResult = await sendSMS(e.phone, messageBody, {
           logContext: `base-location-reminder:${e.locksmithId}`,
         });
         if (smsResult.success) {

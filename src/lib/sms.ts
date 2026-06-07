@@ -277,6 +277,41 @@ async function sendViaTwilio(
   }
 }
 
+// ============================================
+// SEGMENT ESTIMATION (cost guard)
+// ============================================
+
+const GSM7_BASIC =
+  "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑܧ¿abcdefghijklmnopqrstuvwxyzäöñüà";
+const GSM7_EXTENDED = "^{}\\[~]|€";
+
+/**
+ * Estimate SMS segments. GSM-7: 160 chars (153/segment when concatenated).
+ * A single non-GSM char (emoji, em dash, smart quote) flips the whole message
+ * to UCS-2: 70 chars (67/segment) — tripling cost. Watch the logs.
+ */
+export function estimateSegments(text: string): {
+  encoding: "GSM-7" | "UCS-2";
+  chars: number;
+  segments: number;
+} {
+  let gsm = true;
+  let units = 0;
+  for (const ch of text) {
+    if (GSM7_BASIC.includes(ch)) units += 1;
+    else if (GSM7_EXTENDED.includes(ch)) units += 2;
+    else {
+      gsm = false;
+      break;
+    }
+  }
+  if (gsm) {
+    return { encoding: "GSM-7", chars: units, segments: units <= 160 ? 1 : Math.ceil(units / 153) };
+  }
+  const len = [...text].length;
+  return { encoding: "UCS-2", chars: len, segments: len <= 70 ? 1 : Math.ceil(len / 67) };
+}
+
 /**
  * Send SMS via the active provider (Zadarma or Twilio).
  */
@@ -286,6 +321,13 @@ export async function sendSMS(
   options?: { logContext?: string },
 ): Promise<SMSResult> {
   const provider = getActiveSmsProvider();
+
+  const estimate = estimateSegments(message);
+  if (estimate.segments > 1 || estimate.encoding === "UCS-2") {
+    console.warn(
+      `[SMS] COST WARNING: ${estimate.segments} segment(s), ${estimate.encoding}, ${estimate.chars} chars${options?.logContext ? ` (${options.logContext})` : ""}`,
+    );
+  }
 
   if (provider === "zadarma") {
     const result = await sendZadarmaSMS(to, message, options);

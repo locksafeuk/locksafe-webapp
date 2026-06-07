@@ -5,6 +5,7 @@ import {
   JobEventType,
   getActiveSmsProvider,
   isSmsProviderConfigured,
+  estimateSegments,
 } from "@/lib/sms";
 
 /**
@@ -66,6 +67,7 @@ export async function POST(request: NextRequest) {
       messageId: result.messageId,
       error: result.error,
       sentTo: phone,
+      segmentInfo: estimateSegments(testMessage),
     });
   } catch (error) {
     console.error("[Test SMS] Error:", error);

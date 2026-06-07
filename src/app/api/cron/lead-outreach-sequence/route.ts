@@ -35,10 +35,11 @@ function isUKMobile(phone: string): boolean {
 function buildLeadSms(name: string, city: string): string {
   const firstName = name.split(/\s+/)[0];
   const signupUrl = "https://locksafe.uk/join";
+  // GSM-7 only (the old em dash flipped this to UCS-2 = 4 segments = 4x cost).
+  // Budget: <=160 chars = 1 segment including name + city.
   return (
-    `Hi ${firstName}, I'm Alex from LockSafe UK. ` +
-    `We're signing up trusted locksmiths in ${city} — steady paid jobs in your area, low commission, no monthly fees. ` +
-    `Join free here: ${signupUrl}\n\nReply STOP to opt out.`
+    `Hi ${firstName}, Alex from LockSafe UK. Locksmith jobs in ${city}, ` +
+    `no monthly fees, set your own rates. Join: ${signupUrl} Reply STOP to opt out`
   );
 }
 

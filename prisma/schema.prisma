@@ -4130,3 +4130,18 @@ model DistrictLandingPage {
   @@index([contentSource])
   @@index([generatedAt])
 }
+
+// Branded short links for SMS (locksafe.uk/r/{code}) — keeps messages in one
+// GSM-7 segment and logs clicks without Twilio's link-shortening add-on.
+model ShortLink {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  code          String    @unique
+  targetUrl     String
+  purpose       String? // base_location | lead_invite | photo_reminder | ...
+  locksmithId   String?   @db.ObjectId
+  leadId        String?   @db.ObjectId
+  jobId         String?   @db.ObjectId
+  clicks        Int       @default(0)
+  lastClickedAt DateTime?
+  createdAt     DateTime  @default(now())
+}
