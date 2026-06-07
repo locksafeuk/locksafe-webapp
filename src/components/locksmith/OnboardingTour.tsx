@@ -19,7 +19,7 @@
 
 import { useEffect, useRef } from "react";
 import { driver, type Driver, type DriveStep } from "driver.js";
-import "driver.js/driver.css";
+import "driver.js/dist/driver.css";
 
 const TOUR_STAGE_KEY = "locksafe_tour_stage"; // "settings" = continue chapter 2
 
