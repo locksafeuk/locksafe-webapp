@@ -568,7 +568,19 @@ export async function sendListMessage(
 }
 
 /**
- * Send a template message (for outbound marketing/notifications)
+ * Resolve a template name to a Twilio Content SID via env, e.g.
+ * locksmith_recruit_invite → TWILIO_CONTENT_SID_LOCKSMITH_RECRUIT_INVITE
+ */
+function getTwilioContentSid(templateName: string): string | undefined {
+  const envKey = `TWILIO_CONTENT_SID_${templateName.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
+  return process.env[envKey] || undefined;
+}
+
+/**
+ * Send a template message (for outbound marketing/notifications).
+ * Meta/360dialog: native template payload. Twilio: Content API
+ * (ContentSid + ContentVariables) — requires the template's Content SID
+ * in env (TWILIO_CONTENT_SID_<TEMPLATE_NAME>).
  */
 export async function sendTemplateMessage(
   to: string,
@@ -576,6 +588,67 @@ export async function sendTemplateMessage(
   parameters: string[] = [],
   options?: { languageCode?: string }
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const config = getConfig();
+
+  if (config.provider === "twilio") {
+    const contentSid = getTwilioContentSid(templateName);
+    if (!contentSid) {
+      return {
+        success: false,
+        error: `No Twilio Content SID configured for template "${templateName}" (set TWILIO_CONTENT_SID_${templateName.toUpperCase().replace(/[^A-Z0-9]/g, "_")})`,
+      };
+    }
+
+    if (!isWhatsAppConfigured(config)) {
+      return { success: false, error: "WhatsApp not configured" };
+    }
+
+    const from = (config.twilioWhatsAppNumber || "").trim();
+    const normalizedFrom = from.startsWith("whatsapp:") ? from : `whatsapp:${from}`;
+    const normalizedTo = `whatsapp:+${normalizePhoneNumber(to)}`;
+    const contentVariables = JSON.stringify(
+      Object.fromEntries(parameters.map((value, index) => [`${index + 1}`, value])),
+    );
+
+    try {
+      const response = await fetch(
+        `${TWILIO_API_URL}/Accounts/${config.twilioAccountSid}/Messages.json`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            Authorization: `Basic ${Buffer.from(
+              `${config.twilioAccountSid}:${config.twilioAuthToken}`,
+            ).toString("base64")}`,
+          },
+          body: new URLSearchParams({
+            From: normalizedFrom,
+            To: normalizedTo,
+            ContentSid: contentSid,
+            ContentVariables: contentVariables,
+          }),
+        },
+      );
+
+      const data = (await response.json()) as { sid?: string; message?: string };
+
+      await recordOutgoingWhatsAppMessage({
+        phone: to,
+        messageType: "template",
+        content: `[template:${templateName}]`,
+        providerMessageId: data.sid ?? null,
+        rawPayload: { provider: "twilio", contentSid, contentVariables, response: data },
+      });
+
+      if (response.ok) {
+        return { success: true, messageId: data.sid };
+      }
+      return { success: false, error: data.message || `Twilio error ${response.status}` };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+    }
+  }
+
   return sendWhatsAppMessage(to, {
     type: "template",
     template: {
@@ -948,6 +1021,43 @@ export async function handleIncomingMessage(
     messageText = message.button.text;
   }
 
+  console.log(`[WhatsApp] Received from ${phone}: "${messageText}" (button: ${buttonId})`);
+
+  await recordIncomingWhatsAppMessage({
+    phone,
+    waId: phone,
+    contactName: senderName !== "Customer" ? senderName : null,
+    messageType: message.type,
+    content: messageText || null,
+    providerMessageId: message.id,
+    rawPayload: message,
+  });
+
+  // ── Identity routing ─────────────────────────────────────────────
+  // Locksmiths get the Locksmith Assistant (same brain as the Telegram bot);
+  // recruitment leads get the recruitment flow. Customers fall through.
+  try {
+    const { identifyInboundPhone, handleLocksmithWhatsApp, handleLeadWhatsApp } = await import(
+      "@/lib/locksmith-whatsapp-adapter"
+    );
+    const identity = await identifyInboundPhone(phone);
+
+    if (identity.kind === "locksmith") {
+      const reply = await handleLocksmithWhatsApp(identity, phone, messageText);
+      await sendTextMessage(phone, reply);
+      return;
+    }
+
+    if (identity.kind === "lead") {
+      const reply = await handleLeadWhatsApp(identity, messageText);
+      await sendTextMessage(phone, reply);
+      return;
+    }
+  } catch (error) {
+    console.error("[WhatsApp] Identity routing error (falling through to customer flow):", error);
+  }
+  // ─────────────────────────────────────────────────────────────────
+
   // Twilio flattened menus: map a bare option number ("1", "2", …) back to
   // the button id/title of the last menu we sent to this customer.
   if (!buttonId && /^\d{1,2}$/.test(messageText.trim())) {
@@ -960,18 +1070,6 @@ export async function handleIncomingMessage(
       messageText = options[index].title;
     }
   }
-
-  console.log(`[WhatsApp] Received from ${phone}: "${messageText}" (button: ${buttonId})`);
-
-  await recordIncomingWhatsAppMessage({
-    phone,
-    waId: phone,
-    contactName: senderName !== "Customer" ? senderName : null,
-    messageType: message.type,
-    content: messageText || null,
-    providerMessageId: message.id,
-    rawPayload: message,
-  });
 
   // Check if user is in job request flow
   if (isInJobRequestFlow(phone)) {
