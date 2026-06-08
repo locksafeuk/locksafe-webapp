@@ -6,7 +6,12 @@ import {
   getCompetitorBySlug,
 } from "@/lib/competitor-alternatives";
 import { SITE_NAME, SUPPORT_PHONE, SUPPORT_PHONE_TEL } from "@/lib/config";
+import {
+  LOCALIZED_ALT_CITIES,
+  LOCALIZED_ALT_COMPETITORS,
+} from "@/lib/coverage-cities";
 import { canonical } from "@/lib/seo/url-helpers";
+import { ukCitiesData } from "@/lib/uk-cities-data";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -82,6 +87,11 @@ export default async function CompetitorAlternativePage({ params }: PageProps) {
   const url = canonical(`/alternatives/${c.slug}`);
   const h1 = pageHeading(c);
   const comparisonHeading = `${c.name} vs ${SITE_NAME}: Comparison`;
+  // Localized city variants exist only for curated competitors — link to them
+  // so the per-city pages are internally linked (not sitemap-only orphans).
+  const localCities = LOCALIZED_ALT_COMPETITORS.includes(c.slug)
+    ? LOCALIZED_ALT_CITIES
+    : [];
 
   // ── JSON-LD: Breadcrumb + FAQ (AI/search love these on versus pages) ──
   const breadcrumbLd = {
@@ -296,6 +306,32 @@ export default async function CompetitorAlternativePage({ params }: PageProps) {
             </div>
           </div>
         </section>
+
+        {/* ── Localized city variants (internal links) ───────────────────── */}
+        {localCities.length > 0 && (
+          <section className="bg-white py-14">
+            <div className="section-container max-w-3xl">
+              <h2 className="mb-4 text-3xl font-bold text-slate-900">
+                {c.name} alternative in your city
+              </h2>
+              <p className="mb-5 text-slate-600">
+                See how {SITE_NAME} compares as a {c.name} alternative in these
+                cities:
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {localCities.map((citySlug) => (
+                  <Link
+                    key={citySlug}
+                    href={`/alternatives/${c.slug}/in/${citySlug}`}
+                    className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-700 transition hover:border-orange-300 hover:text-orange-600"
+                  >
+                    {ukCitiesData[citySlug]?.name ?? citySlug}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* ── Final CTA ──────────────────────────────────────────────────── */}
         <section className="bg-slate-900 py-14 text-white">

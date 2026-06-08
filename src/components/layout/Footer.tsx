@@ -1,7 +1,7 @@
-import Link from "next/link";
-// Instagram icon import removed while IG is paused (see @/lib/social-platforms)
-import { Facebook, Linkedin, Twitter, Mail, Phone, MapPin } from "lucide-react";
 import { SUPPORT_PHONE, SUPPORT_PHONE_TEL } from "@/lib/config";
+// Instagram icon import removed while IG is paused (see @/lib/social-platforms)
+import { Facebook, Linkedin, Mail, MapPin, Phone, Twitter } from "lucide-react";
+import Link from "next/link";
 
 const footerLinks = {
   company: [
@@ -13,6 +13,7 @@ const footerLinks = {
     { label: "Contact", href: "/contact" },
   ],
   resources: [
+    { label: "Compare Alternatives", href: "/alternatives" },
     { label: "Security Checklist", href: "/security-checklist" },
     { label: "Blog", href: "/blog" },
     { label: "Help Centre", href: "/help" },
@@ -32,11 +33,19 @@ const footerLinks = {
 };
 
 const socialLinks = [
-  { icon: Facebook, href: "https://facebook.com/locksafeuk", label: "Facebook" },
+  {
+    icon: Facebook,
+    href: "https://facebook.com/locksafeuk",
+    label: "Facebook",
+  },
   // Instagram paused (see @/lib/social-platforms) — restore to re-show the footer link:
   // { icon: Instagram, href: "https://instagram.com/locksafeuk", label: "Instagram" },
   { icon: Twitter, href: "https://twitter.com/locksafeuk", label: "Twitter" },
-  { icon: Linkedin, href: "https://linkedin.com/company/locksafeuk", label: "LinkedIn" },
+  {
+    icon: Linkedin,
+    href: "https://linkedin.com/company/locksafeuk",
+    label: "LinkedIn",
+  },
 ];
 
 export function Footer() {
@@ -163,9 +172,7 @@ export function Footer() {
         <div className="section-container py-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-slate-400">
             <p>&copy; 2026 LockSafe UK. All rights reserved.</p>
-            <p>
-              Emergency locksmith services with complete fraud protection.
-            </p>
+            <p>Emergency locksmith services with complete fraud protection.</p>
           </div>
         </div>
       </div>
