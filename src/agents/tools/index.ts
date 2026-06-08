@@ -42,11 +42,17 @@ export const allTools = [
 ];
 
 /**
- * Initialize all tools in the registry
- * Call this once at application startup
+ * Initialize all tools in the registry.
+ *
+ * Idempotent — safe to call from every entry point (cron, webhook, agent
+ * heartbeat). The registerTool primitive is also idempotent, so re-runs do
+ * nothing.
  */
 export function initializeTools(): void {
-  console.log("[Tools] Initializing agent tool registry...");
+  const existing = getRegistryStats().totalTools;
+  if (existing >= allTools.length) {
+    return; // already initialized — silent no-op
+  }
   registerTools(allTools);
-  console.log(`[Tools] Registered ${allTools.length} tools`);
+  console.log(`[Tools] Registered ${allTools.length} agent tools`);
 }

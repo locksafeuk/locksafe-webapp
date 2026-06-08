@@ -11,14 +11,19 @@ import type { AgentTool, AgentContext, ToolResult, ToolCategory } from "@/agents
 const toolRegistry = new Map<string, AgentTool>();
 
 /**
- * Register a tool in the registry
+ * Register a tool in the registry.
+ *
+ * Idempotent: if a tool with the same name is already registered, this is a
+ * silent no-op. Tool definitions are module-level constants, so a "re-register"
+ * always means the same definition coming back via a cold-start re-init.
+ * (Earlier behaviour warned + overwrote on every re-register, which spammed
+ * ~30 lines per agent heartbeat on Vercel.)
  */
 export function registerTool(tool: AgentTool): void {
   if (toolRegistry.has(tool.name)) {
-    console.warn(`[Registry] Tool ${tool.name} already registered, overwriting`);
+    return; // already registered — idempotent no-op
   }
   toolRegistry.set(tool.name, tool);
-  console.log(`[Registry] Registered tool: ${tool.name}`);
 }
 
 /**

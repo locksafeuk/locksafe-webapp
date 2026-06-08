@@ -863,6 +863,31 @@ export async function delegateTask(
         duplicateOpenCount: duplicateOpen,
       });
       if (block) {
+        // Idempotent path: when the only reason for blocking is that an
+        // identical task is already open, return the existing task's id
+        // instead of null + warn. Callers (e.g. CEO's createRepairTask tool)
+        // then see a clean success and stop retry-looping on the same intent.
+        if (block === "duplicate-delegation") {
+          const existing = await prisma.agentTask.findFirst({
+            where: {
+              agentId: targetAgent.id,
+              delegatedFrom: fromAgentId,
+              title: task.title,
+              status: { in: ["pending", "in_progress"] },
+            },
+            select: { id: true },
+            orderBy: { createdAt: "desc" },
+          });
+          if (existing) {
+            // Quiet info-level log so we can still trace dedup behaviour without
+            // flooding the warnings stream.
+            console.log(
+              `[Orchestrator] Deduped delegation: ${fromAgentId} → ${toAgent} ("${task.title}") → existing task ${existing.id}`
+            );
+            return existing.id;
+          }
+        }
+        // Real blocks (self-delegation, circular) stay loud — those ARE errors.
         console.warn(`[Orchestrator] Blocked ${block}: ${fromAgentId} → ${toAgent} ("${task.title}")`);
         return null;
       }

@@ -519,6 +519,12 @@ function applyThinkingMode(
 
 // ─── Core router ─────────────────────────────────────────────────────────────
 
+// Process-local cache for the "Ollama disabled" routing decision log. Vercel
+// serverless invocations re-import the module on cold start (so this fires
+// once per cold start), but warm requests skip the log. Previously this log
+// printed on every single AI call, flooding production logs.
+let ollamaDisabledLogged = false;
+
 export async function chat(
   modelAlias: ModelAlias,
   messages: LLMMessage[],
@@ -530,9 +536,12 @@ export async function chat(
   const ollamaRuntime = getOllamaRuntimeDecision();
 
   if (!ollamaRuntime.enabled) {
-    console.log(
-      `[LLM Router] Ollama runtime disabled (${ollamaRuntime.reason ?? "no reason supplied"}) — routing ${localModel} to OpenAI`,
-    );
+    if (!ollamaDisabledLogged) {
+      console.log(
+        `[LLM Router] Ollama runtime disabled (${ollamaRuntime.reason ?? "no reason supplied"}) — routing all calls to OpenAI for this process`,
+      );
+      ollamaDisabledLogged = true;
+    }
 
     if (!(await shouldUseOpenAIFallback(options, { ollamaRuntimeDisabled: true }))) {
       throw new Error(
