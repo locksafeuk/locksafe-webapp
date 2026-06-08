@@ -1,17 +1,18 @@
-import type { MetadataRoute } from "next";
-import { SITE_URL } from "@/lib/config";
 import { blogPosts, getAllCategories } from "@/lib/blog-data";
-import { postcodeData, getAllPostcodes } from "@/lib/postcode-data";
-import { getAllCitySlugs, ukCitiesData } from "@/lib/uk-cities-data";
-import { getAllServiceSlugs } from "@/lib/services-catalog";
-import { loadActiveIntentLandings } from "@/lib/intent-landings-store";
-import {
-  loadActiveKeywordTemplates,
-  citiesForTemplate,
-} from "@/lib/keyword-templates-store";
-import { PILLAR_KEYWORDS } from "@/lib/intents-catalog";
-import { slugify } from "@/lib/seo/url-helpers";
+import { getAllCompetitorSlugs } from "@/lib/competitor-alternatives";
+import { SITE_URL } from "@/lib/config";
 import { prisma as _prisma } from "@/lib/db";
+import { loadActiveIntentLandings } from "@/lib/intent-landings-store";
+import { PILLAR_KEYWORDS } from "@/lib/intents-catalog";
+import {
+  citiesForTemplate,
+  loadActiveKeywordTemplates,
+} from "@/lib/keyword-templates-store";
+import { getAllPostcodes, postcodeData } from "@/lib/postcode-data";
+import { slugify } from "@/lib/seo/url-helpers";
+import { getAllServiceSlugs } from "@/lib/services-catalog";
+import { getAllCitySlugs, ukCitiesData } from "@/lib/uk-cities-data";
+import type { MetadataRoute } from "next";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const prisma = _prisma as any;
 
@@ -161,12 +162,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   // City-specific pages - all major UK cities
-  const cityPages: MetadataRoute.Sitemap = getAllCitySlugs().map((citySlug) => ({
-    url: `${baseUrl}/locksmith-city/${citySlug}`,
-    lastModified: new Date(),
-    changeFrequency: "weekly" as const,
-    priority: 0.85, // High priority for local SEO
-  }));
+  const cityPages: MetadataRoute.Sitemap = getAllCitySlugs().map(
+    (citySlug) => ({
+      url: `${baseUrl}/locksmith-city/${citySlug}`,
+      lastModified: new Date(),
+      changeFrequency: "weekly" as const,
+      priority: 0.85, // High priority for local SEO
+    }),
+  );
 
   // Postcode-specific landing pages (WD, AL postcodes)
   const postcodePages: MetadataRoute.Sitemap = getAllPostcodes().map((pc) => {
@@ -188,20 +191,24 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }));
 
   // Blog category pages
-  const blogCategoryPages: MetadataRoute.Sitemap = getAllCategories().map((category) => ({
-    url: `${baseUrl}/blog/category/${category}`,
-    lastModified: new Date(),
-    changeFrequency: "weekly" as const,
-    priority: 0.6,
-  }));
+  const blogCategoryPages: MetadataRoute.Sitemap = getAllCategories().map(
+    (category) => ({
+      url: `${baseUrl}/blog/category/${category}`,
+      lastModified: new Date(),
+      changeFrequency: "weekly" as const,
+      priority: 0.6,
+    }),
+  );
 
   // Service-intent landing pages (one per Meta catalog item)
-  const servicePages: MetadataRoute.Sitemap = getAllServiceSlugs().map((slug) => ({
-    url: `${baseUrl}/services/${slug}`,
-    lastModified: new Date(),
-    changeFrequency: "weekly" as const,
-    priority: 0.8,
-  }));
+  const servicePages: MetadataRoute.Sitemap = getAllServiceSlugs().map(
+    (slug) => ({
+      url: `${baseUrl}/services/${slug}`,
+      lastModified: new Date(),
+      changeFrequency: "weekly" as const,
+      priority: 0.8,
+    }),
+  );
 
   // Top-level /services overview
   const servicesIndex: MetadataRoute.Sitemap = [
@@ -220,11 +227,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const pillarCounts = new Map<string, number>();
   for (const l of landings) {
     if (l.pillarKeyword) {
-      pillarCounts.set(l.pillarKeyword, (pillarCounts.get(l.pillarKeyword) ?? 0) + 1);
+      pillarCounts.set(
+        l.pillarKeyword,
+        (pillarCounts.get(l.pillarKeyword) ?? 0) + 1,
+      );
     }
   }
   const isBoostedPillar = (pk: string | null | undefined) =>
-    Boolean(pk && (PILLAR_KEYWORDS as readonly string[]).includes(pk) && (pillarCounts.get(pk) ?? 0) >= 2);
+    Boolean(
+      pk &&
+        (PILLAR_KEYWORDS as readonly string[]).includes(pk) &&
+        (pillarCounts.get(pk) ?? 0) >= 2,
+    );
 
   const intentIndex: MetadataRoute.Sitemap = [
     {
@@ -334,7 +348,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
     const rows: Array<{ slug: string; updatedAt: Date }> =
       await prisma.districtLandingPage.findMany({
-        where:  { isPublished: true },
+        where: { isPublished: true },
         select: { slug: true, updatedAt: true },
       });
     districtLandingPages = rows.map((r) => ({
@@ -353,10 +367,32 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     );
   }
 
+  // Competitor "alternative" pages (/alternatives + /alternatives/{slug}).
+  // Comparison/versus pages targeting "{competitor} alternative" searches —
+  // distinct commercial-comparison intent, not part of the location matrix.
+  const alternativesIndex: MetadataRoute.Sitemap = [
+    {
+      url: `${baseUrl}/alternatives`,
+      lastModified: new Date(),
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
+    },
+  ];
+  const alternativePages: MetadataRoute.Sitemap = getAllCompetitorSlugs().map(
+    (slug) => ({
+      url: `${baseUrl}/alternatives/${slug}`,
+      lastModified: new Date(),
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
+    }),
+  );
+
   return [
     ...staticPages,
     ...servicesIndex,
     ...servicePages,
+    ...alternativesIndex,
+    ...alternativePages,
     ...intentIndex,
     ...intentPages,
     ...intentCityPages,
