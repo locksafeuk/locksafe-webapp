@@ -205,6 +205,274 @@ const COMPETITORS: readonly CompetitorAlternative[] = Object.freeze([
       },
     ],
   },
+  {
+    slug: "keys4u",
+    name: "Keys4U",
+    category: "chain",
+    metaTitle:
+      "Keys4U Alternative — Upfront Quotes, Verified Locksmiths | LockSafe UK",
+    metaDescription:
+      "Looking for a Keys4U alternative? LockSafe shows the full price before any work starts, uses only DBS-checked locksmiths, and documents every job with a PDF report. Free for customers.",
+    keywords: [
+      "Keys4U alternative",
+      "alternative to Keys4U",
+      "Keys4U locksmith alternative",
+      "Keys4U competitor",
+      "locksmith like Keys4U",
+    ],
+    heroIntro:
+      "24/7 verified locksmiths with the price agreed before any work starts — and a documented record of every job.",
+    whatTheyAre:
+      "Keys4U is a 24/7 locksmith service operating across UK cities. If you're weighing up your options, here's how LockSafe's model works and where it differs.",
+    body: [
+      "With LockSafe you post your job and verified locksmiths near you respond. You compare them on fee, ETA, rating and reviews and choose who attends — so you decide who turns up and what you pay.",
+      "Every job is recorded end-to-end: GPS-verified arrival, before/after photos, a digital signature and an instant PDF report. And you only commit after seeing a full itemised quote — decline it and you pay only the assessment fee agreed upfront.",
+      "If your locksmith doesn't arrive within the agreed ETA, you're refunded automatically.",
+    ],
+    comparison: [
+      {
+        dimension: "Price before work starts",
+        them: "Varies by job and location",
+        lockSafe: "Full itemised quote shown upfront — accept or decline",
+      },
+      {
+        dimension: "Choose your locksmith",
+        them: "Locksmith is dispatched to you",
+        lockSafe: "Compare fees, ETAs, ratings and pick who attends",
+      },
+      {
+        dimension: "Documentation",
+        them: "Depends on the individual job",
+        lockSafe: "GPS, photos, signature and PDF report on every job",
+      },
+      {
+        dimension: "No-show protection",
+        them: "Varies",
+        lockSafe: "Automatic refund if the locksmith misses the agreed ETA",
+      },
+      {
+        dimension: "Cost to customer",
+        them: "Standard locksmith pricing",
+        lockSafe: "Platform is free for customers",
+      },
+    ],
+    whyLockSafe: LOCKSAFE_DIFFERENTIATORS,
+    faqs: [
+      {
+        q: "Is LockSafe available 24/7 like Keys4U?",
+        a: "Yes — LockSafe operates 24 hours a day, 365 days a year, with verified locksmiths covering nights, weekends and bank holidays.",
+      },
+      {
+        q: "How fast can a locksmith arrive?",
+        a: "Average response across the LockSafe network is 15–30 minutes, depending on your location and locksmith availability.",
+      },
+      {
+        q: "What will it cost me?",
+        a: "LockSafe is free for customers. You pay only the assessment fee (shown upfront) and the work quote you choose to accept.",
+      },
+    ],
+  },
+  {
+    slug: "lockrite",
+    name: "LockRite",
+    category: "chain",
+    metaTitle:
+      "LockRite Alternative — Transparent Pricing, Documented Jobs | LockSafe UK",
+    metaDescription:
+      "A LockRite alternative for emergency and scheduled locksmith work: LockSafe gives you a fixed quote before work, DBS-checked locksmiths, and a full PDF record of every job. Free for customers.",
+    keywords: [
+      "LockRite alternative",
+      "alternative to LockRite",
+      "LockRite locksmith alternative",
+      "LockRite competitor",
+      "locksmith like LockRite",
+    ],
+    heroIntro:
+      "Compare verified locksmiths, lock in the price first, and get a documented job — all in one place.",
+    whatTheyAre:
+      "LockRite is a national uniformed locksmith network covering domestic and commercial jobs across the UK. Here's how LockSafe compares if you're choosing between options.",
+    body: [
+      "LockSafe is a platform rather than a single network: verified locksmiths near you respond to your job, and you choose who attends based on fee, ETA, rating and reviews.",
+      "You approve a full itemised quote before any work starts, and every job is documented with GPS, timestamped photos, a digital signature and an instant PDF report — your proof if anything is ever disputed.",
+      "If your locksmith misses the agreed ETA, you receive an automatic refund.",
+    ],
+    comparison: [
+      {
+        dimension: "Booking model",
+        them: "Network engineer dispatched",
+        lockSafe: "Compare verified locksmiths and choose who attends",
+      },
+      {
+        dimension: "Price before work starts",
+        them: "Varies by job",
+        lockSafe: "Full itemised quote shown upfront — accept or decline",
+      },
+      {
+        dimension: "Documentation",
+        them: "Depends on the individual job",
+        lockSafe: "GPS, photos, signature and PDF report on every job",
+      },
+      {
+        dimension: "No-show protection",
+        them: "Varies",
+        lockSafe: "Automatic refund if the agreed ETA is missed",
+      },
+      {
+        dimension: "Cost to customer",
+        them: "Standard locksmith pricing",
+        lockSafe: "Platform is free for customers",
+      },
+    ],
+    whyLockSafe: LOCKSAFE_DIFFERENTIATORS,
+    faqs: [
+      {
+        q: "Does LockSafe cover the same jobs as LockRite?",
+        a: "Yes — lockouts, lock changes, broken keys, uPVC repairs, burglary repairs and commercial work — but as a platform where you compare verified locksmiths and approve a fixed quote first.",
+      },
+      {
+        q: "Are LockSafe locksmiths vetted?",
+        a: "Every locksmith is DBS-checked, insured and ID-verified before they can take a job, and you see their rating and reviews before accepting a bid.",
+      },
+      {
+        q: "Is there a fee for customers?",
+        a: "No — LockSafe is free for customers. You pay only the assessment fee and any work quote you accept.",
+      },
+    ],
+  },
+  {
+    slug: "lockforce",
+    name: "Lockforce",
+    category: "chain",
+    metaTitle:
+      "Lockforce Alternative — Verified Locksmiths, Upfront Quotes | LockSafe UK",
+    metaDescription:
+      "A Lockforce alternative for locksmith jobs: with LockSafe you compare verified locksmiths, approve a fixed quote before work, and get a documented, refund-protected job. Free for customers.",
+    keywords: [
+      "Lockforce alternative",
+      "alternative to Lockforce",
+      "Lockforce locksmith alternative",
+      "Lockforce competitor",
+      "locksmith like Lockforce",
+    ],
+    heroIntro:
+      "Verified locksmiths, the full price before work starts, and proof of every job — 24/7 across the UK.",
+    whatTheyAre:
+      "Lockforce is a national locksmith franchise network handling emergency and scheduled lock work. Here's how LockSafe's model compares.",
+    body: [
+      "On LockSafe you describe your job once and verified locksmiths near you respond. You compare them and pick who attends, then approve a single itemised quote before any work begins.",
+      "Every job is recorded with GPS, photos, a digital signature and a PDF report, and you're automatically refunded if your locksmith doesn't arrive within the agreed time.",
+      "It's the speed of a national call-out with the certainty and protection of a managed, documented booking.",
+    ],
+    comparison: [
+      {
+        dimension: "Booking model",
+        them: "Franchise engineer dispatched",
+        lockSafe: "Compare verified locksmiths and choose who attends",
+      },
+      {
+        dimension: "Price before work starts",
+        them: "Varies by job",
+        lockSafe: "Full itemised quote shown upfront — accept or decline",
+      },
+      {
+        dimension: "Documentation",
+        them: "Depends on the individual job",
+        lockSafe: "GPS, photos, signature and PDF report on every job",
+      },
+      {
+        dimension: "No-show protection",
+        them: "Varies",
+        lockSafe: "Automatic refund if the agreed ETA is missed",
+      },
+      {
+        dimension: "Cost to customer",
+        them: "Standard locksmith pricing",
+        lockSafe: "Platform is free for customers",
+      },
+    ],
+    whyLockSafe: LOCKSAFE_DIFFERENTIATORS,
+    faqs: [
+      {
+        q: "Is LockSafe a direct alternative to Lockforce?",
+        a: "Yes — it covers the same emergency and scheduled locksmith jobs, but as a platform where you compare verified locksmiths and approve a fixed quote before work begins.",
+      },
+      {
+        q: "How quickly can someone reach me?",
+        a: "Average response across the LockSafe network is 15–30 minutes, 24/7, depending on your location and locksmith availability.",
+      },
+      {
+        q: "What does it cost?",
+        a: "LockSafe is free for customers. You pay only the assessment fee and the work quote you choose to accept.",
+      },
+    ],
+  },
+  {
+    slug: "banham",
+    name: "Banham",
+    category: "chain",
+    metaTitle:
+      "Banham Locksmith Alternative — Verified, Fast, Upfront | LockSafe UK",
+    metaDescription:
+      "Looking for a Banham locksmith alternative? LockSafe connects you with verified, DBS-checked locksmiths, shows the price before work starts, and documents every job. Free for customers.",
+    keywords: [
+      "Banham alternative",
+      "alternative to Banham",
+      "Banham locksmith alternative",
+      "Banham competitor",
+      "locksmith instead of Banham",
+    ],
+    heroIntro:
+      "Fast, verified locksmiths with transparent pricing — the price agreed before any work starts.",
+    whatTheyAre:
+      "Banham is a long-established UK security company offering locks, alarms and locksmith services, with a strong presence in London. For on-demand locksmith call-outs, here's how LockSafe compares.",
+    body: [
+      "LockSafe is a platform focused on connecting you with verified mobile locksmiths quickly, wherever you are in the UK. You compare locksmiths on fee, ETA, rating and reviews and choose who attends.",
+      "You see a full itemised quote before any work starts, and every job is documented with GPS, photos, a digital signature and a PDF report. If your locksmith doesn't arrive on time, you're refunded automatically.",
+      "For high-end branded hardware and installations a specialist like Banham may be the right fit; for fast, transparent emergency and everyday locksmith work, LockSafe is built for exactly that.",
+    ],
+    comparison: [
+      {
+        dimension: "Coverage",
+        them: "Strong in London and the South East",
+        lockSafe: "Verified locksmiths nationwide",
+      },
+      {
+        dimension: "Price before work starts",
+        them: "Varies by job",
+        lockSafe: "Full itemised quote shown upfront — accept or decline",
+      },
+      {
+        dimension: "Choose your locksmith",
+        them: "Company dispatches an engineer",
+        lockSafe: "Compare fees, ETAs, ratings and pick who attends",
+      },
+      {
+        dimension: "Documentation",
+        them: "Depends on the individual job",
+        lockSafe: "GPS, photos, signature and PDF report on every job",
+      },
+      {
+        dimension: "Cost to customer",
+        them: "Standard pricing",
+        lockSafe: "Platform is free for customers",
+      },
+    ],
+    whyLockSafe: LOCKSAFE_DIFFERENTIATORS,
+    faqs: [
+      {
+        q: "Does LockSafe cover my area outside London?",
+        a: "Yes — LockSafe's verified locksmith network covers cities and towns across the UK, 24/7.",
+      },
+      {
+        q: "Can LockSafe handle emergencies quickly?",
+        a: "Average response across the network is 15–30 minutes, depending on your location and locksmith availability.",
+      },
+      {
+        q: "Is it free to use?",
+        a: "LockSafe is free for customers. You pay only the assessment fee and the work quote you choose to accept.",
+      },
+    ],
+  },
 
   // ── Directories / lead-generation sites ─────────────────────────────────
   {

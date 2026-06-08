@@ -357,10 +357,12 @@ export function AdminCoverageMap({
         : null;
       const targetChanged = targetKey !== previousTargetKeyRef.current;
 
-      // Only recenter on the first load of valid data, or when the user runs a
-      // new address search (target changes). Routine data refreshes rebuild the
+      // Only recenter the map on the very first load of valid data, or when the
+      // user runs a new address search (target changes). Routine data refreshes
+      // (availability/status updates, postcode lookups, re-renders) rebuild the
       // markers but must NOT touch the viewport — otherwise the user's manual
-      // zoom/pan is wiped out.
+      // zoom/pan is wiped out. This matches the UI hint: "The map only recenters
+      // when you press Find Closest or clear the search."
       if (!hasInitialFitRef.current || targetChanged) {
         map.fitBounds(bounds, { padding: [50, 50] });
         hasInitialFitRef.current = true;

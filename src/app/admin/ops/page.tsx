@@ -1,20 +1,20 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import mapboxgl from "mapbox-gl";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 import "mapbox-gl/dist/mapbox-gl.css";
+import { Button } from "@/components/ui/button";
 import {
-  RefreshCw,
+  AlertCircle,
+  Clock,
+  HelpCircle,
   Loader2,
   MapPin,
-  Clock,
-  AlertCircle,
+  RefreshCw,
   TruckIcon,
   Wrench,
-  HelpCircle,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
@@ -65,17 +65,18 @@ interface LocksmithEntry {
 
 // ── Status colour helpers ──────────────────────────────────────────────────
 const STATUS_COLOR: Record<string, string> = {
-  PHONE_INITIATED: "#dc2626",   // red-600
-  PENDING: "#ef4444",           // red
-  SCHEDULED: "#eab308",         // yellow
-  ACCEPTED: "#f97316",          // orange
-  EN_ROUTE: "#f59e0b",          // amber
-  ARRIVED: "#10b981",           // emerald
+  PHONE_INITIATED: "#dc2626", // red-600
+  PENDING: "#ef4444", // red
+  SCHEDULED: "#eab308", // yellow
+  ACCEPTED: "#f97316", // orange
+  EN_ROUTE: "#f59e0b", // amber
+  ARRIVED: "#10b981", // emerald
   DIAGNOSING: "#10b981",
-  QUOTED: "#3b82f6",            // blue
-  QUOTE_ACCEPTED: "#8b5cf6",    // violet
-  IN_PROGRESS: "#14b8a6",       // teal
+  QUOTED: "#3b82f6", // blue
+  QUOTE_ACCEPTED: "#8b5cf6", // violet
+  IN_PROGRESS: "#14b8a6", // teal
   PENDING_CUSTOMER_CONFIRMATION: "#6366f1", // indigo
+  CANCELLED: "#94a3b8", // slate — no coverage / recently cancelled
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -90,9 +91,13 @@ const STATUS_LABEL: Record<string, string> = {
   QUOTE_ACCEPTED: "Quote Accepted",
   IN_PROGRESS: "In Progress",
   PENDING_CUSTOMER_CONFIRMATION: "Awaiting Sign-off",
+  CANCELLED: "Cancelled",
 };
 
-function getLocksmithStatus(locksmith: LocksmithEntry): { label: string; color: string } {
+function getLocksmithStatus(locksmith: LocksmithEntry): {
+  label: string;
+  color: string;
+} {
   if (!locksmith.isActive) return { label: "Offline", color: "#ef4444" };
   if (!locksmith.isAvailable) return { label: "Unavailable", color: "#f59e0b" };
   return { label: "Available", color: "#22c55e" };
@@ -118,17 +123,22 @@ function distanceMilesBetween(
   const dLng = toRadians(toLng - fromLng);
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRadians(fromLat)) * Math.cos(toRadians(toLat)) *
-    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    Math.cos(toRadians(fromLat)) *
+      Math.cos(toRadians(toLat)) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
 
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return earthRadiusMiles * c;
 }
 
 function StatusIcon({ status }: { status: string }) {
-  if (status === "PENDING" || status === "SCHEDULED") return <AlertCircle className="w-3.5 h-3.5" />;
-  if (status === "EN_ROUTE" || status === "ACCEPTED") return <TruckIcon className="w-3.5 h-3.5" />;
-  if (["ARRIVED", "DIAGNOSING", "IN_PROGRESS"].includes(status)) return <Wrench className="w-3.5 h-3.5" />;
+  if (status === "PENDING" || status === "SCHEDULED")
+    return <AlertCircle className="w-3.5 h-3.5" />;
+  if (status === "EN_ROUTE" || status === "ACCEPTED")
+    return <TruckIcon className="w-3.5 h-3.5" />;
+  if (["ARRIVED", "DIAGNOSING", "IN_PROGRESS"].includes(status))
+    return <Wrench className="w-3.5 h-3.5" />;
   return <HelpCircle className="w-3.5 h-3.5" />;
 }
 
@@ -143,8 +153,18 @@ export default function AdminOpsPage() {
   const latestBoundsRef = useRef<mapboxgl.LngLatBounds | null>(null);
 
   const [jobs, setJobs] = useState<JobEntry[]>([]);
+  // Recently cancelled jobs (last 48h) — e.g. requests where no locksmith was
+  // available. Surfaced behind the "Cancelled 48h" filter so unmatched demand
+  // stays visible instead of vanishing from Live Ops.
+  const [recentCancelled, setRecentCancelled] = useState<JobEntry[]>([]);
   const [locksmiths, setLocksmiths] = useState<LocksmithEntry[]>([]);
-  const [stats, setStats] = useState<Stats>({ total: 0, pending: 0, enRoute: 0, onSite: 0, accepted: 0 });
+  const [stats, setStats] = useState<Stats>({
+    total: 0,
+    pending: 0,
+    enRoute: 0,
+    onSite: 0,
+    accepted: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [selectedJob, setSelectedJob] = useState<string | null>(null);
@@ -159,6 +179,9 @@ export default function AdminOpsPage() {
       const data = await res.json();
       if (data.success) {
         setJobs(data.jobs);
+        setRecentCancelled(
+          Array.isArray(data.recentCancelled) ? data.recentCancelled : [],
+        );
         setLocksmiths(Array.isArray(data.locksmiths) ? data.locksmiths : []);
         setStats(data.stats);
         setLastUpdated(new Date());
@@ -210,9 +233,12 @@ export default function AdminOpsPage() {
     markers.current.forEach((m) => m.remove());
     markers.current = [];
 
-    const filtered = statusFilter === "all"
-      ? jobs
-      : jobs.filter((j) => j.status === statusFilter);
+    const filtered =
+      statusFilter === "CANCELLED"
+        ? recentCancelled
+        : statusFilter === "all"
+          ? jobs
+          : jobs.filter((j) => j.status === statusFilter);
 
     const bounds = new mapboxgl.LngLatBounds();
     let hasBounds = false;
@@ -228,7 +254,10 @@ export default function AdminOpsPage() {
       el.style.cssText = `
         width:34px; height:44px; cursor:pointer;
       `;
-      const pulseStyle = job.status === "PENDING" ? `style="filter:drop-shadow(0 3px 5px rgba(0,0,0,0.55)); animation:pinPulse 1.6s ease-in-out infinite;"` : `style="filter:drop-shadow(0 3px 5px rgba(0,0,0,0.55));"`;
+      const pulseStyle =
+        job.status === "PENDING"
+          ? `style="filter:drop-shadow(0 3px 5px rgba(0,0,0,0.55)); animation:pinPulse 1.6s ease-in-out infinite;"`
+          : `style="filter:drop-shadow(0 3px 5px rgba(0,0,0,0.55));"`;
       el.innerHTML = `<svg ${pulseStyle} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 34 44" width="34" height="44">
         <path d="M17 1C9.27 1 3 7.27 3 15c0 5.5 3.2 10.3 7.88 12.63L17 43l6.12-15.37C27.8 25.3 31 20.5 31 15 31 7.27 24.73 1 17 1z"
           fill="${color}" stroke="rgba(255,255,255,0.7)" stroke-width="1.5"/>
@@ -237,8 +266,11 @@ export default function AdminOpsPage() {
       </svg>`;
       el.title = `#${job.jobNumber} — ${STATUS_LABEL[job.status] ?? job.status}`;
 
-      const popup = new mapboxgl.Popup({ offset: 16, closeButton: false, maxWidth: "260px" })
-        .setHTML(`
+      const popup = new mapboxgl.Popup({
+        offset: 16,
+        closeButton: false,
+        maxWidth: "260px",
+      }).setHTML(`
           <div style="font-family:system-ui; padding:4px">
             <div style="font-weight:700; margin-bottom:4px; color:#1e293b">#${job.jobNumber}</div>
             <div style="font-size:12px; color:#64748b; margin-bottom:6px">${job.address}</div>
@@ -271,7 +303,9 @@ export default function AdminOpsPage() {
         lsEl.style.cssText = `
           width:38px; height:38px; cursor:pointer;
         `;
-        const carStyle = isMoving ? `style="filter:drop-shadow(0 2px 5px rgba(0,0,0,0.55)); animation:carBounce 0.7s ease-in-out infinite alternate;"` : `style="filter:drop-shadow(0 2px 5px rgba(0,0,0,0.55));"` ;
+        const carStyle = isMoving
+          ? `style="filter:drop-shadow(0 2px 5px rgba(0,0,0,0.55)); animation:carBounce 0.7s ease-in-out infinite alternate;"`
+          : `style="filter:drop-shadow(0 2px 5px rgba(0,0,0,0.55));"`;
         lsEl.innerHTML = `<svg ${carStyle} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 38 38" width="38" height="38">
           <polygon points="19,1 13,10 25,10" fill="${color}" stroke="white" stroke-width="1.2"/>
           <rect x="6" y="10" width="26" height="19" rx="4" fill="${color}" stroke="white" stroke-width="1.5"/>
@@ -295,10 +329,21 @@ export default function AdminOpsPage() {
 
     for (const locksmith of locksmiths) {
       const { color, label } = getLocksmithStatus(locksmith);
-      const assignedJob = jobs.find((job) => job.locksmith?.id === locksmith.id);
+      const assignedJob = jobs.find(
+        (job) => job.locksmith?.id === locksmith.id,
+      );
       const nearestJobDistanceMiles = jobs
-        .filter((job) => Number.isFinite(job.jobLat) && Number.isFinite(job.jobLng))
-        .map((job) => distanceMilesBetween(locksmith.baseLat, locksmith.baseLng, job.jobLat as number, job.jobLng as number))
+        .filter(
+          (job) => Number.isFinite(job.jobLat) && Number.isFinite(job.jobLng),
+        )
+        .map((job) =>
+          distanceMilesBetween(
+            locksmith.baseLat,
+            locksmith.baseLng,
+            job.jobLat as number,
+            job.jobLng as number,
+          ),
+        )
         .sort((a, b) => a - b)[0];
 
       const lsPin = document.createElement("div");
@@ -315,74 +360,88 @@ export default function AdminOpsPage() {
 
       const profileUrl = `/admin/locksmiths?locksmithId=${encodeURIComponent(locksmith.id)}`;
 
-      const lsPopup = new mapboxgl.Popup({ offset: 14, closeButton: false, maxWidth: "240px" });
+      const lsPopup = new mapboxgl.Popup({
+        offset: 14,
+        closeButton: false,
+        maxWidth: "240px",
+      });
 
-      lsPopup.setDOMContent((() => {
-        const wrapper = document.createElement("div");
-        wrapper.style.fontFamily = "system-ui";
-        wrapper.style.padding = "4px";
+      lsPopup.setDOMContent(
+        (() => {
+          const wrapper = document.createElement("div");
+          wrapper.style.fontFamily = "system-ui";
+          wrapper.style.padding = "4px";
 
-        const title = document.createElement("div");
-        title.style.fontWeight = "700";
-        title.style.marginBottom = "4px";
-        title.style.color = "#1e293b";
-        title.textContent = locksmith.name;
+          const title = document.createElement("div");
+          title.style.fontWeight = "700";
+          title.style.marginBottom = "4px";
+          title.style.color = "#1e293b";
+          title.textContent = locksmith.name;
 
-        const badge = document.createElement("div");
-        badge.style.display = "inline-block";
-        badge.style.padding = "2px 8px";
-        badge.style.borderRadius = "12px";
-        badge.style.fontSize = "11px";
-        badge.style.background = `${color}22`;
-        badge.style.color = color;
-        badge.style.fontWeight = "600";
-        badge.style.marginBottom = "6px";
-        badge.textContent = label;
+          const badge = document.createElement("div");
+          badge.style.display = "inline-block";
+          badge.style.padding = "2px 8px";
+          badge.style.borderRadius = "12px";
+          badge.style.fontSize = "11px";
+          badge.style.background = `${color}22`;
+          badge.style.color = color;
+          badge.style.fontWeight = "600";
+          badge.style.marginBottom = "6px";
+          badge.textContent = label;
 
-        const coverage = document.createElement("div");
-        coverage.style.fontSize = "12px";
-        coverage.style.color = "#374151";
-        coverage.innerHTML = `<b>Coverage:</b> ${coverageLabel}`;
+          const coverage = document.createElement("div");
+          coverage.style.fontSize = "12px";
+          coverage.style.color = "#374151";
+          coverage.innerHTML = `<b>Coverage:</b> ${coverageLabel}`;
 
-        const jobInfo = document.createElement("div");
-        jobInfo.style.fontSize = "12px";
-        jobInfo.style.color = "#374151";
-        jobInfo.style.marginTop = "4px";
-        jobInfo.innerHTML = assignedJob
-          ? `<b>Assigned:</b> Job ${assignedJob.jobNumber}`
-          : "<b>Assigned:</b> None";
+          const jobInfo = document.createElement("div");
+          jobInfo.style.fontSize = "12px";
+          jobInfo.style.color = "#374151";
+          jobInfo.style.marginTop = "4px";
+          jobInfo.innerHTML = assignedJob
+            ? `<b>Assigned:</b> Job ${assignedJob.jobNumber}`
+            : "<b>Assigned:</b> None";
 
-        const distanceInfo = document.createElement("div");
-        distanceInfo.style.fontSize = "12px";
-        distanceInfo.style.color = "#374151";
-        distanceInfo.style.marginTop = "4px";
-        distanceInfo.innerHTML = Number.isFinite(nearestJobDistanceMiles)
-          ? `<b>Nearest active job:</b> ${(nearestJobDistanceMiles as number).toFixed(1)} miles`
-          : "<b>Nearest active job:</b> N/A";
+          const distanceInfo = document.createElement("div");
+          distanceInfo.style.fontSize = "12px";
+          distanceInfo.style.color = "#374151";
+          distanceInfo.style.marginTop = "4px";
+          distanceInfo.innerHTML = Number.isFinite(nearestJobDistanceMiles)
+            ? `<b>Nearest active job:</b> ${(nearestJobDistanceMiles as number).toFixed(1)} miles`
+            : "<b>Nearest active job:</b> N/A";
 
-        const location = document.createElement("div");
-        location.style.fontSize = "11px";
-        location.style.color = "#94a3b8";
-        location.style.marginTop = "4px";
-        location.textContent = "Base location";
+          const location = document.createElement("div");
+          location.style.fontSize = "11px";
+          location.style.color = "#94a3b8";
+          location.style.marginTop = "4px";
+          location.textContent = "Base location";
 
-        const openButton = document.createElement("button");
-        openButton.type = "button";
-        openButton.textContent = "Open Profile";
-        openButton.style.marginTop = "10px";
-        openButton.style.width = "100%";
-        openButton.style.borderRadius = "8px";
-        openButton.style.border = "1px solid #cbd5e1";
-        openButton.style.padding = "8px 10px";
-        openButton.style.fontSize = "12px";
-        openButton.style.fontWeight = "600";
-        openButton.style.background = "white";
-        openButton.style.cursor = "pointer";
-        openButton.addEventListener("click", () => router.push(profileUrl));
+          const openButton = document.createElement("button");
+          openButton.type = "button";
+          openButton.textContent = "Open Profile";
+          openButton.style.marginTop = "10px";
+          openButton.style.width = "100%";
+          openButton.style.borderRadius = "8px";
+          openButton.style.border = "1px solid #cbd5e1";
+          openButton.style.padding = "8px 10px";
+          openButton.style.fontSize = "12px";
+          openButton.style.fontWeight = "600";
+          openButton.style.background = "white";
+          openButton.style.cursor = "pointer";
+          openButton.addEventListener("click", () => router.push(profileUrl));
 
-        wrapper.append(title, badge, coverage, jobInfo, distanceInfo, location, openButton);
-        return wrapper;
-      })());
+          wrapper.append(
+            title,
+            badge,
+            coverage,
+            jobInfo,
+            distanceInfo,
+            location,
+            openButton,
+          );
+          return wrapper;
+        })(),
+      );
 
       const lsBaseMarker = new mapboxgl.Marker(lsPin)
         .setLngLat([locksmith.baseLng, locksmith.baseLat])
@@ -402,21 +461,33 @@ export default function AdminOpsPage() {
         hasAutoFittedRef.current = true;
       }
     }
-  }, [jobs, locksmiths, mapReady, statusFilter]);
+  }, [jobs, recentCancelled, locksmiths, mapReady, statusFilter]);
 
   const recenterMap = useCallback(() => {
     if (!map.current || !latestBoundsRef.current) return;
     userMovedMapRef.current = false;
-    map.current.fitBounds(latestBoundsRef.current, { padding: 60, maxZoom: 13 });
+    map.current.fitBounds(latestBoundsRef.current, {
+      padding: 60,
+      maxZoom: 13,
+    });
   }, []);
 
   // Focus map on selected job
   const flyToJob = useCallback((job: JobEntry) => {
     if (!map.current || !job.jobLat || !job.jobLng) return;
-    map.current.flyTo({ center: [job.jobLng, job.jobLat], zoom: 14, duration: 800 });
+    map.current.flyTo({
+      center: [job.jobLng, job.jobLat],
+      zoom: 14,
+      duration: 800,
+    });
   }, []);
 
-  const filtered = statusFilter === "all" ? jobs : jobs.filter((j) => j.status === statusFilter);
+  const filtered =
+    statusFilter === "CANCELLED"
+      ? recentCancelled
+      : statusFilter === "all"
+        ? jobs
+        : jobs.filter((j) => j.status === statusFilter);
 
   return (
     <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-gray-950">
@@ -479,9 +550,15 @@ export default function AdminOpsPage() {
             { key: "EN_ROUTE", label: "En Route" },
             { key: "ARRIVED", label: "Arrived" },
             { key: "IN_PROGRESS", label: "In Progress" },
+            {
+              key: "CANCELLED",
+              label: recentCancelled.length
+                ? `Cancelled 48h (${recentCancelled.length})`
+                : "Cancelled 48h",
+            },
           ].map(({ key, label }) => (
-              <button
-                type="button"
+            <button
+              type="button"
               key={key}
               onClick={() => setStatusFilter(key)}
               className={`text-xs px-2.5 py-1 rounded-full font-medium transition-colors whitespace-nowrap ${
@@ -513,8 +590,8 @@ export default function AdminOpsPage() {
                 const isSelected = selectedJob === job.id;
                 return (
                   <button
-                      key={job.id}
-                      type="button"
+                    key={job.id}
+                    type="button"
                     onClick={() => {
                       setSelectedJob(job.id);
                       flyToJob(job);
@@ -540,11 +617,17 @@ export default function AdminOpsPage() {
                             {STATUS_LABEL[job.status] ?? job.status}
                           </span>
                         </div>
-                        <p className="text-xs text-gray-300 truncate">{job.postcode} — {job.problemType}</p>
+                        <p className="text-xs text-gray-300 truncate">
+                          {job.postcode} — {job.problemType}
+                        </p>
                         {job.locksmith ? (
-                          <p className="text-xs text-gray-500 mt-0.5 truncate">🔧 {job.locksmith.name}</p>
+                          <p className="text-xs text-gray-500 mt-0.5 truncate">
+                            🔧 {job.locksmith.name}
+                          </p>
                         ) : (
-                          <p className="text-xs text-red-500 mt-0.5">⚠ Unassigned</p>
+                          <p className="text-xs text-red-500 mt-0.5">
+                            ⚠ Unassigned
+                          </p>
                         )}
                       </div>
                       <div className="text-xs text-gray-600 shrink-0 text-right">
@@ -561,29 +644,68 @@ export default function AdminOpsPage() {
 
         {/* Legend */}
         <div className="p-3 border-t border-gray-800">
-          <p className="text-xs text-gray-600 mb-2 font-medium uppercase tracking-wider">Legend</p>
+          <p className="text-xs text-gray-600 mb-2 font-medium uppercase tracking-wider">
+            Legend
+          </p>
           <div className="grid grid-cols-2 gap-x-3 gap-y-1">
             {Object.entries(STATUS_LABEL).map(([key, label]) => (
               <div key={key} className="flex items-center gap-1.5">
-                <svg viewBox="0 0 14 18" width="10" height="13" style={{flexShrink:0}}>
-                  <path d="M7 0.5C3.96 0.5 1.5 2.96 1.5 6c0 2.3 1.35 4.3 3.31 5.28L7 17.5l2.19-6.22C11.15 10.3 12.5 8.3 12.5 6 12.5 2.96 10.04 0.5 7 0.5z"
-                    fill={STATUS_COLOR[key] ?? "#94a3b8"} stroke="rgba(255,255,255,0.4)" strokeWidth="0.5"/>
+                <svg
+                  viewBox="0 0 14 18"
+                  width="10"
+                  height="13"
+                  style={{ flexShrink: 0 }}
+                >
+                  <path
+                    d="M7 0.5C3.96 0.5 1.5 2.96 1.5 6c0 2.3 1.35 4.3 3.31 5.28L7 17.5l2.19-6.22C11.15 10.3 12.5 8.3 12.5 6 12.5 2.96 10.04 0.5 7 0.5z"
+                    fill={STATUS_COLOR[key] ?? "#94a3b8"}
+                    stroke="rgba(255,255,255,0.4)"
+                    strokeWidth="0.5"
+                  />
                 </svg>
                 <span className="text-xs text-gray-500">{label}</span>
               </div>
             ))}
           </div>
           <div className="mt-2 pt-2 border-t border-gray-800 flex items-center gap-2">
-            <svg viewBox="0 0 24 24" width="22" height="22" style={{flexShrink:0}}>
-              <polygon points="12,0 8,7 16,7" fill="#94a3b8" stroke="white" strokeWidth="0.8"/>
-              <rect x="4" y="7" width="16" height="11" rx="3" fill="#94a3b8" stroke="white" strokeWidth="0.8"/>
-              <rect x="6" y="9" width="12" height="4" rx="1.5" fill="rgba(255,255,255,0.4)"/>
-              <rect x="1" y="8" width="4" height="5" rx="2" fill="#0f172a"/>
-              <rect x="19" y="8" width="4" height="5" rx="2" fill="#0f172a"/>
-              <rect x="1" y="14" width="4" height="5" rx="2" fill="#0f172a"/>
-              <rect x="19" y="14" width="4" height="5" rx="2" fill="#0f172a"/>
+            <svg
+              viewBox="0 0 24 24"
+              width="22"
+              height="22"
+              style={{ flexShrink: 0 }}
+            >
+              <polygon
+                points="12,0 8,7 16,7"
+                fill="#94a3b8"
+                stroke="white"
+                strokeWidth="0.8"
+              />
+              <rect
+                x="4"
+                y="7"
+                width="16"
+                height="11"
+                rx="3"
+                fill="#94a3b8"
+                stroke="white"
+                strokeWidth="0.8"
+              />
+              <rect
+                x="6"
+                y="9"
+                width="12"
+                height="4"
+                rx="1.5"
+                fill="rgba(255,255,255,0.4)"
+              />
+              <rect x="1" y="8" width="4" height="5" rx="2" fill="#0f172a" />
+              <rect x="19" y="8" width="4" height="5" rx="2" fill="#0f172a" />
+              <rect x="1" y="14" width="4" height="5" rx="2" fill="#0f172a" />
+              <rect x="19" y="14" width="4" height="5" rx="2" fill="#0f172a" />
             </svg>
-            <span className="text-xs text-gray-500">Locksmith car (live GPS)</span>
+            <span className="text-xs text-gray-500">
+              Locksmith car (live GPS)
+            </span>
           </div>
           <div className="mt-2 flex flex-wrap gap-3">
             <div className="flex items-center gap-1.5">
@@ -592,7 +714,9 @@ export default function AdminOpsPage() {
             </div>
             <div className="flex items-center gap-1.5">
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-500" />
-              <span className="text-xs text-gray-500">Locksmith unavailable</span>
+              <span className="text-xs text-gray-500">
+                Locksmith unavailable
+              </span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500" />
@@ -623,7 +747,9 @@ export default function AdminOpsPage() {
           <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80">
             <div className="text-center text-white">
               <p className="font-bold mb-1">Mapbox token missing</p>
-              <p className="text-sm text-gray-400">Set NEXT_PUBLIC_MAPBOX_TOKEN in your env</p>
+              <p className="text-sm text-gray-400">
+                Set NEXT_PUBLIC_MAPBOX_TOKEN in your env
+              </p>
             </div>
           </div>
         )}
@@ -638,7 +764,11 @@ export default function AdminOpsPage() {
   );
 }
 
-function StatChip({ label, value, color }: { label: string; value: number; color: string }) {
+function StatChip({
+  label,
+  value,
+  color,
+}: { label: string; value: number; color: string }) {
   const colors: Record<string, string> = {
     blue: "bg-blue-900/40 text-blue-300",
     red: "bg-red-900/40 text-red-300",
