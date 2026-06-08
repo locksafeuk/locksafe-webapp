@@ -20,12 +20,18 @@
  * Rules (applied in order):
  *  1. Strip spaces and any non-digit / non-`+` characters.
  *  2. If it starts with `+` → strip it (already international).
- *  3. If it starts with `07` and is 11 digits → UK mobile, replace leading `0` with `44`.
- *  4. If it starts with `44` → already international UK.
- *  5. Otherwise → return as-is (digits only) so non-UK numbers still work
- *     when stored in international format without the `+`.
+ *  3. If it starts with `0` (UK national format):
+ *     - `07` + exactly 11 digits → UK mobile, replace leading `0` with `44`.
+ *     - Anything else with leading `0` → REJECT. WhatsApp deep links cannot
+ *       send to UK landlines and a wrong-length `07...` (e.g. 10 digits, missing
+ *       a digit) is malformed data — better to render a disabled button than
+ *       produce a dead `whatsapp://` link that errors with
+ *       "This link couldn't be opened."
+ *  4. Otherwise (no leading 0) → keep digits as international form (e.g. `447…`
+ *     for UK that's already E.164, or `1…`, `33…` for other countries).
  *
- * Returns `null` if the input is empty, whitespace, or contains no digits.
+ * Returns `null` if the input is empty, whitespace, has no digits, has the wrong
+ * shape (UK invalid as above), or falls outside the 7–15 digit E.164 range.
  */
 export function normalisePhoneForWa(
   phone: string | null | undefined,
@@ -37,11 +43,18 @@ export function normalisePhoneForWa(
 
   let normalised = stripped.startsWith("+") ? stripped.slice(1) : stripped;
 
-  if (normalised.startsWith("07") && normalised.length === 11) {
-    normalised = `44${normalised.slice(1)}`;
+  // UK national format starts with 0. Only 11-digit mobiles (07…) are valid
+  // for WhatsApp. Reject anything else with a leading 0 so the calling UI can
+  // render a disabled button instead of producing a dead WhatsApp link.
+  if (normalised.startsWith("0")) {
+    if (normalised.startsWith("07") && normalised.length === 11) {
+      normalised = `44${normalised.slice(1)}`;
+    } else {
+      return null;
+    }
   }
 
-  // Must be all digits and at least an E.164-ish length (min 7).
+  // Must be all digits and within E.164 length bounds.
   if (!/^\d{7,15}$/.test(normalised)) return null;
 
   return normalised;

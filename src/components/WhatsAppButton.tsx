@@ -77,9 +77,14 @@ export function WhatsAppButton({
   const baseClass = `inline-flex items-center justify-center rounded-md font-medium transition-colors ${sizeClass} ${className}`;
 
   if (!url) {
+    // Phone is either missing or could not be normalised (e.g. wrong length,
+    // UK landline, garbage data). Tooltip nudges Ops to fix it in the profile.
+    const reason = !phone || !phone.trim()
+      ? "No phone on file"
+      : "Invalid phone number — fix in profile";
     return (
       <span
-        title="No phone on file"
+        title={reason}
         aria-disabled="true"
         className={`${baseClass} bg-slate-100 text-slate-400 cursor-not-allowed`}
       >
