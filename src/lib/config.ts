@@ -1,6 +1,11 @@
 // Site configuration - uses environment variables for flexibility
 const DEFAULT_SUPPORT_PHONE = "+44 20 4577 1989";
+// Voice/calls only — engineers' phone (kept on the device for WhatsApp app too).
 const DEFAULT_LOCKSMITH_ADMIN_PHONE = "07818 333 989";
+// WhatsApp messaging — the LockSafe UK Twilio sender (+44 7446 588587), which
+// runs the locksmith assistant bot + admin inbox. Decoupled from the call
+// number on purpose: calls go to the engineers' phone, chats go to the bot.
+const DEFAULT_LOCKSMITH_ADMIN_WHATSAPP = "+44 7446 588587";
 
 function toTelHref(phone: string): string {
   return phone.replace(/[^\d+]/g, "");
@@ -27,7 +32,7 @@ const configuredLocksmithAdminPhoneTel =
 
 const configuredLocksmithAdminWhatsapp =
   process.env.NEXT_PUBLIC_LOCKSMITH_ADMIN_WHATSAPP ||
-  toWhatsappPhone(configuredLocksmithAdminPhoneTel);
+  toWhatsappPhone(DEFAULT_LOCKSMITH_ADMIN_WHATSAPP);
 
 export const siteConfig = {
   // Main site URL - change this in .env when you buy a domain.

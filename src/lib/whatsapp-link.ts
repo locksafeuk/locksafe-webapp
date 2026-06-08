@@ -7,9 +7,10 @@
  * We prefer app-protocol deep links so desktop clicks hand off directly to the
  * installed WhatsApp app instead of opening a browser-based WhatsApp Web view.
  *
- * Outbound identity is the LockSafe business number (+447818333989), enforced
- * operationally by the admin device being logged into WhatsApp Business
- * with that number. The link itself only encodes the recipient.
+ * Outbound identity is the LockSafe WhatsApp sender (+447446588587 — the Twilio
+ * number running the locksmith assistant bot + admin inbox). The link itself
+ * only encodes the recipient; the admin number comes from config
+ * (LOCKSMITH_ADMIN_WHATSAPP).
  */
 
 /**
