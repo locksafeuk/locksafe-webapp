@@ -61,23 +61,51 @@ export function Header() {
 
   return (
     <>
-      {/* Announcement Bar */}
-      <div className="announcement-bar">
-        <div className="section-container flex items-center justify-center gap-2 sm:gap-3">
-          <span className="hidden sm:inline">24/7 Emergency Locksmith Service Across the UK</span>
-          <span className="sm:hidden text-xs">24/7 Emergency Service UK</span>
-          <span className="hidden sm:inline text-white/60">•</span>
+      {/* Announcement Bar
+          Mobile: phone is the ONLY content — prominent, tappable, with a
+          pulsing icon. Previously this row showed "24/7 Emergency Service UK"
+          with no number, hiding the main contact path behind a hamburger.
+          Desktop: keeps the original three-part layout (label · phone · CTA). */}
+      <div className="announcement-bar border-b-2 border-orange-500">
+        <div className="section-container">
+          {/* Mobile: big phone link */}
           <a
             href={`tel:${SUPPORT_PHONE_TEL}`}
-            className="hidden sm:flex items-center gap-1 text-orange-300 hover:text-orange-200 transition-colors font-semibold"
+            className="sm:hidden flex items-center justify-center gap-2.5 py-2.5"
+            data-call-cta="announcement-bar"
+            aria-label={`Call ${SUPPORT_PHONE} — 24/7 emergency locksmith`}
           >
-            <Phone className="w-3.5 h-3.5" />
-            <span className="text-sm">{SUPPORT_PHONE}</span>
+            <span className="relative inline-flex items-center justify-center w-7 h-7 rounded-full bg-orange-500 flex-shrink-0">
+              <span className="absolute inset-0 rounded-full bg-orange-500 animate-pulse-subtle" aria-hidden="true" />
+              <Phone className="w-3.5 h-3.5 text-white relative" aria-hidden="true" />
+            </span>
+            <span className="flex flex-col items-start leading-none">
+              <span className="text-[10px] text-orange-200 uppercase tracking-wider">
+                24/7 · Tap to call
+              </span>
+              <span className="text-lg text-orange-300 -tracking-[0.01em]">
+                {SUPPORT_PHONE}
+              </span>
+            </span>
           </a>
-          <span className="hidden sm:inline text-white/60">•</span>
-          <Link href="/request" className="hidden sm:inline underline hover:text-orange-400 transition-colors">
-            Get Help Now →
-          </Link>
+
+          {/* Desktop: original three-part row */}
+          <div className="hidden sm:flex items-center justify-center gap-3">
+            <span>24/7 Emergency Locksmith Service Across the UK</span>
+            <span className="text-white/60">•</span>
+            <a
+              href={`tel:${SUPPORT_PHONE_TEL}`}
+              className="flex items-center gap-1 text-orange-300 hover:text-orange-200 transition-colors font-semibold"
+              data-call-cta="announcement-bar"
+            >
+              <Phone className="w-3.5 h-3.5" />
+              <span className="text-sm">{SUPPORT_PHONE}</span>
+            </a>
+            <span className="text-white/60">•</span>
+            <Link href="/request" className="underline hover:text-orange-400 transition-colors">
+              Get Help Now →
+            </Link>
+          </div>
         </div>
       </div>
 

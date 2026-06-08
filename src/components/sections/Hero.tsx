@@ -27,23 +27,37 @@ export function Hero() {
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           {/* Left Content */}
           <div className="space-y-8">
-            {/* Mobile-Only Floating Phone Number */}
-            <div className="md:hidden flex justify-center -mt-4 mb-2">
+            {/* Mobile-Only Hero Call Card.
+                Larger number + pulsing halo around the icon so the call path
+                is impossible to miss on first paint. Matches the prominent
+                top-bar phone link and the sticky CallNowFAB. */}
+            <div className="md:hidden -mt-4 mb-2">
               <a
                 href={`tel:${SUPPORT_PHONE_TEL}`}
-                className="flex items-center justify-center gap-3 text-slate-900"
+                data-call-cta="hero"
+                aria-label={`Call ${SUPPORT_PHONE} — answered 24/7 in 30 seconds`}
+                className="flex items-center gap-3 p-3 bg-orange-50 border border-orange-200 rounded-2xl text-slate-900 active:bg-orange-100 transition-colors"
               >
-                <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center shadow-lg shadow-orange-500/30">
-                  <Phone className="w-6 h-6 text-white" />
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-xs text-slate-500 font-medium uppercase tracking-wide">
-                    Call Now - Free Support
+                <span className="relative inline-flex items-center justify-center w-12 h-12 flex-shrink-0">
+                  <span
+                    className="absolute inset-0 rounded-full bg-orange-500 animate-pulse-subtle"
+                    aria-hidden="true"
+                  />
+                  <span className="relative inline-flex items-center justify-center w-12 h-12 rounded-full bg-orange-500 shadow-lg shadow-orange-500/30">
+                    <Phone className="w-6 h-6 text-white" aria-hidden="true" />
                   </span>
-                  <span className="text-3xl font-bold text-slate-900 tracking-tight">
+                </span>
+                <span className="flex flex-col leading-tight">
+                  <span className="text-[11px] text-orange-700 font-semibold uppercase tracking-wider">
+                    Locked out? Tap to call · 24/7
+                  </span>
+                  <span className="text-[26px] font-bold text-slate-900 -tracking-[0.01em]">
                     {SUPPORT_PHONE}
                   </span>
-                </div>
+                  <span className="text-[11px] text-emerald-700 font-medium">
+                    Answered in 30 seconds
+                  </span>
+                </span>
               </a>
             </div>
 

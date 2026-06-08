@@ -65,10 +65,18 @@ export default {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        // Subtle expanding-ring "pulse" used for the call-to-action halos.
+        // 1.8s cycle, scales 1 → 1.6, opacity 0.5 → 0. WCAG-safe (well under
+        // the 3Hz flash threshold) and respects prefers-reduced-motion below.
+        "pulse-subtle": {
+          "0%": { transform: "scale(0.95)", opacity: "0.5" },
+          "70%, 100%": { transform: "scale(1.6)", opacity: "0" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "pulse-subtle": "pulse-subtle 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite",
       },
       container: {
       center: true,

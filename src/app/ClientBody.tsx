@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import dynamic from "next/dynamic";
 import { AuthProvider } from "@/components/auth/AuthContext";
 import { UserTracker, TelLinkAttribution } from "@/components/marketing";
+import { CallNowFAB } from "@/components/CallNowFAB";
 
 // Defer non-critical overlays so they don't block LCP / hydration on
 // marketing pages. They render only after the page is interactive.
@@ -68,6 +69,7 @@ export default function ClientBody({
         <div className="antialiased">{children}</div>
         <ModalSystem />
       </UserTracker>
+      <CallNowFAB />
       <PWAInstallPrompt />
       <CookieConsent />
     </AuthProvider>
