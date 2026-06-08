@@ -1,6 +1,7 @@
 import { blogPosts, getAllCategories } from "@/lib/blog-data";
 import { getAllCompetitorSlugs } from "@/lib/competitor-alternatives";
 import { SITE_URL } from "@/lib/config";
+import { localizedAltPairs } from "@/lib/coverage-cities";
 import { prisma as _prisma } from "@/lib/db";
 import { loadActiveIntentLandings } from "@/lib/intent-landings-store";
 import { PILLAR_KEYWORDS } from "@/lib/intents-catalog";
@@ -386,6 +387,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.7,
     }),
   );
+  // Localized competitor-alternative pages (/alternatives/{competitor}/in/{city})
+  // — curated competitors × biggest covered cities only.
+  const localizedAlternativePages: MetadataRoute.Sitemap =
+    localizedAltPairs().map(({ competitor, city }) => ({
+      url: `${baseUrl}/alternatives/${competitor}/in/${city}`,
+      lastModified: new Date(),
+      changeFrequency: "monthly" as const,
+      priority: 0.65,
+    }));
 
   return [
     ...staticPages,
@@ -393,6 +403,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...servicePages,
     ...alternativesIndex,
     ...alternativePages,
+    ...localizedAlternativePages,
     ...intentIndex,
     ...intentPages,
     ...intentCityPages,
