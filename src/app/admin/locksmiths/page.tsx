@@ -48,6 +48,7 @@ import {
 import Image from "next/image";
 import { WhatsAppButton } from "@/components/WhatsAppButton";
 import { extractUkPostcode, formatBaseLocationLabel, isCoordinatePair } from "@/lib/location-display";
+import { normalisePhoneForWa } from "@/lib/whatsapp-link";
 
 // Dynamically import AdminCoverageMap to avoid SSR issues with Leaflet
 const AdminCoverageMap = dynamic(
@@ -1675,6 +1676,15 @@ export default function AdminLocksmithsPage() {
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                        {!normalisePhoneForWa(ls.phone) && (
+                          <span
+                            title={`Invalid phone "${ls.phone || "(empty)"}" — fix in profile to enable WhatsApp`}
+                            className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-red-50 text-red-600 ring-1 ring-red-200"
+                            aria-label="Phone number is invalid"
+                          >
+                            <AlertCircle className="w-4 h-4" aria-hidden="true" />
+                          </span>
+                        )}
                         <WhatsAppButton
                           phone={ls.phone}
                           message={`Hi ${ls.name}, this is LockSafe admin — `}
