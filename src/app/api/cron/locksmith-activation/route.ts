@@ -8,10 +8,11 @@
  * job dispatch, then stops the moment they go live.
  *
  * Channels (per the chosen strategy): WhatsApp-first → SMS → email fallback.
- * WhatsApp business-initiated messages require a Meta-APPROVED template, so the
- * WhatsApp touch is a generic template that invites them to chat; the bot then
- * tells them exactly what's missing (see locksmith-bot "setup"). SMS/email
- * carry the full free-form breakdown.
+ * WhatsApp business-initiated messages require an approved template — here the
+ * existing Twilio Content template "profile_incomplete_v1" (resolved via
+ * TWILIO_CONTENT_SID_PROFILE_INCOMPLETE_V1). It invites them to chat; the bot
+ * then tells them exactly what's missing (see locksmith-bot "setup"/"profile").
+ * SMS/email carry the full free-form breakdown.
  *
  * SAFETY: OFF by default. Set LOCKSMITH_ACTIVATION_ENABLED=true to turn on.
  * Per-run cap, cooldown between touches, honors opt-out, escalates stalls to
@@ -37,12 +38,11 @@ const clampInt = (v: string | undefined, def: number, lo: number, hi: number) =>
 const MAX_PER_RUN = clampInt(process.env.LOCKSMITH_ACTIVATION_MAX_PER_RUN, 30, 1, 200);
 const COOLDOWN_DAYS = clampInt(process.env.LOCKSMITH_ACTIVATION_COOLDOWN_DAYS, 3, 1, 30);
 const ESCALATE_AFTER = clampInt(process.env.LOCKSMITH_ACTIVATION_ESCALATE_AFTER, 3, 1, 10);
-const WA_TEMPLATE = process.env.LOCKSMITH_ACTIVATION_WA_TEMPLATE || "locksmith_activation_nudge";
+// Resolves to your existing Twilio Content template via
+// TWILIO_CONTENT_SID_PROFILE_INCOMPLETE_V1 (already created + approved).
+const WA_TEMPLATE = process.env.LOCKSMITH_ACTIVATION_WA_TEMPLATE || "profile_incomplete_v1";
 const SITE = process.env.NEXT_PUBLIC_SITE_URL || "https://www.locksafe.uk";
 
-function whatsappConfigured(): boolean {
-  return Boolean(process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
-}
 function isUKMobile(phone: string | null): boolean {
   if (!phone) return false;
   const c = phone.replace(/[^\d+]/g, "");
@@ -109,8 +109,11 @@ function buildLiveConfirmation(name: string | null): string {
 /** Try WhatsApp template → SMS → email. Returns the channel used, or null. */
 async function sendNudge(l: Row, detailed: string): Promise<string | null> {
   const firstName = (l.name ?? "there").split(/\s+/)[0];
-  // 1. WhatsApp (generic approved template; the bot delivers specifics on reply)
-  if (whatsappConfigured() && isUKMobile(l.phone)) {
+  // 1. WhatsApp (approved Twilio Content template; the bot delivers the specific
+  //    missing-steps breakdown when they reply). sendTemplateMessage returns
+  //    success:false if the provider/Content SID isn't set up, so we fall
+  //    through to SMS cleanly — no need to pre-check provider config here.
+  if (isUKMobile(l.phone)) {
     try {
       const r = await sendTemplateMessage(l.phone!, WA_TEMPLATE, [firstName]);
       if (r.success) return "whatsapp";

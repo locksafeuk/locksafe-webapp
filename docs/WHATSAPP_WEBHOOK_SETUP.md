@@ -4,17 +4,18 @@ This guide will walk you through setting up the WhatsApp Business API webhook st
 
 ## Provider Modes
 
-The admin inbox and webhook routes in this app can now run in two transport modes:
+The admin inbox and webhook routes in this app can run in two transport modes:
 
 - `WHATSAPP_PROVIDER=meta`: direct Meta Cloud API
-- `WHATSAPP_PROVIDER=360dialog`: 360dialog-hosted WhatsApp API with Coexistence support
+- `WHATSAPP_PROVIDER=twilio`: Twilio WhatsApp sender (current production setup)
 
-For `360dialog`, set:
+For `twilio`, set:
 
-- `WHATSAPP_PROVIDER=360dialog`
-- `WHATSAPP_API_BASE_URL=https://waba-v2.360dialog.io` (optional; this is the default)
-- `WHATSAPP_360DIALOG_API_KEY=...`
-- `WHATSAPP_VERIFY_TOKEN=...`
+- `WHATSAPP_PROVIDER=twilio`
+- `TWILIO_ACCOUNT_SID=...`
+- `TWILIO_AUTH_TOKEN=...`
+- `TWILIO_WHATSAPP_NUMBER=...` (the WhatsApp sender, e.g. +44 7446 588587)
+- Outbound templates resolve via `TWILIO_CONTENT_SID_<TEMPLATE_NAME>` env vars.
 
 For `meta`, keep using:
 
@@ -26,7 +27,6 @@ For `meta`, keep using:
 Notes:
 
 - The admin UI at `/admin/whatsapp` does not need to change when switching provider.
-- 360dialog supports WhatsApp Coexistence and forwards additional events such as `smb_message_echoes`, which this app now accepts.
 - Meta HMAC verification via `META_APP_SECRET` is only applied in direct Meta mode.
 
 ## Your Current Setup

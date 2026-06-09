@@ -139,17 +139,15 @@ type ConversationState =
 // ============================================
 
 const META_WHATSAPP_API_URL = "https://graph.facebook.com/v18.0";
-const D360_WHATSAPP_API_URL = "https://waba-v2.360dialog.io";
 const TWILIO_API_URL = "https://api.twilio.com/2010-04-01";
 
-type WhatsAppProvider = "meta" | "360dialog" | "twilio";
+type WhatsAppProvider = "meta" | "twilio";
 
 interface WhatsAppProviderConfig {
   provider: WhatsAppProvider;
   apiBaseUrl: string;
   phoneNumberId?: string;
   accessToken?: string;
-  apiKey?: string;
   verifyToken?: string;
   businessAccountId?: string;
   twilioAccountSid?: string;
@@ -159,21 +157,15 @@ interface WhatsAppProviderConfig {
 
 function getConfig() {
   const rawProvider = (process.env.WHATSAPP_PROVIDER || "meta").trim().toLowerCase();
-  const provider: WhatsAppProvider =
-    rawProvider === "360dialog" ? "360dialog" : rawProvider === "twilio" ? "twilio" : "meta";
+  const provider: WhatsAppProvider = rawProvider === "twilio" ? "twilio" : "meta";
 
   return {
     provider,
     apiBaseUrl:
       process.env.WHATSAPP_API_BASE_URL ||
-      (provider === "360dialog"
-        ? D360_WHATSAPP_API_URL
-        : provider === "twilio"
-          ? TWILIO_API_URL
-          : META_WHATSAPP_API_URL),
+      (provider === "twilio" ? TWILIO_API_URL : META_WHATSAPP_API_URL),
     phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
     accessToken: process.env.WHATSAPP_ACCESS_TOKEN,
-    apiKey: process.env.WHATSAPP_360DIALOG_API_KEY,
     verifyToken: process.env.WHATSAPP_VERIFY_TOKEN,
     businessAccountId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID,
     twilioAccountSid: process.env.TWILIO_ACCOUNT_SID,
@@ -184,10 +176,6 @@ function getConfig() {
 }
 
 function isWhatsAppConfigured(config: WhatsAppProviderConfig): boolean {
-  if (config.provider === "360dialog") {
-    return Boolean(config.apiKey);
-  }
-
   if (config.provider === "twilio") {
     return Boolean(
       config.twilioAccountSid && config.twilioAuthToken && config.twilioWhatsAppNumber,
@@ -198,21 +186,10 @@ function isWhatsAppConfigured(config: WhatsAppProviderConfig): boolean {
 }
 
 function getSendEndpoint(config: WhatsAppProviderConfig): string {
-  if (config.provider === "360dialog") {
-    return `${config.apiBaseUrl}/messages`;
-  }
-
   return `${config.apiBaseUrl}/${config.phoneNumberId}/messages`;
 }
 
 function getSendHeaders(config: WhatsAppProviderConfig): HeadersInit {
-  if (config.provider === "360dialog") {
-    return {
-      "Content-Type": "application/json",
-      "D360-API-KEY": config.apiKey || "",
-    };
-  }
-
   return {
     "Content-Type": "application/json",
     Authorization: `Bearer ${config.accessToken}`,
@@ -578,7 +555,7 @@ function getTwilioContentSid(templateName: string): string | undefined {
 
 /**
  * Send a template message (for outbound marketing/notifications).
- * Meta/360dialog: native template payload. Twilio: Content API
+ * Meta: native template payload. Twilio: Content API
  * (ContentSid + ContentVariables) — requires the template's Content SID
  * in env (TWILIO_CONTENT_SID_<TEMPLATE_NAME>).
  */

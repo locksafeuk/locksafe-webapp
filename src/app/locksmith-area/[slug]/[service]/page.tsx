@@ -36,9 +36,18 @@ const PILLAR_POSTCODE_SERVICES = [
   "commercial-locksmith",
 ] as const;
 
+// Lazy ISR: pre-build only the top postcodes to keep build memory bounded; the
+// long tail (the other ~240 postcode areas) generates on first request and is
+// cached. dynamicParams = true means EVERY postcode×service page is still
+// served and indexable — zero SEO loss, just fewer pages compiled at build time.
+export const dynamicParams = true;
+export const revalidate = 86400;
+
+const BUILD_TIME_POSTCODE_CAP = 40;
+
 export async function generateStaticParams() {
   const out: { slug: string; service: string }[] = [];
-  for (const data of Object.values(postcodeData)) {
+  for (const data of Object.values(postcodeData).slice(0, BUILD_TIME_POSTCODE_CAP)) {
     for (const service of PILLAR_POSTCODE_SERVICES) {
       out.push({ slug: data.slug, service });
     }
