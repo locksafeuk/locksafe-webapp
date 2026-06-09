@@ -8,8 +8,17 @@ can't happen again.
 ## The chain
 
 ```
-Vercel ──HTTPS──▶ Tailscale Funnel (:443) ──▶ Caddy auth proxy (:11435) ──▶ Ollama (127.0.0.1:11434)
+Vercel ──HTTPS──▶ Tailscale Funnel (:8443) ──▶ Caddy auth proxy (:11436) ──▶ Ollama (127.0.0.1:11434)
 ```
+
+> **Coexistence:** this Mac also runs the **reparalo24** project, which has its
+> own Caddy on `:11435` and Tailscale Funnel on `:443`. LockSafe deliberately
+> uses `:11436` + `:8443` and never touches `:443`, so the two never collide.
+> (An earlier version of this setup used `:11435` + `:443` and stepped on
+> reparalo24 — that's fixed.)
+>
+> `OLLAMA_BASE_URL` in Vercel must point at the **:8443** funnel URL, e.g.
+> `https://<this-mac>.<tailnet>.ts.net:8443`.
 
 - **Caddy proxy** requires the `X-Ollama-Secret` header (the LLM router already
   sends it) and rewrites `Host` → localhost. Wrong/missing secret → `403`, so a

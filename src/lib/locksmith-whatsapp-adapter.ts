@@ -434,9 +434,11 @@ async function executeLocksmithTool(
   locksmithId: string,
   name: string,
   args: Record<string, unknown>,
+  dryRun = false,
 ): Promise<string> {
   try {
     switch (name) {
+      // Read-only tools — always safe to run, even in a trial.
       case "get_active_jobs":
         return JSON.stringify((await getActiveJobs(locksmithId)).jobs.slice(0, 8));
       case "get_pending_jobs":
@@ -447,15 +449,19 @@ async function executeLocksmithTool(
         const c = await getLocksmithCompleteness(locksmithId);
         return JSON.stringify({ score: c?.score ?? null, blockedFromJobs: c?.blockingDispatch ?? null, missing: c?.missing.map((m) => m.label) ?? [] });
       }
+      // Mutating tools — in dryRun (trial mode) report intent instead of acting.
       case "set_availability": {
+        if (dryRun) return `(dry run) would set this locksmith ${Boolean(args.available) ? "Available/online" : "Offline"}.`;
         const r = await setAvailability(locksmithId, Boolean(args.available));
         return r.message; // includes the base-location guard message if blocked
       }
       case "accept_job": {
+        if (dryRun) return `(dry run) would ACCEPT job ${String(args.job_number ?? "")}.`;
         const r = await handleLocksmithCommand(ctx, "accept", [String(args.job_number ?? "")]);
         return r.text;
       }
       case "decline_job": {
+        if (dryRun) return `(dry run) would DECLINE job ${String(args.job_number ?? "")}.`;
         const r = await handleLocksmithCommand(ctx, "decline", [String(args.job_number ?? ""), String(args.reason ?? "")]);
         return r.text;
       }
@@ -480,11 +486,13 @@ export async function handleLocksmithAIChat(
   name: string,
   phone: string,
   text: string,
+  opts: { dryRun?: boolean; historyOverride?: LLMMessage[]; traceSink?: string[] } = {},
 ): Promise<string | null> {
+  const dryRun = opts.dryRun === true;
   const ctx: LocksmithBotContext = { locksmithId, chatId: phone, platform: "whatsapp" };
   const [contextBlock, history] = await Promise.all([
     buildLocksmithContextBlock(locksmithId),
-    getRecentChatHistory(phone),
+    opts.historyOverride ? Promise.resolve(opts.historyOverride) : getRecentChatHistory(phone),
   ]);
 
   const system: LLMMessage = {
@@ -519,8 +527,9 @@ export async function handleLocksmithAIChat(
   // Run the requested tools, then ask for a natural reply using the results.
   const results: string[] = [];
   for (const tc of first.toolCalls.slice(0, 4)) {
-    const out = await executeLocksmithTool(ctx, locksmithId, tc.name, tc.arguments ?? {});
+    const out = await executeLocksmithTool(ctx, locksmithId, tc.name, tc.arguments ?? {}, dryRun);
     results.push(`${tc.name} → ${out}`);
+    opts.traceSink?.push(`${tc.name}(${JSON.stringify(tc.arguments ?? {})}) → ${out}`);
   }
 
   const followup = await chat(

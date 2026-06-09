@@ -6,12 +6,17 @@
 #   bash infra/ollama/setup.sh
 #
 # What it sets up (idempotent — safe to re-run):
-#   • Caddy auth proxy (:11435) — validates X-Ollama-Secret, rewrites Host,
+#   • Caddy auth proxy (:11436) — validates X-Ollama-Secret, rewrites Host,
 #     forwards to Ollama on 127.0.0.1:11434. Runs as a KeepAlive LaunchAgent
 #     (auto-restarts if it ever dies).
-#   • Tailscale Funnel (:443 → :11435), re-asserted at every login by a
+#   • Tailscale Funnel (:8443 → :11436), re-asserted at every login by a
 #     LaunchAgent (with retry, in case tailscaled isn't up yet).
 #   • Verifies the whole chain end-to-end.
+#
+# IMPORTANT — coexistence with the reparalo24 project on this same Mac:
+#   reparalo24 runs its OWN Caddy on :11435 and Tailscale Funnel on :443.
+#   This script uses :11436 + :8443 and ONLY ever touches its own :8443 funnel.
+#   It must NEVER run `tailscale funnel --https=443 off` (that kills reparalo24).
 #
 # Result: production reaches Ollama through one authenticated, Host-correct path
 # that comes back automatically after a reboot — no more silent outages.
@@ -20,7 +25,8 @@ set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CADDYFILE="$DIR/Caddyfile"
-PROXY_PORT=11435
+PROXY_PORT=11436   # LockSafe's dedicated port (reparalo24 owns 11435)
+FUNNEL_PORT=8443   # LockSafe's funnel port (reparalo24 owns 443)
 OLLAMA_PORT=11434
 LA="$HOME/Library/LaunchAgents"
 LOGS="$HOME/Library/Logs"
@@ -92,7 +98,7 @@ cat > "$FUNNEL_PLIST" <<PLIST
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string><string>-c</string>
-    <string>for i in 1 2 3 4 5 6; do ${TS_BIN} funnel --bg ${PROXY_PORT} &amp;&amp; exit 0; sleep 10; done</string>
+    <string>for i in 1 2 3 4 5 6; do ${TS_BIN} funnel --bg --https=${FUNNEL_PORT} ${PROXY_PORT} &amp;&amp; exit 0; sleep 10; done</string>
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><false/>
@@ -107,9 +113,10 @@ launchctl load  "$CADDY_PLIST"
 launchctl unload "$FUNNEL_PLIST" 2>/dev/null || true
 launchctl load  "$FUNNEL_PLIST"
 
-# ── 7. Point the public funnel at the proxy (clear any old :443 funnel first) ─
-"$TS_BIN" funnel --https=443 off 2>/dev/null || true
-"$TS_BIN" funnel --bg "$PROXY_PORT"
+# ── 7. Point OUR funnel (:8443) at the proxy. ────────────────────────────────
+# NEVER touch :443 here — that belongs to reparalo24. Only clear our own :8443.
+"$TS_BIN" funnel --https="$FUNNEL_PORT" off 2>/dev/null || true
+"$TS_BIN" funnel --bg --https="$FUNNEL_PORT" "$PROXY_PORT"
 
 # ── 8. Verify the chain ──────────────────────────────────────────────────────
 sleep 3
@@ -119,8 +126,11 @@ echo -n "• Proxy WITH secret (expect model JSON): "
 curl -s -H "X-Ollama-Secret: ${SECRET}" "http://127.0.0.1:${PROXY_PORT}/api/tags" | head -c 90; echo
 echo -n "• Proxy WITHOUT secret (expect 403):     "
 curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:${PROXY_PORT}/api/tags"; echo
+echo -n "• LockSafe funnel :8443 → :11436 up:      "
+"$TS_BIN" funnel status 2>/dev/null | grep -q "11436" && echo "yes ✓" || echo "NOT FOUND — re-check funnel"
 echo ""
-echo "✅ Setup complete. Now confirm PRODUCTION sees it:"
+echo "✅ Setup complete. Set OLLAMA_BASE_URL in Vercel to your funnel's :8443 URL"
+echo "   (e.g. https://<this-mac>.<tailnet>.ts.net:8443), then confirm production:"
 echo "   https://www.locksafe.uk/api/admin/agents/ollama-probe   → expect reachable: true"
 echo ""
 echo "   (If still false, the router's circuit breaker may take ~30 min to retry Ollama.)"

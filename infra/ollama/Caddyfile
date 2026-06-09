@@ -3,7 +3,10 @@
 # Lets production (Vercel) reach the Mac Studio's Ollama over Tailscale Funnel
 # WITHOUT exposing Ollama itself:
 #
-#   Vercel ──HTTPS──▶ Tailscale Funnel (:443) ──▶ THIS proxy (:11435) ──▶ Ollama (127.0.0.1:11434)
+#   Vercel ──HTTPS──▶ Tailscale Funnel (:8443) ──▶ THIS proxy (:11436) ──▶ Ollama (127.0.0.1:11434)
+#
+# NOTE: LockSafe deliberately uses :11436 + funnel :8443. The reparalo24 project
+# runs its OWN Caddy on :11435 + funnel :443 on this same Mac — keep them apart.
 #
 # Why it exists (this is the fix for the outage + the security gap):
 #   • Ollama has NO authentication and returns 403 on any non-localhost Host
@@ -22,7 +25,7 @@
 	auto_https off
 }
 
-:11435 {
+:11436 {
 	# Only requests carrying the correct shared secret get through.
 	@authorized header X-Ollama-Secret "{$OLLAMA_SECRET}"
 
