@@ -36,8 +36,28 @@ import type { Prisma } from "@prisma/client";
 // revision + sign-off.
 // ──────────────────────────────────────────────────────────────────────────
 export const PLAYBOOK_GUARDRAILS = {
-  /** The Liverpool Test loss — Manual CPC at £116.54 / 0 conv — is why this is fixed. */
-  BIDDING_STRATEGY: "MAXIMIZE_CONVERSIONS" as const,
+  /**
+   * The Liverpool Test loss — Manual CPC at £116.54 / 0 conv — is why this is fixed.
+   *
+   * 2026-06-09 override: switched from MAXIMIZE_CONVERSIONS → MAXIMIZE_CLICKS.
+   * Reason: 5 published campaigns spent £154.68 lifetime with 0 tracked
+   * conversions because the gclid capture chain was broken (now fixed
+   * yesterday, but unproven in production). MAXIMIZE_CONVERSIONS without
+   * conversion signal becomes a black-box auction where Google decides
+   * what to bid. MAXIMIZE_CLICKS + CPC_BID_CEILING_GBP keeps the cost-per-
+   * click in OUR control until conversion uploads prove they work.
+   *
+   * Revert to MAXIMIZE_CONVERSIONS once we have ≥30 verified-uploaded
+   * conversions across the account over 7+ consecutive days. Document
+   * that decision in playbook §19 trust ledger.
+   */
+  BIDDING_STRATEGY: "MAXIMIZE_CLICKS" as const,
+
+  /** Maximum CPC bid for MAXIMIZE_CLICKS strategy (£). Hard ceiling Google
+   * cannot exceed in the auction. £6 picked because last 7-day actual CPCs
+   * sat at £5.52-£5.89 on Bristol/Midlands — leaves headroom without
+   * runaway. Increase only with deliberate playbook revision. */
+  CPC_BID_CEILING_GBP: 6 as const,
 
   /** Google RSA structural limits + playbook minimums. */
   MIN_HEADLINES: 14,

@@ -295,12 +295,28 @@ export async function publishGoogleAdsDraft(draftId: string): Promise<PublishRes
     const googleBudgetId = extractId(budgetResource);
 
     // ----- 2. Campaign -----
+    // Bidding strategy resolution:
+    //   • TARGET_CPA / TARGET_ROAS — only if the draft has a non-null target
+    //   • MAXIMIZE_CLICKS — current playbook default (2026-06-09). Uses the
+    //     Google Ads `target_spend` inline field with cpc_bid_ceiling_micros.
+    //     "Maximize Clicks" is the UI label; `target_spend` is the legacy
+    //     API name for the same scheme on Campaign-level inline strategies.
+    //     The `maximize_clicks` field only exists on PORTFOLIO BiddingStrategy
+    //     resources, not Campaign — separate concept.
+    //   • MAXIMIZE_CONVERSIONS — fallback for legacy drafts.
+    const { PLAYBOOK_GUARDRAILS: PG } = await import("./google-ads-draft-enforcement");
     const biddingPayload =
       draft.biddingStrategy === "TARGET_CPA" && draft.targetCpa
         ? { targetCpa: { targetCpaMicros: gbpToMicros(draft.targetCpa) } }
         : draft.biddingStrategy === "TARGET_ROAS" && draft.targetRoas
           ? { targetRoas: { targetRoas: draft.targetRoas / 100 } }
-          : { maximizeConversions: {} };
+          : draft.biddingStrategy === "MAXIMIZE_CLICKS"
+            ? {
+                targetSpend: {
+                  cpcBidCeilingMicros: gbpToMicros(PG.CPC_BID_CEILING_GBP),
+                },
+              }
+            : { maximizeConversions: {} };
 
     // Location match type: Google Ads v24 expects PRESENCE (legacy drafts may
     // still store PRESENCE_ONLY, which we map for backwards compatibility).
