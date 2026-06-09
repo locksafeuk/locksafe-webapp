@@ -196,12 +196,36 @@ export async function handleCustomerLockie(
   });
   if (!first) return null;
 
+  // Safety net: if Lockie's reply PROMISES a human handoff but didn't actually
+  // call escalate_to_human (single-hop means it can decide to escalate only
+  // AFTER another tool already used the turn), fire the escalation anyway so the
+  // customer is never told "someone will be in touch" while nobody is notified.
+  const PROMISES_HUMAN =
+    /escalat|flag(ged|ging|s)?\b|a (human|team ?member|colleague|person|teammate) (will|can|is)|someone (will|is going to) (be in touch|reach|contact|call|get back)|pass(ed|ing)? (this|it)\b|get (you )?(a|hold of a|in touch with a) (human|person|team)/i;
+
+  const ensureEscalation = async (reply: string | null, alreadyEscalated: boolean) => {
+    if (alreadyEscalated || !reply || !PROMISES_HUMAN.test(reply)) return;
+    const out = await executeCustomerTool(
+      customer?.id ?? "",
+      customer?.name ?? "",
+      phone,
+      "escalate_to_human",
+      { reason: "auto safety-net: reply promised a human handoff but the tool wasn't called" },
+      dryRun || !customer,
+    );
+    opts.traceSink?.push(`escalate_to_human(auto-safety-net) → ${out}`);
+  };
+
   if (!first.toolCalls || first.toolCalls.length === 0) {
-    return first.content?.trim() || null;
+    const reply = first.content?.trim() || null;
+    await ensureEscalation(reply, false);
+    return reply;
   }
 
   const results: string[] = [];
+  let escalated = false;
   for (const tc of first.toolCalls.slice(0, 4)) {
+    if (tc.name === "escalate_to_human") escalated = true;
     const out = await executeCustomerTool(
       customer?.id ?? "",
       customer?.name ?? "",
@@ -228,5 +252,7 @@ export async function handleCustomerLockie(
     { temperature: 0.5, maxTokens: 350, timeoutMs: 15_000, allowOpenAIFallback: true, thinkingMode: "no_think" },
   );
 
-  return followup?.content?.trim() || results.join("\n") || null;
+  const reply = followup?.content?.trim() || results.join("\n") || null;
+  await ensureEscalation(reply, escalated);
+  return reply;
 }
