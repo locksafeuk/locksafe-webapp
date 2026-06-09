@@ -110,10 +110,15 @@ export async function POST(
   let updateMask: string;
 
   if (strategy === "MAXIMIZE_CLICKS") {
-    updateBody.maximizeClicks = {
+    // "Maximize Clicks" in the Google Ads UI maps to the inline `target_spend`
+    // bidding scheme on Campaign — the API kept the legacy name. The
+    // `maximize_clicks` field only exists on PORTFOLIO BiddingStrategy
+    // resources, not on Campaign directly. Caught 2026-06-07 same way as
+    // the urlExpansionOptOut bug — Google Ads API "Unknown name" 400.
+    updateBody.targetSpend = {
       cpcBidCeilingMicros: gbpToMicros(cpcBidCeilingGbp as number),
     };
-    updateMask = "maximize_clicks";
+    updateMask = "target_spend";
   } else if (strategy === "MAXIMIZE_CONVERSIONS") {
     updateBody.maximizeConversions = {};
     updateMask = "maximize_conversions";
