@@ -21,6 +21,7 @@ interface Conversation {
   id: string;
   phone: string;
   waId: string | null;
+  channel?: string | null;
   contactName: string | null;
   assignedAdminId: string | null;
   assignedAdminEmail: string | null;
@@ -385,6 +386,11 @@ export default function AdminWhatsAppInboxPage() {
                         </div>
                         <div className="truncate text-xs text-slate-500">{conversation.phone}</div>
                         <div className="mt-1 flex items-center gap-1">
+                          {conversation.channel === "sms" ? (
+                            <Badge className="border-blue-200 bg-blue-100 text-[10px] text-blue-700">SMS</Badge>
+                          ) : (
+                            <Badge className="border-green-200 bg-green-100 text-[10px] text-green-700">WhatsApp</Badge>
+                          )}
                           {conversation.isUrgent && (
                             <Badge className="border-red-200 bg-red-100 text-red-700">Urgent</Badge>
                           )}

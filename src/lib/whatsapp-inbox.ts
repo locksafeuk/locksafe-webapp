@@ -76,6 +76,7 @@ export async function recordIncomingWhatsAppMessage(input: {
   content?: string | null;
   providerMessageId?: string | null;
   rawPayload?: unknown;
+  channel?: string;
 }) {
   const conversation = await upsertConversationByPhone({
     phone: input.phone,
@@ -100,6 +101,7 @@ export async function recordIncomingWhatsAppMessage(input: {
       lastMessageAt: new Date(),
       lastMessagePreview: toPreview(input.content),
       unreadCount: { increment: 1 },
+      ...(input.channel ? { channel: input.channel } : {}),
     },
   });
 
@@ -112,6 +114,7 @@ export async function recordOutgoingWhatsAppMessage(input: {
   content?: string | null;
   providerMessageId?: string | null;
   rawPayload?: unknown;
+  channel?: string;
 }) {
   const conversation = await upsertConversationByPhone({
     phone: input.phone,
@@ -134,6 +137,7 @@ export async function recordOutgoingWhatsAppMessage(input: {
     data: {
       lastMessageAt: new Date(),
       lastMessagePreview: toPreview(input.content),
+      ...(input.channel ? { channel: input.channel } : {}),
     },
   });
 
@@ -198,6 +202,7 @@ export async function listWhatsAppConversationsWithFilters(filters: WhatsAppConv
       id: true,
       phone: true,
       waId: true,
+      channel: true,
       contactName: true,
       assignedAdminId: true,
       assignedAdminEmail: true,

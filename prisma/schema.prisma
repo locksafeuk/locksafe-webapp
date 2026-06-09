@@ -169,6 +169,7 @@ model WhatsAppConversation {
   id                String   @id @default(auto()) @map("_id") @db.ObjectId
   waId              String?  @unique // WhatsApp wa_id when known (digits-only)
   phone             String   // Normalized destination/source phone
+  channel           String   @default("whatsapp") // "whatsapp" | "sms"
   contactName       String?
   assignedAdminId   String?
   assignedAdminEmail String?

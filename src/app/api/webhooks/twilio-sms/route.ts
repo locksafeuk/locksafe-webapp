@@ -155,6 +155,7 @@ export async function POST(request: NextRequest) {
     await recordIncomingWhatsAppMessage({
       phone: from,
       messageType: "sms",
+      channel: "sms",
       content: body,
       providerMessageId: messageSid || null,
       rawPayload: params,
@@ -188,6 +189,7 @@ export async function POST(request: NextRequest) {
         await recordOutgoingWhatsAppMessage({
           phone: from,
           messageType: "sms",
+          channel: "sms",
           content: reply,
           providerMessageId: result.messageId ?? null,
         }).catch(() => {});
