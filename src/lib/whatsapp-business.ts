@@ -19,6 +19,7 @@
 import prisma from "@/lib/db";
 import { JobStatus } from "@prisma/client";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { SUPPORT_PHONE } from "@/lib/config";
 import { processNaturalLanguageQuery } from "@/lib/openclaw-nlp";
 import {
   startJobRequest,
@@ -1187,7 +1188,7 @@ async function handleVerifiedMessage(phone: string, message: string, buttonId: s
   if (buttonId === "new_request" || message.includes("new") || message.includes("request")) {
     await sendTextMessage(
       phone,
-      "🔧 To submit a new locksmith request, please visit our website:\n\nhttps://locksafe.uk/request\n\nOr call us at 0800 XXX XXXX"
+      `🔧 To submit a new locksmith request, please visit our website:\n\nhttps://locksafe.uk/request\n\nOr call us at ${SUPPORT_PHONE}`
     );
     return;
   }
@@ -1428,7 +1429,7 @@ async function handleEscalationInput(phone: string, message: string): Promise<vo
 
   await sendTextMessage(
     phone,
-    `✅ I've created a support ticket: ${result.ticketId}\n\nOur team will contact you within 15 minutes.\n\nIf this is an emergency, please call 0800 XXX XXXX.`
+    `✅ I've created a support ticket: ${result.ticketId}\n\nOur team will contact you within 15 minutes.\n\nIf this is an emergency, please call ${SUPPORT_PHONE}.`
   );
 
   updateSession(phone, { conversationState: "verified" });
