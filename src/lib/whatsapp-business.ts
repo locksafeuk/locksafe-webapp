@@ -1031,6 +1031,18 @@ export async function handleIncomingMessage(
       await sendTextMessage(phone, reply);
       return;
     }
+
+    // Customers → agentic customer Lockie (ChatGPT-style): he handles BOTH
+    // booking a brand-new job and supporting an existing one, conversationally,
+    // with full cross-channel memory. This replaces the old menu/booking flow.
+    if (process.env.CUSTOMER_WHATSAPP_AGENTIC === "true") {
+      const { handleCustomerLockie } = await import("@/lib/customer-lockie");
+      const reply = await handleCustomerLockie(phone, messageText);
+      if (reply) {
+        await sendTextMessage(phone, reply);
+        return;
+      }
+    }
   } catch (error) {
     console.error("[WhatsApp] Identity routing error (falling through to customer flow):", error);
   }

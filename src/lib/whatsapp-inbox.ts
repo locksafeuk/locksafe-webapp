@@ -68,6 +68,30 @@ export async function upsertConversationByPhone(input: {
   });
 }
 
+/**
+ * For the SMS→WhatsApp hand-off: how many inbound SMS this phone has sent, and
+ * whether we've already offered them the WhatsApp link (so we only offer once).
+ */
+export async function smsHandoffState(
+  phone: string,
+): Promise<{ inboundSms: number; alreadyOffered: boolean }> {
+  const norm = normalizePhone(phone);
+  const convo = await prisma.whatsAppConversation.findFirst({
+    where: { phone: norm },
+    select: { id: true },
+  });
+  if (!convo) return { inboundSms: 0, alreadyOffered: false };
+  const msgs = await prisma.whatsAppConversationMessage.findMany({
+    where: { conversationId: convo.id },
+    select: { direction: true, messageType: true, content: true },
+  });
+  const inboundSms = msgs.filter((m) => m.direction === "inbound" && m.messageType === "sms").length;
+  const alreadyOffered = msgs.some(
+    (m) => m.direction === "outbound" && (m.content || "").includes("wa.me"),
+  );
+  return { inboundSms, alreadyOffered };
+}
+
 export async function recordIncomingWhatsAppMessage(input: {
   phone: string;
   waId?: string | null;

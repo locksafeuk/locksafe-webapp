@@ -414,7 +414,7 @@ async function buildLocksmithContextBlock(locksmithId: string): Promise<string> 
   return lines.join("\n");
 }
 
-async function getRecentChatHistory(phone: string, limit = 10): Promise<LLMMessage[]> {
+export async function getRecentChatHistory(phone: string, limit = 10): Promise<LLMMessage[]> {
   try {
     const conversation = await upsertConversationByPhone({ phone });
     const messages = await getWhatsAppConversationMessages(conversation.id);

@@ -11,8 +11,22 @@
 import prisma from "@/lib/db";
 import { chat, Models, type LLMMessage, type OllamaTool } from "@/lib/llm-router";
 import { getCustomerByPhone } from "@/lib/customer-service";
+import { getRecentChatHistory } from "@/lib/locksmith-whatsapp-adapter";
+import { createEmergencyJob } from "@/lib/job-service";
 import { sendSMS } from "@/lib/sms";
 import { sendAdminAlert } from "@/lib/telegram";
+
+const PROBLEM_MAP: Record<string, string> = {
+  locked_out: "lockout",
+  lockout: "lockout",
+  lost_keys: "lost-keys",
+  broken_lock: "broken",
+  lock_change: "lock-change",
+  security_upgrade: "security-upgrade",
+  key_stuck: "key-stuck",
+  burglary: "burglary",
+  other: "other",
+};
 
 const CUSTOMER_TOOLS: OllamaTool[] = [
   {
@@ -33,6 +47,28 @@ const CUSTOMER_TOOLS: OllamaTool[] = [
         type: "object",
         properties: { message: { type: "string", description: "What to tell the locksmith" } },
         required: ["message"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_job",
+      description:
+        "Register a NEW locksmith job for this customer and alert nearby locksmiths. Only call once you've collected and confirmed their full name, postcode, and what the problem is.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Customer's full name" },
+          postcode: { type: "string", description: "UK postcode where they need the locksmith" },
+          problem_type: {
+            type: "string",
+            description: "One of: locked_out, lost_keys, broken_lock, lock_change, key_stuck, security_upgrade, burglary, other",
+          },
+          property_type: { type: "string", description: "house, flat, commercial or vehicle" },
+          description: { type: "string", description: "Any extra detail about the problem/access" },
+        },
+        required: ["name", "postcode", "problem_type"],
       },
     },
   },
@@ -74,6 +110,21 @@ async function getLatestJob(customerId: string): Promise<CustomerJob | null> {
   return job as CustomerJob | null;
 }
 
+/**
+ * True if this phone is a RETURNING customer — has prior chat history (on any
+ * channel, since the inbox is phone-keyed) or an existing job. Used to route
+ * WhatsApp inbound: returning customers (incl. SMS hand-offs) → customer Lockie,
+ * brand-new customers → the booking flow.
+ */
+export async function customerHasContext(phone: string): Promise<boolean> {
+  const history = await getRecentChatHistory(phone, 4).catch(() => []);
+  if (history.length > 0) return true;
+  const customer = await getCustomerByPhone(phone).catch(() => null);
+  if (!customer) return false;
+  const job = await getLatestJob(customer.id).catch(() => null);
+  return Boolean(job);
+}
+
 async function executeCustomerTool(
   customerId: string,
   customerName: string,
@@ -109,6 +160,30 @@ async function executeCustomerTool(
           { channel: "transactional", logContext: `customer-relay:${job.jobNumber}` },
         );
         return `Relayed to ${job.locksmith.name}.`;
+      }
+      case "create_job": {
+        const jobName = String(args.name ?? "").trim() || customerName;
+        const postcode = String(args.postcode ?? "").trim();
+        if (!jobName || !postcode) {
+          return "Can't create the job yet — need at least the customer's full name and postcode first.";
+        }
+        const rawProblem = String(args.problem_type ?? "other").toLowerCase();
+        const problemType = PROBLEM_MAP[rawProblem] || "other";
+        if (dryRun) {
+          return `(dry run) would create a ${problemType} job at ${postcode.toUpperCase()} for ${jobName}.`;
+        }
+        const r = await createEmergencyJob({
+          customerPhone,
+          customerName: jobName,
+          postcode,
+          address: String(args.address ?? postcode),
+          problemType,
+          propertyType: String(args.property_type ?? "house"),
+          emergencyDetails: String(args.description ?? ""),
+          createdVia: "whatsapp",
+        });
+        if (!r.success || !r.job) return `Couldn't register the job: ${r.error || "unknown error"}`;
+        return `DONE: created job ${r.job.jobNumber}. ${r.notifications?.notifiedCount ?? 0} nearby locksmiths have been alerted. Give them the job reference and let them know a locksmith will be in touch shortly.`;
       }
       case "escalate_to_human": {
         const reason = String(args.reason ?? "").trim();
@@ -159,11 +234,13 @@ export async function handleCustomerLockie(
   const system: LLMMessage = {
     role: "system",
     content: [
-      `You are Lockie, the LockSafe UK assistant, texting with ${name}, a customer who booked a locksmith through LockSafe. LockSafe dispatches vetted local locksmiths to emergency and planned jobs; the customer pays securely through the platform, and locksmiths set their own rates.`,
+      `You are Lockie, the LockSafe UK assistant, chatting with ${name}, a member of the public contacting LockSafe — they might already have a job booked, or they might need to book a locksmith right now. LockSafe dispatches vetted local locksmiths to emergency and planned jobs; the customer pays securely through the platform, and locksmiths set their own rates. Talk like a calm, capable person — never a menu or a form.`,
 
-      `LIVE DATA about this customer's job right now — trust this over anything else, and never contradict or go beyond it:\n${liveData}`,
+      `LIVE DATA about this customer right now — trust this over anything else, and never contradict or go beyond it:\n${liveData}`,
 
-      "WHAT YOU CAN DO (prefer doing over explaining): use get_my_job to check their current job, status, assigned locksmith and ETA; use relay_to_locksmith to pass a note to the locksmith on their way (running late, access/parking instructions, 'call when outside'); use escalate_to_human to bring in a teammate. Always act in the same turn rather than promising to.",
+      "WHAT YOU CAN DO (prefer doing over explaining): use create_job to book a brand-new job; get_my_job to check an existing one (status, locksmith, ETA); relay_to_locksmith to pass a note to the locksmith on their way; escalate_to_human to bring in a teammate. Always act in the same turn rather than promising to.",
+
+      "BOOKING A NEW JOB — your most important job. If they need a locksmith or describe a problem (locked out, lost keys, broken lock, lock change/upgrade) and don't already have an open job, book it by just talking — no forms, no menus. Collect three things: their full name, the postcode, and what's wrong (plus house/flat/commercial/vehicle if unclear). Ask only for what's still missing, naturally, one thing at a time. Once you have name + postcode + problem, read it back in one short line to confirm ('Got it — Sam at NR2 3AB, locked out of a flat. Want me to get a locksmith to you now?') and on a yes, call create_job. Never call create_job without at least a full name and a postcode.",
 
       "🚨 CRITICAL ESCALATION RULE: The MOMENT your reply tells the customer that a human/teammate will help, be in touch, call them, look into it, or that you're escalating/flagging/passing it on — you MUST actually call the escalate_to_human tool in that SAME turn. Claiming an escalation you didn't perform leaves the customer stranded and notifies nobody. This applies to: a no-show or a locksmith well past ETA, a job showing cancelled while the customer is still waiting, refunds, cancellations, complaints, billing problems, 'this is a scam', safety worries, or any request for a person. If in doubt, call the tool — never just say it.",
 
@@ -180,11 +257,16 @@ export async function handleCustomerLockie(
     ].join("\n\n"),
   };
 
-  const baseMessages: LLMMessage[] = [
-    system,
-    ...(opts.historyOverride ?? []),
-    { role: "user", content: text },
-  ];
+  // Cross-channel memory: history is keyed by phone, so SMS + WhatsApp from the
+  // same person share one thread — Lockie picks up context whichever channel
+  // they're on. The webhook records the inbound BEFORE calling us, so the latest
+  // history turn may already BE this message; avoid duplicating it.
+  const history = opts.historyOverride ?? (await getRecentChatHistory(phone));
+  const last = history[history.length - 1];
+  const baseMessages: LLMMessage[] =
+    last && last.role === "user" && last.content === text
+      ? [system, ...history]
+      : [system, ...history, { role: "user", content: text }];
 
   const first = await chat(Models.QUALITY, baseMessages, {
     temperature: 0.5,

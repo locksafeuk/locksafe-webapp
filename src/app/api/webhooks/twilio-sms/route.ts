@@ -18,6 +18,7 @@ import {
   recordIncomingWhatsAppMessage,
   recordOutgoingWhatsAppMessage,
   updateWhatsAppMessageStatus,
+  smsHandoffState,
 } from "@/lib/whatsapp-inbox";
 import {
   identifyInboundPhone,
@@ -78,6 +79,15 @@ function verifyTwilioSignature(
 }
 
 const AUTOREPLY_ENABLED = () => process.env.CUSTOMER_SMS_AUTOREPLY === "true";
+
+// SMS→WhatsApp hand-off: after a couple of texts, invite the customer to
+// continue on WhatsApp (cheaper for us, richer for them). Their number is the
+// same, so the conversation + context carry straight across.
+const WHATSAPP_NUMBER = (process.env.TWILIO_WHATSAPP_NUMBER || "+447446588587").replace(/\D/g, "");
+const WHATSAPP_HANDOFF_LINE =
+  "For faster, more detailed support, you're welcome to continue with us on WhatsApp — " +
+  "your details will carry across, so there's no need to repeat anything: " +
+  `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent("Hi, I'd like to continue my LockSafe enquiry here.")}`;
 
 /** STOP/HELP keywords — Twilio Messaging Service handles opt-out, but we also
  *  short-circuit so Lockie never replies over a compliance keyword. */
@@ -180,8 +190,21 @@ export async function POST(request: NextRequest) {
 
     // Auto-reply via Lockie.
     try {
-      const reply = await routeToLockie(from, body);
+      let reply = await routeToLockie(from, body);
       if (reply) {
+        // After a couple of texts, append the WhatsApp invite once — but only
+        // when the WhatsApp side is set to pick up with Lockie, so we never
+        // hand a customer off into the old booking menu.
+        try {
+          if (process.env.CUSTOMER_WHATSAPP_AGENTIC === "true") {
+            const { inboundSms, alreadyOffered } = await smsHandoffState(from);
+            if (!alreadyOffered && inboundSms >= 2) {
+              reply += `\n\n${WHATSAPP_HANDOFF_LINE}`;
+            }
+          }
+        } catch {
+          /* non-fatal — send the reply without the invite */
+        }
         const result = await sendSMS(from, reply, {
           channel: "transactional",
           logContext: "sms-lockie-reply",
