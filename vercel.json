@@ -98,6 +98,10 @@
       "schedule": "0 10 * * 1-5"
     },
     {
+      "path": "/api/cron/llm-health-monitor",
+      "schedule": "*/30 * * * *"
+    },
+    {
       "path": "/api/cron/google-ads-automation-rules",
       "schedule": "0 */4 * * *"
     },

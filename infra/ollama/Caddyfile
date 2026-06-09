@@ -1,0 +1,39 @@
+# LockSafe — auth + Host-rewrite proxy in front of the LOCAL Ollama instance.
+#
+# Lets production (Vercel) reach the Mac Studio's Ollama over Tailscale Funnel
+# WITHOUT exposing Ollama itself:
+#
+#   Vercel ──HTTPS──▶ Tailscale Funnel (:443) ──▶ THIS proxy (:11435) ──▶ Ollama (127.0.0.1:11434)
+#
+# Why it exists (this is the fix for the outage + the security gap):
+#   • Ollama has NO authentication and returns 403 on any non-localhost Host
+#     header. A raw funnel both exposes it to the whole internet AND 403s.
+#   • This proxy requires the X-Ollama-Secret header — which the LLM router
+#     already sends on every call. Wrong/missing secret → 403, so a leaked
+#     funnel URL is useless to anyone else.
+#   • It rewrites Host → localhost so Ollama accepts the proxied request.
+#   • Ollama stays bound to 127.0.0.1 (never exposed on the LAN or internet).
+#
+# OLLAMA_SECRET is injected from the LaunchAgent environment — never hard-coded.
+# Run:  OLLAMA_SECRET=… caddy run --config Caddyfile   (setup.sh wires this up)
+
+{
+	admin off
+	auto_https off
+}
+
+:11435 {
+	# Only requests carrying the correct shared secret get through.
+	@authorized header X-Ollama-Secret "{$OLLAMA_SECRET}"
+
+	handle @authorized {
+		reverse_proxy 127.0.0.1:11434 {
+			header_up Host "localhost:11434"
+		}
+	}
+
+	# No secret / wrong secret → rejected.
+	handle {
+		respond "Forbidden" 403
+	}
+}
