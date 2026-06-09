@@ -101,6 +101,29 @@ export async function POST(req: NextRequest) {
   const dryRun: boolean = body.dryRun !== false; // default true
   const version: string = body.version ?? "1.0.4";
 
+  // Quiet-hours guard: don't blast locksmiths' phones at unsociable times.
+  // Live sends are only allowed 09:00–20:00 UK time, unless force:true is passed.
+  const SEND_START_HOUR = 9;
+  const SEND_END_HOUR = 20;
+  const ukHour = Number(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/London",
+      hour: "numeric",
+      hour12: false,
+    }).format(new Date()),
+  );
+  const withinSendingHours = ukHour >= SEND_START_HOUR && ukHour < SEND_END_HOUR;
+  if (!dryRun && !withinSendingHours && body.force !== true) {
+    return NextResponse.json(
+      {
+        blocked: true,
+        reason: `It's ~${ukHour}:00 UK — outside the ${SEND_START_HOUR}:00–${SEND_END_HOUR}:00 sending window. Broadcasts to locksmiths are held back at unsociable hours so we don't buzz their phones late. Re-run with force:true to override, or send it in the morning.`,
+        ukHour,
+      },
+      { status: 200 },
+    );
+  }
+
   // Optional audience filter: "all" (default), "install" (no app only),
   // "update" (has app only).
   const audience: "all" | "install" | "update" =
