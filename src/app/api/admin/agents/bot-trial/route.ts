@@ -18,6 +18,7 @@ import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth";
 import prisma from "@/lib/db";
 import { handleLocksmithAIChat } from "@/lib/locksmith-whatsapp-adapter";
+import { handleCustomerLockie } from "@/lib/customer-lockie";
 import type { LLMMessage } from "@/lib/llm-router";
 
 export const dynamic = "force-dynamic";
@@ -38,13 +39,24 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const n = Math.min(Number(request.nextUrl.searchParams.get("candidates") ?? 8) || 8, 25);
+  const persona = request.nextUrl.searchParams.get("persona") === "customer" ? "customer" : "locksmith";
+
+  if (persona === "customer") {
+    const customers = await prisma.customer.findMany({
+      select: { id: true, name: true, phone: true },
+      orderBy: { updatedAt: "desc" },
+      take: n,
+    });
+    return NextResponse.json({ persona, count: customers.length, customers });
+  }
+
   const locksmiths = await prisma.locksmith.findMany({
     where: { isActive: true },
     select: { id: true, name: true, companyName: true, isActive: true, isAvailable: true },
     orderBy: { updatedAt: "desc" },
     take: n,
   });
-  return NextResponse.json({ count: locksmiths.length, locksmiths });
+  return NextResponse.json({ persona, count: locksmiths.length, locksmiths });
 }
 
 export async function POST(request: NextRequest) {
@@ -53,7 +65,9 @@ export async function POST(request: NextRequest) {
   }
 
   let body: {
+    persona?: "locksmith" | "customer";
     locksmithId?: string;
+    phone?: string;
     message?: string;
     history?: Array<{ role?: string; content?: string }>;
   };
@@ -63,20 +77,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { locksmithId, message } = body;
-  if (!locksmithId || !message?.trim()) {
-    return NextResponse.json(
-      { error: "locksmithId and message are required" },
-      { status: 400 },
-    );
-  }
-
-  const locksmith = await prisma.locksmith.findUnique({
-    where: { id: locksmithId },
-    select: { id: true, name: true, phone: true },
-  });
-  if (!locksmith) {
-    return NextResponse.json({ error: "Locksmith not found" }, { status: 404 });
+  const persona = body.persona === "customer" ? "customer" : "locksmith";
+  const message = body.message;
+  if (!message?.trim()) {
+    return NextResponse.json({ error: "message is required" }, { status: 400 });
   }
 
   // Only carry forward clean user/assistant turns into the model context.
@@ -86,6 +90,39 @@ export async function POST(request: NextRequest) {
 
   const trace: string[] = [];
   const startedAt = Date.now();
+
+  if (persona === "customer") {
+    const phone = body.phone?.trim();
+    if (!phone) {
+      return NextResponse.json({ error: "phone is required for customer trials" }, { status: 400 });
+    }
+    const reply = await handleCustomerLockie(phone, message.trim(), {
+      dryRun: true,
+      historyOverride,
+      traceSink: trace,
+    });
+    return NextResponse.json({
+      dryRun: true,
+      persona,
+      phone,
+      reply: reply ?? "(model returned nothing — Ollama may be unreachable)",
+      toolCalls: trace,
+      latencyMs: Date.now() - startedAt,
+    });
+  }
+
+  const { locksmithId } = body;
+  if (!locksmithId) {
+    return NextResponse.json({ error: "locksmithId is required" }, { status: 400 });
+  }
+  const locksmith = await prisma.locksmith.findUnique({
+    where: { id: locksmithId },
+    select: { id: true, name: true, phone: true },
+  });
+  if (!locksmith) {
+    return NextResponse.json({ error: "Locksmith not found" }, { status: 404 });
+  }
+
   const reply = await handleLocksmithAIChat(
     locksmith.id,
     locksmith.name,
@@ -96,6 +133,7 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     dryRun: true,
+    persona,
     locksmith: { id: locksmith.id, name: locksmith.name },
     reply: reply ?? "(model returned nothing — Ollama may be unreachable)",
     toolCalls: trace,
