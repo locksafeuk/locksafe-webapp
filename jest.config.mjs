@@ -1,13 +1,16 @@
-import type { Config } from "jest";
+// Jest config in native ESM (.mjs) so `import.meta.url` is honoured by Node
+// directly without going through ts-node. The previous jest.config.ts failed
+// in CI with `TS1343: The 'import.meta' meta-property is only allowed when
+// the '--module' option is 'es2020'…` because ts-node compiled the config
+// with an older module target before Node could load it. Plain ESM JS avoids
+// that whole compile pass.
+
 import { createRequire } from "node:module";
 
-// Jest 30 loads jest.config.ts under ESM, where `require` is not defined.
-// createRequire gives us a CJS-style resolver scoped to this file so we can
-// pass an absolute path to the transform (Jest 30 no longer auto-resolves
-// bare specifiers like "ts-jest").
 const requireFromHere = createRequire(import.meta.url);
 
-const config: Config = {
+/** @type {import('jest').Config} */
+const config = {
   testEnvironment: "jsdom",
   roots: ["<rootDir>/src"],
   testMatch: ["**/__tests__/**/*.{ts,tsx}", "**/*.test.{ts,tsx}"],
