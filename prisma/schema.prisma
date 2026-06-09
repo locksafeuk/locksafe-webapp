@@ -442,6 +442,13 @@ model Locksmith {
   isAvailable            Boolean   @default(true) // When ON, locksmith receives job notifications
   lastAvailabilityChange DateTime? // Track when availability was last changed
 
+  // Autonomous activation outreach (locksmith-activation cron). Additive,
+  // nullable — Mongo handles missing fields as defaults, no migration needed.
+  lastActivationNudgeAt DateTime? // last time the activation agent messaged them
+  activationNudgeCount  Int       @default(0) // touches sent (for escalation cap)
+  activationOptedOut    Boolean   @default(false) // replied STOP to activation msgs
+  activationCompletedAt DateTime? // when they became dispatch-ready (stop nudging)
+
   // Scheduled availability (working hours)
   scheduleEnabled   Boolean  @default(false) // Enable automatic availability schedule
   scheduleTimezone  String   @default("Europe/London") // Timezone for schedule

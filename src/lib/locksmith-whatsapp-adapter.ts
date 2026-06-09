@@ -209,6 +209,14 @@ function parseLocksmithText(text: string): { command: LocksmithCommand | "profil
   if (["profile", "setup", "complete", "checklist"].includes(head)) return { command: "profile", args };
   if (["install", "app"].includes(head)) return { command: "install", args };
 
+  // Natural phrasing — "why am I not getting jobs?", "no jobs coming", "where's
+  // my work" → the setup/profile card, which tells them exactly what's blocking
+  // dispatch. This is the most common activation question.
+  const lower = cleaned.toLowerCase();
+  if (/why.*(job|work)|not getting (any )?(job|work)|no (jobs|work)\b|where.*(my )?(job|work)|getting no (job|work)/.test(lower)) {
+    return { command: "profile", args };
+  }
+
   const mapped = COMMAND_ALIASES[head];
   return { command: mapped ?? null, args };
 }
@@ -271,6 +279,17 @@ export async function handleLocksmithWhatsApp(
   }
 
   const ctx: LocksmithBotContext = { locksmithId: identity.id, chatId: phone, platform: "whatsapp" };
+
+  // Activation opt-out — STOP the autonomous activation agent from nudging
+  // this locksmith again (they can still use the assistant normally).
+  if (/^\s*(stop|unsubscribe|opt ?out|no thanks|leave me alone)\b/i.test(text)) {
+    await (prisma as unknown as {
+      locksmith: { update: (a: unknown) => Promise<unknown> };
+    })
+      .locksmith.update({ where: { id: identity.id }, data: { activationOptedOut: true } })
+      .catch(() => {});
+    return "No problem — I won't send you any more setup reminders. You can still message me anytime (try *profile*, *jobs*, or *available*), and the team is one *support* away. 👍";
+  }
 
   // Bare number → pending callback option (accept/decline buttons etc.)
   const trimmed = text.trim();
