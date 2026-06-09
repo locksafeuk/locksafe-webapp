@@ -58,6 +58,7 @@ interface ConversationPayload {
 export default function AdminWhatsAppInboxPage() {
   const [loading, setLoading] = useState(true);
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
   const [assignees, setAssignees] = useState<InboxAssignee[]>([]);
   const [currentAdminId, setCurrentAdminId] = useState<string | null>(null);
   const [queueView, setQueueView] = useState<QueueView>("all");
@@ -145,6 +146,33 @@ export default function AdminWhatsAppInboxPage() {
   useEffect(() => {
     refreshAll();
   }, [refreshAll]);
+
+  // Silent background refresh — pulls fresh conversations + the open thread
+  // without the full-screen spinner, so new incoming messages show up on their
+  // own. Skips the manual loading state and stays quiet on transient errors.
+  const silentRefresh = useCallback(async () => {
+    try {
+      await fetchConversations();
+      if (selectedId) {
+        await fetchMessages(selectedId);
+      }
+      setLastSyncedAt(Date.now());
+    } catch {
+      // background poll — let the manual Refresh button surface real errors
+    }
+  }, [fetchConversations, fetchMessages, selectedId]);
+
+  // Poll every 10s, but only while the tab is actually visible (don't burn
+  // requests in a background tab).
+  useEffect(() => {
+    const POLL_MS = 10_000;
+    const id = setInterval(() => {
+      if (typeof document === "undefined" || document.visibilityState === "visible") {
+        silentRefresh();
+      }
+    }, POLL_MS);
+    return () => clearInterval(id);
+  }, [silentRefresh]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -284,10 +312,19 @@ export default function AdminWhatsAppInboxPage() {
             <h1 className="text-2xl font-bold text-slate-900">WhatsApp Inbox</h1>
             <p className="text-sm text-slate-600">Integrated admin messaging powered by WhatsApp Business API.</p>
           </div>
-          <Button variant="outline" onClick={refreshAll} className="gap-2">
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            Refresh
-          </Button>
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1.5 text-xs text-slate-500" title="Auto-refreshing every 10 seconds">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+              </span>
+              Live{lastSyncedAt ? ` · updated ${new Date(lastSyncedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}` : ""}
+            </span>
+            <Button variant="outline" onClick={refreshAll} className="gap-2">
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              Refresh
+            </Button>
+          </div>
         </div>
 
         <div className="mb-4 grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-3 md:grid-cols-[220px_minmax(0,1fr)_auto]">
