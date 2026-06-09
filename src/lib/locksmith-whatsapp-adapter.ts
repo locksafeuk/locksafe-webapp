@@ -440,7 +440,12 @@ const LOCKSMITH_TOOLS: OllamaTool[] = [
   { type: "function", function: { name: "accept_job", description: "Accept a specific job offer. ONLY call after the locksmith has explicitly CONFIRMED accepting this exact job in their most recent message.", parameters: { type: "object", properties: { job_number: { type: "string", description: "e.g. NR2-JOB030" } }, required: ["job_number"] } } },
   { type: "function", function: { name: "decline_job", description: "Decline a specific job offer. ONLY call after the locksmith has explicitly CONFIRMED declining.", parameters: { type: "object", properties: { job_number: { type: "string" }, reason: { type: "string" } }, required: ["job_number"] } } },
   { type: "function", function: { name: "escalate_to_human", description: "Hand off to a human teammate. Use for refunds, disputes, complaints, account/payment problems you can't resolve, or when they ask for a person.", parameters: { type: "object", properties: {} } } },
+  { type: "function", function: { name: "app_help", description: "Get the right LockSafe app message for THIS locksmith — the install link if they don't have the app yet, or the update notice (latest version) if they already have it. Use when they ask about the app, mention install/update/download, can't get job alerts, or when you're nudging them to install it.", parameters: { type: "object", properties: {} } } },
 ];
+
+const APP_LINKS =
+  "📱 Android: https://play.google.com/store/apps/details?id=uk.locksafe.app\n🍎 iPhone: https://apps.apple.com/app/locksafe-locksmith-partner/id6762475008";
+const LATEST_APP_VERSION = "1.0.4";
 
 async function executeLocksmithTool(
   ctx: LocksmithBotContext,
@@ -483,6 +488,23 @@ async function executeLocksmithTool(
         if (dryRun) return `(dry run) would DECLINE job ${String(args.job_number ?? "")}.`;
         const r = await handleLocksmithCommand(ctx, "decline", [String(args.job_number ?? ""), String(args.reason ?? "")]);
         return r.text;
+      }
+      case "app_help": {
+        const l = await prisma.locksmith.findUnique({
+          where: { id: locksmithId },
+          select: { nativeDeviceToken: true, webPushSubscription: true },
+        });
+        const hasApp = Boolean(l?.nativeDeviceToken || l?.webPushSubscription);
+        if (hasApp) {
+          return (
+            `HAS_APP. They already have the app installed. Let them know a new version (v${LATEST_APP_VERSION}) is out — ` +
+            `improved location tracking, more reliable push notifications, and performance fixes — and ask them to open their app store and tap Update. Share the link for their phone:\n${APP_LINKS}`
+          );
+        }
+        return (
+          `NO_APP. They haven't installed the LockSafe app yet — it's how they get instant job alerts on their phone. ` +
+          `Encourage them to install it now and share the link for their phone:\n${APP_LINKS}`
+        );
       }
       case "escalate_to_human": {
         if (dryRun) return "(dry run) would flag this conversation to the LockSafe team for a human to pick up.";
@@ -543,6 +565,7 @@ export async function handleLocksmithAIChat(
       `You are Lockie, the LockSafe UK assistant — a warm, sharp, genuinely helpful colleague chatting with ${name.split(" ")[0] || "a locksmith"} on WhatsApp. If you ever introduce yourself, you're "Lockie". LockSafe is a UK locksmith dispatch platform: customers book emergency/planned jobs, we dispatch vetted locksmiths, payment runs through the platform (Stripe), locksmiths set their own rates.`,
       `LIVE DATA about this locksmith right now (trust over anything else):\n${contextBlock}`,
       "You can DO things, not just talk: use the tools to check their jobs/earnings/profile, switch them Available/Offline, or accept/decline a job. Always prefer doing the thing over telling them how.",
+      "APP: locksmiths get job alerts through the LockSafe phone app. If they ask about the app, mention install/update/download, say they're not getting alerts, or you're nudging them to install it — call app_help and pass on the link/message it returns (it gives the install link if they don't have the app, or the update notice if they do). Don't paste store links from memory; get them from app_help so they're correct for that locksmith.",
       "REQUIRED vs OPTIONAL — this matters, get it right: the items that BLOCK a locksmith from receiving jobs are — accept terms & conditions, set base location (postcode), set call-out fee, connect Stripe payouts, upload valid insurance, and upload a real profile photo. OPTIONAL (NOT required to receive jobs) are just the DBS check and installing the app — these boost trust and dispatch ranking only. NEVER tell a locksmith they must have a DBS or the app installed to get jobs — that's false; a locksmith without a DBS is perfectly fine since locksmithing isn't a regulated trade. Always trust canReceiveJobs and the REQUIRED vs OPTIONAL split in the data rather than guessing. If only optional items remain, tell them they're all set to receive jobs and mention DBS only as an optional edge (earns a Verified badge + better ranking).",
       "SAFETY: before calling accept_job or decline_job, the locksmith must have CLEARLY CONFIRMED that exact action in their latest message. If they're only asking about or considering a job, reply and ask them to confirm first (e.g. 'Want me to accept NR2-JOB030? Just say yes') — do NOT call the tool yet.",
       "Refunds, disputes, chargebacks, complaints, payment/account problems, or anything you genuinely can't resolve → you MUST call the escalate_to_human tool in that same turn. Never just say 'I'll escalate' or 'a human will be in touch' without actually calling escalate_to_human — saying it without calling it means nobody is notified.",
