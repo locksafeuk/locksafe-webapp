@@ -29,6 +29,7 @@ import {
 import { getLocksmithCompleteness } from "@/lib/locksmith-completeness";
 import { chat, Models, type LLMMessage, type OllamaTool } from "@/lib/llm-router";
 import { upsertConversationByPhone, getWhatsAppConversationMessages } from "@/lib/whatsapp-inbox";
+import { sendAdminAlert } from "@/lib/telegram";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://www.locksafe.uk";
 const JOIN_URL = process.env.LOCKSMITH_JOIN_URL || "https://locksafe.uk/join";
@@ -465,8 +466,22 @@ async function executeLocksmithTool(
         const r = await handleLocksmithCommand(ctx, "decline", [String(args.job_number ?? ""), String(args.reason ?? "")]);
         return r.text;
       }
-      case "escalate_to_human":
+      case "escalate_to_human": {
+        if (dryRun) return "(dry run) would flag this conversation to the LockSafe team for a human to pick up.";
+        // Actually notify a human — otherwise the handoff goes nowhere.
+        await sendAdminAlert({
+          title: "🧑‍🔧 Locksmith needs a human (WhatsApp)",
+          message:
+            `A locksmith asked for human help and the bot escalated.\n` +
+            `Locksmith: ${locksmithId}\nWhatsApp: ${ctx.chatId}\n` +
+            `Jump into the conversation to reply.`,
+          severity: "warning",
+          topic: "agents",
+          dedupeKey: `locksmith-escalation:${locksmithId}`,
+          cooldownMsOverride: 15 * 60 * 1000, // don't spam if they send a few messages
+        }).catch(() => {});
         return "DONE: flagged for the LockSafe team — a human will reply right here in this chat.";
+      }
       default:
         return "Unknown tool.";
     }
@@ -502,7 +517,7 @@ export async function handleLocksmithAIChat(
       `LIVE DATA about this locksmith right now (trust over anything else):\n${contextBlock}`,
       "You can DO things, not just talk: use the tools to check their jobs/earnings/profile, switch them Available/Offline, or accept/decline a job. Always prefer doing the thing over telling them how.",
       "SAFETY: before calling accept_job or decline_job, the locksmith must have CLEARLY CONFIRMED that exact action in their latest message. If they're only asking about or considering a job, reply and ask them to confirm first (e.g. 'Want me to accept NR2-JOB030? Just say yes') — do NOT call the tool yet.",
-      "Refunds, disputes, complaints, or anything you genuinely can't resolve → call escalate_to_human.",
+      "Refunds, disputes, chargebacks, complaints, payment/account problems, or anything you genuinely can't resolve → you MUST call the escalate_to_human tool in that same turn. Never just say 'I'll escalate' or 'a human will be in touch' without actually calling escalate_to_human — saying it without calling it means nobody is notified.",
       "STYLE: sound like a real person, not a bot. Short (1-4 sentences), natural British English, warm and direct. Answer first, then act. Use *bold* sparingly. NEVER list keyword commands or menus — just have the conversation. Never invent data beyond what tools/LIVE DATA give you. Never promise specific job volumes or earnings.",
     ].join("\n\n"),
   };
