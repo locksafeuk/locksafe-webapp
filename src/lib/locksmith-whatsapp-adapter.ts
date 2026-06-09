@@ -436,6 +436,7 @@ async function executeLocksmithTool(
   name: string,
   args: Record<string, unknown>,
   dryRun = false,
+  triggeringText = "",
 ): Promise<string> {
   try {
     switch (name) {
@@ -468,12 +469,21 @@ async function executeLocksmithTool(
       }
       case "escalate_to_human": {
         if (dryRun) return "(dry run) would flag this conversation to the LockSafe team for a human to pick up.";
+        // Look up the real person so the human responder knows WHO + WHAT.
+        const ls = await prisma.locksmith
+          .findUnique({ where: { id: locksmithId }, select: { name: true, companyName: true, phone: true } })
+          .catch(() => null);
+        const who = ls
+          ? `${ls.name}${ls.companyName ? ` (${ls.companyName})` : ""}`
+          : `Locksmith ${locksmithId}`;
+        const contact = ls?.phone || ctx.chatId;
         // Actually notify a human — otherwise the handoff goes nowhere.
         await sendAdminAlert({
-          title: "🧑‍🔧 Locksmith needs a human (WhatsApp)",
+          title: `🧑‍🔧 ${who} needs a human (WhatsApp)`,
           message:
-            `A locksmith asked for human help and the bot escalated.\n` +
-            `Locksmith: ${locksmithId}\nWhatsApp: ${ctx.chatId}\n` +
+            `${who} asked for human help on WhatsApp.\n` +
+            `Contact: ${contact}\n` +
+            (triggeringText ? `They said: "${triggeringText.slice(0, 300)}"\n` : "") +
             `Jump into the conversation to reply.`,
           severity: "warning",
           topic: "agents",
@@ -542,7 +552,7 @@ export async function handleLocksmithAIChat(
   // Run the requested tools, then ask for a natural reply using the results.
   const results: string[] = [];
   for (const tc of first.toolCalls.slice(0, 4)) {
-    const out = await executeLocksmithTool(ctx, locksmithId, tc.name, tc.arguments ?? {}, dryRun);
+    const out = await executeLocksmithTool(ctx, locksmithId, tc.name, tc.arguments ?? {}, dryRun, text);
     results.push(`${tc.name} → ${out}`);
     opts.traceSink?.push(`${tc.name}(${JSON.stringify(tc.arguments ?? {})}) → ${out}`);
   }
