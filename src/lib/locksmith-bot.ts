@@ -13,6 +13,7 @@
 import prisma from "@/lib/db";
 import { JobStatus } from "@prisma/client";
 import { sendCustomerCalloutPaymentRequest } from "@/lib/customer-payment-request";
+import { getAvailabilityBlock } from "@/lib/locksmith-completeness";
 import {
   sendAutoDispatchNotification,
   notifyLocksmithAutoDispatchConfirmed,
@@ -199,6 +200,18 @@ export async function toggleAvailability(
 
     const newStatus = !locksmith.isAvailable;
 
+    if (newStatus) {
+      const block = await getAvailabilityBlock(locksmithId);
+      if (block) {
+        return {
+          success: false,
+          isAvailable: false,
+          message: `⚠️ ${block.message}\n👉 ${block.deepLink}` +
+            (block.alsoMissing.length ? `\n\nAlso still needed: ${block.alsoMissing.join(", ")}.` : ""),
+        };
+      }
+    }
+
     await prisma.locksmith.update({
       where: { id: locksmithId },
       data: {
@@ -226,6 +239,17 @@ export async function setAvailability(
   isAvailable: boolean
 ): Promise<{ success: boolean; message: string }> {
   try {
+    if (isAvailable) {
+      const block = await getAvailabilityBlock(locksmithId);
+      if (block) {
+        return {
+          success: false,
+          message: `⚠️ ${block.message}\n👉 ${block.deepLink}` +
+            (block.alsoMissing.length ? `\n\nAlso still needed: ${block.alsoMissing.join(", ")}.` : ""),
+        };
+      }
+    }
+
     await prisma.locksmith.update({
       where: { id: locksmithId },
       data: {

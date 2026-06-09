@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { isLocksmithAuthenticated } from "@/lib/auth";
+import { getAvailabilityBlock } from "@/lib/locksmith-completeness";
 
 // GET - Get locksmith availability status
 export async function GET(request: NextRequest) {
@@ -97,6 +98,24 @@ export async function POST(request: NextRequest) {
         { success: false, error: "isAvailable must be a boolean" },
         { status: 400 }
       );
+    }
+
+    // Guard: can't go AVAILABLE without a base postcode — otherwise dispatch
+    // can't match you and your "Available" status is a silent lie.
+    if (isAvailable === true) {
+      const block = await getAvailabilityBlock(locksmithId);
+      if (block) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "base_location_required",
+            message: block.message,
+            deepLink: block.deepLink,
+            alsoMissing: block.alsoMissing,
+          },
+          { status: 400 },
+        );
+      }
     }
 
     // If the locksmith is manually going OFFLINE while a schedule is active,

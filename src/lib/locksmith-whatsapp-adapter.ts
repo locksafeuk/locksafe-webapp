@@ -19,13 +19,15 @@ import {
   handleLocksmithCallback,
   registerLocksmithChat,
   getActiveJobs,
+  getPendingApplications,
   getEarningsSummary,
+  setAvailability,
   type LocksmithBotContext,
   type LocksmithCommand,
   type LocksmithBotMessage,
 } from "@/lib/locksmith-bot";
 import { getLocksmithCompleteness } from "@/lib/locksmith-completeness";
-import { chat, Models, type LLMMessage } from "@/lib/llm-router";
+import { chat, Models, type LLMMessage, type OllamaTool } from "@/lib/llm-router";
 import { upsertConversationByPhone, getWhatsAppConversationMessages } from "@/lib/whatsapp-inbox";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://www.locksafe.uk";
@@ -317,13 +319,26 @@ export async function handleLocksmithWhatsApp(
     return buildInstallWalkthrough();
   }
   if (command) {
-    const response = await handleLocksmithCommand(ctx, command, args);
-    const converted = botMessageToWhatsAppText(phone, response);
-    // Extend the help menu with the WhatsApp-only commands
+    // help/start/menu → let the assistant give a warm, conversational welcome
+    // grounded in their live data (no keyword menus). Falls back to the
+    // templated help only if the AI is unreachable.
     if (command === "help" || command === "start") {
-      return `${converted}\n\n*🧰 Profile*\nprofile - Check what's missing on your profile\ninstall - App install walkthrough\n\nTip: no need for "/" — just type the word.`;
+      try {
+        const intro = await handleLocksmithAIChat(
+          identity.id,
+          identity.name,
+          phone,
+          command === "start"
+            ? "(The locksmith just opened the chat.) Greet them warmly by first name, say in one line what you can help with, and — based on their live data — nudge the single most useful next step. Keep it short and human."
+            : text,
+        );
+        if (intro) return intro;
+      } catch (error) {
+        console.error("[LocksmithWA] AI intro error:", error);
+      }
     }
-    return converted;
+    const response = await handleLocksmithCommand(ctx, command, args);
+    return botMessageToWhatsAppText(phone, response);
   }
 
   // Fallback: conversational AI (Ollama-first via llm-router, OpenAI emergency fallback)
@@ -334,7 +349,9 @@ export async function handleLocksmithWhatsApp(
     console.error("[LocksmithWA] AI chat error:", error);
   }
 
-  return `I didn't catch that. Reply *help* for everything I can do — or *profile* to check your setup, *jobs* for your active jobs.`;
+  // The AI brain is unreachable (e.g. Ollama host down + OpenAI cap hit). Stay
+  // warm and human — no menus, just a clear path forward.
+  return "Sorry, I'm having a brief technical hiccup on my end — give me another try in a moment. If it's urgent or you'd rather talk to a person, just reply *support* and the LockSafe team will jump straight in. 🙏";
 }
 
 // ============================================
@@ -400,12 +417,71 @@ async function getRecentChatHistory(phone: string, limit = 10): Promise<LLMMessa
   }
 }
 
+// ── Tools the assistant can call (it both answers AND acts) ──────────────────
+const LOCKSMITH_TOOLS: OllamaTool[] = [
+  { type: "function", function: { name: "get_active_jobs", description: "The locksmith's current active jobs (accepted / en route / in progress).", parameters: { type: "object", properties: {} } } },
+  { type: "function", function: { name: "get_pending_jobs", description: "Jobs offered to the locksmith that they have NOT yet accepted.", parameters: { type: "object", properties: {} } } },
+  { type: "function", function: { name: "get_earnings", description: "Earnings summary: today, this week, this month, pending payout, lifetime, jobs completed.", parameters: { type: "object", properties: {} } } },
+  { type: "function", function: { name: "get_profile_status", description: "What's missing on the locksmith's profile and whether they're blocked from receiving jobs.", parameters: { type: "object", properties: {} } } },
+  { type: "function", function: { name: "set_availability", description: "Turn the locksmith Available (online, receives jobs) or Offline. Call when they clearly ask to go on or off.", parameters: { type: "object", properties: { available: { type: "boolean", description: "true = Available/online; false = Offline" } }, required: ["available"] } } },
+  { type: "function", function: { name: "accept_job", description: "Accept a specific job offer. ONLY call after the locksmith has explicitly CONFIRMED accepting this exact job in their most recent message.", parameters: { type: "object", properties: { job_number: { type: "string", description: "e.g. NR2-JOB030" } }, required: ["job_number"] } } },
+  { type: "function", function: { name: "decline_job", description: "Decline a specific job offer. ONLY call after the locksmith has explicitly CONFIRMED declining.", parameters: { type: "object", properties: { job_number: { type: "string" }, reason: { type: "string" } }, required: ["job_number"] } } },
+  { type: "function", function: { name: "escalate_to_human", description: "Hand off to a human teammate. Use for refunds, disputes, complaints, account/payment problems you can't resolve, or when they ask for a person.", parameters: { type: "object", properties: {} } } },
+];
+
+async function executeLocksmithTool(
+  ctx: LocksmithBotContext,
+  locksmithId: string,
+  name: string,
+  args: Record<string, unknown>,
+): Promise<string> {
+  try {
+    switch (name) {
+      case "get_active_jobs":
+        return JSON.stringify((await getActiveJobs(locksmithId)).jobs.slice(0, 8));
+      case "get_pending_jobs":
+        return JSON.stringify(await getPendingApplications(locksmithId));
+      case "get_earnings":
+        return JSON.stringify(await getEarningsSummary(locksmithId));
+      case "get_profile_status": {
+        const c = await getLocksmithCompleteness(locksmithId);
+        return JSON.stringify({ score: c?.score ?? null, blockedFromJobs: c?.blockingDispatch ?? null, missing: c?.missing.map((m) => m.label) ?? [] });
+      }
+      case "set_availability": {
+        const r = await setAvailability(locksmithId, Boolean(args.available));
+        return r.message; // includes the base-location guard message if blocked
+      }
+      case "accept_job": {
+        const r = await handleLocksmithCommand(ctx, "accept", [String(args.job_number ?? "")]);
+        return r.text;
+      }
+      case "decline_job": {
+        const r = await handleLocksmithCommand(ctx, "decline", [String(args.job_number ?? ""), String(args.reason ?? "")]);
+        return r.text;
+      }
+      case "escalate_to_human":
+        return "DONE: flagged for the LockSafe team — a human will reply right here in this chat.";
+      default:
+        return "Unknown tool.";
+    }
+  } catch (e) {
+    return `Tool error: ${e instanceof Error ? e.message : String(e)}`;
+  }
+}
+
+/**
+ * The conversational brain. LLM-first (qwen3:32b — warm + natural), with tools
+ * so it can both ANSWER and ACT. Single-hop tool execution (the router has no
+ * formal "tool" role, so we run the requested tools then feed the results back
+ * as context for the final reply). Returns null only if the model is unreachable.
+ */
 export async function handleLocksmithAIChat(
   locksmithId: string,
   name: string,
   phone: string,
   text: string,
 ): Promise<string | null> {
+  const ctx: LocksmithBotContext = { locksmithId, chatId: phone, platform: "whatsapp" };
   const [contextBlock, history] = await Promise.all([
     buildLocksmithContextBlock(locksmithId),
     getRecentChatHistory(phone),
@@ -414,30 +490,54 @@ export async function handleLocksmithAIChat(
   const system: LLMMessage = {
     role: "system",
     content: [
-      "You are the LockSafe UK assistant chatting with one of our locksmiths on WhatsApp. LockSafe is a UK locksmith dispatch platform: customers book emergency/planned jobs, we dispatch vetted locksmiths, payment flows through the platform (Stripe), and locksmiths set their own rates.",
-      `LIVE DATA for this locksmith (trust this over anything else):\n${contextBlock}`,
-      "You can tell them about quick keyword commands: 'jobs', 'pending', 'earnings', 'stats', 'profile' (setup checklist), 'install' (app install), 'available'/'offline' (availability), 'accept <job no>', 'decline <job no>'.",
-      `Key links: settings https://www.locksafe.uk/locksmith/settings · dashboard https://www.locksafe.uk/locksmith/dashboard · app install https://www.locksafe.uk/install`,
-      "Style: WhatsApp message — short (2-6 sentences), friendly, professional. Use *bold* sparingly, no markdown headers, no bullet walls. Answer the question directly first.",
-      "Rules: never invent job, payment or customer data beyond LIVE DATA. Money/dispute/refund issues or anything you can't resolve → tell them to reply 'support' so the team picks it up (a human reads this inbox). Never promise specific job volumes or earnings. UK context only.",
+      `You are the LockSafe UK assistant — a warm, sharp, genuinely helpful colleague chatting with ${name.split(" ")[0] || "a locksmith"} on WhatsApp. LockSafe is a UK locksmith dispatch platform: customers book emergency/planned jobs, we dispatch vetted locksmiths, payment runs through the platform (Stripe), locksmiths set their own rates.`,
+      `LIVE DATA about this locksmith right now (trust over anything else):\n${contextBlock}`,
+      "You can DO things, not just talk: use the tools to check their jobs/earnings/profile, switch them Available/Offline, or accept/decline a job. Always prefer doing the thing over telling them how.",
+      "SAFETY: before calling accept_job or decline_job, the locksmith must have CLEARLY CONFIRMED that exact action in their latest message. If they're only asking about or considering a job, reply and ask them to confirm first (e.g. 'Want me to accept NR2-JOB030? Just say yes') — do NOT call the tool yet.",
+      "Refunds, disputes, complaints, or anything you genuinely can't resolve → call escalate_to_human.",
+      "STYLE: sound like a real person, not a bot. Short (1-4 sentences), natural British English, warm and direct. Answer first, then act. Use *bold* sparingly. NEVER list keyword commands or menus — just have the conversation. Never invent data beyond what tools/LIVE DATA give you. Never promise specific job volumes or earnings.",
     ].join("\n\n"),
   };
 
-  const response = await chat(
-    Models.HERMES,
-    [system, ...history, { role: "user", content: text }],
-    {
-      temperature: 0.4,
-      maxTokens: 350,
-      timeoutMs: 10_000,
-      allowOpenAIFallback: true,
-    },
+  const baseMessages: LLMMessage[] = [system, ...history, { role: "user", content: text }];
+
+  // First pass — let the model answer or request tools.
+  const first = await chat(Models.QUALITY, baseMessages, {
+    temperature: 0.5,
+    maxTokens: 400,
+    timeoutMs: 15_000,
+    allowOpenAIFallback: true,
+    thinkingMode: "no_think",
+    tools: LOCKSMITH_TOOLS,
+  });
+  if (!first) return null;
+
+  if (!first.toolCalls || first.toolCalls.length === 0) {
+    return first.content?.trim() || null;
+  }
+
+  // Run the requested tools, then ask for a natural reply using the results.
+  const results: string[] = [];
+  for (const tc of first.toolCalls.slice(0, 4)) {
+    const out = await executeLocksmithTool(ctx, locksmithId, tc.name, tc.arguments ?? {});
+    results.push(`${tc.name} → ${out}`);
+  }
+
+  const followup = await chat(
+    Models.QUALITY,
+    [
+      ...baseMessages,
+      {
+        role: "system",
+        content:
+          "You just used internal tools to handle the message above. Reply to the locksmith naturally using these results — do NOT mention tools, functions, or JSON. If a result reports a block or error, explain it warmly and tell them what to do.\n\n" +
+          results.join("\n"),
+      },
+    ],
+    { temperature: 0.5, maxTokens: 400, timeoutMs: 15_000, allowOpenAIFallback: true, thinkingMode: "no_think" },
   );
 
-  const reply = response?.content?.trim();
-  if (!reply) return null;
-  console.log(`[LocksmithWA] AI chat reply for ${name} via ${response.model}`);
-  return reply;
+  return followup?.content?.trim() || results.join("\n") || null;
 }
 
 // ============================================

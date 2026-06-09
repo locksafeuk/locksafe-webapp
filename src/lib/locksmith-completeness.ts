@@ -147,3 +147,28 @@ export async function getLocksmithCompleteness(locksmithId: string): Promise<Com
   if (!locksmith) return null;
   return computeCompleteness(locksmith as LocksmithCompletenessFields);
 }
+
+/**
+ * Hard gate for switching to "Available". A locksmith with no base postcode is
+ * invisible to job dispatch (the matcher requires baseLat), so letting them
+ * appear Available is misleading — it produces unassigned jobs in their own
+ * area (KAMIL's exact trap). Returns a block object if they can't go available
+ * yet, or null if they're clear. Shared by the availability API + the bot.
+ */
+export async function getAvailabilityBlock(
+  locksmithId: string,
+): Promise<{ message: string; deepLink: string; alsoMissing: string[] } | null> {
+  const c = await getLocksmithCompleteness(locksmithId);
+  if (!c) return null;
+  const base = c.missing.find((m) => m.key === "base_location");
+  if (!base) return null;
+  const alsoMissing = c.missing
+    .filter((m) => m.blocking && m.key !== "base_location")
+    .map((m) => m.label);
+  return {
+    message:
+      "Set your base postcode before going Available — without it we can't match you to nearby jobs.",
+    deepLink: base.deepLink,
+    alsoMissing,
+  };
+}
