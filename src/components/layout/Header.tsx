@@ -89,17 +89,23 @@ export function Header() {
             </span>
           </a>
 
-          {/* Desktop: original three-part row */}
-          <div className="hidden sm:flex items-center justify-center gap-3">
+          {/* Desktop: three-part row with a more prominent phone link.
+              Pulsing icon + larger orange number match the hero call card
+              treatment so the phone is impossible to miss site-wide. */}
+          <div className="hidden sm:flex items-center justify-center gap-3 py-1.5">
             <span>24/7 Emergency Locksmith Service Across the UK</span>
             <span className="text-white/60">•</span>
             <a
               href={`tel:${SUPPORT_PHONE_TEL}`}
-              className="flex items-center gap-1 text-orange-300 hover:text-orange-200 transition-colors font-semibold"
+              className="flex items-center gap-2 text-orange-300 hover:text-orange-200 transition-colors font-semibold"
               data-call-cta="announcement-bar"
+              aria-label={`Call ${SUPPORT_PHONE} — 24/7 emergency locksmith`}
             >
-              <Phone className="w-3.5 h-3.5" />
-              <span className="text-sm">{SUPPORT_PHONE}</span>
+              <span className="relative inline-flex items-center justify-center w-5 h-5 rounded-full bg-orange-500 flex-shrink-0">
+                <span className="absolute inset-0 rounded-full bg-orange-500 animate-pulse-subtle" aria-hidden="true" />
+                <Phone className="w-3 h-3 text-white relative" aria-hidden="true" />
+              </span>
+              <span className="text-base lg:text-lg -tracking-[0.01em]">{SUPPORT_PHONE}</span>
             </a>
             <span className="text-white/60">•</span>
             <Link href="/request" className="underline hover:text-orange-400 transition-colors">
