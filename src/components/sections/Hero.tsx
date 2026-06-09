@@ -27,34 +27,36 @@ export function Hero() {
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           {/* Left Content */}
           <div className="space-y-8">
-            {/* Mobile-Only Hero Call Card.
-                Larger number + pulsing halo around the icon so the call path
-                is impossible to miss on first paint. Matches the prominent
-                top-bar phone link and the sticky CallNowFAB. */}
-            <div className="md:hidden -mt-4 mb-2">
+            {/* Hero Call Card — visible at all sizes.
+                Mobile: compact, pinned to the very top of the hero (above the
+                category badge) so it's the first thing in view.
+                Desktop: bigger icon and number (~36px) sized to read from
+                across the room. Pulsing halo on the icon catches the eye
+                without the scammy connotations of an outright flash. */}
+            <div className="-mt-4 mb-2 md:mt-0 md:mb-0">
               <a
                 href={`tel:${SUPPORT_PHONE_TEL}`}
                 data-call-cta="hero"
                 aria-label={`Call ${SUPPORT_PHONE} — answered 24/7 in 30 seconds`}
-                className="flex items-center gap-3 p-3 bg-orange-50 border border-orange-200 rounded-2xl text-slate-900 active:bg-orange-100 transition-colors"
+                className="flex items-center gap-3 md:gap-4 p-3 md:p-4 bg-orange-50 border border-orange-200 rounded-2xl text-slate-900 hover:bg-orange-100 active:bg-orange-100 transition-colors max-w-lg"
               >
-                <span className="relative inline-flex items-center justify-center w-12 h-12 flex-shrink-0">
+                <span className="relative inline-flex items-center justify-center w-12 h-12 md:w-16 md:h-16 flex-shrink-0">
                   <span
                     className="absolute inset-0 rounded-full bg-orange-500 animate-pulse-subtle"
                     aria-hidden="true"
                   />
-                  <span className="relative inline-flex items-center justify-center w-12 h-12 rounded-full bg-orange-500 shadow-lg shadow-orange-500/30">
-                    <Phone className="w-6 h-6 text-white" aria-hidden="true" />
+                  <span className="relative inline-flex items-center justify-center w-12 h-12 md:w-16 md:h-16 rounded-full bg-orange-500 shadow-lg shadow-orange-500/30">
+                    <Phone className="w-6 h-6 md:w-8 md:h-8 text-white" aria-hidden="true" />
                   </span>
                 </span>
                 <span className="flex flex-col leading-tight">
-                  <span className="text-[11px] text-orange-700 font-semibold uppercase tracking-wider">
+                  <span className="text-[11px] md:text-xs text-orange-700 font-semibold uppercase tracking-wider">
                     Locked out? Tap to call · 24/7
                   </span>
-                  <span className="text-[26px] font-bold text-slate-900 -tracking-[0.01em]">
+                  <span className="text-[26px] md:text-[36px] font-bold text-slate-900 -tracking-[0.01em] leading-tight">
                     {SUPPORT_PHONE}
                   </span>
-                  <span className="text-[11px] text-emerald-700 font-medium">
+                  <span className="text-[11px] md:text-xs text-emerald-700 font-medium">
                     Answered in 30 seconds
                   </span>
                 </span>
