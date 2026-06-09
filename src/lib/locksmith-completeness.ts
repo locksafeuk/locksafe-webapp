@@ -100,16 +100,16 @@ export function computeCompleteness(l: LocksmithCompletenessFields): Completenes
     },
     {
       key: "photo",
-      label: "Upload a verified profile photo",
+      label: "Upload a real profile photo",
       done: Boolean(l.profileImage) && l.profilePhotoVerified,
-      blocking: false,
+      blocking: true,
       deepLink: settings,
     },
     {
       key: "insurance",
       label: "Upload valid insurance",
       done: Boolean(l.insuranceDocumentUrl) && ["verified", "pending_review"].includes(l.insuranceStatus),
-      blocking: false,
+      blocking: true,
       deepLink: settings,
     },
     {
@@ -160,15 +160,19 @@ export async function getAvailabilityBlock(
 ): Promise<{ message: string; deepLink: string; alsoMissing: string[] } | null> {
   const c = await getLocksmithCompleteness(locksmithId);
   if (!c) return null;
-  const base = c.missing.find((m) => m.key === "base_location");
-  if (!base) return null;
-  const alsoMissing = c.missing
-    .filter((m) => m.blocking && m.key !== "base_location")
-    .map((m) => m.label);
-  return {
-    message:
-      "Set your base postcode before going Available — without it we can't match you to nearby jobs.",
-    deepLink: base.deepLink,
-    alsoMissing,
-  };
+  const blockingMissing = c.missing.filter((m) => m.blocking);
+  if (blockingMissing.length === 0) return null;
+
+  // Base location is the most critical (the matcher needs baseLat or the
+  // locksmith is invisible), so lead with it when it's missing. Otherwise lead
+  // with whatever required item is outstanding.
+  const base = blockingMissing.find((m) => m.key === "base_location");
+  const primary = base ?? blockingMissing[0];
+  const alsoMissing = blockingMissing.filter((m) => m.key !== primary.key).map((m) => m.label);
+
+  const message = base
+    ? "Set your base postcode before going Available — without it we can't match you to nearby jobs."
+    : `Before you can go Available you need to finish your required setup: ${blockingMissing.map((m) => m.label).join(", ")}.`;
+
+  return { message, deepLink: primary.deepLink, alsoMissing };
 }

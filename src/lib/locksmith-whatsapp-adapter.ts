@@ -378,9 +378,21 @@ async function buildLocksmithContextBlock(locksmithId: string): Promise<string> 
     if (locksmith.baseAddress) lines.push(`Base: ${locksmith.baseAddress} (radius ${locksmith.coverageRadius} miles)`);
   }
   if (completeness) {
-    lines.push(`Profile completeness: ${completeness.score}%${completeness.blockingDispatch ? " — BLOCKED from receiving jobs until required items are done" : ""}`);
-    if (completeness.missing.length > 0) {
-      lines.push(`Missing items: ${completeness.missing.map((m) => m.label).join("; ")}`);
+    const requiredMissing = completeness.missing.filter((m) => m.blocking);
+    const optionalMissing = completeness.missing.filter((m) => !m.blocking);
+    lines.push(
+      `Profile completeness: ${completeness.score}%` +
+        (completeness.blockingDispatch
+          ? " — BLOCKED from receiving jobs until the REQUIRED items below are done"
+          : " — all REQUIRED items done; eligible to receive jobs"),
+    );
+    if (requiredMissing.length > 0) {
+      lines.push(`REQUIRED before receiving jobs (still missing): ${requiredMissing.map((m) => m.label).join("; ")}`);
+    }
+    if (optionalMissing.length > 0) {
+      lines.push(
+        `OPTIONAL — boosts trust & dispatch ranking but NOT required to receive jobs: ${optionalMissing.map((m) => m.label).join("; ")}`,
+      );
     }
   }
   if (activeJobs.jobs.length > 0) {
@@ -449,7 +461,12 @@ async function executeLocksmithTool(
         return JSON.stringify(await getEarningsSummary(locksmithId));
       case "get_profile_status": {
         const c = await getLocksmithCompleteness(locksmithId);
-        return JSON.stringify({ score: c?.score ?? null, blockedFromJobs: c?.blockingDispatch ?? null, missing: c?.missing.map((m) => m.label) ?? [] });
+        return JSON.stringify({
+          score: c?.score ?? null,
+          canReceiveJobs: c ? !c.blockingDispatch : null,
+          requiredMissing: c?.missing.filter((m) => m.blocking).map((m) => m.label) ?? [],
+          optionalMissing: c?.missing.filter((m) => !m.blocking).map((m) => m.label) ?? [],
+        });
       }
       // Mutating tools — in dryRun (trial mode) report intent instead of acting.
       case "set_availability": {
@@ -523,9 +540,10 @@ export async function handleLocksmithAIChat(
   const system: LLMMessage = {
     role: "system",
     content: [
-      `You are the LockSafe UK assistant — a warm, sharp, genuinely helpful colleague chatting with ${name.split(" ")[0] || "a locksmith"} on WhatsApp. LockSafe is a UK locksmith dispatch platform: customers book emergency/planned jobs, we dispatch vetted locksmiths, payment runs through the platform (Stripe), locksmiths set their own rates.`,
+      `You are Lockie, the LockSafe UK assistant — a warm, sharp, genuinely helpful colleague chatting with ${name.split(" ")[0] || "a locksmith"} on WhatsApp. If you ever introduce yourself, you're "Lockie". LockSafe is a UK locksmith dispatch platform: customers book emergency/planned jobs, we dispatch vetted locksmiths, payment runs through the platform (Stripe), locksmiths set their own rates.`,
       `LIVE DATA about this locksmith right now (trust over anything else):\n${contextBlock}`,
       "You can DO things, not just talk: use the tools to check their jobs/earnings/profile, switch them Available/Offline, or accept/decline a job. Always prefer doing the thing over telling them how.",
+      "REQUIRED vs OPTIONAL — this matters, get it right: the items that BLOCK a locksmith from receiving jobs are — accept terms & conditions, set base location (postcode), set call-out fee, connect Stripe payouts, upload valid insurance, and upload a real profile photo. OPTIONAL (NOT required to receive jobs) are just the DBS check and installing the app — these boost trust and dispatch ranking only. NEVER tell a locksmith they must have a DBS or the app installed to get jobs — that's false; a locksmith without a DBS is perfectly fine since locksmithing isn't a regulated trade. Always trust canReceiveJobs and the REQUIRED vs OPTIONAL split in the data rather than guessing. If only optional items remain, tell them they're all set to receive jobs and mention DBS only as an optional edge (earns a Verified badge + better ranking).",
       "SAFETY: before calling accept_job or decline_job, the locksmith must have CLEARLY CONFIRMED that exact action in their latest message. If they're only asking about or considering a job, reply and ask them to confirm first (e.g. 'Want me to accept NR2-JOB030? Just say yes') — do NOT call the tool yet.",
       "Refunds, disputes, chargebacks, complaints, payment/account problems, or anything you genuinely can't resolve → you MUST call the escalate_to_human tool in that same turn. Never just say 'I'll escalate' or 'a human will be in touch' without actually calling escalate_to_human — saying it without calling it means nobody is notified.",
       "STYLE: sound like a real person, not a bot. Short (1-4 sentences), natural British English, warm and direct. Answer first, then act. Use *bold* sparingly. NEVER list keyword commands or menus — just have the conversation. Never invent data beyond what tools/LIVE DATA give you. Never promise specific job volumes or earnings.",
