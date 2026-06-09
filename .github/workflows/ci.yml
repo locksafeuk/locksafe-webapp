@@ -8,7 +8,9 @@ on:
 
 env:
   NODE_VERSION: "20"
-  NEXT_PUBLIC_SITE_URL: "https://locksafe.co.uk"
+  # Production canonical host is locksafe.uk (NOT .co.uk — env.test.ts expects
+  # this exact value as the default site URL).
+  NEXT_PUBLIC_SITE_URL: "https://locksafe.uk"
   # `prisma validate` reads env("DATABASE_URL") from schema.prisma and crashes
   # if the var is unset, even though it never actually connects. A dummy URL
   # in the correct shape is enough to make schema parsing succeed in CI.
