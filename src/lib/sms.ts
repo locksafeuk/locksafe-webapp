@@ -14,7 +14,12 @@
 
 import { normalizePhoneNumber } from "@/lib/phone";
 import { sendZadarmaSMS } from "@/lib/sms-zadarma";
-import { buildTwilioApiPayload, hasTwilioSenderConfigured } from "@/lib/twilio-sender";
+import {
+  buildTwilioApiPayload,
+  hasTwilioSenderConfigured,
+  hasTwilioTwoWaySender,
+  type SmsChannel,
+} from "@/lib/twilio-sender";
 
 export interface SMSResult {
   success: boolean;
@@ -210,7 +215,7 @@ export function isSmsProviderConfigured(provider = getActiveSmsProvider()): bool
 async function sendViaTwilio(
   to: string,
   message: string,
-  options?: { logContext?: string },
+  options?: { logContext?: string; channel?: SmsChannel },
 ): Promise<SMSResult> {
   const { accountSid, authToken } = getTwilioCredentials();
 
@@ -246,7 +251,9 @@ async function sendViaTwilio(
           "Content-Type": "application/x-www-form-urlencoded",
           Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString("base64")}`,
         },
-        body: new URLSearchParams(buildTwilioApiPayload(normalizedTo, message)),
+        body: new URLSearchParams(
+          buildTwilioApiPayload(normalizedTo, message, options?.channel ?? "marketing"),
+        ),
       },
     );
 
@@ -318,15 +325,23 @@ export function estimateSegments(text: string): {
 export async function sendSMS(
   to: string,
   message: string,
-  options?: { logContext?: string },
+  options?: { logContext?: string; channel?: SmsChannel },
 ): Promise<SMSResult> {
   const provider = getActiveSmsProvider();
+  const channel: SmsChannel = options?.channel ?? "marketing";
 
   const estimate = estimateSegments(message);
   if (estimate.segments > 1 || estimate.encoding === "UCS-2") {
     console.warn(
       `[SMS] COST WARNING: ${estimate.segments} segment(s), ${estimate.encoding}, ${estimate.chars} chars${options?.logContext ? ` (${options.logContext})` : ""}`,
     );
+  }
+
+  // Transactional customer messages must come from a REPLYABLE Twilio sender so
+  // the customer can text back and we receive it — override the default
+  // (Zadarma/alphanumeric, one-way) whenever a two-way Twilio number exists.
+  if (channel === "transactional" && hasTwilioTwoWaySender()) {
+    return sendViaTwilio(to, message, { ...options, channel: "transactional" });
   }
 
   if (provider === "zadarma") {
@@ -377,6 +392,7 @@ export async function notifyCustomerJobSubmitted(
 ): Promise<SMSResult> {
   const message = SMS_TEMPLATES.CUSTOMER_JOB_SUBMITTED(ctx);
   return sendSMS(ctx.customerPhone, message, {
+    channel: "transactional",
     logContext: `job-submitted:${ctx.jobNumber}`,
   });
 }
@@ -389,6 +405,7 @@ export async function notifyCustomerQuoteReceived(
 ): Promise<SMSResult> {
   const message = SMS_TEMPLATES.CUSTOMER_QUOTE_RECEIVED(ctx);
   return sendSMS(ctx.customerPhone, message, {
+    channel: "transactional",
     logContext: `quote-received:${ctx.jobNumber}`,
   });
 }
@@ -401,6 +418,7 @@ export async function notifyCustomerLocksmithAccepted(
 ): Promise<SMSResult> {
   const message = SMS_TEMPLATES.CUSTOMER_LOCKSMITH_ACCEPTED(ctx);
   return sendSMS(ctx.customerPhone, message, {
+    channel: "transactional",
     logContext: `locksmith-accepted:${ctx.jobNumber}`,
   });
 }
@@ -413,6 +431,7 @@ export async function notifyCustomerLocksmithEnRoute(
 ): Promise<SMSResult> {
   const message = SMS_TEMPLATES.CUSTOMER_LOCKSMITH_EN_ROUTE(ctx);
   return sendSMS(ctx.customerPhone, message, {
+    channel: "transactional",
     logContext: `en-route:${ctx.jobNumber}`,
   });
 }
@@ -425,6 +444,7 @@ export async function notifyCustomerLocksmithArrived(
 ): Promise<SMSResult> {
   const message = SMS_TEMPLATES.CUSTOMER_LOCKSMITH_ARRIVED(ctx);
   return sendSMS(ctx.customerPhone, message, {
+    channel: "transactional",
     logContext: `arrived:${ctx.jobNumber}`,
   });
 }
@@ -437,6 +457,7 @@ export async function notifyCustomerFullQuote(
 ): Promise<SMSResult> {
   const message = SMS_TEMPLATES.CUSTOMER_FULL_QUOTE(ctx);
   return sendSMS(ctx.customerPhone, message, {
+    channel: "transactional",
     logContext: `full-quote:${ctx.jobNumber}`,
   });
 }
@@ -449,6 +470,7 @@ export async function notifyCustomerWorkStarted(
 ): Promise<SMSResult> {
   const message = SMS_TEMPLATES.CUSTOMER_WORK_STARTED(ctx);
   return sendSMS(ctx.customerPhone, message, {
+    channel: "transactional",
     logContext: `work-started:${ctx.jobNumber}`,
   });
 }
@@ -461,6 +483,7 @@ export async function notifyCustomerWorkCompleted(
 ): Promise<SMSResult> {
   const message = SMS_TEMPLATES.CUSTOMER_WORK_COMPLETED(ctx);
   return sendSMS(ctx.customerPhone, message, {
+    channel: "transactional",
     logContext: `work-completed:${ctx.jobNumber}`,
   });
 }
@@ -473,6 +496,7 @@ export async function notifyCustomerConfirmationReminder(
 ): Promise<SMSResult> {
   const message = SMS_TEMPLATES.CUSTOMER_CONFIRMATION_REMINDER(ctx);
   return sendSMS(ctx.customerPhone, message, {
+    channel: "transactional",
     logContext: `confirm-reminder:${ctx.jobNumber}`,
   });
 }
@@ -485,6 +509,7 @@ export async function notifyCustomerReviewRequest(
 ): Promise<SMSResult> {
   const message = SMS_TEMPLATES.CUSTOMER_REVIEW_REQUEST(ctx);
   return sendSMS(ctx.customerPhone, message, {
+    channel: "transactional",
     logContext: `review-request:${ctx.jobNumber}`,
   });
 }
@@ -497,6 +522,7 @@ export async function notifyCustomerPaymentSuccess(
 ): Promise<SMSResult> {
   const message = SMS_TEMPLATES.CUSTOMER_PAYMENT_SUCCESS(ctx);
   return sendSMS(ctx.customerPhone, message, {
+    channel: "transactional",
     logContext: `payment-success:${ctx.jobNumber}`,
   });
 }
@@ -509,6 +535,7 @@ export async function notifyCustomerRefund(
 ): Promise<SMSResult> {
   const message = SMS_TEMPLATES.CUSTOMER_REFUND_PROCESSED(ctx);
   return sendSMS(ctx.customerPhone, message, {
+    channel: "transactional",
     logContext: `refund:${ctx.jobNumber}`,
   });
 }

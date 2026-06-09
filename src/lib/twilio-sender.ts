@@ -49,54 +49,55 @@ export function hasTwilioSenderConfigured() {
   return Boolean(messagingServiceSid || alphaSenderId || phoneNumber);
 }
 
-export function buildTwilioApiPayload(to: string, body: string): TwilioApiPayload {
-  const { messagingServiceSid, alphaSenderId, phoneNumber } = getMessageRouting();
+/**
+ * Channel decides the sender:
+ *  - "transactional" → a REPLYABLE sender (Messaging Service or numeric VMN),
+ *    never the alphanumeric ID, so customers can text back ("paid", "running
+ *    late") and we receive it.
+ *  - "marketing"     → prefers the branded alphanumeric "LockSafe UK" Sender ID
+ *    (one-way) for outreach blasts where replies aren't expected.
+ */
+export type SmsChannel = "transactional" | "marketing";
 
-  if (messagingServiceSid) {
-    return {
-      To: to,
-      Body: body,
-      MessagingServiceSid: messagingServiceSid,
-    };
-  }
-
-  if (alphaSenderId) {
-    return {
-      To: to,
-      Body: body,
-      From: alphaSenderId,
-    };
-  }
-
-  return {
-    To: to,
-    Body: body,
-    From: phoneNumber,
-  };
+/** Is a two-way (replyable) Twilio sender available? */
+export function hasTwilioTwoWaySender() {
+  const { messagingServiceSid, phoneNumber } = getMessageRouting();
+  return Boolean(messagingServiceSid || phoneNumber);
 }
 
-export function buildTwilioSdkPayload(to: string, body: string): TwilioSdkPayload {
+export function buildTwilioApiPayload(
+  to: string,
+  body: string,
+  channel: SmsChannel = "marketing",
+): TwilioApiPayload {
   const { messagingServiceSid, alphaSenderId, phoneNumber } = getMessageRouting();
 
-  if (messagingServiceSid) {
-    return {
-      to,
-      body,
-      messagingServiceSid,
-    };
+  if (channel === "transactional") {
+    // Replyable senders only — skip the alphanumeric ID.
+    if (messagingServiceSid) return { To: to, Body: body, MessagingServiceSid: messagingServiceSid };
+    if (phoneNumber) return { To: to, Body: body, From: phoneNumber };
+    // No two-way sender configured — fall through to whatever exists so the
+    // message still goes out (replies just won't work until a VMN is added).
   }
 
-  if (alphaSenderId) {
-    return {
-      to,
-      body,
-      from: alphaSenderId,
-    };
+  if (messagingServiceSid) return { To: to, Body: body, MessagingServiceSid: messagingServiceSid };
+  if (alphaSenderId) return { To: to, Body: body, From: alphaSenderId };
+  return { To: to, Body: body, From: phoneNumber };
+}
+
+export function buildTwilioSdkPayload(
+  to: string,
+  body: string,
+  channel: SmsChannel = "marketing",
+): TwilioSdkPayload {
+  const { messagingServiceSid, alphaSenderId, phoneNumber } = getMessageRouting();
+
+  if (channel === "transactional") {
+    if (messagingServiceSid) return { to, body, messagingServiceSid };
+    if (phoneNumber) return { to, body, from: phoneNumber };
   }
 
-  return {
-    to,
-    body,
-    from: phoneNumber,
-  };
+  if (messagingServiceSid) return { to, body, messagingServiceSid };
+  if (alphaSenderId) return { to, body, from: alphaSenderId };
+  return { to, body, from: phoneNumber };
 }
