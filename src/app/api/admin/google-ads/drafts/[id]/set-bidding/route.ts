@@ -118,7 +118,9 @@ export async function POST(
     updateBody.targetSpend = {
       cpcBidCeilingMicros: gbpToMicros(cpcBidCeilingGbp as number),
     };
-    updateMask = "target_spend";
+    // Field mask MUST be the explicit subfield path — Google rejects
+    // the parent `target_spend` alone with FIELD_HAS_SUBFIELDS error.
+    updateMask = "target_spend.cpc_bid_ceiling_micros";
   } else if (strategy === "MAXIMIZE_CONVERSIONS") {
     updateBody.maximizeConversions = {};
     updateMask = "maximize_conversions";
