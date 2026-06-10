@@ -128,7 +128,9 @@ async function createOrFind(
         defaultCurrencyCode: CURRENCY,
         alwaysUseDefaultValue: true, // call leads all worth the same proxy value
       },
-      includeInConversionsMetric: true,
+      // includeInConversionsMetric / includeInClientAccountConversionsMetric
+      // are IMMUTABLE on create per Google Ads v24 — must be left to defaults
+      // (both default to true). Setting either trips IMMUTABLE_FIELD.
     },
   };
 
