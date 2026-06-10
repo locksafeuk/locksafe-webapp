@@ -43,8 +43,8 @@ export async function GET(request: NextRequest) {
     return redirect(request, "error=tiktok_state_mismatch&platform=tiktok");
   }
 
-  const clientKey = process.env.TIKTOK_CLIENT_KEY;
-  const clientSecret = process.env.TIKTOK_CLIENT_SECRET;
+  const clientKey = process.env.TIKTOK_CLIENT_KEY?.trim();
+  const clientSecret = process.env.TIKTOK_CLIENT_SECRET?.trim();
   if (!clientKey || !clientSecret) {
     return redirect(request, "error=tiktok_app_not_configured&platform=tiktok");
   }

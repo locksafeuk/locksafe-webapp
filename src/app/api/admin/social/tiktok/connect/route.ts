@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/admin/login", request.url));
   }
 
-  const clientKey = process.env.TIKTOK_CLIENT_KEY;
+  const clientKey = process.env.TIKTOK_CLIENT_KEY?.trim();
   if (!clientKey) {
     return NextResponse.redirect(
       new URL("/admin/social-connect?error=tiktok_app_not_configured&platform=tiktok", request.url)
