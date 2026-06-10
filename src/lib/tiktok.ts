@@ -79,3 +79,147 @@ Brand: LockSafe UK — vetted locksmiths, fast response, fair prices across the 
 export function isTikTokApiConfigured(): boolean {
   return !!(process.env.TIKTOK_CLIENT_KEY && process.env.TIKTOK_CLIENT_SECRET);
 }
+
+// ============================================================================
+// REAL PHOTO POSTING — TikTok Content Posting API (DIRECT_POST, PHOTO)
+// ----------------------------------------------------------------------------
+// Requires:
+//   • An audited TikTok app with the Content Posting API + video.publish scope.
+//   • A user access token (stored on the SocialAccount row, platform TIKTOK).
+//   • Images hosted on a URL-VERIFIED domain (PULL_FROM_URL only accepts
+//     images from a domain verified in the TikTok developer portal).
+// Before the audit passes, only privacy_level SELF_ONLY works.
+// ============================================================================
+
+const TIKTOK_API = "https://open.tiktokapis.com/v2";
+
+export interface TikTokPhotoResult {
+  success: boolean;
+  publishId?: string;
+  status?: string;
+  error?: string;
+}
+
+/** Query creator info — also the cheapest way to validate a token + audit state. */
+export async function queryTikTokCreatorInfo(
+  accessToken: string
+): Promise<{ ok: boolean; data?: Record<string, unknown>; error?: string }> {
+  try {
+    const res = await fetch(`${TIKTOK_API}/post/publish/creator_info/query/`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json; charset=UTF-8",
+      },
+    });
+    const json = (await res.json()) as { data?: Record<string, unknown>; error?: { code?: string; message?: string } };
+    if (!res.ok || (json.error?.code && json.error.code !== "ok")) {
+      return { ok: false, error: `${json.error?.code ?? res.status}: ${json.error?.message ?? "creator_info failed"}` };
+    }
+    return { ok: true, data: json.data };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
+ * Publish a PHOTO post to TikTok via the Content Posting API (DIRECT_POST).
+ * `imageUrls` must be publicly reachable on a TikTok-verified domain.
+ */
+export async function postPhotoToTikTok(params: {
+  accessToken: string;
+  caption: string;
+  imageUrls: string[];
+  title?: string;
+  privacyLevel?: "PUBLIC_TO_EVERYONE" | "FOLLOWER_OF_CREATOR" | "SELF_ONLY";
+  wait?: boolean;
+}): Promise<TikTokPhotoResult> {
+  const {
+    accessToken,
+    caption,
+    imageUrls,
+    title = "LockSafe",
+    privacyLevel = (process.env.TIKTOK_PRIVACY_LEVEL as "PUBLIC_TO_EVERYONE" | "SELF_ONLY") || "PUBLIC_TO_EVERYONE",
+    wait = true,
+  } = params;
+
+  if (!imageUrls.length) return { success: false, error: "No image URLs provided" };
+
+  // Surface auth/audit errors early.
+  const creator = await queryTikTokCreatorInfo(accessToken);
+  if (!creator.ok) return { success: false, error: `creator_info: ${creator.error}` };
+
+  try {
+    const initRes = await fetch(`${TIKTOK_API}/post/publish/content/init/`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json; charset=UTF-8",
+      },
+      body: JSON.stringify({
+        post_info: {
+          title: title.slice(0, 90),
+          description: caption.slice(0, 4000),
+          privacy_level: privacyLevel,
+          disable_comment: false,
+          auto_add_music: true,
+        },
+        source_info: {
+          source: "PULL_FROM_URL",
+          photo_cover_index: 0,
+          photo_images: imageUrls,
+        },
+        post_mode: "DIRECT_POST",
+        media_type: "PHOTO",
+      }),
+    });
+
+    const initJson = (await initRes.json()) as {
+      data?: { publish_id?: string };
+      error?: { code?: string; message?: string };
+    };
+
+    if (!initRes.ok || (initJson.error?.code && initJson.error.code !== "ok")) {
+      return { success: false, error: `${initJson.error?.code ?? initRes.status}: ${initJson.error?.message ?? "init failed"}` };
+    }
+
+    const publishId = initJson.data?.publish_id;
+    if (!publishId) return { success: false, error: "init returned no publish_id" };
+    if (!wait) return { success: true, publishId, status: "PROCESSING" };
+
+    const status = await pollTikTokStatus(accessToken, publishId);
+    const ok = status === "PUBLISH_COMPLETE" || status === "SEND_TO_USER_INBOX";
+    return { success: ok, publishId, status, error: ok ? undefined : `final status: ${status}` };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+async function pollTikTokStatus(accessToken: string, publishId: string, attempts = 10, delayMs = 6000): Promise<string> {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch(`${TIKTOK_API}/post/publish/status/fetch/`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json; charset=UTF-8",
+        },
+        body: JSON.stringify({ publish_id: publishId }),
+      });
+      const json = (await res.json()) as { data?: { status?: string } };
+      const status = json.data?.status;
+      if (status === "PUBLISH_COMPLETE" || status === "FAILED" || status === "SEND_TO_USER_INBOX") {
+        return status;
+      }
+    } catch {
+      /* transient — keep polling */
+    }
+    await new Promise((r) => setTimeout(r, delayMs));
+  }
+  return "TIMEOUT";
+}
+
+/** True when a stored OAuth user token is available for direct photo posting. */
+export function isTikTokPostingEnabled(account?: { accessToken?: string | null } | null): boolean {
+  return !!account?.accessToken;
+}

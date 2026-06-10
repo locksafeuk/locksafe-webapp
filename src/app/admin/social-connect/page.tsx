@@ -12,6 +12,7 @@ import {
   Twitter,
   Linkedin,
   Facebook,
+  Music2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -32,6 +33,7 @@ function PlatformIcon({ platform }: { platform: string }) {
     case "TWITTER":   return <Twitter className={cls} />;
     case "LINKEDIN":  return <Linkedin className={cls} />;
     case "FACEBOOK":  return <Facebook className={cls} />;
+    case "TIKTOK":    return <Music2 className={cls} />;
     default:          return <AlertCircle className={cls} />;
   }
 }
@@ -40,21 +42,24 @@ const platformColor: Record<string, string> = {
   TWITTER:   "text-sky-500 bg-sky-50",
   LINKEDIN:  "text-blue-600 bg-blue-50",
   FACEBOOK:  "text-blue-700 bg-blue-50",
+  TIKTOK:    "text-slate-900 bg-slate-100",
 };
 
 const platformLabel: Record<string, string> = {
   TWITTER:   "Twitter / X",
   LINKEDIN:  "LinkedIn",
   FACEBOOK:  "Facebook",
+  TIKTOK:    "TikTok",
 };
 
 const connectPaths: Record<string, string | null> = {
   TWITTER:   "/api/admin/social/twitter/connect",
   LINKEDIN:  "/api/admin/social/linkedin/connect",
   FACEBOOK:  null, // Managed via Meta Business Suite directly
+  TIKTOK:    "/api/admin/social/tiktok/connect",
 };
 
-const ALL_PLATFORMS = ["TWITTER", "LINKEDIN", "FACEBOOK"];
+const ALL_PLATFORMS = ["TWITTER", "LINKEDIN", "FACEBOOK", "TIKTOK"];
 
 function SocialConnectContent() {
   const searchParams = useSearchParams();

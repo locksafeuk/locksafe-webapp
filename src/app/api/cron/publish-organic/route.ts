@@ -22,7 +22,7 @@ import {
 import { formatPostForPlatform } from "@/lib/organic-content";
 import { isTwitterConfigured, postTweet, postThread, postTweetWithImage } from "@/lib/twitter";
 import { isLinkedInConfigured, postToLinkedIn } from "@/lib/linkedin";
-import { isTikTokApiConfigured, generateTikTokScript } from "@/lib/tiktok";
+import { isTikTokApiConfigured, generateTikTokScript, postPhotoToTikTok } from "@/lib/tiktok";
 import { sendAdminAlert } from "@/lib/telegram";
 import { isPlatformEnabled } from "@/lib/social-platforms";
 
@@ -81,6 +81,7 @@ export async function GET(request: NextRequest) {
     // LinkedIn: prefer DB credentials, fall back to env vars
     const linkedinDbAccount = accounts.find((a: AccountType) => a.platform === "LINKEDIN");
     const linkedinEnabled  = !!(linkedinDbAccount || isLinkedInConfigured());
+    const tiktokDbAccount  = accounts.find((a: AccountType) => a.platform === "TIKTOK");
     const tiktokApiEnabled = isTikTokApiConfigured();
 
     const publishablePlatforms: SocialPlatform[] = [];
@@ -317,14 +318,26 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // TikTok: generate video script (API video posting requires separate upload pipeline)
+      // TikTok: real PHOTO post when a connected account + image exist; else
+      // fall back to generating a script for manual/AI video production.
       if (post.platforms.includes("TIKTOK")) {
-        if (tiktokApiEnabled) {
-          // Future: POST to TikTok Content Posting API with a video asset
-          // For now mark as pending video upload
-          platformResults.tiktok = { success: true, script: undefined };
+        if (tiktokDbAccount?.accessToken && post.imageUrl) {
+          try {
+            const caption = (post as Record<string, unknown>).tiktokContent as string | undefined || post.content;
+            const result = await postPhotoToTikTok({
+              accessToken: tiktokDbAccount.accessToken,
+              caption: caption.slice(0, 4000),
+              imageUrls: [post.imageUrl],
+              title: post.headline || "LockSafe",
+            });
+            platformResults.tiktok = result.success
+              ? { success: true, postId: result.publishId }
+              : { success: false, error: result.error };
+          } catch (err) {
+            platformResults.tiktok = { success: false, error: err instanceof Error ? err.message : String(err) };
+          }
         } else {
-          // No API credentials — generate a script and save it for manual/AI video production
+          // No connected TikTok account (or no image) — generate a script.
           try {
             const topic = post.headline || post.content.slice(0, 80);
             const script = await generateTikTokScript(topic, "security-tips");
