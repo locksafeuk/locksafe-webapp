@@ -100,6 +100,27 @@ function SocialConnectContent() {
     return new Date(account.tokenExpiresAt).getTime() <= Date.now();
   }
 
+  const [tiktokTesting, setTiktokTesting] = useState(false);
+  const [tiktokTestResult, setTiktokTestResult] = useState<string | null>(null);
+
+  async function sendTikTokTestPost() {
+    setTiktokTesting(true);
+    setTiktokTestResult(null);
+    try {
+      const res = await fetch("/api/admin/social/tiktok/test-post", { method: "POST" });
+      const data = await res.json();
+      setTiktokTestResult(
+        data.success
+          ? `✅ Posted to TikTok (status: ${data.status || "ok"}, id: ${data.publishId || "-"})`
+          : `❌ ${data.error || "Test post failed"}`
+      );
+    } catch (e) {
+      setTiktokTestResult(`❌ ${e instanceof Error ? e.message : "Request failed"}`);
+    } finally {
+      setTiktokTesting(false);
+    }
+  }
+
   return (
     <AdminSidebar>
       <div className="p-4 md:p-8 max-w-3xl mx-auto">
@@ -208,37 +229,52 @@ function SocialConnectContent() {
                         Managed via Meta Business Suite — token set in environment.
                       </p>
                     )}
+                    {platform === "TIKTOK" && tiktokTestResult && (
+                      <p className="text-sm text-slate-600 mt-1 truncate">{tiktokTestResult}</p>
+                    )}
                   </div>
 
                   {/* Action */}
-                  {connectUrl ? (
-                    <a href={connectUrl}>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {platform === "TIKTOK" && connected && (
                       <Button
-                        variant={connected ? "outline" : "default"}
+                        variant="outline"
                         size="sm"
-                        className={connected ? "" : "bg-orange-500 hover:bg-orange-600 text-white"}
+                        disabled={tiktokTesting}
+                        onClick={sendTikTokTestPost}
                       >
-                        {connected ? (
-                          <>
-                            <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-                            Re-connect
-                          </>
-                        ) : expired ? (
-                          <>
-                            <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-                            Reconnect
-                          </>
-                        ) : (
-                          <>
-                            <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
-                            Connect
-                          </>
-                        )}
+                        {tiktokTesting ? "Posting…" : "Test post"}
                       </Button>
-                    </a>
-                  ) : (
-                    <span className="text-xs text-slate-400">Manual</span>
-                  )}
+                    )}
+                    {connectUrl ? (
+                      <a href={connectUrl}>
+                        <Button
+                          variant={connected ? "outline" : "default"}
+                          size="sm"
+                          className={connected ? "" : "bg-orange-500 hover:bg-orange-600 text-white"}
+                        >
+                          {connected ? (
+                            <>
+                              <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                              Re-connect
+                            </>
+                          ) : expired ? (
+                            <>
+                              <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                              Reconnect
+                            </>
+                          ) : (
+                            <>
+                              <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
+                              Connect
+                            </>
+                          )}
+                        </Button>
+                      </a>
+                    ) : (
+                      <span className="text-xs text-slate-400">Manual</span>
+                    )}
+                  </div>
                 </div>
               );
             })}
