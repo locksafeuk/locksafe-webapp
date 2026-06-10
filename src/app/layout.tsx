@@ -3,6 +3,7 @@ import { DM_Sans } from "next/font/google";
 import "./globals.css";
 import ClientBody from "./ClientBody";
 import { GoogleTagManager, GTMNoScript } from "@/components/analytics/GoogleTagManager";
+import { GoogleAdsCallTracking } from "@/components/analytics/GoogleAdsCallTracking";
 import { MetaPixel } from "@/components/analytics/MetaPixel";
 import { SITE_URL, SITE_NAME, SUPPORT_PHONE, SUPPORT_EMAIL } from "@/lib/config";
 
@@ -261,6 +262,12 @@ export default function RootLayout({
         {/* GTM consent-default + loader. Must be in <head> so consent defaults
             (deny-by-default) execute before any tag fires. */}
         <GoogleTagManager gtmId={GTM_ID} />
+        {/* Google Ads call-tracking gtag. Swaps SUPPORT_PHONE with a
+            Google forwarding number when the visitor came from an ad,
+            so Google can measure the call duration and fire the
+            WEBSITE_CALL conversion when ≥30s. Renders nothing when
+            NEXT_PUBLIC_GOOGLE_ADS_ID is unset (safe default). */}
+        <GoogleAdsCallTracking />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="LockSafe" />

@@ -112,6 +112,31 @@ export const PLAYBOOK_GUARDRAILS = {
    * These cannot be overridden per-draft. */
   ADVERTISING_CHANNEL_TYPE: "SEARCH" as const,
   LOCATION_MATCH_TYPE: "PRESENCE" as const,
+
+  /**
+   * Rule §20 (2026-06-10): every campaign MUST ship with a CALL asset
+   * (call extension) containing a valid +44 phone number.
+   *
+   * Why:
+   *   - Google natively measures call duration on calls placed via the
+   *     call extension forwarding number. The AD_CALL conversion action
+   *     (LockSafe Phone Call Lead 30s+) only fires when those calls
+   *     last ≥30s.
+   *   - Without a call asset on the campaign, that conversion action
+   *     never fires → MAXIMIZE_CONVERSIONS sees zero signal → it bids
+   *     blind → we waste money on clicks that never convert (the
+   *     £165.85 / 0 conv "bankruptcy mechanism" we diagnosed 2026-06-09).
+   *   - Even with MAXIMIZE_CLICKS as the safe default, having the call
+   *     asset feeds the auction a "this click converted into a real
+   *     call" signal that we want available the moment we flip back.
+   *
+   * Enforcement: reject any draft whose `assets` array contains zero
+   * entries with `type === "CALL"` and a non-empty `phoneNumber`.
+   * Auto-fix is NOT possible (we don't know which number to inject) —
+   * the draft generator must produce one, or the admin must add one
+   * before publish.
+   */
+  REQUIRE_CALL_ASSET: true as const,
 } as const;
 
 // ─── UK geo allowlist (safety net) ────────────────────────────────────────
@@ -673,6 +698,43 @@ export function enforceDraftGuardrails(
         actual: String(geo),
         severity: "error",
       });
+    }
+  }
+
+  // 11. Call asset (Rule §20). ──────────────────────────────────────────
+  // Every campaign must ship with a CALL extension carrying a +44 number.
+  // Without it the AD_CALL conversion (30s+) cannot fire → Google sees
+  // zero signal → MaxConv bids blind → bankruptcy mechanism.
+  if (PLAYBOOK_GUARDRAILS.REQUIRE_CALL_ASSET) {
+    const assets = Array.isArray(out.assets) ? (out.assets as unknown[]) : [];
+    const callAssets = assets.filter((a): a is { type: string; phoneNumber?: string } => {
+      if (!a || typeof a !== "object") return false;
+      const obj = a as { type?: unknown; phoneNumber?: unknown };
+      return obj.type === "CALL" && typeof obj.phoneNumber === "string" && obj.phoneNumber.trim().length > 0;
+    });
+    if (callAssets.length === 0) {
+      violations.push({
+        field: "assets",
+        expected: "at least one CALL asset with a non-empty phoneNumber (playbook §20)",
+        actual: `${assets.length} assets, 0 of type CALL with phoneNumber`,
+        severity: "error",
+      });
+    } else {
+      // Sanity: the phone number must look like a UK number (+44 or 0...).
+      // This is intentionally loose — google-ads-publish.ts handles the
+      // strict E.164 normalisation. We only want to catch obvious junk.
+      const bad = callAssets.filter((a) => {
+        const p = String(a.phoneNumber).replace(/\s+/g, "");
+        return !/^(\+44|0)\d{6,12}$/.test(p);
+      });
+      for (const a of bad) {
+        violations.push({
+          field: "assets.phoneNumber",
+          expected: "UK phone number starting with +44 or 0 (playbook §20)",
+          actual: String(a.phoneNumber),
+          severity: "error",
+        });
+      }
     }
   }
 

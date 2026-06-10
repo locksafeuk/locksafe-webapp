@@ -24,7 +24,7 @@ const conforming = () => ({
   status: "PENDING_APPROVAL",
   name: "Locksmith — Test (TST1)",
   dailyBudget: 25,
-  biddingStrategy: "MAXIMIZE_CONVERSIONS",
+  biddingStrategy: "MAXIMIZE_CLICKS",
   targetCpa: null,
   channel: "SEARCH",
   locationMatchType: "PRESENCE",
@@ -38,6 +38,10 @@ const conforming = () => ({
     matchType: "PHRASE" as const,
   })),
   negativeKeywords: Array.from({ length: 128 }, (_, i) => `neg${i}`),
+  // Playbook §20 (Rule §20, 2026-06-10): every draft must ship with
+  // a CALL asset carrying a UK phone number. Required for AD_CALL
+  // conversion to fire (30s+ duration → counts as conversion).
+  assets: [{ type: "CALL", phoneNumber: "+44 20 4577 1989", countryCode: "GB" }],
 });
 
 describe("google-ads-draft-enforcement", () => {
@@ -47,7 +51,7 @@ describe("google-ads-draft-enforcement", () => {
       expect(r.ok).toBe(true);
       if (r.ok) {
         expect(r.appliedFixes).toHaveLength(0);
-        expect(r.data.biddingStrategy).toBe("MAXIMIZE_CONVERSIONS");
+        expect(r.data.biddingStrategy).toBe("MAXIMIZE_CLICKS");
       }
     });
   });
@@ -60,7 +64,7 @@ describe("google-ads-draft-enforcement", () => {
       });
       expect(r.ok).toBe(true);
       if (r.ok) {
-        expect(r.data.biddingStrategy).toBe("MAXIMIZE_CONVERSIONS");
+        expect(r.data.biddingStrategy).toBe("MAXIMIZE_CLICKS");
         expect(r.data.targetCpa).toBeNull();
         const fix = r.appliedFixes.find((f) => f.field === "biddingStrategy");
         expect(fix).toBeDefined();
@@ -84,7 +88,7 @@ describe("google-ads-draft-enforcement", () => {
           biddingStrategy: v as string | undefined,
         });
         expect(r.ok).toBe(true);
-        if (r.ok) expect(r.data.biddingStrategy).toBe("MAXIMIZE_CONVERSIONS");
+        if (r.ok) expect(r.data.biddingStrategy).toBe("MAXIMIZE_CLICKS");
       }
     });
 
@@ -97,7 +101,7 @@ describe("google-ads-draft-enforcement", () => {
         });
         expect(r.ok).toBe(true);
         if (r.ok) {
-          expect(r.data.biddingStrategy).toBe("MAXIMIZE_CONVERSIONS");
+          expect(r.data.biddingStrategy).toBe("MAXIMIZE_CLICKS");
           expect(
             r.appliedFixes.some((f) => f.field === "biddingStrategy"),
           ).toBe(true);
@@ -209,7 +213,7 @@ describe("google-ads-draft-enforcement", () => {
   describe("assertDraftGuardrails (strict)", () => {
     it("returns enforced data on success", () => {
       const { data } = assertDraftGuardrails(conforming());
-      expect(data.biddingStrategy).toBe("MAXIMIZE_CONVERSIONS");
+      expect(data.biddingStrategy).toBe("MAXIMIZE_CLICKS");
     });
 
     it("throws DraftGuardrailError on violations", () => {
@@ -239,7 +243,7 @@ describe("google-ads-draft-enforcement", () => {
         ...conforming(),
         biddingStrategy: "MANUAL_CPC",
       });
-      expect(data.biddingStrategy).toBe("MAXIMIZE_CONVERSIONS");
+      expect(data.biddingStrategy).toBe("MAXIMIZE_CLICKS");
       expect(appliedFixes.some((f) => f.field === "biddingStrategy")).toBe(
         true,
       );
@@ -277,7 +281,7 @@ describe("google-ads-draft-enforcement", () => {
 
   describe("playbook constant sanity", () => {
     it("aligns with the playbook target bid strategy", () => {
-      expect(PLAYBOOK_GUARDRAILS.BIDDING_STRATEGY).toBe("MAXIMIZE_CONVERSIONS");
+      expect(PLAYBOOK_GUARDRAILS.BIDDING_STRATEGY).toBe("MAXIMIZE_CLICKS");
     });
 
     it("aligns with Google RSA limits", () => {
