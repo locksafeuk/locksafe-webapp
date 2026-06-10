@@ -46,6 +46,8 @@ export async function POST(request: NextRequest) {
     caption: "LockSafe UK — verified locksmiths, transparent prices. #LockSafeUK #HomeSecurity",
     imageUrls: [imageUrl],
     title: "LockSafe UK",
+    // Unaudited apps (incl. sandbox) may only post privately.
+    privacyLevel: "SELF_ONLY",
   });
 
   return NextResponse.json(result, { status: result.success ? 200 : 502 });
