@@ -2,18 +2,31 @@
  * GET /api/admin/google-ads/conversions/check
  *
  * Diagnostic endpoint that verifies the Google Ads offline conversion
- * upload configuration is correct. Uses validateOnly=true so nothing
- * is actually sent to Google — it just confirms the conversion action
- * resources exist and the API credentials are working.
+ * upload configuration is correct.
  *
- * Called after deploying the server-side conversion tracking to confirm
- * the env vars are wired up correctly before real jobs fire.
+ * Implementation note (2026-06-10): previously this route fired two
+ * `uploadClickConversions` calls with `validateOnly: true` to confirm
+ * each conversion action was reachable. Google Ads still counts
+ * validateOnly mutations toward the per-token operations quota — so
+ * each diagnostic run burned 2 ops. With 4-6 checks per day across
+ * dev + monitoring that easily eats hundreds of ops/week from a quota
+ * that's already tight on Basic access.
+ *
+ * The route now performs a single GAQL search of conversion_action
+ * (1 operation total) and verifies each configured env var's
+ * resource_name exists in the result set. Same validation, 1/4 the ops.
+ *
+ * Called after deploying or updating conversion env vars to confirm
+ * resources are wired up before real jobs fire.
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth";
 import { getDefaultGoogleAdsClient } from "@/lib/google-ads";
+
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 async function verifyAdmin() {
   const cookieStore = await cookies();
@@ -24,151 +37,157 @@ async function verifyAdmin() {
   return payload;
 }
 
-export async function GET(request: NextRequest) {
+// Map of "env var name" → "human label" for each tracked resource.
+// Adding a new conversion action? Add an entry here.
+const TRACKED_CONVERSION_ENV_VARS: Array<{ env: string; label: string }> = [
+  { env: "GOOGLE_ADS_CONVERSION_ACTION_RESOURCE", label: "Job Completed (UPLOAD_CLICKS)" },
+  { env: "GOOGLE_ADS_ASSESSMENT_FEE_CONVERSION_ACTION_RESOURCE", label: "Assessment Fee (UPLOAD_CLICKS)" },
+  { env: "GOOGLE_ADS_AD_CALL_CONVERSION_ACTION_RESOURCE", label: "Phone Call Lead 30s+ (AD_CALL)" },
+  { env: "GOOGLE_ADS_WEBSITE_CALL_CONVERSION_ACTION_RESOURCE", label: "Website Call 30s+ (WEBSITE_CALL)" },
+];
+
+// Public env vars used by the gtag call-tracking snippet on landings.
+const TRACKED_PUBLIC_ENV_VARS = [
+  "NEXT_PUBLIC_GOOGLE_ADS_ID",
+  "NEXT_PUBLIC_GOOGLE_ADS_CALL_CONVERSION_LABEL",
+];
+
+interface ConversionActionRow {
+  conversionAction?: {
+    resourceName?: string;
+    name?: string;
+    status?: string;
+    type?: string;
+    category?: string;
+    primaryForGoal?: boolean;
+    phoneCallDurationSeconds?: string | number;
+  };
+}
+
+export async function GET() {
   const admin = await verifyAdmin();
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const results: Record<string, unknown> = {};
+  const envVars: Record<string, string> = {};
+  for (const { env } of TRACKED_CONVERSION_ENV_VARS) {
+    const val = process.env[env];
+    envVars[env] = val ? `✅ Set — ${val}` : "❌ Missing — set in Vercel env vars";
+  }
+  for (const env of TRACKED_PUBLIC_ENV_VARS) {
+    const val = process.env[env];
+    envVars[env] = val ? "✅ Set" : "❌ Missing — set in Vercel env vars";
+  }
 
-  // ── 1. Check env vars are set ───────────────────────────────────────────────
-  const jobConversionAction = process.env["GOOGLE_ADS_CONVERSION_ACTION_RESOURCE"];
-  const assessmentConversionAction = process.env["GOOGLE_ADS_ASSESSMENT_FEE_CONVERSION_ACTION_RESOURCE"];
-
-  results.envVars = {
-    GOOGLE_ADS_CONVERSION_ACTION_RESOURCE: jobConversionAction
-      ? `✅ Set — ${jobConversionAction}`
-      : "❌ Missing — set in Vercel env vars",
-    GOOGLE_ADS_ASSESSMENT_FEE_CONVERSION_ACTION_RESOURCE: assessmentConversionAction
-      ? `✅ Set — ${assessmentConversionAction}`
-      : "❌ Missing — set in Vercel env vars",
-  };
-
-  // ── 2. Check Google Ads API client is available ─────────────────────────────
-  let client: unknown;
+  // Connect to Google Ads.
+  let ctx;
   try {
-    client = await getDefaultGoogleAdsClient();
-    results.apiClient = "✅ Google Ads client connected";
+    ctx = await getDefaultGoogleAdsClient();
   } catch (err) {
-    results.apiClient = `❌ Client unavailable: ${err instanceof Error ? err.message : String(err)}`;
-    return NextResponse.json({ ok: false, results }, { status: 200 });
+    return NextResponse.json({
+      ok: false,
+      results: {
+        envVars,
+        apiClient: `❌ Client unavailable: ${err instanceof Error ? err.message : String(err)}`,
+      },
+    });
+  }
+  if (!ctx) {
+    return NextResponse.json({
+      ok: false,
+      results: { envVars, apiClient: "❌ No active GoogleAdsAccount" },
+    });
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = (ctx as any).client;
+
+  // Single GAQL query — fetches every enabled conversion action in the
+  // account. Costs 1 operation regardless of how many actions we track.
+  let rows: ConversionActionRow[] = [];
+  try {
+    rows = (await client.query(`
+      SELECT
+        conversion_action.resource_name,
+        conversion_action.name,
+        conversion_action.status,
+        conversion_action.type,
+        conversion_action.category,
+        conversion_action.primary_for_goal,
+        conversion_action.phone_call_duration_seconds
+      FROM conversion_action
+      WHERE conversion_action.status = 'ENABLED'
+    `)) as ConversionActionRow[];
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({
+      ok: false,
+      results: {
+        envVars,
+        apiClient: "✅ Google Ads client connected",
+        gaqlQuery: `❌ Conversion action lookup failed: ${msg}`,
+      },
+    });
   }
 
-  // ── 3. validateOnly upload for job completion conversion ────────────────────
-  if (jobConversionAction && client) {
-    const customerMatch = jobConversionAction.match(/^customers\/(\d+)\//);
-    if (customerMatch) {
-      const customerId = customerMatch[1];
-      try {
-        // getDefaultGoogleAdsClient returns { client, accountId, customerId }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const c = (client as any).client;
-        const validateBody = {
-          conversions: [
-            {
-              gclid: "test_gclid_validate_only",
-              conversionAction: jobConversionAction,
-              conversionDateTime: "2026-01-01 12:00:00+00:00",
-              conversionValue: 150.0,
-              currencyCode: "GBP",
-              orderId: "TEST-VALIDATE-ONLY",
-            },
-          ],
-          partialFailure: true,
-          validateOnly: true,
-        };
-        const resp = await c.request(
-          `customers/${customerId}:uploadClickConversions`,
-          "POST",
-          validateBody,
-        );
-        results.jobConversionValidation = {
-          status: "✅ Conversion action resource is valid and reachable",
-          response: resp,
-        };
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        // "INVALID_ARGUMENT" with gclid is expected — it means the action
-        // resource was found but the test gclid is fake (which is fine).
-        const isExpectedGclidError =
-          msg.includes("INVALID_ARGUMENT") ||
-          msg.includes("gclid") ||
-          msg.includes("click_id");
-        results.jobConversionValidation = isExpectedGclidError
-          ? {
-              status: "✅ Conversion action resource valid (fake gclid rejected as expected)",
-              note: msg,
-            }
-          : {
-              status: `❌ Unexpected error: ${msg}`,
-            };
-      }
-    } else {
-      results.jobConversionValidation = `❌ Malformed resource name: ${jobConversionAction}`;
+  // Index rows by resource name.
+  const byResourceName = new Map<string, ConversionActionRow["conversionAction"]>();
+  for (const r of rows) {
+    if (r.conversionAction?.resourceName) {
+      byResourceName.set(r.conversionAction.resourceName, r.conversionAction);
     }
-  } else {
-    results.jobConversionValidation = "⏭ Skipped — env var not set";
   }
 
-  // ── 4. validateOnly upload for assessment fee conversion ────────────────────
-  if (assessmentConversionAction && client) {
-    const customerMatch = assessmentConversionAction.match(/^customers\/(\d+)\//);
-    if (customerMatch) {
-      const customerId = customerMatch[1];
-      try {
-        // getDefaultGoogleAdsClient returns { client, accountId, customerId }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const c = (client as any).client;
-        const validateBody = {
-          conversions: [
-            {
-              gclid: "test_gclid_validate_only",
-              conversionAction: assessmentConversionAction,
-              conversionDateTime: "2026-01-01 12:00:00+00:00",
-              conversionValue: 35.0,
-              currencyCode: "GBP",
-              orderId: "TEST-AF-VALIDATE-ONLY",
-            },
-          ],
-          partialFailure: true,
-          validateOnly: true,
-        };
-        const resp = await c.request(
-          `customers/${customerId}:uploadClickConversions`,
-          "POST",
-          validateBody,
-        );
-        results.assessmentFeeConversionValidation = {
-          status: "✅ Assessment fee conversion action resource valid and reachable",
-          response: resp,
-        };
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        const isExpectedGclidError =
-          msg.includes("INVALID_ARGUMENT") ||
-          msg.includes("gclid") ||
-          msg.includes("click_id");
-        results.assessmentFeeConversionValidation = isExpectedGclidError
-          ? {
-              status: "✅ Assessment fee conversion action resource valid (fake gclid rejected as expected)",
-              note: msg,
-            }
-          : {
-              status: `❌ Unexpected error: ${msg}`,
-            };
-      }
-    } else {
-      results.assessmentFeeConversionValidation = `❌ Malformed resource name: ${assessmentConversionAction}`;
+  // Per-env validation — does the resource_name resolve to a real ENABLED action?
+  const actionValidation: Record<string, unknown> = {};
+  for (const { env, label } of TRACKED_CONVERSION_ENV_VARS) {
+    const resource = process.env[env];
+    if (!resource) {
+      actionValidation[env] = "⏭ Skipped — env var not set";
+      continue;
     }
-  } else {
-    results.assessmentFeeConversionValidation = "⏭ Skipped — env var not set";
+    const action = byResourceName.get(resource);
+    if (!action) {
+      actionValidation[env] = {
+        status: `❌ ${label}: resource not found in account (or not ENABLED)`,
+        resource,
+      };
+    } else {
+      const minDuration = action.phoneCallDurationSeconds
+        ? `${action.phoneCallDurationSeconds}s`
+        : "n/a";
+      actionValidation[env] = {
+        status: `✅ ${label} — ENABLED`,
+        name: action.name,
+        type: action.type,
+        category: action.category,
+        primary: action.primaryForGoal === true ? "PRIMARY ✓" : "Secondary",
+        minPhoneCallDuration: minDuration,
+      };
+    }
   }
 
-  const allOk = Object.values(results).every((v) => {
-    const str = JSON.stringify(v);
-    return !str.includes("❌");
+  const allEnabled = rows
+    .map((r) => r.conversionAction)
+    .filter(Boolean)
+    .map((a) => ({
+      name: a?.name,
+      type: a?.type,
+      primary: a?.primaryForGoal === true,
+      resource: a?.resourceName,
+    }));
+
+  const hasError = Object.values({ ...envVars, ...actionValidation }).some((v) =>
+    JSON.stringify(v).includes("❌"),
+  );
+
+  return NextResponse.json({
+    ok: !hasError,
+    results: {
+      envVars,
+      apiClient: "✅ Google Ads client connected",
+      actionValidation,
+      allEnabledConversionActionsInAccount: allEnabled,
+    },
   });
-
-  return NextResponse.json({ ok: allOk, results }, { status: 200 });
 }

@@ -26,6 +26,22 @@ import { getDefaultGoogleAdsClient } from "@/lib/google-ads";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+// In-memory cache. Multiple admin views in quick succession (refresh,
+// re-open the page, drift detector cron) all hit cache instead of
+// burning a fresh ~16 Google Ads operations per request.
+//
+// Trade-off: a campaign created in the Google Ads UI in the last 10
+// minutes won't appear until the cache expires. That's fine — ghosts
+// are an audit-trail concern, not a real-time one.
+//
+// Bust the cache via ?force=1 query param.
+interface GhostAuditCacheEntry {
+  expiresAt: number;
+  payload: unknown;
+}
+const GHOST_AUDIT_TTL_MS = 10 * 60 * 1000;
+const ghostAuditCache = new Map<string, GhostAuditCacheEntry>();
+
 async function verifyAdmin() {
   const cookieStore = await cookies();
   const token = cookieStore.get("auth_token")?.value;
@@ -52,7 +68,7 @@ interface CampaignRow {
   };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const admin = await verifyAdmin();
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -63,6 +79,21 @@ export async function GET() {
   // getDefaultGoogleAdsClient returns { client, accountId, customerId }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const client = (ctx as any).client;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cacheKey: string = (ctx as any).accountId ?? (ctx as any).customerId ?? "default";
+
+  // Cache hit?
+  const force = new URL(request.url).searchParams.get("force") === "1";
+  if (!force) {
+    const hit = ghostAuditCache.get(cacheKey);
+    if (hit && hit.expiresAt > Date.now()) {
+      return NextResponse.json({
+        ...(hit.payload as Record<string, unknown>),
+        cached: true,
+        cachedAt: new Date(hit.expiresAt - GHOST_AUDIT_TTL_MS).toISOString(),
+      });
+    }
+  }
 
   // Pull every non-REMOVED campaign in the live account, with cost+budget.
   // Lifetime metrics (no date filter) — matches the screenshot reading.
@@ -133,7 +164,7 @@ export async function GET() {
   ghosts.sort((a, b) => Number(b.lifetimeCostGbp) - Number(a.lifetimeCostGbp));
   tracked.sort((a, b) => Number(b.lifetimeCostGbp) - Number(a.lifetimeCostGbp));
 
-  return NextResponse.json({
+  const payload = {
     summary: {
       total_in_google: rows.length,
       tracked_in_db: tracked.length,
@@ -151,5 +182,15 @@ export async function GET() {
     },
     ghosts,
     tracked,
+  };
+
+  // Cache for 10 min — most callers (admin UI refreshes, drift cron)
+  // will share this entry instead of each burning a fresh Google Ads
+  // search query.
+  ghostAuditCache.set(cacheKey, {
+    expiresAt: Date.now() + GHOST_AUDIT_TTL_MS,
+    payload,
   });
+
+  return NextResponse.json({ ...payload, cached: false });
 }

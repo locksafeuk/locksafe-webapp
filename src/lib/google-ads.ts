@@ -287,6 +287,49 @@ export class GoogleAdsClient {
   }
 
   /**
+   * Fetch with burst-429 retry. Google Ads has two distinct 429 modes:
+   *   1. Per-minute / per-second burst — short retryDelay (seconds). Retry.
+   *   2. Daily quota exhausted (Basic access) — retryDelay = thousands of
+   *      seconds. No point retrying within this request.
+   *
+   * Pattern: try once. On 429, parse the body for `retryDelay`. If it parses
+   * to ≤30 seconds, sleep + retry up to 2 more times with exponential
+   * backoff. Otherwise rethrow immediately so the caller fails fast.
+   *
+   * Added 2026-06-10 after Basic-access daily quota was burned by morning
+   * diagnostics. Standard access (applied for separately) raises the daily
+   * cap by ~70x and most of this stops mattering — but the burst-retry
+   * still helps under sustained load.
+   */
+  private async fetchWithBurstRetry(
+    url: string,
+    init: RequestInit,
+    maxRetries = 2,
+  ): Promise<Response> {
+    let backoffMs = 1000;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const res = await fetch(url, init);
+      if (res.status !== 429) return res;
+
+      // 429 — read body without consuming the stream the caller needs.
+      const text = await res.clone().text();
+      const retryMatch = text.match(/Retry in (\d+) seconds/);
+      const retrySeconds = retryMatch ? Number(retryMatch[1]) : null;
+
+      // Daily quota: retryDelay is huge (hours). Don't retry — let the caller
+      // surface the error so admins know to wait or upgrade.
+      if (retrySeconds !== null && retrySeconds > 30) return res;
+      // Already at last attempt — return the 429 so the caller throws normally.
+      if (attempt === maxRetries) return res;
+
+      await new Promise((resolve) => setTimeout(resolve, backoffMs));
+      backoffMs *= 2; // 1s → 2s → 4s
+    }
+    // Unreachable; keep TS happy.
+    return fetch(url, init);
+  }
+
+  /**
    * Run a GAQL query and return the raw `results` array. Handles pagination
    * via `nextPageToken` transparently (cap = 5 pages to avoid runaway costs;
    * widen if a legitimate report needs more).
@@ -317,7 +360,7 @@ export class GoogleAdsClient {
       const body: Record<string, unknown> = { query: gaql };
       if (pageToken) body.pageToken = pageToken;
 
-      const res = await fetch(url, {
+      const res = await this.fetchWithBurstRetry(url, {
         method: "POST",
         headers,
         body: JSON.stringify(body),
@@ -513,7 +556,7 @@ export class GoogleAdsClient {
       validateOnly: options.validateOnly ?? false,
     };
 
-    const res = await fetch(url, {
+    const res = await this.fetchWithBurstRetry(url, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
@@ -560,7 +603,7 @@ export class GoogleAdsClient {
       headers["login-customer-id"] = this.loginCustomerId;
     }
 
-    const res = await fetch(url, {
+    const res = await this.fetchWithBurstRetry(url, {
       method,
       headers,
       body: JSON.stringify(body),
