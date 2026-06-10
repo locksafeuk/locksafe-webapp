@@ -92,6 +92,10 @@ async function runSmsOutreach(): Promise<SmsOutreachSummary> {
   for (const lead of leads) {
     try {
       const result = await sendSMS(lead.phone!, buildLeadSms(lead.name, lead.city), {
+        // Two-way: recruitment must be REPLYABLE. An interested locksmith who
+        // texts back lands in the SMS webhook → Lockie's lead flow → conversion.
+        // (The old one-way "LockSafe UK" sender silently dropped every reply.)
+        channel: "transactional",
         logContext: `lead-outreach-sms-seq:${lead.id}`,
       });
       if (!result.success) { failed++; continue; }
