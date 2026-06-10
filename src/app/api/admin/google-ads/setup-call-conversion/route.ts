@@ -112,7 +112,11 @@ async function createOrFind(
       status: "ENABLED",
       countingType: "ONE_PER_CLICK",
       clickThroughLookbackWindowDays: 30,
-      viewThroughLookbackWindowDays: 1,
+      // viewThroughLookbackWindowDays — INTENTIONALLY OMITTED.
+      // PHONE_CALL_LEAD category rejects this field (VALUE_MUST_BE_UNSET)
+      // because phone calls have no "view-through" equivalent. Setting it
+      // for UPLOAD_CLICKS / PURCHASE is allowed; setting it here is not.
+      //
       // The 30-second floor. Calls under this don't count as conversions
       // and therefore don't influence Google's auction bidding.
       phoneCallDurationSeconds: MIN_DURATION_SECONDS,
