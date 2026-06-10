@@ -441,6 +441,7 @@ const LOCKSMITH_TOOLS: OllamaTool[] = [
   { type: "function", function: { name: "decline_job", description: "Decline a specific job offer. ONLY call after the locksmith has explicitly CONFIRMED declining.", parameters: { type: "object", properties: { job_number: { type: "string" }, reason: { type: "string" } }, required: ["job_number"] } } },
   { type: "function", function: { name: "escalate_to_human", description: "Hand off to a human teammate. Use for refunds, disputes, complaints, account/payment problems you can't resolve, or when they ask for a person.", parameters: { type: "object", properties: {} } } },
   { type: "function", function: { name: "app_help", description: "Get the right LockSafe app message for THIS locksmith — the install link if they don't have the app yet, or the update notice (latest version) if they already have it. Use when they ask about the app, mention install/update/download, can't get job alerts, or when you're nudging them to install it.", parameters: { type: "object", properties: {} } } },
+  { type: "function", function: { name: "get_team_status", description: "This locksmith's Team/company status: whether they OWN a team (with member count), are a MEMBER of someone's team (with their earnings split %), or are SOLO (no team). Use whenever they ask about Teams, adding staff/colleagues, or managing a company on LockSafe.", parameters: { type: "object", properties: {} } } },
 ];
 
 const APP_LINKS =
@@ -506,6 +507,31 @@ async function executeLocksmithTool(
           `Encourage them to install it now and share the link for their phone:\n${APP_LINKS}`
         );
       }
+      case "get_team_status": {
+        const owned = await prisma.locksmithCompany.findFirst({
+          where: { ownerId: locksmithId, isActive: true },
+          select: { name: true, _count: { select: { memberships: true } } },
+        });
+        if (owned) {
+          return JSON.stringify({ role: "owner", teamName: owned.name, members: owned._count.memberships });
+        }
+        const m = await prisma.locksmithCompanyMember.findFirst({
+          where: { locksmithId },
+          select: {
+            locksmithSplit: true,
+            company: { select: { name: true, owner: { select: { name: true } } } },
+          },
+        });
+        if (m) {
+          return JSON.stringify({
+            role: "member",
+            teamName: m.company?.name ?? null,
+            manager: m.company?.owner?.name ?? null,
+            yourSplitPercent: m.locksmithSplit,
+          });
+        }
+        return JSON.stringify({ role: "solo" });
+      }
       case "escalate_to_human": {
         if (dryRun) return "(dry run) would flag this conversation to the LockSafe team for a human to pick up.";
         // Look up the real person so the human responder knows WHO + WHAT.
@@ -566,6 +592,8 @@ export async function handleLocksmithAIChat(
       `LIVE DATA about this locksmith right now (trust over anything else):\n${contextBlock}`,
       "You can DO things, not just talk: use the tools to check their jobs/earnings/profile, switch them Available/Offline, or accept/decline a job. Always prefer doing the thing over telling them how.",
       "APP: locksmiths get job alerts through the LockSafe phone app. If they ask about the app, mention install/update/download, say they're not getting alerts, or you're nudging them to install it — call app_help and pass on the link/message it returns (it gives the install link if they don't have the app, or the update notice if they do). Don't paste store links from memory; get them from app_help so they're correct for that locksmith.",
+
+      "TEAMS: a locksmith can run a team/company on LockSafe. A team OWNER (manager) invites their colleagues or employees — who must already be LockSafe locksmiths — by their email, and sets each member's earnings split (e.g. the member keeps 70%, the manager keeps the rest, after the platform fee). Members work under the owner's company. Any locksmith is either an OWNER, a MEMBER of someone's team, or SOLO (no team). They set all this up on the Team page of their LockSafe dashboard. When they ask about teams, adding staff, or managing a company, call get_team_status first to see where they stand, explain it plainly from that, and point them to the Team section of their dashboard to create a team or invite members (invites are by the colleague's email). Don't invent member limits, fees, or rules beyond this — if you're unsure, offer to have a teammate walk them through it.",
       "REQUIRED vs OPTIONAL — this matters, get it right: the items that BLOCK a locksmith from receiving jobs are — accept terms & conditions, set base location (postcode), set call-out fee, connect Stripe payouts, upload valid insurance, and upload a real profile photo. OPTIONAL (NOT required to receive jobs) are just the DBS check and installing the app — these boost trust and dispatch ranking only. NEVER tell a locksmith they must have a DBS or the app installed to get jobs — that's false; a locksmith without a DBS is perfectly fine since locksmithing isn't a regulated trade. Always trust canReceiveJobs and the REQUIRED vs OPTIONAL split in the data rather than guessing. If only optional items remain, tell them they're all set to receive jobs and mention DBS only as an optional edge (earns a Verified badge + better ranking).",
       "SAFETY: before calling accept_job or decline_job, the locksmith must have CLEARLY CONFIRMED that exact action in their latest message. If they're only asking about or considering a job, reply and ask them to confirm first (e.g. 'Want me to accept NR2-JOB030? Just say yes') — do NOT call the tool yet.",
       "Refunds, disputes, chargebacks, complaints, payment/account problems, or anything you genuinely can't resolve → you MUST call the escalate_to_human tool in that same turn. Never just say 'I'll escalate' or 'a human will be in touch' without actually calling escalate_to_human — saying it without calling it means nobody is notified.",
