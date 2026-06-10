@@ -51,27 +51,43 @@ export async function GET() {
   const client = (ctx as any).client;
 
   // All ENABLED campaigns.
-  const campaigns = (await client.query(`
-    SELECT campaign.id, campaign.name, campaign.status
-    FROM campaign
-    WHERE campaign.status = 'ENABLED'
-  `)) as CampaignRow[];
+  let campaigns: CampaignRow[] = [];
+  try {
+    campaigns = (await client.query(`
+      SELECT campaign.id, campaign.name, campaign.status
+      FROM campaign
+      WHERE campaign.status = 'ENABLED'
+    `)) as CampaignRow[];
+  } catch (err) {
+    return NextResponse.json(
+      { error: "campaigns query failed", details: err instanceof Error ? err.message : String(err) },
+      { status: 500 },
+    );
+  }
 
   // CALL assets attached at campaign level.
-  const callAssetRows = (await client.query(`
-    SELECT
-      campaign.id,
-      campaign.name,
-      campaign_asset.asset,
-      campaign_asset.status,
-      asset.resource_name,
-      asset.type,
-      asset.call_asset.phone_number,
-      asset.call_asset.country_code
-    FROM campaign_asset
-    WHERE asset.type = 'CALL'
-      AND campaign.status = 'ENABLED'
-  `)) as CampaignAssetRow[];
+  let callAssetRows: CampaignAssetRow[] = [];
+  try {
+    callAssetRows = (await client.query(`
+      SELECT
+        campaign.id,
+        campaign.name,
+        campaign_asset.asset,
+        campaign_asset.status,
+        asset.resource_name,
+        asset.type,
+        asset.call_asset.phone_number,
+        asset.call_asset.country_code
+      FROM campaign_asset
+      WHERE asset.type = 'CALL'
+        AND campaign.status = 'ENABLED'
+    `)) as CampaignAssetRow[];
+  } catch (err) {
+    return NextResponse.json(
+      { error: "campaign_asset query failed", details: err instanceof Error ? err.message : String(err), enabledCampaignsCount: campaigns.length },
+      { status: 500 },
+    );
+  }
 
   const callAssetsByCampaign = new Map<string, Array<{ phone: string; country?: string; status?: string }>>();
   for (const r of callAssetRows) {
