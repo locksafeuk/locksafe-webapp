@@ -622,6 +622,7 @@ export async function handleLocksmithAIChat(
 export async function handleLeadWhatsApp(
   identity: Extract<InboundIdentity, { kind: "lead" }>,
   text: string,
+  phone?: string,
 ): Promise<string> {
   const lower = text.trim().toLowerCase();
   const firstName = identity.name.split(" ")[0] || identity.name;
@@ -635,7 +636,7 @@ export async function handleLeadWhatsApp(
     return "No problem — you won't hear from us again. All the best! 👍";
   }
 
-  // Mark replied (new/contacted → replied) so the team sees engagement in the dashboard
+  // Mark replied (new/contacted → replied) so the team sees engagement.
   if (identity.status === "new" || identity.status === "contacted") {
     await prisma.locksmithLead.update({
       where: { id: identity.id },
@@ -643,20 +644,29 @@ export async function handleLeadWhatsApp(
     });
   }
 
-  // Positive intent → join link
-  if (/\b(yes|yeah|yep|join|interested|sign ?(me )?up|how|tell me more|info)\b/.test(lower)) {
-    return [
-      `Brilliant, ${firstName}! 🔧 Here's how LockSafe works:`,
-      "• Free to join — no monthly fees\n• You set your own rates & call-out fee\n• Emergency jobs in your area sent straight to your phone\n• Paid out directly via Stripe",
-      `Join here (takes ~5 minutes): ${JOIN_URL}`,
-      "Any questions, just reply — a real person from our team reads these.",
-    ].join("\n\n");
-  }
+  // Safe fallback if the model is unreachable.
+  const fallback =
+    `Brilliant, ${firstName}! LockSafe is free to join — you set your own rates, keep your call-out fee, ` +
+    `and we send local emergency jobs straight to your phone (paid securely via Stripe, low commission). ` +
+    `Join here (~5 min): ${JOIN_URL} — any questions, just ask!`;
 
-  // Anything else → acknowledge + handoff to admin inbox (message is already recorded there)
-  return [
-    `Hi ${firstName}, thanks for getting back to us! We connect vetted locksmiths in ${identity.city} with local emergency jobs — free to join, you keep your rates.`,
-    `Have a look: ${JOIN_URL}`,
-    "Questions? Just reply here — our team will get back to you shortly.",
-  ].join("\n\n");
+  // Agentic recruitment: Lockie actually converses to convert, with
+  // cross-channel memory (same phone-keyed thread as SMS).
+  const history = phone ? await getRecentChatHistory(phone).catch(() => []) : [];
+  const system: LLMMessage = {
+    role: "system",
+    content: [
+      `You are Lockie, the LockSafe UK assistant, chatting on WhatsApp with ${firstName}, a locksmith in ${identity.city} we'd love to have join the LockSafe network. Your goal: warmly answer their questions, ease any hesitation, and get them signed up — like a helpful colleague, not a salesperson.`,
+      `HOW LOCKSAFE WORKS (all true — use what's relevant, don't dump it all at once): Free to join, no monthly fees. You set your own rates and call-out fee. We send local emergency/planned jobs straight to your phone and you accept only the ones you want. Payment runs securely through the platform via Stripe — low commission, you keep the lion's share. It's a vetted network, so customers trust it.`,
+      `TO JOIN: share this link when they're interested — ${JOIN_URL} (about 5 minutes).`,
+      "STYLE: a real, friendly person — not a brochure. Short (1-3 sentences), natural British English. Answer their actual question first, then gently nudge toward joining. Never pushy or spammy. If they ask something you genuinely can't answer or want to speak to a person, tell them a teammate will follow up here. NEVER invent commission rates, earnings, or job volumes — keep to what's above.",
+    ].join("\n\n"),
+  };
+
+  const reply = await chat(
+    Models.QUALITY,
+    [system, ...history, { role: "user", content: text }],
+    { temperature: 0.6, maxTokens: 300, timeoutMs: 15_000, allowOpenAIFallback: true, thinkingMode: "no_think" },
+  );
+  return reply?.content?.trim() || fallback;
 }

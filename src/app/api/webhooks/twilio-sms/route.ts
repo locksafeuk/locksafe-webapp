@@ -99,7 +99,7 @@ async function routeToLockie(phone: string, text: string): Promise<string | null
     return handleLocksmithAIChat(identity.id, identity.name, phone, text);
   }
   if (identity.kind === "lead") {
-    return handleLeadWhatsApp(identity, text);
+    return handleLeadWhatsApp(identity, text, phone);
   }
   return handleCustomerLockie(phone, text);
 }

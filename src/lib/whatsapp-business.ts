@@ -1027,7 +1027,7 @@ export async function handleIncomingMessage(
     }
 
     if (identity.kind === "lead") {
-      const reply = await handleLeadWhatsApp(identity, messageText);
+      const reply = await handleLeadWhatsApp(identity, messageText, phone);
       await sendTextMessage(phone, reply);
       return;
     }
