@@ -569,6 +569,729 @@ export const INTENT_LANDINGS: IntentLanding[] = [
     publishedAt: "2026-05-01T00:00:00.000Z",
     updatedAt: "2026-05-11T00:00:00.000Z",
   },
+
+  // -------------------------------------------------------------------------
+  {
+    slug: "locked-out-of-house-no-keys",
+    title: "Locked Out of House With No Spare Keys",
+    h1: "Locked Out With No Spare Key — Verified Locksmith, No Broken Door",
+    metaTitle: "Locked Out, No Spare Key? Verified UK Locksmith | LockSafe",
+    metaDescription:
+      "Locked out with no spare key anywhere? DBS-verified locksmiths open your door without damage, price agreed before any work starts. 24/7 across the UK.",
+    intro:
+      "No spare with a neighbour, no copy at work, no partner on the way. The door's shut and you're stuck on the wrong side of it. A verified locksmith gets you back in without touching the door — and tells you the price before they set off.",
+    seoCopy: `<h2>First: don't do the two things people regret</h2>
+<p>When there's genuinely no spare key, two panic moves cost people hundreds of pounds. The first is <strong>breaking a window</strong> — a glazing bill on top of the lockout, and home insurance often won't pay for damage you cause yourself. The second is <strong>calling the first "locksmith near me" ad</strong>, which is usually a national call-centre broker that quotes £49, sub-contracts your job, and lets the doorstep price drift to £300. Neither is necessary.</p>
+<h2>How a non-destructive entry actually works</h2>
+<p>The vast majority of UK residential locks — Yale nightlatches, euro-cylinders, mortice locks — can be opened <strong>without any damage</strong> by a competent locksmith using picks, bypass tools or letterbox tools. With no spare key in existence, the locksmith opens the door and, if you want, cuts you a fresh key on the spot or fits a new cylinder. Drilling is a last resort for genuinely stuck or high-security locks, not the opening move. If a bidder's first instinct is "we'll have to drill it", ask why before you accept.</p>
+<h2>What it should cost</h2>
+<p>For a standard residential lockout with no spare key, expect <strong>£70–£140 in the day and £100–£180 at night</strong> for a non-destructive opening. A new key cut on site or a replacement euro-cylinder (if you want fresh keys afterwards) is an extra £15–£80 depending on the lock. Anyone quoting £350+ for a simple opening is reading your stress, not the lock.</p>
+<h2>Why LockSafe makes this safe</h2>
+<p>You post the job in about 90 seconds, set your address and what's happened, and <strong>DBS-verified locksmiths within range bid the real price</strong> before anyone leaves. You choose the bid you want — the price you accept is the price you pay. Arrival is GPS-tracked, the job ends with timestamped photos and a digital signature, and you get an insurer-ready PDF. No broker chain, no doorstep surprise.</p>`,
+    emotionalHook: "No spare key anywhere? We get you in without breaking the door.",
+    heroSubcopy:
+      "DBS-verified locksmiths open your door non-destructively, with the price agreed before anyone sets off.",
+    emotionalHookB: "Door shut, no spare, no one to call?",
+    heroSubcopyB:
+      "Post the job, see who's nearby and what they charge, and track them to your door. No broken windows, no surprise bill.",
+    pillarKeyword: "locked-out",
+    intentTags: ["locked-out", "house", "no-keys", "urgent", "emergency"],
+    serviceFilter: {
+      serviceSlugs: ["locked-out", "emergency-locksmith"],
+      keywords: ["locked out", "no spare key", "non-destructive entry"],
+    },
+    faqs: [
+      {
+        question: "Can a locksmith get in if there's no spare key at all?",
+        answer:
+          "Yes. A spare key makes nothing easier for a professional — they open the lock from the mechanism, not by copying a key. With no spare in existence, a competent locksmith still opens most UK residential doors non-destructively, then cuts you a new key or fits a fresh cylinder if you want one.",
+      },
+      {
+        question: "How much does it cost to be let in with no spare key?",
+        answer:
+          "Expect £70–£140 in the day and £100–£180 at night for a non-destructive opening, plus £15–£80 if you want a new key cut or a replacement cylinder afterwards. Anything over about £250 for a simple Yale or euro-cylinder is well above market rate.",
+      },
+      {
+        question: "Will the locksmith have to drill the lock?",
+        answer:
+          "Almost never on a standard residential lock. Drilling is a last resort for seized or high-security cylinders. If a bidder leads with 'we'll need to drill', ask why and consider another bid — most house locks open non-destructively.",
+      },
+      {
+        question: "Should I break a window to save money?",
+        answer:
+          "No. A replacement pane usually costs more than the call-out, and many home insurance policies won't cover damage you inflict yourself. A non-destructive entry is faster, cheaper and leaves your door intact.",
+      },
+      {
+        question: "How fast can someone reach me?",
+        answer:
+          "Through LockSafe, the average response time is 15–30 minutes across most UK postcodes, with the first bids usually appearing within a few minutes of posting your job.",
+      },
+    ],
+    blocks: {
+      segments: [
+        {
+          id: "yale-slammed",
+          label: "Yale door slammed behind me",
+          emotionalAngle:
+            "The classic nightlatch lockout — door pulled shut on the latch with the keys inside. Often opened in minutes with a letterbox or slip tool, no damage, no new lock needed.",
+          serviceFilter: { serviceSlugs: ["locked-out", "emergency-locksmith"] },
+          ctaLabel: "Get a verified locksmith",
+        },
+        {
+          id: "euro-cylinder-no-key",
+          label: "Euro-cylinder, no key anywhere",
+          emotionalAngle:
+            "UPVC or composite door with a euro-cylinder and no spare in existence. A locksmith picks or bypasses it, then can fit a new anti-snap cylinder and cut fresh keys on the spot.",
+          serviceFilter: { serviceSlugs: ["locked-out", "lock-change"] },
+          ctaLabel: "See locksmiths near me",
+        },
+        {
+          id: "kids-or-pets-inside",
+          label: "Children or pets locked inside",
+          emotionalAngle:
+            "If a child or animal is shut inside and at risk, this is a 999 call first — fire service will force entry in an emergency. For everything else, a fast verified locksmith is the cheaper, damage-free route.",
+          serviceFilter: { serviceSlugs: ["emergency-locksmith", "locked-out"] },
+          ctaLabel: "Get help fast",
+        },
+      ],
+      aiSearchQA: [
+        {
+          question: "Is a locksmith cheaper than calling out my insurer for a lockout?",
+          answer:
+            "Usually yes, and faster. Most home insurance policies only cover lockouts if you've bought specific 'key cover', and even then the dispatched response is often slower than a local verified locksmith bidding on LockSafe.",
+        },
+        {
+          question: "What's the difference between a real locksmith and a 'locksmith near me' ad?",
+          answer:
+            "Most paid 'locksmith near me' ads belong to national broker call centres, not local tradespeople. They take your job and sub-contract it, which is why the doorstep price rarely matches the phone quote. LockSafe lists only verified individual locksmiths — no brokers.",
+        },
+      ],
+      trustConfidence: [
+        {
+          topic: "verification",
+          title: "Every locksmith DBS-checked",
+          body: "Identity, criminal-record check and trade insurance are verified before any locksmith can bid. No call-centre brokers, no sub-contracting chains.",
+        },
+        {
+          topic: "pricing",
+          title: "Price agreed before any work starts",
+          body: "The bid you accept is the price you pay. If a genuine complication appears, the locksmith has to send a new price for your approval before continuing.",
+        },
+        {
+          topic: "paper-trail",
+          title: "GPS, photos and signature on every job",
+          body: "Arrival is GPS-tracked, before-and-after photos are timestamped to your job, and you sign off digitally — so does the locksmith.",
+        },
+      ],
+      socialProofClusters: [
+        {
+          label: "most-booked",
+          heading: "Most-booked lockout services right now",
+          serviceFilter: { serviceSlugs: ["locked-out", "emergency-locksmith"] },
+          dynamicSource: "top-booked-30d",
+        },
+      ],
+      relatedClusters: [
+        {
+          heading: "Other lockout scenarios",
+          slugs: ["locked-out-at-night", "key-snapped-in-lock"],
+        },
+        {
+          heading: "When you want fresh keys afterwards",
+          slugs: ["lost-house-keys", "moving-in-change-locks"],
+        },
+      ],
+    },
+    relatedSlugs: ["locked-out-at-night", "lost-house-keys"],
+    isActive: true,
+    position: 7,
+    publishedAt: "2026-06-11T00:00:00.000Z",
+    updatedAt: "2026-06-11T00:00:00.000Z",
+  },
+
+  // -------------------------------------------------------------------------
+  {
+    slug: "lost-house-keys",
+    title: "Lost House Keys — Should I Change the Locks?",
+    h1: "Lost Your House Keys? When to Change the Locks (and When Not To)",
+    metaTitle: "Lost House Keys — Change the Locks? | LockSafe UK",
+    metaDescription:
+      "Lost your house keys? Verified locksmiths advise whether to re-key or replace, and fit anti-snap cylinders with the price agreed before any work starts.",
+    intro:
+      "Losing your keys isn't just an inconvenience — if they were tagged with your address, or could have been, the safe move is to change the cylinders. Here's how to decide, and what it should cost.",
+    seoCopy: `<h2>Do lost keys actually mean someone can get in?</h2>
+<p>It depends on whether the keys could be traced to your door. A bunch dropped in a park with <strong>nothing identifying</strong> is low risk. Keys lost with a wallet, a tagged keyring, a letter, or anything showing your address are a real risk — and the cheapest response is a cylinder change. If your keys were stolen rather than mislaid, treat it as the higher-risk case and change the locks the same day.</p>
+<h2>Re-key or replace?</h2>
+<p>For the modern UK <strong>euro-cylinder</strong> (the brass barrel in most UPVC and composite doors), it's almost always cheaper to swap the whole cylinder than to re-pin it. A British Standard anti-snap (TS007 3-star) cylinder is £35–£80 and fits in about 15 minutes. Traditional mortice locks can sometimes be re-keyed economically — a locksmith will tell you which case applies once they see the door.</p>
+<h2>What changing the locks should cost</h2>
+<p>For a typical home with a front and back door, expect <strong>£140–£220</strong> for two anti-snap cylinders fitted with key sets. A single external door is usually £80–£130. Add a window-lock check for £50–£90 if you want it. Anyone quoting far above that should be itemising the difference.</p>
+<h2>Don't forget the other doors that key opened</h2>
+<p>If the lost key was part of a set that also opened the back door, side gate or garage, <strong>every cylinder that key fits</strong> needs changing — not just the front. A good locksmith will ask what the missing key opened before quoting, so the whole job is priced up front rather than door-by-door surprises.</p>`,
+    emotionalHook: "Lost your keys? Find out whether you really need new locks.",
+    heroSubcopy:
+      "Verified locksmiths tell you whether to re-key or replace, and fit anti-snap cylinders with the price agreed first.",
+    pillarKeyword: "lock-change",
+    intentTags: ["lost-keys", "lock-change", "security", "anti-snap"],
+    serviceFilter: {
+      serviceSlugs: ["lock-change", "emergency-locksmith"],
+      keywords: ["lost keys", "change locks", "re-key"],
+    },
+    faqs: [
+      {
+        question: "Should I change my locks if I've lost my keys?",
+        answer:
+          "If the keys could be traced to your address — lost with ID, a tagged keyring, or stolen — yes, change every cylinder those keys opened. If they were dropped somewhere with nothing identifying and weren't stolen, the risk is low and you can weigh it up.",
+      },
+      {
+        question: "Is it cheaper to re-key or replace a lock?",
+        answer:
+          "For modern euro-cylinders it's almost always cheaper to replace the cylinder than re-pin it. For older mortice locks, re-keying can be economical. A locksmith confirms which applies once they see the lock.",
+      },
+      {
+        question: "How much does it cost to change the locks after losing keys?",
+        answer:
+          "Around £80–£130 for a single external door and £140–£220 for a front and back door, fitted with anti-snap cylinders and key sets. A window-lock check adds £50–£90.",
+      },
+      {
+        question: "What if the lost key opened more than one door?",
+        answer:
+          "Every cylinder that key could open should be changed — front, back, side and garage as applicable. Tell the locksmith what the key opened so the full job is priced before any work begins.",
+      },
+      {
+        question: "Will my insurer want anything for a lock change?",
+        answer:
+          "If you're claiming, they'll want an itemised invoice and proof the new locks meet British Standard (BS 3621 or TS007). Every completed LockSafe job generates that PDF automatically.",
+      },
+    ],
+    blocks: {
+      segments: [
+        {
+          id: "keys-with-address",
+          label: "Keys lost with my address on them",
+          emotionalAngle:
+            "Wallet, tagged keyring or a letter went with the keys. Higher risk — change every cylinder those keys opened, ideally today, and upgrade to anti-snap while you're at it.",
+          serviceFilter: { serviceSlugs: ["lock-change", "emergency-locksmith"] },
+        },
+        {
+          id: "keys-stolen",
+          label: "Keys were stolen",
+          emotionalAngle:
+            "Treat stolen keys as a same-day lock change. If a phone or bag was taken too, your address may be known — don't wait on this one.",
+          serviceFilter: { serviceSlugs: ["lock-change", "emergency-locksmith"] },
+        },
+        {
+          id: "keys-just-mislaid",
+          label: "Probably just dropped at home",
+          emotionalAngle:
+            "Low risk if nothing identifying was attached. You might choose a single spare cut rather than a full change — a locksmith can do either and price both.",
+          serviceFilter: { serviceSlugs: ["lock-change"] },
+        },
+      ],
+      aiSearchQA: [
+        {
+          question: "How urgent is changing locks after losing keys?",
+          answer:
+            "Same-day if the keys were stolen or could be linked to your address. If they were simply mislaid with nothing identifying, it's a judgement call — many people still change them for peace of mind given a cylinder swap is inexpensive.",
+        },
+        {
+          question: "Can I change a euro-cylinder myself?",
+          answer:
+            "It's possible if you can measure the cylinder accurately (a wrong size leaves the door insecure or won't fit) and source an anti-snap replacement. Many people prefer a locksmith so the sizing, fitting and British-Standard paperwork are handled correctly in one visit.",
+        },
+      ],
+      trustConfidence: [
+        {
+          topic: "pricing",
+          title: "Whole job priced up front",
+          body: "Tell us what the lost key opened and bids come back with every affected cylinder priced — not a tease price for one door and a surprise for the next.",
+        },
+        {
+          topic: "verification",
+          title: "DBS-checked locksmiths only",
+          body: "Identity, criminal-record check and insurance are verified before any locksmith can bid on your job.",
+        },
+        {
+          topic: "guarantee",
+          title: "British Standard parts, documented",
+          body: "Anti-snap cylinders are photographed with their kitemark packaging and bundled into the completion PDF for your records or your insurer.",
+        },
+      ],
+      socialProofClusters: [],
+      relatedClusters: [
+        {
+          heading: "Related security scenarios",
+          slugs: ["moving-in-change-locks", "burgled-need-locks-changed"],
+        },
+        {
+          heading: "If you're also locked out",
+          slugs: ["locked-out-of-house-no-keys"],
+        },
+      ],
+    },
+    relatedSlugs: ["moving-in-change-locks", "locked-out-of-house-no-keys"],
+    isActive: true,
+    position: 8,
+    publishedAt: "2026-06-11T00:00:00.000Z",
+    updatedAt: "2026-06-11T00:00:00.000Z",
+  },
+
+  // -------------------------------------------------------------------------
+  {
+    slug: "upvc-door-wont-lock",
+    title: "UPVC Door Won't Lock or Won't Open",
+    h1: "UPVC Door Won't Lock? Fix the Mechanism, Not the Whole Door",
+    metaTitle: "UPVC Door Won't Lock or Open — Repair | LockSafe UK",
+    metaDescription:
+      "UPVC door won't lock, handle won't lift, or key won't turn? Verified locksmiths repair the cylinder or gearbox, price agreed before any work starts.",
+    intro:
+      "The handle won't lift, the key won't turn, or the door's stuck shut. Nine times out of ten it's a worn cylinder or a failing multi-point gearbox — a repair, not a whole new door.",
+    seoCopy: `<h2>What's actually gone wrong</h2>
+<p>UPVC door faults almost always come down to one of three things. A <strong>worn or seized euro-cylinder</strong> means the key won't turn smoothly. A <strong>failing multi-point gearbox</strong> (the mechanism the handle drives) means the handle won't lift or springs back. And a <strong>dropped or misaligned door</strong> means the hooks and rollers no longer line up with the keeps in the frame, so it binds. Each of these is a targeted repair — not a reason to replace the entire door, whatever a double-glazing salesman tells you.</p>
+<h2>Don't force a door that won't lock</h2>
+<p>If the handle is getting stiffer over weeks, that's a gearbox starting to fail — get it seen before it jams completely and locks you out (or won't lock at all overnight). Forcing a struggling handle is the fastest way to <strong>snap the gearbox spindle</strong> and turn a £90 fix into a £200 one.</p>
+<h2>What repairs should cost</h2>
+<p>A euro-cylinder swap is typically <strong>£60–£120</strong> fitted, including an anti-snap upgrade. A multi-point gearbox replacement is <strong>£120–£220</strong> depending on the brand (Fuhr, GU, Yale, Mila and ERA all differ). A realignment — adjusting hinges and keeps so the door closes cleanly — is often under £90. A genuine locksmith shows you the worn part before quoting the replacement.</p>
+<h2>Why "the whole door needs replacing" is usually wrong</h2>
+<p>The door slab and frame rarely fail. It's the <strong>hardware inside them</strong> that wears. Unless the frame is rotten or the slab is cracked, a locksmith repair restores full function for a fraction of a new-door price. Get the lock looked at before you accept a £900 replacement quote.</p>`,
+    emotionalHook: "Handle won't lift, key won't turn? It's the mechanism, not the door.",
+    heroSubcopy:
+      "Verified locksmiths repair the cylinder, gearbox or alignment — price agreed before any work starts.",
+    pillarKeyword: "lock-change",
+    intentTags: ["upvc", "door", "lock-repair", "gearbox", "urgent"],
+    serviceFilter: {
+      serviceSlugs: ["upvc-door-lock-repair", "lock-change", "emergency-locksmith"],
+      keywords: ["upvc door", "won't lock", "gearbox", "multipoint"],
+    },
+    faqs: [
+      {
+        question: "Why won't my UPVC door lock?",
+        answer:
+          "Usually a worn euro-cylinder (key won't turn), a failing multi-point gearbox (handle won't lift or springs back), or a dropped door that's binding against the frame. All three are repairs, not whole-door replacements.",
+      },
+      {
+        question: "How much does it cost to fix a UPVC door lock?",
+        answer:
+          "A cylinder swap is typically £60–£120 fitted, a multi-point gearbox £120–£220 depending on brand, and a realignment often under £90. A locksmith should show you the worn part before quoting a replacement.",
+      },
+      {
+        question: "My handle is getting stiffer — is that a problem?",
+        answer:
+          "Yes — a progressively stiffer handle is a gearbox starting to fail. Get it seen before it jams completely, because forcing it can snap the spindle and turn a cheaper fix into a dearer one.",
+      },
+      {
+        question: "Do I need a whole new door?",
+        answer:
+          "Rarely. The slab and frame seldom fail — it's the hardware inside that wears. Unless the frame is rotten or the slab cracked, a locksmith repair restores full function for far less than a replacement door.",
+      },
+    ],
+    blocks: {
+      segments: [
+        {
+          id: "handle-wont-lift",
+          label: "Handle won't lift to lock",
+          emotionalAngle:
+            "A handle that won't lift, or lifts and springs back, points to a failing multi-point gearbox. Replaceable as a single part — match the brand and it's a same-visit fix.",
+          serviceFilter: { serviceSlugs: ["upvc-door-lock-repair", "lock-change"] },
+        },
+        {
+          id: "key-wont-turn",
+          label: "Key won't turn in the cylinder",
+          emotionalAngle:
+            "A stiff or seized euro-cylinder. Often a £60–£120 swap, and the right moment to upgrade to anti-snap for the same labour.",
+          serviceFilter: { serviceSlugs: ["lock-change", "upvc-door-lock-repair"] },
+        },
+        {
+          id: "door-stuck-shut",
+          label: "Door jammed shut or won't close",
+          emotionalAngle:
+            "A dropped door binding on the frame, or hooks not finding the keeps. Realignment of hinges and keeps usually solves it without any new parts.",
+          serviceFilter: { serviceSlugs: ["upvc-door-lock-repair", "emergency-locksmith"] },
+        },
+      ],
+      aiSearchQA: [
+        {
+          question: "Can I spray WD-40 into a stiff UPVC lock?",
+          answer:
+            "No — WD-40 attracts dust and gums up the cylinder over time. Use graphite powder or a dedicated lock lubricant. If the stiffness is in the handle rather than the key, lubricant won't help — that's a gearbox issue.",
+        },
+        {
+          question: "Is a multi-point lock the same as the cylinder?",
+          answer:
+            "No. The cylinder is the barrel the key turns; the multi-point mechanism (gearbox plus hooks and rollers) is what the handle drives to lock the door at several points. They fail for different reasons and are priced separately.",
+        },
+      ],
+      trustConfidence: [
+        {
+          topic: "pricing",
+          title: "See the worn part before you pay",
+          body: "A genuine locksmith shows you the failed gearbox or cylinder and quotes the specific part. The bid you accept is the price you pay.",
+        },
+        {
+          topic: "verification",
+          title: "DBS-checked, insured locksmiths",
+          body: "Every bidder is identity- and insurance-verified before they can quote on your door.",
+        },
+      ],
+      socialProofClusters: [],
+      relatedClusters: [
+        {
+          heading: "Related door scenarios",
+          slugs: ["key-snapped-in-lock", "burgled-need-locks-changed"],
+        },
+      ],
+    },
+    relatedSlugs: ["key-snapped-in-lock", "burgled-need-locks-changed"],
+    isActive: true,
+    position: 9,
+    publishedAt: "2026-06-11T00:00:00.000Z",
+    updatedAt: "2026-06-11T00:00:00.000Z",
+  },
+
+  // -------------------------------------------------------------------------
+  {
+    slug: "landlord-changing-tenant-locks",
+    title: "Landlord — Changing Locks Between Tenants",
+    h1: "Changing Locks Between Tenants — Compliant, Documented, Verified",
+    metaTitle: "Landlord Lock Change Between Tenants | LockSafe UK",
+    metaDescription:
+      "Landlords: change locks between tenancies with verified locksmiths. Anti-snap cylinders, itemised invoice and photo records for every property.",
+    intro:
+      "A change of tenant means a change of keys — every time. Verified locksmiths handle single doors or whole portfolios, with the paperwork your accountant and your insurer both want.",
+    seoCopy: `<h2>Why a lock change between tenancies is non-negotiable</h2>
+<p>When a tenancy ends you have <strong>no reliable record</strong> of how many keys the outgoing tenant cut — for partners, friends, cleaners or sub-letters. Handing the same keys to a new tenant means anyone from the last tenancy could still walk in. Changing the cylinders between tenants is the standard, expected step, and it protects you against deposit-dispute and liability arguments if anything goes missing.</p>
+<h2>Re-key or replace for a rental?</h2>
+<p>For portfolios, many landlords prefer simple <strong>anti-snap euro-cylinder swaps</strong> — quick, inexpensive, and easy to standardise across properties. A cylinder change is £35–£80 in parts and around 15 minutes per door. If you run several units, ask about doing them in one visit to keep call-out costs down.</p>
+<h2>Meeting your obligations</h2>
+<p>External doors on a let property should carry locks that satisfy the tenant's contents insurer — typically <strong>BS 3621 or TS007-rated</strong> hardware. A verified locksmith fits compliant cylinders and documents them, so you have evidence the property was secured to standard at the start of the tenancy.</p>
+<h2>The paperwork landlords actually need</h2>
+<p>Every LockSafe job produces an <strong>itemised invoice plus timestamped photos and a GPS arrival record</strong> — clean evidence for your accounts, your safety file, and any future dispute. For VAT-registered locksmiths the invoice is VAT-itemised, ready to drop into your property bookkeeping.</p>`,
+    emotionalHook: "New tenant moving in? Reset the keys with a documented lock change.",
+    heroSubcopy:
+      "Verified locksmiths, anti-snap cylinders and an itemised invoice with photos for every property you let.",
+    pillarKeyword: "lock-change",
+    intentTags: ["landlord", "tenant", "lock-change", "compliance", "planned"],
+    serviceFilter: {
+      serviceSlugs: ["landlord-lock-change", "lock-change"],
+      keywords: ["landlord", "tenant", "rental", "change of tenancy"],
+    },
+    faqs: [
+      {
+        question: "Do landlords legally have to change locks between tenants?",
+        answer:
+          "There's no single statute requiring it, but it's the accepted standard of care and is effectively expected by tenants' contents insurers and in deposit disputes. Reusing old keys leaves you exposed if a previous tenant or their contacts still hold a copy.",
+      },
+      {
+        question: "How much does a landlord lock change cost per property?",
+        answer:
+          "An anti-snap euro-cylinder swap is around £35–£80 in parts plus the call-out, roughly 15 minutes per door. Doing several doors or units in one visit keeps the per-door cost down.",
+      },
+      {
+        question: "What locks do rental external doors need?",
+        answer:
+          "External doors generally need hardware that satisfies the tenant's contents insurer — typically BS 3621 or TS007-rated. A verified locksmith fits compliant cylinders and documents the rating for your file.",
+      },
+      {
+        question: "Can I get one invoice across multiple properties?",
+        answer:
+          "Each job is invoiced per visit, but the records are itemised and photographed so they consolidate cleanly into your property bookkeeping. Schedule several doors in a single visit where the properties are close together.",
+      },
+    ],
+    blocks: {
+      segments: [
+        {
+          id: "single-changeover",
+          label: "Single property changeover",
+          emotionalAngle:
+            "One tenancy ending, one starting. A same-day anti-snap cylinder swap on the external doors, photographed and invoiced — sorted before the new tenant gets the keys.",
+          serviceFilter: { serviceSlugs: ["landlord-lock-change", "lock-change"] },
+        },
+        {
+          id: "portfolio-batch",
+          label: "Several units at once",
+          emotionalAngle:
+            "Standardise anti-snap cylinders across a block or street and batch the visits. Tell us how many doors and the bids come back priced for the whole job.",
+          serviceFilter: { serviceSlugs: ["landlord-lock-change", "lock-change"] },
+        },
+        {
+          id: "post-eviction",
+          label: "Securing after a tenant leaves",
+          emotionalAngle:
+            "When you can't be sure all keys were returned, a cylinder change is the clean reset. Documented with photos and GPS arrival for your records.",
+          serviceFilter: { serviceSlugs: ["landlord-lock-change", "lock-change"] },
+        },
+      ],
+      aiSearchQA: [
+        {
+          question: "Is it cheaper to keep a stock of spare cylinders as a landlord?",
+          answer:
+            "Some portfolio landlords do, but matching cylinder sizes across different doors is fiddly and a wrong size leaves a door insecure. Having a verified locksmith size, fit and document compliant anti-snap cylinders is usually the lower-risk route.",
+        },
+        {
+          question: "Should I change internal locks too?",
+          answer:
+            "Generally only the external doors need changing between tenants. Internal locks rarely matter for security and can usually stay unless a specific tenant requirement applies.",
+        },
+      ],
+      trustConfidence: [
+        {
+          topic: "paper-trail",
+          title: "Records built for landlords",
+          body: "Itemised invoice, timestamped photos and GPS arrival on every job — evidence the property was secured to standard at the start of the tenancy.",
+        },
+        {
+          topic: "verification",
+          title: "DBS-checked, insured locksmiths",
+          body: "Every locksmith is identity- and insurance-verified before bidding — important when they'll have access to a property you let.",
+        },
+        {
+          topic: "pricing",
+          title: "Whole job priced before work starts",
+          body: "Single door or a batch of units, the bid covers the full scope. No per-door surprises once the locksmith is on site.",
+        },
+      ],
+      socialProofClusters: [],
+      relatedClusters: [
+        {
+          heading: "Related scenarios",
+          slugs: ["moving-in-change-locks", "lost-house-keys"],
+        },
+      ],
+    },
+    relatedSlugs: ["moving-in-change-locks", "lost-house-keys"],
+    isActive: true,
+    position: 10,
+    publishedAt: "2026-06-11T00:00:00.000Z",
+    updatedAt: "2026-06-11T00:00:00.000Z",
+  },
+
+  // -------------------------------------------------------------------------
+  {
+    slug: "lost-car-keys",
+    title: "Lost My Car Keys — Need a Replacement",
+    h1: "Lost Your Car Keys? Auto Locksmith Replacement at the Roadside",
+    metaTitle: "Lost Car Keys — Replacement Auto Locksmith | LockSafe UK",
+    metaDescription:
+      "Lost your only car key? Auto locksmiths cut and program replacement transponder and keyless fobs on site — often cheaper than the main dealer.",
+    intro:
+      "Lost your only car key and the car's going nowhere. A mobile auto locksmith can cut and program a replacement at the roadside — usually faster and cheaper than a main-dealer tow.",
+    seoCopy: `<h2>You don't have to tow it to the dealer</h2>
+<p>Main dealers will replace a lost key, but it often means <strong>recovering the car to them, waiting days for a key to be ordered, and a premium bill</strong>. A mobile auto locksmith comes to the car, cuts a new key to the lock code, and programs the transponder or keyless fob to the immobiliser on site — frequently at a lower price than the dealer and without the tow.</p>
+<h2>Transponder, remote and keyless — what's involved</h2>
+<p>Almost every car since the late 1990s has a <strong>transponder chip</strong> in the key that the immobiliser must recognise. Remote fobs and modern <strong>keyless ("proximity") systems</strong> add electronics that have to be coded to your specific vehicle. A capable auto locksmith carries the diagnostic kit and key blanks for most UK makes and can pair the new key to your car's immobiliser at the roadside.</p>
+<h2>What a replacement should cost</h2>
+<p>A basic transponder key is typically <strong>£90–£160</strong> supplied and programmed; a remote fob <strong>£120–£250</strong>; a keyless/proximity fob more, depending on make and model. It's worth asking the locksmith to cut a <strong>spare at the same time</strong> — the second key is much cheaper while they're already set up, and it saves the whole ordeal if you lose one again.</p>
+<h2>Lost versus locked inside</h2>
+<p>If your keys are actually <strong>locked inside the car</strong> rather than lost, that's a quicker, cheaper job — a non-destructive opening, no new key needed. We cover that under "locked out of my car". This page is for when the key itself is gone and a replacement has to be cut and coded.</p>`,
+    emotionalHook: "Lost your only car key? We cut and code a new one at the kerb.",
+    heroSubcopy:
+      "Mobile auto locksmiths program replacement transponder and keyless fobs on site — often cheaper than the dealer, no tow.",
+    pillarKeyword: "auto-locksmith",
+    intentTags: ["car", "auto", "lost-keys", "key-replacement", "transponder"],
+    serviceFilter: {
+      serviceSlugs: ["car-key-replacement"],
+      keywords: ["lost car keys", "replacement key", "transponder", "keyless"],
+    },
+    faqs: [
+      {
+        question: "Can an auto locksmith replace a lost car key without the original?",
+        answer:
+          "Yes. They cut a new key to the lock code and program the transponder or keyless fob to your car's immobiliser on site. The original key isn't needed, though having the V5C and proof of ownership to hand speeds things up.",
+      },
+      {
+        question: "How much is a replacement car key from a locksmith?",
+        answer:
+          "Typically £90–£160 for a basic transponder key, £120–£250 for a remote fob, and more for keyless/proximity systems, supplied and programmed. It's usually well below main-dealer pricing and avoids a recovery tow.",
+      },
+      {
+        question: "Do auto locksmiths handle keyless and push-to-start cars?",
+        answer:
+          "Most do. Keyless and push-to-start vehicles need a proximity fob coded to the car, which a properly equipped auto locksmith can program at the roadside. Mention your exact make, model and year when posting the job for the most accurate bid.",
+      },
+      {
+        question: "Should I get a spare cut at the same time?",
+        answer:
+          "Yes — the second key is much cheaper while the locksmith is already on site and set up, and it spares you the whole replacement process if you lose one again later.",
+      },
+    ],
+    blocks: {
+      segments: [
+        {
+          id: "only-key-lost",
+          label: "Lost my only key",
+          emotionalAngle:
+            "No spare in existence and the car immobilised. A roadside auto locksmith cuts and codes a fresh key to the immobiliser — and it's the perfect moment to add a spare.",
+          serviceFilter: { serviceSlugs: ["car-key-replacement"] },
+        },
+        {
+          id: "keyless-fob-gone",
+          label: "Keyless / proximity fob lost",
+          emotionalAngle:
+            "Push-to-start cars still need a fob paired to the vehicle. A capable auto locksmith codes a new proximity fob on site — give them your exact make, model and year.",
+          serviceFilter: { serviceSlugs: ["car-key-replacement"] },
+        },
+        {
+          id: "spare-needed",
+          label: "Just want a spare cut",
+          emotionalAngle:
+            "Down to one key and don't want to risk it. A planned spare is cheaper than an emergency replacement — book it before you lose the last one.",
+          serviceFilter: { serviceSlugs: ["car-key-replacement"] },
+        },
+      ],
+      aiSearchQA: [
+        {
+          question: "Is a locksmith cheaper than the main dealer for a car key?",
+          answer:
+            "Usually, yes — and there's no recovery tow. Mobile auto locksmiths come to the car, cut to the lock code and program to the immobiliser on site, which often undercuts dealer pricing for the same transponder or remote key.",
+        },
+        {
+          question: "What information does the locksmith need to make a car key?",
+          answer:
+            "Your exact make, model and year, plus proof of ownership (V5C logbook and ID). Some vehicles also need the locksmith to read codes from the car directly, which they do with diagnostic equipment at the roadside.",
+        },
+      ],
+      trustConfidence: [
+        {
+          topic: "verification",
+          title: "Verified auto locksmiths",
+          body: "Auto work needs different tools and skills to house locksmithing. Filter your job to 'car' and only verified auto locksmiths can bid.",
+        },
+        {
+          topic: "pricing",
+          title: "Key and programming priced up front",
+          body: "The bid itemises the key, the cut and the programming before anyone sets off — no doorstep surprise once your car's already off the road.",
+        },
+      ],
+      socialProofClusters: [],
+      relatedClusters: [
+        {
+          heading: "Related car scenarios",
+          slugs: ["locked-out-of-car"],
+        },
+      ],
+    },
+    relatedSlugs: ["locked-out-of-car"],
+    isActive: true,
+    position: 11,
+    publishedAt: "2026-06-11T00:00:00.000Z",
+    updatedAt: "2026-06-11T00:00:00.000Z",
+  },
+
+  // -------------------------------------------------------------------------
+  {
+    slug: "safe-stuck-shut",
+    title: "Safe Won't Open — Locked or Forgotten Combination",
+    h1: "Safe Won't Open? Specialist Opening Without Destroying It",
+    metaTitle: "Safe Won't Open — Specialist Locksmith | LockSafe UK",
+    metaDescription:
+      "Safe locked shut, forgotten combination or dead battery? Specialist safe engineers open most safes non-destructively, price agreed before work starts.",
+    intro:
+      "Forgotten the combination, flat battery on the keypad, or the lock's simply jammed. A specialist safe engineer can usually open it without destroying the safe — and get it working again.",
+    seoCopy: `<h2>Why this is a specialist job, not a general one</h2>
+<p>Safes are deliberately built to resist exactly what you now need to do. Opening one without wrecking it takes a <strong>safe engineer</strong> — someone with manipulation skills, the right drilling points for a given model, and replacement locks and parts. A general handyman with a grinder will turn a recoverable safe into scrap and may destroy what's inside. Filter your job to a safe specialist and describe the make and model.</p>
+<h2>The common reasons a safe won't open</h2>
+<p>Most "stuck safe" calls come down to a handful of causes: a <strong>flat battery</strong> on an electronic keypad (often a five-minute fix once power is restored), a <strong>forgotten or changed combination</strong>, a <strong>jammed or worn lock mechanism</strong>, or <strong>relocking devices</strong> that have tripped after a knock or attempted tamper. An engineer diagnoses which before deciding the opening method.</p>
+<h2>Non-destructive first, drilling as a last resort</h2>
+<p>A good safe engineer tries <strong>manipulation and bypass</strong> before anything else, so the safe and its contents come out intact. Where drilling is genuinely required, it's done at a <strong>precise, model-specific point</strong> and the safe is then repaired with a new lock — not left ruined. Expect them to explain the approach and the likely cost before starting.</p>
+<h2>What safe opening costs</h2>
+<p>Domestic and small office safes typically run <strong>£120–£280</strong> to open, depending on the lock type and whether drilling and a replacement lock are needed. High-security, fire or floor safes can be more. Because models vary so much, expect the engineer to give a price band up front and confirm once they've seen it.</p>`,
+    emotionalHook: "Safe jammed shut? A specialist opens it without destroying it.",
+    heroSubcopy:
+      "Verified safe engineers diagnose and open most safes non-destructively, with the price agreed before work begins.",
+    pillarKeyword: "commercial-locksmith",
+    intentTags: ["safe", "commercial", "specialist", "safe-opening"],
+    serviceFilter: {
+      serviceSlugs: ["safe-opening"],
+      keywords: ["safe", "won't open", "combination", "safe engineer"],
+    },
+    faqs: [
+      {
+        question: "Can a locksmith open a safe without damaging it?",
+        answer:
+          "In most cases, yes. A specialist safe engineer tries manipulation and bypass first so the safe and its contents stay intact. Drilling is a last resort, done at a precise model-specific point, after which the safe is repaired with a new lock rather than left ruined.",
+      },
+      {
+        question: "How much does it cost to open a safe?",
+        answer:
+          "Domestic and small office safes typically cost £120–£280 to open, depending on the lock type and whether drilling and a replacement lock are needed. High-security, fire and floor safes can be more. Expect a price band up front, confirmed on inspection.",
+      },
+      {
+        question: "My electronic safe won't respond — is it broken?",
+        answer:
+          "Often it's simply a flat battery on the keypad, which can be a quick fix once power is restored. If the combination has been forgotten or the mechanism has jammed, an engineer can still open and recover it.",
+      },
+      {
+        question: "Should I try to drill or force it myself?",
+        answer:
+          "No. DIY drilling or angle-grinding usually destroys the safe and can damage or destroy the contents, and it can trip relocking devices that make professional opening harder. A specialist is both safer and, in the end, cheaper.",
+      },
+    ],
+    blocks: {
+      segments: [
+        {
+          id: "forgotten-combination",
+          label: "Forgotten the combination",
+          emotionalAngle:
+            "Dial or keypad combination lost or changed. An engineer can manipulate or bypass most domestic and office safes open, then reset the code for you.",
+          serviceFilter: { serviceSlugs: ["safe-opening"] },
+        },
+        {
+          id: "dead-keypad",
+          label: "Electronic keypad dead",
+          emotionalAngle:
+            "No response from the keypad is often just a flat battery — frequently a quick fix once power's restored, before anything more involved is needed.",
+          serviceFilter: { serviceSlugs: ["safe-opening"] },
+        },
+        {
+          id: "jammed-mechanism",
+          label: "Lock jammed or relocker tripped",
+          emotionalAngle:
+            "A worn mechanism or a tripped relocking device after a knock. A safe specialist diagnoses it and opens at the correct point — not with a grinder.",
+          serviceFilter: { serviceSlugs: ["safe-opening"] },
+        },
+      ],
+      aiSearchQA: [
+        {
+          question: "Will opening my safe destroy what's inside?",
+          answer:
+            "Not with a specialist using non-destructive methods first. The risk to contents comes from DIY drilling or grinding. A safe engineer's goal is to recover the contents intact, drilling only at a precise point and only when manipulation fails.",
+        },
+        {
+          question: "Do I need the safe's make and model?",
+          answer:
+            "It helps a lot. Drilling points, lock types and relocker positions differ by model, so telling the engineer the make and model (and a photo of the lock) gets you a faster, more accurate quote and opening.",
+        },
+      ],
+      trustConfidence: [
+        {
+          topic: "verification",
+          title: "Specialist safe engineers",
+          body: "Safe work is a specialism within locksmithing. Filter your job to 'safe opening' so only verified engineers with the right skills and parts can bid.",
+        },
+        {
+          topic: "pricing",
+          title: "Price band agreed before work starts",
+          body: "Because models vary, expect a clear price band up front, confirmed once the engineer has seen the safe — not an open-ended bill.",
+        },
+        {
+          topic: "paper-trail",
+          title: "Documented for insurance",
+          body: "GPS arrival, photos and a digital sign-off on every job — useful if the safe or its contents are part of an insurance matter.",
+        },
+      ],
+      socialProofClusters: [],
+      relatedClusters: [
+        {
+          heading: "Related commercial scenarios",
+          slugs: ["office-lockout"],
+        },
+      ],
+    },
+    relatedSlugs: ["office-lockout"],
+    isActive: true,
+    position: 12,
+    publishedAt: "2026-06-11T00:00:00.000Z",
+    updatedAt: "2026-06-11T00:00:00.000Z",
+  },
 ];
 
 // ---------------------------------------------------------------------------
