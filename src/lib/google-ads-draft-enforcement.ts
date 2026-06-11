@@ -713,11 +713,30 @@ export function enforceDraftGuardrails(
       return obj.type === "CALL" && typeof obj.phoneNumber === "string" && obj.phoneNumber.trim().length > 0;
     });
     if (callAssets.length === 0) {
-      violations.push({
+      // 2026-06-11: auto-inject the LockSafe SUPPORT_PHONE rather than
+      // reject. Every existing persist path (opportunities/[id]/draft,
+      // drafts/from-locksmith, campaign-from-coverage, discovery-
+      // orchestrator, manual drafts/route) was written before Rule §20
+      // and doesn't supply an assets[] array. Rejecting them all would
+      // silently break the dashboard buttons (the Opportunity Scout
+      // "Generate draft" 422'd into a swallowed error). Auto-injecting
+      // is safe because:
+      //   - LockSafe's SUPPORT_PHONE is the only number we ever attach
+      //     to a campaign asset
+      //   - google-ads-publish.ts normalises to E.164 before sending
+      //   - the persist site can still override with a different
+      //     phoneNumber if needed (we only inject when missing)
+      const SUPPORT_PHONE = "+44 20 4577 1989";
+      const injected = [
+        ...assets,
+        { type: "CALL", phoneNumber: SUPPORT_PHONE, countryCode: "GB" },
+      ];
+      out.assets = injected as unknown as typeof out.assets;
+      appliedFixes.push({
         field: "assets",
-        expected: "at least one CALL asset with a non-empty phoneNumber (playbook §20)",
-        actual: `${assets.length} assets, 0 of type CALL with phoneNumber`,
-        severity: "error",
+        expected: "auto-injected SUPPORT_PHONE CALL asset (Rule §20)",
+        actual: `${assets.length} assets, 0 of type CALL — injected default`,
+        severity: "warning",
       });
     } else {
       // Sanity: the phone number must look like a UK number (+44 or 0...).
