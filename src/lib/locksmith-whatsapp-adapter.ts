@@ -672,10 +672,37 @@ export async function handleLeadWhatsApp(
     });
   }
 
+  // Wants a real person / phone call → actually notify the team so the promise doesn't go nowhere.
+  if (
+    /\b(call me|give me a call|gimme a call|ring me|call back|callback|phone me|phone call|speak (to|with) (a|an|someone|somebody|a real|an actual)|talk (to|with) (a|an|someone|somebody)|real person|actual person|human being|someone (call|ring|phone))\b/.test(
+      lower,
+    )
+  ) {
+    const contact = phone || "their WhatsApp number";
+    await sendAdminAlert({
+      title: `📞 Locksmith lead wants a call — ${identity.name}`,
+      message:
+        `${identity.name} (${identity.city || "area unknown"}) asked to speak to a real person on WhatsApp.\n` +
+        `Contact: ${contact}\n` +
+        `Their message: "${text.trim()}"\n` +
+        `Give them a call to answer questions and close the onboarding.`,
+      severity: "warning",
+      topic: "agents",
+      dedupeKey: `lead-callback:${identity.id}`,
+      cooldownMsOverride: 30 * 60 * 1000, // don't spam if they send a few messages
+    }).catch(() => {});
+    return (
+      `Of course, ${firstName} — I've asked a LockSafe teammate to give you a call. 😊 ` +
+      `If there's a time this afternoon or evening that suits you best, just let me know and I'll pass it on. ` +
+      `Happy to answer anything here in the meantime — it's free to join, and commission is from 15% on the assessment fee and from 25% on completed work.`
+    );
+  }
+
   // Safe fallback if the model is unreachable.
   const fallback =
-    `Brilliant, ${firstName}! LockSafe is free to join — you set your own rates, keep your call-out fee, ` +
-    `and we send local emergency jobs straight to your phone (paid securely via Stripe, low commission). ` +
+    `Brilliant, ${firstName}! LockSafe is free to join — no monthly or joining fees. You set your own rates and keep your call-out fee, ` +
+    `and we send local emergency jobs straight to your phone (paid securely via Stripe). ` +
+    `Commission is from 15% on the assessment fee and from 25% on completed work — deducted automatically, you keep the rest. ` +
     `Join here (~5 min): ${JOIN_URL} — any questions, just ask!`;
 
   // Agentic recruitment: Lockie actually converses to convert, with
@@ -685,9 +712,11 @@ export async function handleLeadWhatsApp(
     role: "system",
     content: [
       `You are Lockie, the LockSafe UK assistant, chatting on WhatsApp with ${firstName}, a locksmith in ${identity.city} we'd love to have join the LockSafe network. Your goal: warmly answer their questions, ease any hesitation, and get them signed up — like a helpful colleague, not a salesperson.`,
-      `HOW LOCKSAFE WORKS (all true — use what's relevant, don't dump it all at once): Free to join, no monthly fees. You set your own rates and call-out fee. We send local emergency/planned jobs straight to your phone and you accept only the ones you want. Payment runs securely through the platform via Stripe — low commission, you keep the lion's share. It's a vetted network, so customers trust it.`,
+      `HOW LOCKSAFE WORKS (all true — use what's relevant, don't dump it all at once): Free to join — no monthly fees, no joining fee, no hidden lead fees. You set your own rates and call-out fee. We send local emergency/planned jobs straight to your phone and you accept only the ones you want. Payment runs securely through the platform via Stripe. It's a vetted network, so customers trust it.`,
+      `COMMISSION (these are the real figures — you CAN quote them directly when asked): the BASE commission is from 15% on the assessment fee (which covers travel & diagnosis) and from 25% on the work quote (charged on completed work). Commission is deducted automatically during payment — you keep the rest.`,
+      `WHY IT SAYS "FROM" (commission can change per job — explain this honestly if they ask why it's not a flat rate): commission isn't a single fixed number. In busier areas where several locksmiths are available, an individual job can run through a quick market-rate auction, so the commission on THAT specific job may differ from base. The key reassurance: you ALWAYS see the exact commission for a job up front and choose to accept it yourself — nothing is ever taken at a rate you didn't agree to for that job, so there are genuinely no surprises. If they press for the maximum, be honest: commission goes up to a maximum of 40%, and only at times of very high peak demand on the most in-demand emergency jobs — it's a ceiling, not the norm, and again you only ever take a job once you've seen and confirmed its rate. Very active locksmiths and those in high-demand areas may also sit on a slightly different standing rate. Frame all of this positively and transparently — it's per-job and always confirmed, never a hidden hike. Do not quote any commission figures other than these (15%, 25%, up to ~40% on auctioned jobs), and never invent earnings or job volumes.`,
       `TO JOIN: share this link when they're interested — ${JOIN_URL} (about 5 minutes).`,
-      "STYLE: a real, friendly person — not a brochure. Short (1-3 sentences), natural British English. Answer their actual question first, then gently nudge toward joining. Never pushy or spammy. If they ask something you genuinely can't answer or want to speak to a person, tell them a teammate will follow up here. NEVER invent commission rates, earnings, or job volumes — keep to what's above.",
+      "STYLE: a real, friendly person — not a brochure. Short (1-3 sentences), natural British English. Answer their actual question first (give the exact commission figures above if they ask — don't be vague or say you don't have them), then gently nudge toward joining. Never pushy or spammy. If they ask to speak to a person or want a phone call, reassure them a teammate will call them back — the team is notified automatically, so this is a real promise. NEVER quote commission figures other than the ones above, and never invent earnings or job volumes.",
     ].join("\n\n"),
   };
 
