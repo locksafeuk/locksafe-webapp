@@ -230,7 +230,12 @@ function formatFactsBlock(facts: DistrictFacts): string {
 
 // ── Main entry point ───────────────────────────────────────────────────────
 
-const GENERATION_TIMEOUT_MS = 60_000;
+// Per-attempt LLM timeout. Defaults to 60s (safe for serverless). Override via
+// DISTRICT_GEN_TIMEOUT_MS for slower local models (e.g. a one-off bulk regen on
+// a big local Ollama model that needs longer than 60s per page).
+const GENERATION_TIMEOUT_MS = Number(
+  process.env["DISTRICT_GEN_TIMEOUT_MS"] ?? "60000",
+);
 
 export async function generateDistrictContent(facts: DistrictFacts): Promise<GenerationResult> {
   const attemptsLog: ValidationResult[] = [];
