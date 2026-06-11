@@ -64,6 +64,16 @@ export const COMPLETENESS_SELECT = {
 
 const UK_POSTCODE_RE = /[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}/i;
 
+/**
+ * A credential document (insurance / DBS) counts as satisfied when it's been
+ * AI-verified, is awaiting human review, OR is valid-but-expiring-soon. The last
+ * one matters: "expiring_soon" is a VALID document that simply renews within 30
+ * days — it's still in force right now, so it must NOT block the locksmith (we
+ * nudge them to renew separately). Only "expired" (no longer valid) and
+ * "unreadable" (couldn't be read) fail the check.
+ */
+const VALID_DOC_STATUSES = ["verified", "pending_review", "expiring_soon"];
+
 export function computeCompleteness(l: LocksmithCompletenessFields): CompletenessResult {
   const settings = `${SITE_URL}/locksmith/settings`;
 
@@ -108,14 +118,14 @@ export function computeCompleteness(l: LocksmithCompletenessFields): Completenes
     {
       key: "insurance",
       label: "Upload valid insurance",
-      done: Boolean(l.insuranceDocumentUrl) && ["verified", "pending_review"].includes(l.insuranceStatus),
+      done: Boolean(l.insuranceDocumentUrl) && VALID_DOC_STATUSES.includes(l.insuranceStatus),
       blocking: true,
       deepLink: settings,
     },
     {
       key: "dbs",
       label: "Upload your DBS check",
-      done: Boolean(l.certificationDocumentUrl) && ["verified", "pending_review"].includes(l.dbsStatus),
+      done: Boolean(l.certificationDocumentUrl) && VALID_DOC_STATUSES.includes(l.dbsStatus),
       blocking: false,
       deepLink: settings,
     },
