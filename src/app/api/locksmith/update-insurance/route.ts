@@ -116,9 +116,12 @@ export async function POST(request: NextRequest) {
         }
       }
     } catch (err) {
-      // Vision model unavailable (Ollama down, model not pulled) — fall back gracefully
+      // Vision model unavailable (Ollama down, model not pulled) — fall back gracefully.
+      // Use "pending_review" (not "pending") so the document is counted as uploaded
+      // and awaiting admin review. "pending" means nothing uploaded; "pending_review"
+      // means uploaded but not yet verified — which is exactly what happened here.
       console.warn("[update-insurance] Vision verification unavailable:", err);
-      aiInsuranceStatus = "pending"; // stays pending for manual admin review
+      aiInsuranceStatus = "pending_review";
     }
 
     // Calculate insurance status overrides based on resolved expiry
