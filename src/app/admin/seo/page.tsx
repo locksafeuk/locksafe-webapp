@@ -112,8 +112,8 @@ export default async function AdminSeoPage() {
             className="block rounded-xl border border-slate-200 bg-white hover:border-amber-400 hover:shadow-sm transition-all p-4"
           >
             <Activity className="w-5 h-5 text-amber-500 mb-2" />
-            <p className="font-semibold text-slate-900 text-sm">Coverage matrix</p>
-            <p className="text-xs text-slate-500 mt-0.5">Intents × cities map</p>
+            <p className="font-semibold text-slate-900 text-sm">Live Ops</p>
+            <p className="text-xs text-slate-500 mt-0.5">Pages vs supply — gaps &amp; health</p>
           </Link>
           <a
             href="/sitemap.xml"
