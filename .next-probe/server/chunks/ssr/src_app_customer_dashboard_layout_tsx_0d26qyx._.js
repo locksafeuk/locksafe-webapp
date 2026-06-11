@@ -1,0 +1,3 @@
+module.exports=[923067,a=>{"use strict";a.s(["default",0,function({children:a}){return a},"metadata",0,{title:"Dashboard | Customer Portal | LockSafe UK",description:"View and manage your locksmith requests. Track active jobs, view quotes, and access your service history.",robots:{index:!1,follow:!1}}])},382127,a=>{a.n(a.i(923067))}];
+
+//# sourceMappingURL=src_app_customer_dashboard_layout_tsx_0d26qyx._.js.map

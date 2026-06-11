@@ -1,0 +1,3 @@
+{
+  "/api/admin/agents/control-plane/route": "app/api/admin/agents/control-plane/route.js"
+}

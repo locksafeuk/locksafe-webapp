@@ -1,0 +1,3 @@
+{
+  "/api/retell/calls/[id]/route": "app/api/retell/calls/[id]/route.js"
+}

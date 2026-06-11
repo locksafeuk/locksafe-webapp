@@ -1,0 +1,3 @@
+module.exports=[152202,a=>{"use strict";var b=a.i(187924),c=a.i(572131),d=a.i(50944),e=a.i(596221);a.s(["default",0,function({params:a}){let{id:f}=(0,c.use)(a),g=(0,d.useRouter)();return(0,c.useEffect)(()=>{g.replace(`/job/${f}/report`)},[f,g]),(0,b.jsx)("div",{className:"min-h-screen bg-slate-50 flex items-center justify-center",children:(0,b.jsxs)("div",{className:"text-center",children:[(0,b.jsx)(e.Loader2,{className:"w-12 h-12 animate-spin text-orange-500 mx-auto mb-4"}),(0,b.jsx)("p",{className:"text-slate-600",children:"Redirecting to report..."})]})})}])}];
+
+//# sourceMappingURL=src_app_report_%5Bid%5D_page_tsx_01jgy~_._.js.map

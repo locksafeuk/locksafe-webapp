@@ -1,0 +1,3 @@
+{
+  "/onboard/[token]/page": "app/onboard/[token]/page.js"
+}

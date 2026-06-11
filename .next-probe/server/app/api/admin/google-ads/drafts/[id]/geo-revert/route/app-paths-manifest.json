@@ -1,0 +1,3 @@
+{
+  "/api/admin/google-ads/drafts/[id]/geo-revert/route": "app/api/admin/google-ads/drafts/[id]/geo-revert/route.js"
+}

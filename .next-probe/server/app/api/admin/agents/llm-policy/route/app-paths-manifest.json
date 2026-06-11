@@ -1,0 +1,3 @@
+{
+  "/api/admin/agents/llm-policy/route": "app/api/admin/agents/llm-policy/route.js"
+}

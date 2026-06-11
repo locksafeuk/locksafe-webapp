@@ -1,0 +1,11 @@
+var R=require("../../../../chunks/[turbopack]_runtime.js")("server/app/api/retell/webhook/route.js")
+R.c("server/chunks/src_lib_retell-handler_ts_017369e._.js")
+R.c("server/chunks/src_lib_telegram_ts_0junhbg._.js")
+R.c("server/chunks/[root-of-the-server]__0thwjzn._.js")
+R.c("server/chunks/node_modules_next_dist_0npcise._.js")
+R.c("server/chunks/[root-of-the-server]__0945oel._.js")
+R.c("server/chunks/node_modules_retell-sdk_index_mjs_0wd-.1t._.js")
+R.c("server/chunks/node_modules_next_11synfn._.js")
+R.c("server/chunks/_next-internal_server_app_api_retell_webhook_route_actions_0hh0jq-.js")
+R.m(224680)
+module.exports=R.m(224680).exports

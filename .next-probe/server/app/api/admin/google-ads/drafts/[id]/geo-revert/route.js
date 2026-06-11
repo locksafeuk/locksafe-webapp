@@ -1,0 +1,13 @@
+var R=require("../../../../../../../chunks/[turbopack]_runtime.js")("server/app/api/admin/google-ads/drafts/[id]/geo-revert/route.js")
+R.c("server/chunks/[root-of-the-server]__0yxc~i0._.js")
+R.c("server/chunks/src_lib_google-ads_ts_0.q68yh._.js")
+R.c("server/chunks/src_lib_auth_ts_12a23vj._.js")
+R.c("server/chunks/[root-of-the-server]__04iobn3._.js")
+R.c("server/chunks/node_modules_0iyr.47._.js")
+R.c("server/chunks/node_modules_next_dist_0npcise._.js")
+R.c("server/chunks/node_modules_next_124cnn1._.js")
+R.c("server/chunks/[root-of-the-server]__0945oel._.js")
+R.c("server/chunks/node_modules_next_11synfn._.js")
+R.c("server/chunks/0zjb_server_app_api_admin_google-ads_drafts_[id]_geo-revert_route_actions_0iy1k2c.js")
+R.m(177123)
+module.exports=R.m(177123).exports

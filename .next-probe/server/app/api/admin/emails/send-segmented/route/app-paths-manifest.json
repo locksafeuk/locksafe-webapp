@@ -1,0 +1,3 @@
+{
+  "/api/admin/emails/send-segmented/route": "app/api/admin/emails/send-segmented/route.js"
+}

@@ -1,0 +1,3 @@
+{
+  "/intent/[slug]/page": "app/intent/[slug]/page.js"
+}

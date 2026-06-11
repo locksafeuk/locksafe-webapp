@@ -1,0 +1,3 @@
+{
+  "/api/cron/cleanup-blacklisted-tokens/route": "app/api/cron/cleanup-blacklisted-tokens/route.js"
+}

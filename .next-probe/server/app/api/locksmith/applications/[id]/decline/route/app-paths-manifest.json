@@ -1,0 +1,3 @@
+{
+  "/api/locksmith/applications/[id]/decline/route": "app/api/locksmith/applications/[id]/decline/route.js"
+}

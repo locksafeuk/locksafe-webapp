@@ -1,0 +1,10 @@
+var R=require("../../../../chunks/[turbopack]_runtime.js")("server/app/api/cron/morning-briefing/route.js")
+R.c("server/chunks/src_lib_llm-router_ts_0jwpa_1._.js")
+R.c("server/chunks/src_lib_telegram_ts_0junhbg._.js")
+R.c("server/chunks/[root-of-the-server]__0~wb8au._.js")
+R.c("server/chunks/node_modules_next_dist_0npcise._.js")
+R.c("server/chunks/[root-of-the-server]__0945oel._.js")
+R.c("server/chunks/node_modules_next_11synfn._.js")
+R.c("server/chunks/_next-internal_server_app_api_cron_morning-briefing_route_actions_0r7s5yq.js")
+R.m(785591)
+module.exports=R.m(785591).exports

@@ -1,0 +1,3 @@
+{
+  "/api/admin/approvals/bulk-cleanup/route": "app/api/admin/approvals/bulk-cleanup/route.js"
+}

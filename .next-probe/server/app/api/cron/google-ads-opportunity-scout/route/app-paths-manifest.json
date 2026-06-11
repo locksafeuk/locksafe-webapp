@@ -1,0 +1,3 @@
+{
+  "/api/cron/google-ads-opportunity-scout/route": "app/api/cron/google-ads-opportunity-scout/route.js"
+}

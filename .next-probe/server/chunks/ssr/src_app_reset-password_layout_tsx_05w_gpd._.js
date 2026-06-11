@@ -1,0 +1,3 @@
+module.exports=[198393,a=>{"use strict";var b=a.i(875285);let c={title:`Reset Password | ${b.SITE_NAME}`,description:`Create a new password for your ${b.SITE_NAME} account.`,openGraph:{title:`Reset Password | ${b.SITE_NAME}`,description:`Create a new password for your ${b.SITE_NAME} account.`,url:`${b.SITE_URL}/reset-password`,siteName:b.SITE_NAME,locale:"en_GB",type:"website"},robots:{index:!1,follow:!1}};a.s(["default",0,function({children:a}){return a},"metadata",0,c])},220021,a=>{a.n(a.i(198393))}];
+
+//# sourceMappingURL=src_app_reset-password_layout_tsx_05w_gpd._.js.map

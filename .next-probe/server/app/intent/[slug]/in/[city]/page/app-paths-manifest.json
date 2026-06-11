@@ -1,0 +1,3 @@
+{
+  "/intent/[slug]/in/[city]/page": "app/intent/[slug]/in/[city]/page.js"
+}

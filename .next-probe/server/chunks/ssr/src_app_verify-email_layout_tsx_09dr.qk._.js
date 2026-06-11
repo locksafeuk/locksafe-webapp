@@ -1,0 +1,3 @@
+module.exports=[227413,a=>{"use strict";var b=a.i(875285);let c={title:`Verify Email | ${b.SITE_NAME}`,description:`Verify your email address to complete your ${b.SITE_NAME} account setup.`,openGraph:{title:`Verify Email | ${b.SITE_NAME}`,description:`Verify your email address for your ${b.SITE_NAME} account.`,url:`${b.SITE_URL}/verify-email`,siteName:b.SITE_NAME,locale:"en_GB",type:"website"},robots:{index:!1,follow:!1}};a.s(["default",0,function({children:a}){return a},"metadata",0,c])},404554,a=>{a.n(a.i(227413))}];
+
+//# sourceMappingURL=src_app_verify-email_layout_tsx_09dr.qk._.js.map

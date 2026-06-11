@@ -1,0 +1,56 @@
+{
+  "sorted_middleware": [
+    "/locksmith-signup/opengraph-image/route"
+  ],
+  "middleware": {},
+  "instrumentation": null,
+  "functions": {
+    "/locksmith-signup/opengraph-image/route": {
+      "files": [
+        "server/middleware-build-manifest.js",
+        "server/interception-route-rewrite-manifest.js",
+        "required-server-files.js",
+        "server/server-reference-manifest.js",
+        "server/app/locksmith-signup/opengraph-image/route_client-reference-manifest.js",
+        "server/edge/chunks/_next-internal_server_app_locksmith-signup_opengraph-image_route_actions_0_21~h..js",
+        "server/edge/chunks/[root-of-the-server]__0mz068r._.js",
+        "server/edge/chunks/node_modules_next_dist_esm_build_templates_edge-app-route_05v9zg_.js",
+        "server/edge/chunks/node_modules_02br-b5._.js",
+        "server/edge/chunks/node_modules_next_dist_compiled_@vercel_og_11csqje._.js",
+        "server/edge/chunks/turbopack-node_modules_next_dist_esm_build_templates_edge-wrapper_0vx9jrx.js"
+      ],
+      "name": "app/locksmith-signup/opengraph-image/route",
+      "page": "/locksmith-signup/opengraph-image/route",
+      "entrypoint": "server/edge/chunks/turbopack-node_modules_next_dist_esm_build_templates_edge-wrapper_0vx9jrx.js",
+      "matchers": [
+        {
+          "regexp": "^/locksmith-signup/opengraph-image(?:/)?$",
+          "originalSource": "/locksmith-signup/opengraph-image"
+        }
+      ],
+      "wasm": [
+        {
+          "name": "wasm_10a187050363648b49a36c79d5266d2c",
+          "filePath": "server/edge/chunks/node_modules_next_dist_compiled_@vercel_og_yoga_0656eb_.wasm"
+        },
+        {
+          "name": "wasm_151b7f7b511bd6dda63695d2c75c87a3",
+          "filePath": "server/edge/chunks/node_modules_next_dist_compiled_@vercel_og_resvg_0656eb_.wasm"
+        }
+      ],
+      "assets": [
+        {
+          "name": "server/edge/assets/Geist-Regular.01xk7kbsv57y-.ttf",
+          "filePath": "server/edge/assets/Geist-Regular.01xk7kbsv57y-.ttf"
+        }
+      ],
+      "env": {
+        "__NEXT_BUILD_ID": "I8RBafzHD4oDR-ilrBc2U",
+        "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY": "r8jQn+8XY887ybuVMdVXHJeq0TJFEO2W5Twuwq8PifU=",
+        "__NEXT_PREVIEW_MODE_ID": "1e076134980b9fcdde8eaf8c0a4c9f34",
+        "__NEXT_PREVIEW_MODE_ENCRYPTION_KEY": "e77020ab9474c912361148e4bac9b4792a3da3e1a9044c1ae0f516624db7740f",
+        "__NEXT_PREVIEW_MODE_SIGNING_KEY": "49cee024f297b04803d69ee8391e45ae74fd2c141b5bb8cd70b35cd60591670f"
+      }
+    }
+  }
+}

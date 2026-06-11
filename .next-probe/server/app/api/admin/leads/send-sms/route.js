@@ -1,0 +1,13 @@
+var R=require("../../../../../chunks/[turbopack]_runtime.js")("server/app/api/admin/leads/send-sms/route.js")
+R.c("server/chunks/[root-of-the-server]__0yxc~i0._.js")
+R.c("server/chunks/src_lib_sms_ts_0_4nb2m._.js")
+R.c("server/chunks/node_modules_next_11synfn._.js")
+R.c("server/chunks/[root-of-the-server]__0ci0me6._.js")
+R.c("server/chunks/node_modules_next_124cnn1._.js")
+R.c("server/chunks/node_modules_0iyr.47._.js")
+R.c("server/chunks/[root-of-the-server]__0945oel._.js")
+R.c("server/chunks/node_modules_next_dist_0npcise._.js")
+R.c("server/chunks/src_lib_auth_ts_12a23vj._.js")
+R.c("server/chunks/_next-internal_server_app_api_admin_leads_send-sms_route_actions_04y0ia7.js")
+R.m(885312)
+module.exports=R.m(885312).exports

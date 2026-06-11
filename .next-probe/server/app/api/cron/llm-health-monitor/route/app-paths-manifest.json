@@ -1,0 +1,3 @@
+{
+  "/api/cron/llm-health-monitor/route": "app/api/cron/llm-health-monitor/route.js"
+}

@@ -1,0 +1,3 @@
+{
+  "/api/admin/keyword-templates/[slug]/route": "app/api/admin/keyword-templates/[slug]/route.js"
+}

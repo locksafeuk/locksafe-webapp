@@ -1,0 +1,3 @@
+{
+  "/api/cron/sync-google-ads-performance/route": "app/api/cron/sync-google-ads-performance/route.js"
+}

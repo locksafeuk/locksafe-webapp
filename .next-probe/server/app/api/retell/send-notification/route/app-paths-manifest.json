@@ -1,0 +1,3 @@
+{
+  "/api/retell/send-notification/route": "app/api/retell/send-notification/route.js"
+}

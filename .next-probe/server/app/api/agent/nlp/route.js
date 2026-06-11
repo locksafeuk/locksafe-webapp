@@ -1,0 +1,10 @@
+var R=require("../../../../chunks/[turbopack]_runtime.js")("server/app/api/agent/nlp/route.js")
+R.c("server/chunks/src_lib_llm-router_ts_0jwpa_1._.js")
+R.c("server/chunks/src_lib_openclaw-nlp_ts_0h_0-kn._.js")
+R.c("server/chunks/[root-of-the-server]__0e46-2n._.js")
+R.c("server/chunks/node_modules_next_dist_0npcise._.js")
+R.c("server/chunks/[root-of-the-server]__0945oel._.js")
+R.c("server/chunks/node_modules_next_11synfn._.js")
+R.c("server/chunks/_next-internal_server_app_api_agent_nlp_route_actions_0gi7_82.js")
+R.m(357956)
+module.exports=R.m(357956).exports

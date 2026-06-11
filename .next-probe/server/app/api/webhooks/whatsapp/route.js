@@ -1,0 +1,12 @@
+var R=require("../../../../chunks/[turbopack]_runtime.js")("server/app/api/webhooks/whatsapp/route.js")
+R.c("server/chunks/src_lib_telegram_ts_0junhbg._.js")
+R.c("server/chunks/src_lib_openclaw-nlp_ts_0h_0-kn._.js")
+R.c("server/chunks/src_lib_whatsapp-business_ts_0e14v64._.js")
+R.c("server/chunks/src_lib_llm-router_ts_0jwpa_1._.js")
+R.c("server/chunks/node_modules_next_11synfn._.js")
+R.c("server/chunks/[root-of-the-server]__0945oel._.js")
+R.c("server/chunks/node_modules_next_dist_0npcise._.js")
+R.c("server/chunks/[root-of-the-server]__0mboyko._.js")
+R.c("server/chunks/_next-internal_server_app_api_webhooks_whatsapp_route_actions_0hc6qvg.js")
+R.m(719063)
+module.exports=R.m(719063).exports

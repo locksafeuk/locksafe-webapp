@@ -1,0 +1,10 @@
+var R=require("../../../../chunks/[turbopack]_runtime.js")("server/app/api/cron/sync-google-ads-geo-targets/route.js")
+R.c("server/chunks/src_lib_google-ads_ts_0.q68yh._.js")
+R.c("server/chunks/src_lib_google-ads-locations_ts_07a6.e1._.js")
+R.c("server/chunks/[root-of-the-server]__01yvpxz._.js")
+R.c("server/chunks/[root-of-the-server]__0945oel._.js")
+R.c("server/chunks/node_modules_next_11synfn._.js")
+R.c("server/chunks/node_modules_next_dist_0npcise._.js")
+R.c("server/chunks/0zjb_server_app_api_cron_sync-google-ads-geo-targets_route_actions_01zwct5.js")
+R.m(980974)
+module.exports=R.m(980974).exports

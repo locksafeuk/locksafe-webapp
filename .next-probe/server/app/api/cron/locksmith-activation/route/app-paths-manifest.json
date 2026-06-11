@@ -1,0 +1,3 @@
+{
+  "/api/cron/locksmith-activation/route": "app/api/cron/locksmith-activation/route.js"
+}

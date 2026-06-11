@@ -1,0 +1,12 @@
+var R=require("../../../../../../chunks/[turbopack]_runtime.js")("server/app/api/admin/social/instagram/connect/route.js")
+R.c("server/chunks/[root-of-the-server]__0yxc~i0._.js")
+R.c("server/chunks/[root-of-the-server]__03_zhxo._.js")
+R.c("server/chunks/node_modules_next_124cnn1._.js")
+R.c("server/chunks/src_lib_auth_ts_12a23vj._.js")
+R.c("server/chunks/node_modules_0iyr.47._.js")
+R.c("server/chunks/node_modules_next_dist_0npcise._.js")
+R.c("server/chunks/[root-of-the-server]__0945oel._.js")
+R.c("server/chunks/node_modules_next_11synfn._.js")
+R.c("server/chunks/0zjb_server_app_api_admin_social_instagram_connect_route_actions_07v2xdo.js")
+R.m(874374)
+module.exports=R.m(874374).exports

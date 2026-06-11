@@ -1,0 +1,3 @@
+module.exports=[344191,a=>{"use strict";a.i(907997),a.i(599475);var b=a.i(352425);let c={alt:"Request Emergency Locksmith - LockSafe UK",contentType:"image/png",runtime:"edge",size:{width:1200,height:630}};async function d(a){let{__metadata_id__:d,...e}=await a.params,f=(0,b.fillMetadataSegment)("/request",e,"opengraph-image",!1);return[function(a){let b={alt:a.alt,type:a.contentType||"image/png",url:f+"?04608a3f213ce9dc"},{size:c}=a;return c&&(b.width=c.width,b.height=c.height),b}(c)]}a.s(["default",0,d],344191)},785063,a=>{a.n(a.i(344191))}];
+
+//# sourceMappingURL=src_app_request_opengraph-image--metadata_010qwuw.js.map

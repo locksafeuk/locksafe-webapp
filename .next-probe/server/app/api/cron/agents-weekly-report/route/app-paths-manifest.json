@@ -1,0 +1,3 @@
+{
+  "/api/cron/agents-weekly-report/route": "app/api/cron/agents-weekly-report/route.js"
+}

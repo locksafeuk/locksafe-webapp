@@ -1,0 +1,10 @@
+var R=require("../../../../chunks/[turbopack]_runtime.js")("server/app/api/retell/check-user/route.js")
+R.c("server/chunks/src_lib_telegram_ts_0junhbg._.js")
+R.c("server/chunks/node_modules_retell-sdk_index_mjs_0wd-.1t._.js")
+R.c("server/chunks/[root-of-the-server]__07rq9sh._.js")
+R.c("server/chunks/[root-of-the-server]__0945oel._.js")
+R.c("server/chunks/node_modules_next_dist_0npcise._.js")
+R.c("server/chunks/node_modules_next_11synfn._.js")
+R.c("server/chunks/_next-internal_server_app_api_retell_check-user_route_actions_017.u0h.js")
+R.m(915937)
+module.exports=R.m(915937).exports

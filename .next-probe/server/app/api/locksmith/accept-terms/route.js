@@ -1,0 +1,13 @@
+var R=require("../../../../chunks/[turbopack]_runtime.js")("server/app/api/locksmith/accept-terms/route.js")
+R.c("server/chunks/[root-of-the-server]__0yxc~i0._.js")
+R.c("server/chunks/src_lib_google-ads_ts_0.q68yh._.js")
+R.c("server/chunks/node_modules_next_124cnn1._.js")
+R.c("server/chunks/[root-of-the-server]__09so37-._.js")
+R.c("server/chunks/node_modules_next_11synfn._.js")
+R.c("server/chunks/node_modules_0iyr.47._.js")
+R.c("server/chunks/src_lib_google-ads-locations_ts_07a6.e1._.js")
+R.c("server/chunks/[root-of-the-server]__0945oel._.js")
+R.c("server/chunks/node_modules_next_dist_0npcise._.js")
+R.c("server/chunks/_next-internal_server_app_api_locksmith_accept-terms_route_actions_0yuq6n_.js")
+R.m(260998)
+module.exports=R.m(260998).exports

@@ -1,0 +1,3 @@
+{
+  "/api/stripe-connect/onboard/route": "app/api/stripe-connect/onboard/route.js"
+}

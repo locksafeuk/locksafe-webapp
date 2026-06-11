@@ -1,0 +1,3 @@
+{
+  "/api/admin/google-ads/suggestions/[id]/reject/route": "app/api/admin/google-ads/suggestions/[id]/reject/route.js"
+}

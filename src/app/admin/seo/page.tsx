@@ -108,7 +108,7 @@ export default async function AdminSeoPage() {
             </p>
           </Link>
           <Link
-            href="/admin/seo/coverage"
+            href="/admin/seo/ops"
             className="block rounded-xl border border-slate-200 bg-white hover:border-amber-400 hover:shadow-sm transition-all p-4"
           >
             <Activity className="w-5 h-5 text-amber-500 mb-2" />

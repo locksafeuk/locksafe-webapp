@@ -1,0 +1,3 @@
+{
+  "/api/cron/dispatch-scheduled-jobs/route": "app/api/cron/dispatch-scheduled-jobs/route.js"
+}

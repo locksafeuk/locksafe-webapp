@@ -1,0 +1,10 @@
+var R=require("../../../../chunks/[turbopack]_runtime.js")("server/app/api/referral/validate/route.js")
+R.c("server/chunks/[root-of-the-server]__01neq3h._.js")
+R.c("server/chunks/src_lib_email_ts_0kzbpfl._.js")
+R.c("server/chunks/node_modules_next_11synfn._.js")
+R.c("server/chunks/node_modules_0rdscaq._.js")
+R.c("server/chunks/[root-of-the-server]__0945oel._.js")
+R.c("server/chunks/node_modules_next_dist_0npcise._.js")
+R.c("server/chunks/_next-internal_server_app_api_referral_validate_route_actions_0m4-fuy.js")
+R.m(631179)
+module.exports=R.m(631179).exports

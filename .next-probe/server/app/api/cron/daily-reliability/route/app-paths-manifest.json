@@ -1,0 +1,3 @@
+{
+  "/api/cron/daily-reliability/route": "app/api/cron/daily-reliability/route.js"
+}

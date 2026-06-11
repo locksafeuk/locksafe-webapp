@@ -1,0 +1,3 @@
+{
+  "/api/admin/locksmiths/send-welcome-emails/route": "app/api/admin/locksmiths/send-welcome-emails/route.js"
+}

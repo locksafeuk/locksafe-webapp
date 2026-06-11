@@ -1,0 +1,3 @@
+{
+  "/api/admin/verify-insurance/route": "app/api/admin/verify-insurance/route.js"
+}

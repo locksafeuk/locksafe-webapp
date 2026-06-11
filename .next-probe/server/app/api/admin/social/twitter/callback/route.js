@@ -1,0 +1,13 @@
+var R=require("../../../../../../chunks/[turbopack]_runtime.js")("server/app/api/admin/social/twitter/callback/route.js")
+R.c("server/chunks/[root-of-the-server]__0yxc~i0._.js")
+R.c("server/chunks/[root-of-the-server]__0jizhfh._.js")
+R.c("server/chunks/node_modules_next_124cnn1._.js")
+R.c("server/chunks/src_lib_auth_ts_12a23vj._.js")
+R.c("server/chunks/node_modules_next_dist_0npcise._.js")
+R.c("server/chunks/node_modules_0iyr.47._.js")
+R.c("server/chunks/[root-of-the-server]__0945oel._.js")
+R.c("server/chunks/[root-of-the-server]__0l0.v8i._.js")
+R.c("server/chunks/node_modules_next_11synfn._.js")
+R.c("server/chunks/0zjb_server_app_api_admin_social_twitter_callback_route_actions_0.o8_8-.js")
+R.m(617489)
+module.exports=R.m(617489).exports

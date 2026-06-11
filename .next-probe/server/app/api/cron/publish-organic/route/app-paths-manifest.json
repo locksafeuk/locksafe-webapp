@@ -1,0 +1,3 @@
+{
+  "/api/cron/publish-organic/route": "app/api/cron/publish-organic/route.js"
+}

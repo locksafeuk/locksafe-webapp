@@ -1,0 +1,3 @@
+{
+  "/api/cron/google-ads-drift-sync/route": "app/api/cron/google-ads-drift-sync/route.js"
+}

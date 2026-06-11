@@ -1,0 +1,3 @@
+{
+  "/api/cron/sync-meta-performance/route": "app/api/cron/sync-meta-performance/route.js"
+}

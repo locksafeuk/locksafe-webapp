@@ -1,0 +1,3 @@
+{
+  "/api/cron/onboarding-nudge/route": "app/api/cron/onboarding-nudge/route.js"
+}

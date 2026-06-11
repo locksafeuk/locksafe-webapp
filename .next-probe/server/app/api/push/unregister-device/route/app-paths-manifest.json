@@ -1,0 +1,3 @@
+{
+  "/api/push/unregister-device/route": "app/api/push/unregister-device/route.js"
+}

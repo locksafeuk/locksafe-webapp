@@ -1,0 +1,3 @@
+module.exports=[713972,a=>{"use strict";a.s(["default",0,function({children:a}){return a},"metadata",0,{title:{template:"%s | Customer Portal | LockSafe UK",default:"Customer Portal | LockSafe UK"},description:"Manage your locksmith requests, view quotes, track jobs in real-time, and access your service history.",openGraph:{title:"Customer Portal | LockSafe UK",description:"Manage your locksmith requests and track jobs in real-time.",siteName:"LockSafe UK",locale:"en_GB",type:"website"},robots:{index:!1,follow:!1}}])},333058,a=>{a.n(a.i(713972))}];
+
+//# sourceMappingURL=src_app_customer_layout_tsx_11ulh01._.js.map

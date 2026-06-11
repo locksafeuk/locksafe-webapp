@@ -1,0 +1,3 @@
+{
+  "/api/cron/sla-monitor/route": "app/api/cron/sla-monitor/route.js"
+}

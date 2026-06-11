@@ -1,0 +1,3 @@
+{
+  "/api/admin/whatsapp/conversations/[id]/mark-read/route": "app/api/admin/whatsapp/conversations/[id]/mark-read/route.js"
+}

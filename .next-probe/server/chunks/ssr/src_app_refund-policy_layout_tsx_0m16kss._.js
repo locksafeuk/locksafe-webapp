@@ -1,0 +1,3 @@
+module.exports=[355579,a=>{"use strict";var b=a.i(875285);let c={title:`Refund Policy | ${b.SITE_NAME}`,description:`${b.SITE_NAME} refund policy - Full refund if locksmith doesn't arrive. Fair protection for customers and locksmiths.`,openGraph:{title:`Refund Policy | ${b.SITE_NAME}`,description:`${b.SITE_NAME} refund policy - Full refund if locksmith doesn't arrive. Fair protection for customers and locksmiths.`}};a.s(["default",0,function({children:a}){return a},"metadata",0,c])},618097,a=>{a.n(a.i(355579))}];
+
+//# sourceMappingURL=src_app_refund-policy_layout_tsx_0m16kss._.js.map

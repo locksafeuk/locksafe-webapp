@@ -1,0 +1,3 @@
+module.exports=[819460,a=>{"use strict";var b=a.i(875285);let c={title:`Locksmith Login | ${b.SITE_NAME} Partner Portal`,description:`Sign in to your ${b.SITE_NAME} locksmith account. Manage jobs, view earnings, and update your availability.`,openGraph:{title:`Locksmith Login | ${b.SITE_NAME}`,description:`Access your ${b.SITE_NAME} locksmith partner portal.`,url:`${b.SITE_URL}/locksmith/login`,siteName:b.SITE_NAME,locale:"en_GB",type:"website"},robots:{index:!1,follow:!0}};a.s(["default",0,function({children:a}){return a},"metadata",0,c])},601460,a=>{a.n(a.i(819460))}];
+
+//# sourceMappingURL=src_app_locksmith_login_layout_tsx_0_65jvz._.js.map

@@ -1,0 +1,3 @@
+module.exports=[734516,a=>{"use strict";a.i(907997),a.i(599475);var b=a.i(352425);let c={alt:"Free Home Security Checklist - LockSafe UK",contentType:"image/png",runtime:"edge",size:{width:1200,height:630}};async function d(a){let{__metadata_id__:d,...e}=await a.params,f=(0,b.fillMetadataSegment)("/security-checklist",e,"twitter-image",!1);return[function(a){let b={alt:a.alt,type:a.contentType||"image/png",url:f+"?0023e8f51f4d616e"},{size:c}=a;return c&&(b.width=c.width,b.height=c.height),b}(c)]}a.s(["default",0,d],734516)},218250,a=>{a.n(a.i(734516))}];
+
+//# sourceMappingURL=src_app_security-checklist_twitter-image--metadata_0rlbgd4.js.map

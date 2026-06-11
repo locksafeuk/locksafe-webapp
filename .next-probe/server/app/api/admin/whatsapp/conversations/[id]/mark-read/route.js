@@ -1,0 +1,12 @@
+var R=require("../../../../../../../chunks/[turbopack]_runtime.js")("server/app/api/admin/whatsapp/conversations/[id]/mark-read/route.js")
+R.c("server/chunks/[root-of-the-server]__0yxc~i0._.js")
+R.c("server/chunks/src_lib_auth_ts_12a23vj._.js")
+R.c("server/chunks/node_modules_next_124cnn1._.js")
+R.c("server/chunks/[root-of-the-server]__13e5kce._.js")
+R.c("server/chunks/node_modules_next_dist_0npcise._.js")
+R.c("server/chunks/[root-of-the-server]__0945oel._.js")
+R.c("server/chunks/node_modules_0iyr.47._.js")
+R.c("server/chunks/node_modules_next_11synfn._.js")
+R.c("server/chunks/0wuz_app_api_admin_whatsapp_conversations_[id]_mark-read_route_actions_0vc1aw8.js")
+R.m(984665)
+module.exports=R.m(984665).exports

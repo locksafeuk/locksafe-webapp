@@ -1,0 +1,3 @@
+{
+  "/api/admin/google-ads/oauth/callback/route": "app/api/admin/google-ads/oauth/callback/route.js"
+}

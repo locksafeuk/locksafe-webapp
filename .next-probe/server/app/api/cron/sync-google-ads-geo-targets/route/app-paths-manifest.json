@@ -1,0 +1,3 @@
+{
+  "/api/cron/sync-google-ads-geo-targets/route": "app/api/cron/sync-google-ads-geo-targets/route.js"
+}

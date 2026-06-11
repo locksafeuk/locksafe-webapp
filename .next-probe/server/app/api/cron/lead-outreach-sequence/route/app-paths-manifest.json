@@ -1,0 +1,3 @@
+{
+  "/api/cron/lead-outreach-sequence/route": "app/api/cron/lead-outreach-sequence/route.js"
+}

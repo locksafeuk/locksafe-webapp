@@ -1,0 +1,3 @@
+{
+  "/api/cron/auto-draft-existing-locksmiths/route": "app/api/cron/auto-draft-existing-locksmiths/route.js"
+}

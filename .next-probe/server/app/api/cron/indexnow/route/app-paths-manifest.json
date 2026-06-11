@@ -1,0 +1,3 @@
+{
+  "/api/cron/indexnow/route": "app/api/cron/indexnow/route.js"
+}

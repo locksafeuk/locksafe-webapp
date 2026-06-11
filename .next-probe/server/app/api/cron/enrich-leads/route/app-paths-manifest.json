@@ -1,0 +1,3 @@
+{
+  "/api/cron/enrich-leads/route": "app/api/cron/enrich-leads/route.js"
+}

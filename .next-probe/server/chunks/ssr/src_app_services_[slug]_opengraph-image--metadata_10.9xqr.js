@@ -1,0 +1,3 @@
+module.exports=[300978,a=>{"use strict";a.i(907997);var b=a.i(796697);async function c(){return(0,b.getAllServiceSlugs)().map(a=>({slug:a}))}a.i(599475);var d=a.i(352425);let e={alt:"LockSafe UK locksmith service",contentType:"image/png",generateStaticParams:c,size:{width:1080,height:1080}};async function f(a){let{__metadata_id__:b,...c}=await a.params,f=(0,d.fillMetadataSegment)("/services/[slug]",c,"opengraph-image",!1);return[function(a){let b={alt:a.alt,type:a.contentType||"image/png",url:f+"?23e23ca4ea87cd22"},{size:c}=a;return c&&(b.width=c.width,b.height=c.height),b}(e)]}a.s(["default",0,f],300978)},802686,a=>{a.n(a.i(300978))}];
+
+//# sourceMappingURL=src_app_services_%5Bslug%5D_opengraph-image--metadata_10.9xqr.js.map

@@ -1,0 +1,3 @@
+{
+  "/api/admin/jobs/[id]/notify-no-locksmith/route": "app/api/admin/jobs/[id]/notify-no-locksmith/route.js"
+}

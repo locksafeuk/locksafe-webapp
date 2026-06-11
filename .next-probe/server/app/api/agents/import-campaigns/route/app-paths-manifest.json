@@ -1,0 +1,3 @@
+{
+  "/api/agents/import-campaigns/route": "app/api/agents/import-campaigns/route.js"
+}

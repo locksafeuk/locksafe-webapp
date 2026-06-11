@@ -1,0 +1,3 @@
+{
+  "/api/admin/geocode-address/route": "app/api/admin/geocode-address/route.js"
+}

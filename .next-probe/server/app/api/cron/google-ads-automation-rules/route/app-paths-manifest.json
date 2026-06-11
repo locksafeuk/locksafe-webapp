@@ -1,0 +1,3 @@
+{
+  "/api/cron/google-ads-automation-rules/route": "app/api/cron/google-ads-automation-rules/route.js"
+}

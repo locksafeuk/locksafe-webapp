@@ -1,0 +1,3 @@
+{
+  "/api/cron/sync-organic-performance/route": "app/api/cron/sync-organic-performance/route.js"
+}

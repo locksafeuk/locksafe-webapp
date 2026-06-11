@@ -1,0 +1,3 @@
+{
+  "/api/admin/google-ads/drafts/[id]/save-template/route": "app/api/admin/google-ads/drafts/[id]/save-template/route.js"
+}

@@ -1,0 +1,3 @@
+{
+  "/api/cron/voice-call-watchdog/route": "app/api/cron/voice-call-watchdog/route.js"
+}

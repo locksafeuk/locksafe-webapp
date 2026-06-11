@@ -1,0 +1,3 @@
+module.exports=[751402,a=>{"use strict";a.s(["default",0,function({children:a}){return a},"metadata",0,{title:"Available Jobs | Locksmith Portal | LockSafe UK",description:"Browse and apply for locksmith jobs in your coverage area. Filter by distance, job type, and urgency.",robots:{index:!1,follow:!1}}])},584109,a=>{a.n(a.i(751402))}];
+
+//# sourceMappingURL=src_app_locksmith_jobs_layout_tsx_0yi6tko._.js.map

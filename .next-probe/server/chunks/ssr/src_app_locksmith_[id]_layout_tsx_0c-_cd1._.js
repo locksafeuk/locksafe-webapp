@@ -1,0 +1,3 @@
+module.exports=[743549,a=>{"use strict";var b=a.i(875285);async function c({params:a}){let{id:d}=await a;return{title:`Verified Locksmith Profile | ${b.SITE_NAME}`,description:`View verified locksmith profile on ${b.SITE_NAME}. See reviews, ratings, services offered, and coverage areas.`,openGraph:{title:`Verified Locksmith Profile | ${b.SITE_NAME}`,description:`View verified locksmith profile on ${b.SITE_NAME}. See reviews, ratings, and coverage areas.`,url:`${b.SITE_URL}/locksmith/${d}`,siteName:b.SITE_NAME,locale:"en_GB",type:"profile"},robots:{index:!0,follow:!0}}}a.s(["default",0,function({children:a}){return a},"generateMetadata",0,c])},175267,a=>{a.n(a.i(743549))}];
+
+//# sourceMappingURL=src_app_locksmith_%5Bid%5D_layout_tsx_0c-_cd1._.js.map

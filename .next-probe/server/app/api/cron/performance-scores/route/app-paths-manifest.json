@@ -1,0 +1,3 @@
+{
+  "/api/cron/performance-scores/route": "app/api/cron/performance-scores/route.js"
+}

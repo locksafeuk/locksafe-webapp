@@ -1,0 +1,3 @@
+{
+  "/api/agents/heartbeat/route": "app/api/agents/heartbeat/route.js"
+}

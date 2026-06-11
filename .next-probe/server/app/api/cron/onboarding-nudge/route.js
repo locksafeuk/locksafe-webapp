@@ -1,0 +1,13 @@
+var R=require("../../../../chunks/[turbopack]_runtime.js")("server/app/api/cron/onboarding-nudge/route.js")
+R.c("server/chunks/[root-of-the-server]__0otxfp7._.js")
+R.c("server/chunks/src_lib_telegram_ts_0junhbg._.js")
+R.c("server/chunks/node_modules_next_11synfn._.js")
+R.c("server/chunks/node_modules_next_dist_esm_build_templates_app-route_0qryyh5.js")
+R.c("server/chunks/src_lib_email_ts_0kzbpfl._.js")
+R.c("server/chunks/node_modules_0rdscaq._.js")
+R.c("server/chunks/[root-of-the-server]__07a5c6h._.js")
+R.c("server/chunks/[root-of-the-server]__0945oel._.js")
+R.c("server/chunks/node_modules_next_dist_0npcise._.js")
+R.c("server/chunks/_next-internal_server_app_api_cron_onboarding-nudge_route_actions_0tnt_5s.js")
+R.m(961599)
+module.exports=R.m(961599).exports

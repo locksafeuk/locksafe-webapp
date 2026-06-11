@@ -1,0 +1,3 @@
+module.exports=[204563,a=>{"use strict";var b=a.i(875285);let c={title:`Forgot Password | ${b.SITE_NAME}`,description:`Reset your ${b.SITE_NAME} account password. We'll send you a secure link to create a new password.`,openGraph:{title:`Forgot Password | ${b.SITE_NAME}`,description:`Reset your ${b.SITE_NAME} account password.`,url:`${b.SITE_URL}/forgot-password`,siteName:b.SITE_NAME,locale:"en_GB",type:"website"},robots:{index:!1,follow:!1}};a.s(["default",0,function({children:a}){return a},"metadata",0,c])},241330,a=>{a.n(a.i(204563))}];
+
+//# sourceMappingURL=src_app_forgot-password_layout_tsx_0k~gclv._.js.map

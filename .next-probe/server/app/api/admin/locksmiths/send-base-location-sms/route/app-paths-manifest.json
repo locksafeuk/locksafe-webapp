@@ -1,0 +1,3 @@
+{
+  "/api/admin/locksmiths/send-base-location-sms/route": "app/api/admin/locksmiths/send-base-location-sms/route.js"
+}

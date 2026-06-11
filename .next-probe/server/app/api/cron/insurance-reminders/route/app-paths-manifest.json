@@ -1,0 +1,3 @@
+{
+  "/api/cron/insurance-reminders/route": "app/api/cron/insurance-reminders/route.js"
+}

@@ -1,0 +1,3 @@
+module.exports=[936975,a=>{"use strict";var b=a.i(907997);let c={metadataBase:new URL(a.i(875285).SITE_URL),robots:{index:!0,follow:!0,googleBot:{index:!0,follow:!0,"max-video-preview":-1,"max-image-preview":"large","max-snippet":-1}}};a.s(["default",0,function({children:a}){return(0,b.jsx)(b.Fragment,{children:a})},"metadata",0,c])},625694,a=>{a.n(a.i(936975))}];
+
+//# sourceMappingURL=src_app_blog_layout_tsx_0cm.3g9._.js.map

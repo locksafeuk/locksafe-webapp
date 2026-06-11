@@ -1,0 +1,3 @@
+{
+  "/api/cron/sync-commission-tiers/route": "app/api/cron/sync-commission-tiers/route.js"
+}

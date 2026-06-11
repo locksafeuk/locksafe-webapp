@@ -1,0 +1,3 @@
+{
+  "/api/cron/auto-redispatch/route": "app/api/cron/auto-redispatch/route.js"
+}

@@ -1,0 +1,3 @@
+{
+  "/api/cron/verify-published-drafts/route": "app/api/cron/verify-published-drafts/route.js"
+}

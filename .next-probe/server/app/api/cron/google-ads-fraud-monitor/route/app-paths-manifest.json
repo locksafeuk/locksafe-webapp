@@ -1,0 +1,3 @@
+{
+  "/api/cron/google-ads-fraud-monitor/route": "app/api/cron/google-ads-fraud-monitor/route.js"
+}

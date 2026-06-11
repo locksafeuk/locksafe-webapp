@@ -1,0 +1,3 @@
+{
+  "/api/cron/availability-schedule/route": "app/api/cron/availability-schedule/route.js"
+}

@@ -1,0 +1,3 @@
+{
+  "/api/admin/locksmiths/send-stripe-reminders/route": "app/api/admin/locksmiths/send-stripe-reminders/route.js"
+}

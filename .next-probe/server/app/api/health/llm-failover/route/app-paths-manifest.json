@@ -1,0 +1,3 @@
+{
+  "/api/health/llm-failover/route": "app/api/health/llm-failover/route.js"
+}

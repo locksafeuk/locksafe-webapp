@@ -1,0 +1,3 @@
+{
+  "/api/admin/locksmith-companies/[id]/members/[memberId]/route": "app/api/admin/locksmith-companies/[id]/members/[memberId]/route.js"
+}

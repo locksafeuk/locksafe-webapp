@@ -1,0 +1,1 @@
+{"version":3,"sources":["../../../src/lib/prisma.ts"],"sourcesContent":["// Re-export prisma client for backwards compatibility\nexport { prisma, default } from './db';\n"],"names":[],"mappings":"wCACA,EAAA,CAAA,CAAA"}

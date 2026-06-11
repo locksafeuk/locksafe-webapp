@@ -1,0 +1,3 @@
+{
+  "/api/agents/messages/route": "app/api/agents/messages/route.js"
+}

@@ -1,0 +1,3 @@
+{
+  "/api/cron/memory-consolidate/route": "app/api/cron/memory-consolidate/route.js"
+}

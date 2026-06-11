@@ -1,0 +1,3 @@
+{
+  "/api/cron/generate-district-landings/route": "app/api/cron/generate-district-landings/route.js"
+}

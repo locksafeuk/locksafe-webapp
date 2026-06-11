@@ -1,0 +1,5 @@
+module.exports=[880599,a=>{"use strict";var e=a.i(843793),t=a.i(927837);a.s(["PrismaApprovalGateway",0,class{async enqueue(a){let n=await e.default.agent.findUnique({where:{name:a.agent}});if(!n)throw Error(`Approval gateway: unknown agent "${a.agent}"`);let i=globalThis.crypto?.randomUUID?.()??`appr-${Date.now()}-${Math.random().toString(36).slice(2)}`,r=JSON.stringify(a.args??{}),o=await e.default.agentExecution.create({data:{agentId:n.id,traceId:i,actionType:a.actionType,actionName:a.actionType,input:r,status:"pending_approval",requiresApproval:!0}}),p=await e.default.agentApproval.create({data:{agentId:n.id,executionId:o.id,actionType:a.actionType,actionDetails:r,reason:a.reason,status:"pending",notifiedVia:["telegram"]}});try{await (0,t.sendAdminAlert)({title:`🔐 Approval needed: ${a.actionType}`,message:`Agent ${a.agent} requests "${a.actionType}".
+Reason: ${a.reason}
+Review at /admin/agents/approvals`,severity:"warning",dedupeKey:`approval:${p.id}`})}catch(a){console.warn("[control-plane] approval notify failed (queued anyway):",a)}return p.id}}])}];
+
+//# sourceMappingURL=src_agents_control-plane_adapters_prisma-approvals_ts_01j20ty._.js.map

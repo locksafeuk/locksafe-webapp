@@ -1,0 +1,3 @@
+{
+  "/api/cron/google-ads-auto-pause/route": "app/api/cron/google-ads-auto-pause/route.js"
+}

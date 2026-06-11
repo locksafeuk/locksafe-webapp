@@ -1,0 +1,3 @@
+module.exports=[961731,a=>{"use strict";a.s(["default",0,function({children:a}){return a},"metadata",0,{title:"Dashboard | Locksmith Portal | LockSafe UK",description:"View your locksmith dashboard - track earnings, active jobs, and find new work opportunities in your area.",robots:{index:!1,follow:!1}}])},998228,a=>{a.n(a.i(961731))}];
+
+//# sourceMappingURL=src_app_locksmith_dashboard_layout_tsx_0r8uwji._.js.map

@@ -1,0 +1,3 @@
+{
+  "/api/customer/accept-terms/route": "app/api/customer/accept-terms/route.js"
+}

@@ -1,0 +1,3 @@
+{
+  "/services/[slug]/opengraph-image/route": "app/services/[slug]/opengraph-image/route.js"
+}
