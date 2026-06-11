@@ -187,15 +187,25 @@ export async function postPhotoToTikTok(params: {
     if (!publishId) return { success: false, error: "init returned no publish_id" };
     if (!wait) return { success: true, publishId, status: "PROCESSING" };
 
-    const status = await pollTikTokStatus(accessToken, publishId);
+    const { status, failReason } = await pollTikTokStatus(accessToken, publishId);
     const ok = status === "PUBLISH_COMPLETE" || status === "SEND_TO_USER_INBOX";
-    return { success: ok, publishId, status, error: ok ? undefined : `final status: ${status}` };
+    return {
+      success: ok,
+      publishId,
+      status,
+      error: ok ? undefined : `final status: ${status}${failReason ? ` (${failReason})` : ""}`,
+    };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
 
-async function pollTikTokStatus(accessToken: string, publishId: string, attempts = 10, delayMs = 6000): Promise<string> {
+async function pollTikTokStatus(
+  accessToken: string,
+  publishId: string,
+  attempts = 10,
+  delayMs = 6000
+): Promise<{ status: string; failReason?: string }> {
   for (let i = 0; i < attempts; i++) {
     try {
       const res = await fetch(`${TIKTOK_API}/post/publish/status/fetch/`, {
@@ -206,17 +216,17 @@ async function pollTikTokStatus(accessToken: string, publishId: string, attempts
         },
         body: JSON.stringify({ publish_id: publishId }),
       });
-      const json = (await res.json()) as { data?: { status?: string } };
+      const json = (await res.json()) as { data?: { status?: string; fail_reason?: string } };
       const status = json.data?.status;
       if (status === "PUBLISH_COMPLETE" || status === "FAILED" || status === "SEND_TO_USER_INBOX") {
-        return status;
+        return { status, failReason: json.data?.fail_reason };
       }
     } catch {
       /* transient — keep polling */
     }
     await new Promise((r) => setTimeout(r, delayMs));
   }
-  return "TIMEOUT";
+  return { status: "TIMEOUT" };
 }
 
 /** True when a stored OAuth user token is available for direct photo posting. */

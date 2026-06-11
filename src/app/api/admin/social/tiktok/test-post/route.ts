@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
   }
 
   const base = process.env.NEXT_PUBLIC_APP_URL || "https://www.locksafe.uk";
-  const imageUrl = `${base}/tiktok-test.png`;
+  const imageUrl = `${base}/tiktok-test.jpg`;
 
   const result = await postPhotoToTikTok({
     accessToken: account.accessToken,
