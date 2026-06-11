@@ -136,7 +136,6 @@ export default async function CityAreaPage({ params }: Props) {
               addressRegion: cityData.region,
               coordinates: cityData.coordinates,
               areaServed: [areaName, ...otherAreas.slice(0, 5)],
-              rating: { value: 4.9, count: 1250 },
               priceRange: "££",
             }),
           ),

@@ -136,6 +136,22 @@ WRITING STYLE
   • If you reference nearby outcodes, name them ("we also cover RG2
     and RG30 from the same workshop"), not generic phrases.
 
+ANSWER-FIRST FAQ STRUCTURE (for AI search / featured snippets) — IMPORTANT
+  • Each FAQ answer MUST open with a direct, self-contained answer to the
+    exact question in the FIRST 1-2 sentences — no preamble, no "Great
+    question", no restating the question. A reader (or an AI engine) must
+    get the full answer from those opening sentences alone.
+  • Lead with the concrete fact FROM THE FACTS BLOCK: a yes/no, the
+    response-time band given in the facts, a "what happens" — never a
+    response time you made up. E.g. Q "Do you cover my area in RG1?" →
+    A "Yes. Our nearest engineer works from [base location in facts],
+    inside the coverage radius for RG1, so this district is fully served."
+  • After that opening answer you may add ONE sentence of useful detail.
+    Keep each answer 2-4 sentences total. Do not pad.
+  • Phrase each question the way a real customer would type or speak it
+    into Google or an AI assistant (natural language, often starting with
+    how/what/do/can/how much), not as a keyword string.
+
 OUTPUT FORMAT — STRICT JSON
   Return ONE JSON object, no markdown wrapper, no commentary before
   or after. The object MUST have exactly these keys:
@@ -151,7 +167,9 @@ OUTPUT FORMAT — STRICT JSON
     "whyChooseUs":       string,   // 1 paragraph anti-shark voice:
                                    //   real local engineer, fixed price,
                                    //   no call-centre. Brief, not preachy.
-    "faqs": [                      // 4-6 entries
+    "faqs": [                      // 4-6 entries. Each answer ANSWER-FIRST:
+                                   //   direct answer in sentence 1, then ≤1
+                                   //   detail sentence. See ANSWER-FIRST rule.
       { "question": string, "answer": string }
     ],
     "localTrustAnchors": [string]  // 3-5 short bullets, ≤8 words each.

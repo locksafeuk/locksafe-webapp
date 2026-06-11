@@ -5821,13 +5821,6 @@ export const generateLocalBusinessSchema = (
     opens: "00:00",
     closes: "23:59",
   },
-  aggregateRating: {
-    "@type": "AggregateRating",
-    ratingValue: "4.9",
-    reviewCount: "847",
-    bestRating: "5",
-    worstRating: "1",
-  },
   hasOfferCatalog: {
     "@type": "OfferCatalog",
     name: "Locksmith Services",

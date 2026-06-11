@@ -3312,12 +3312,6 @@ export const generateCitySchema = (city: CityData, siteUrl: string) => ({
     opens: "00:00",
     closes: "23:59",
   },
-  aggregateRating: {
-    "@type": "AggregateRating",
-    ratingValue: "4.9",
-    bestRating: "5",
-    worstRating: "1",
-  },
 });
 
 // Generate FAQ schema for city

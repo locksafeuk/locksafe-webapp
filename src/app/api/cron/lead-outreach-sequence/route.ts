@@ -32,6 +32,16 @@ function isUKMobile(phone: string): boolean {
   );
 }
 
+/** Junk/aggregator number blocks we must never message — scraped sequential
+ *  ranges (e.g. the 07451 26xxxx block, which showed up as ~13 consecutive
+ *  "leads"). Wastes spend and triggers spam complaints that hurt the sender. */
+function isJunkPhone(phone: string): boolean {
+  let d = phone.replace(/\D/g, "");
+  if (d.startsWith("00")) d = d.slice(2);
+  if (d.startsWith("0")) d = "44" + d.slice(1);
+  return d.startsWith("447451");
+}
+
 function buildLeadSms(name: string, city: string): string {
   const firstName = name.split(/\s+/)[0];
   const signupUrl = "https://locksafe.uk/join";
@@ -84,7 +94,7 @@ async function runSmsOutreach(): Promise<SmsOutreachSummary> {
   }));
 
   const leads = candidates
-    .filter((l) => l.phone && isUKMobile(l.phone))
+    .filter((l) => l.phone && isUKMobile(l.phone) && !isJunkPhone(l.phone))
     .slice(0, SMS_OUTREACH_MAX_PER_RUN);
 
   let sent = 0;

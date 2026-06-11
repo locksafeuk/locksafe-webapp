@@ -153,7 +153,6 @@ export default async function ServiceGeoPage({ params }: Props) {
               addressRegion: cityData.region,
               coordinates: cityData.coordinates,
               areaServed: cityData.areas.slice(0, 10),
-              rating: { value: 4.9, count: 1250 },
             }),
           ),
         }}

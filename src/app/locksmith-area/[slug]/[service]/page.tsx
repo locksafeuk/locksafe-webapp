@@ -167,7 +167,6 @@ export default async function PostcodeServicePage({ params }: Props) {
               postalCode: data.postcode,
               coordinates: data.coordinates,
               areaServed: data.neighborhoods.slice(0, 10),
-              rating: { value: 4.9, count: 1250 },
               priceRange: "££",
             }),
           ),

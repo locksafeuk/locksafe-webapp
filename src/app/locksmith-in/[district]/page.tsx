@@ -9,6 +9,7 @@ import {
   breadcrumbJsonLd,
   faqJsonLd,
   localBusinessJsonLd,
+  serviceJsonLd,
   ldScript,
 } from "@/lib/seo";
 
@@ -174,8 +175,33 @@ export default async function DistrictLandingPage({ params }: Props) {
                 ? { lat: page.lat, lng: page.lng }
                 : { lat: 51.5074, lng: -0.1278 },
               areaServed:      [page.district, ...page.nearbyOutcodes.slice(0, 5)],
-              rating:          { value: 4.9, count: 200 },
               priceRange:      "££",
+            }),
+          ),
+        }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: ldScript(
+            serviceJsonLd({
+              name:        `Emergency Locksmith in ${page.district}`,
+              description:
+                page.heroSubcopy ??
+                `24/7 emergency locksmith service across ${page.district}${
+                  page.anchorTown ? `, ${page.anchorTown}` : ""
+                }. DBS-checked local engineers; price agreed before any work starts.`,
+              url:         canonicalUrl,
+              serviceType: "Locksmith",
+              areaServed:  [page.district, ...page.nearbyOutcodes.slice(0, 5)].map((name) => ({
+                name,
+                type: "City" as const,
+              })),
+              provider: {
+                name:      "LockSafe",
+                telephone: PHONE_E164,
+                url:       SITE_URL,
+              },
             }),
           ),
         }}
