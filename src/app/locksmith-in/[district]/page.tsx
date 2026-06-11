@@ -74,6 +74,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 // ── Loader (DB row + coverage cross-check) ─────────────────────────────────
 
 async function loadPage(slug: string) {
+  try {
   const page: {
     id:                 string;
     district:           string;
@@ -119,6 +120,17 @@ async function loadPage(slug: string) {
   if (activeCoverage === 0) return null;
 
   return page;
+  } catch (err) {
+    // DB failure → treat as "not found" so the route returns a clean 404
+    // (via notFound() at the call site) instead of a 500. Better to show the
+    // branded not-found than to crash a page Google may be crawling.
+    console.error(
+      "[locksmith-in/district] loadPage failed for",
+      slug,
+      err instanceof Error ? err.message : err,
+    );
+    return null;
+  }
 }
 
 // ── Page component ──────────────────────────────────────────────────────────
@@ -139,14 +151,24 @@ export default async function DistrictLandingPage({ params }: Props) {
   ];
 
   // Sister districts that ALSO have a published page → real internal links.
-  const sisterDistricts = await prisma.districtLandingPage.findMany({
-    where:  {
-      isPublished: true,
-      district: { in: page.nearbyOutcodes, not: page.district },
-    },
-    select: { district: true, slug: true, anchorTown: true },
-    take:   8,
-  });
+  // Non-critical: if this read fails, just omit the related-districts section
+  // rather than crashing a page whose main content has already loaded.
+  let sisterDistricts: Array<{ district: string; slug: string; anchorTown: string | null }> = [];
+  try {
+    sisterDistricts = await prisma.districtLandingPage.findMany({
+      where:  {
+        isPublished: true,
+        district: { in: page.nearbyOutcodes, not: page.district },
+      },
+      select: { district: true, slug: true, anchorTown: true },
+      take:   8,
+    });
+  } catch (err) {
+    console.error(
+      "[locksmith-in/district] sisterDistricts query failed:",
+      err instanceof Error ? err.message : err,
+    );
+  }
 
   return (
     <main className="bg-white">

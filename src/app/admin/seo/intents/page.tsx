@@ -14,7 +14,17 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminIntentsListPage() {
   const landings = await loadAllIntentLandings();
-  const dbRows = await prisma.intentLanding.findMany({ select: { slug: true } });
+  // The "DB vs static" badge is a nicety — if the DB read fails, still render
+  // the (static-seed-backed) list rather than crashing the whole page.
+  let dbRows: Array<{ slug: string }> = [];
+  try {
+    dbRows = await prisma.intentLanding.findMany({ select: { slug: true } });
+  } catch (err) {
+    console.error(
+      "[admin/seo/intents] DB query failed, showing static seed only:",
+      err instanceof Error ? err.message : err,
+    );
+  }
   const dbSlugs = new Set(dbRows.map((r) => r.slug));
 
   return (

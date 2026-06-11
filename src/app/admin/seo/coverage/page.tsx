@@ -7,7 +7,7 @@ import { ukCitiesData } from "@/lib/uk-cities-data";
 import { SERVICE_CATALOG } from "@/lib/services-catalog";
 import { postcodeData } from "@/lib/postcode-data";
 import { prisma as _prisma } from "@/lib/db";
-import { REGENERATE_AFTER_DAYS } from "@/lib/district-landing/ensure-landing";
+import { REGENERATE_AFTER_DAYS } from "@/lib/district-landing/constants";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const prisma = _prisma as any;
@@ -33,7 +33,7 @@ export default async function AdminSeoCoveragePage() {
   const cities = Object.values(ukCitiesData);
 
   // ── District landing pages ─────────────────────────────────────────
-  const districtPages: Array<{
+  let districtPages: Array<{
     id:            string;
     district:      string;
     slug:          string;
@@ -43,15 +43,28 @@ export default async function AdminSeoCoveragePage() {
     isPublished:   boolean;
     generatedAt:   Date | null;
     updatedAt:     Date;
-  }> = await prisma.districtLandingPage.findMany({
-    select: {
-      id: true, district: true, slug: true,
-      anchorTown: true, contentSource: true,
-      llmModel: true, isPublished: true,
-      generatedAt: true, updatedAt: true,
-    },
-    orderBy: { district: "asc" },
-  });
+  }> = [];
+  let districtDbError = false;
+  try {
+    districtPages = await prisma.districtLandingPage.findMany({
+      select: {
+        id: true, district: true, slug: true,
+        anchorTown: true, contentSource: true,
+        llmModel: true, isPublished: true,
+        generatedAt: true, updatedAt: true,
+      },
+      orderBy: { district: "asc" },
+    });
+  } catch (err) {
+    // Degrade gracefully: the rest of the page (intent/service/city matrices,
+    // all sourced from static TS) still renders. A DB hiccup on this one
+    // query must not take down the whole dashboard with a misleading 404.
+    districtDbError = true;
+    console.error(
+      "[admin/seo/coverage] districtLandingPage query failed:",
+      err instanceof Error ? err.message : err,
+    );
+  }
 
   const now = Date.now();
   const staleMs = REGENERATE_AFTER_DAYS * 24 * 60 * 60 * 1000;
@@ -253,7 +266,19 @@ export default async function AdminSeoCoveragePage() {
             </div>
           </div>
 
-          {districtPages.length === 0 ? (
+          {districtDbError ? (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-6 py-8 text-center text-sm">
+              <p className="font-semibold text-red-700 mb-1">
+                Couldn&apos;t load district landing pages
+              </p>
+              <p className="text-red-600">
+                The database read for this section failed. The rest of this page is
+                still accurate (it&apos;s generated from static config). Check the
+                deployment&apos;s function logs for <code>/admin/seo/coverage</code>,
+                then reload.
+              </p>
+            </div>
+          ) : districtPages.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center text-slate-500 text-sm">
               No district landing pages yet. They are created automatically when a campaign draft is published for a covered district.
             </div>

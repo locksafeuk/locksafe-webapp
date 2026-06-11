@@ -17,7 +17,17 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminKeywordsPage() {
   const templates = await loadAllKeywordTemplates();
-  const dbRows = await prisma.keywordTemplate.findMany({ select: { slug: true } });
+  // The "DB vs static" badge is a nicety — if the DB read fails, still render
+  // the (static-seed-backed) list rather than crashing the whole page.
+  let dbRows: Array<{ slug: string }> = [];
+  try {
+    dbRows = await prisma.keywordTemplate.findMany({ select: { slug: true } });
+  } catch (err) {
+    console.error(
+      "[admin/seo/keywords] DB query failed, showing static seed only:",
+      err instanceof Error ? err.message : err,
+    );
+  }
   const dbSlugs = new Set(dbRows.map((r) => r.slug));
   const totalCities = Object.keys(ukCitiesData).length;
   const totalPages = templates

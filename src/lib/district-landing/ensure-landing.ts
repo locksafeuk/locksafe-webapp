@@ -22,24 +22,18 @@ import {
   NoCoverageError,
 } from "@/lib/district-landing/assemble-facts";
 import { generateDistrictContent } from "@/lib/district-landing/generate-content";
+import { REGENERATE_AFTER_DAYS } from "@/lib/district-landing/constants";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const prisma = _prisma as any;
 
 // ── Configuration ──────────────────────────────────────────────────────────
 
-/**
- * Default regeneration cadence. Pages older than this get refreshed
- * by the next ensure() call. Manual overrides are NEVER regenerated.
- *
- * 90 days = roughly one quarter — long enough for local conditions to
- * have meaningfully shifted (locksmith roster changes, coverage radius
- * adjustments) but short enough that Google's "freshness" signal stays
- * positive on the page.
- */
-export const REGENERATE_AFTER_DAYS = Number(
-  process.env["DISTRICT_LANDING_REGENERATE_DAYS"] ?? "90",
-);
+// REGENERATE_AFTER_DAYS now lives in ./constants (a dependency-free module)
+// so read-only consumers can import it without pulling in this file's
+// LLM/generation dependencies. Re-exported here for backward compatibility
+// with existing importers.
+export { REGENERATE_AFTER_DAYS };
 
 // ── Public types ───────────────────────────────────────────────────────────
 

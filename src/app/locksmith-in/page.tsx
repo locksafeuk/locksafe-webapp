@@ -77,14 +77,25 @@ function bucketRegion(region: string | null): string {
 // ── Page ───────────────────────────────────────────────────────────────────
 
 export default async function LocksmithInHub() {
-  const rows: DistrictRow[] = await prisma.districtLandingPage.findMany({
-    where:  { isPublished: true },
-    select: {
-      district: true, slug: true, anchorTown: true,
-      region: true, heroSubcopy: true, isPublished: true,
-    },
-    orderBy: [{ region: "asc" }, { district: "asc" }],
-  });
+  let rows: DistrictRow[] = [];
+  try {
+    rows = await prisma.districtLandingPage.findMany({
+      where:  { isPublished: true },
+      select: {
+        district: true, slug: true, anchorTown: true,
+        region: true, heroSubcopy: true, isPublished: true,
+      },
+      orderBy: [{ region: "asc" }, { district: "asc" }],
+    });
+  } catch (err) {
+    // Public hub page: a DB failure must NOT 500 a high-traffic SEO entry
+    // point. Fall back to the empty-state ("coverage is being added") which
+    // still shows the hero, trust strip and call-to-action.
+    console.error(
+      "[locksmith-in] districtLandingPage query failed:",
+      err instanceof Error ? err.message : err,
+    );
+  }
 
   // Group by region bucket
   const grouped = new Map<string, DistrictRow[]>();
