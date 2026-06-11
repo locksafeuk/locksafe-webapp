@@ -1,74 +1,101 @@
 /**
- * LockSafe Master Negative Keyword List — UK Locksmith Dispatch
- * ──────────────────────────────────────────────────────────────
+ * LockSafe Master Negative Keyword List — UK Locksmith Dispatch — v3
+ * ───────────────────────────────────────────────────────────────────
  *
  * Bulletproof negative keyword vocabulary for every LockSafe Google Ads
- * Search campaign. Designed to block the categories of search-term
- * waste we have empirically observed (and the categories every reputable
- * locksmith PPC playbook warns about), without over-restricting the
- * actual emergency / booking intent we want to capture.
+ * Search campaign, built to PRO Google Ads Manager standards specific
+ * to the UK locksmith service market.
  *
- * Built 2026-06-10 after the 51-clicks-£337-0-conversions investigation.
- * Sources cross-referenced:
- *   - Our own diag-search-terms output (the 11 queries that wasted spend
- *     in the last 7 days — every single one fell into one of the
- *     categories below)
- *   - groas.com 300+ Google Ads Negative Keywords 2026
- *     (https://www.groas.com/post/google-ads-negative-keywords-list-2026-comprehensive-guide-by-category-industry)
- *   - SwiftLead — Google Ads for Locksmiths UK
- *     (https://swiftlead.co.uk/blog/google-ads-for-locksmiths)
- *   - BlueGrid Media — Google Ads for Locksmiths 2026
- *     (https://bluegridmedia.com/google-ads-for-locksmiths)
- *   - WebFX — PPC for Locksmiths
- *     (https://www.webfx.com/blog/home-services/locksmith-advertising-guide/)
- *   - Locksmith Marketing — Google Ads Blueprint for Locksmiths
- *     (https://www.locksmithwebsites.com/blog/the-google-ads-blueprint-for-locksmiths-how-to-get-more-calls-without-wasting-money)
- *   - LockPickingLawyer Wikipedia + locksport YouTube channel research
+ * Background — why this exists
+ * ────────────────────────────
+ * On 2026-06-10/11 we burned £337 / 51 clicks across 5 live campaigns
+ * with ZERO conversions. Diagnosis (via search-terms report):
+ *   9 of 11 wasted queries were price-research, DIY-tutorial, or
+ *   spare-parts intent. The fix is not better ad copy or landing
+ *   pages — those audiences will never call no matter what.
  *
- * Match type strategy
+ * v1 (430 entries) was a fast first pass. This v2 is the
+ * pro-grade rewrite, drawing on:
+ *   1. Direct search-terms data from our own campaigns
+ *   2. groas 2026 — 300+ Google Ads Negative Keywords guide
+ *      (https://www.groas.com/post/google-ads-negative-keywords-list-2026-comprehensive-guide-by-category-industry)
+ *   3. SwiftLead UK — Google Ads for Locksmiths
+ *      (https://swiftlead.co.uk/blog/google-ads-for-locksmiths)
+ *   4. Matt James PPC UK — Locksmith Google Ads guide
+ *      (https://mattjamesppc.co.uk/ppc/the-ultimate-guide-to-setting-up-google-ads-for-your-locksmith-business/)
+ *   5. BlueGrid Media — Google Ads for Locksmiths 2026
+ *      (https://bluegridmedia.com/google-ads-for-locksmiths)
+ *   6. WebFX — PPC for Locksmiths
+ *      (https://www.webfx.com/blog/home-services/locksmith-advertising-guide/)
+ *   7. MLA (Master Locksmiths Association)
+ *      (https://www.locksmiths.co.uk) — 350 approved companies; UK
+ *      terminology + scam patterns
+ *   8. BS3621 / TS007 / Kitemark insurance standards
+ *   9. LockPickingLawyer + locksport YouTube ecosystem research
+ *  10. Wikipedia "Locksmith scam" + Which.co.uk + MLA scam pages
+ *      (the "49er" / £19-49-59 bait pattern documented in UK media)
+ *  11. UK national chain competitors (Keytek, LockRite, Anglian)
+ *  12. UK lock brand landscape (Yale, Chubb, ERA, Avocet ABS, Banham,
+ *      Ingersoll, Brisant Ultion, Mul-T-Lock, ASSA Abloy, Squire, ABUS,
+ *      Mottura, KESO, KFV, Roto, GU, Mila, Hoppe, Fab&Fix, Winkhaus,
+ *      Ferco, Charisma, Maco)
+ *  13. UK smart lock landscape (Yale Linus, Yale Conexis L1/L2,
+ *      Ultion Nuki 2025, Nuki 4.0, August Smart, Nest x Yale,
+ *      Schlage Encode, Bold, Loqed, Simpled, Danalock, Netatmo)
+ *  14. UK auto lock ecosystem (relay attack, keyless entry, Faraday
+ *      pouch, key fob programming, transponder, immobiliser)
+ *  15. UK car brands and models (frequently-stolen list per DVLA)
+ *  16. The Locksmith 2023 film (Ryan Phillippe / Kate Bosworth /
+ *      Ving Rhames) + Locksmith rapper (Davood Ali Asgari / Frontline)
+ *  17. Tenant / landlord lock-change law (UK Housing Act, deposit
+ *      disputes, change-locks-without-notice)
+ *  18. Lock terminology research (BS3621 explained, what is anti-snap,
+ *      mortice vs deadlock guide)
+ *  19. One Base Media UK locksmith keyword research
+ *      (https://onebasemedia.co.uk/seo-keywords-for-locksmiths/) —
+ *      500+ keywords with UK monthly search volumes; revealed Timpson
+ *      dominance of "key cutting", car-key-replacement long-tail
+ *      volumes (audi a3 key replacement, vw fob, bmw e46, etc.), and
+ *      ~40 named UK locksmith competitors bidding their own brand
+ *  20. Timpson (UK's leading retail key-cutting chain — inside
+ *      Sainsbury's, Tesco, Morrisons, Asda)
+ *
+ * Architecture
+ * ────────────
+ * Categories are exported separately so a maintenance UI can show
+ * "which negatives are blocking this query and why". The MASTER export
+ * is the deduplicated union.
+ *
+ * Match-type strategy
  * ───────────────────
- * Default match type = PHRASE.
- *   - PHRASE blocks the exact phrase (in order) anywhere in the query
- *   - Won't kill close variants where word order changes (intentional —
- *     leaves headroom for legitimate intent permutations)
- * Specific exceptions are marked with `matchType: "BROAD"` (block any
- * query containing all the words) or `matchType: "EXACT"` (block only
- * that exact query).
+ * Default = PHRASE — blocks the literal phrase in order anywhere in the
+ * query, without killing legitimate close variants. Specific entries
+ * are marked BROAD (every word, any order) or EXACT (only that exact
+ * query) where the noise/legitimacy ratio demands it.
  *
- * What we DO NOT block (deliberate, against the simpler advice in some
- * guides):
- *   - "near me" — fundamental to local-service intent
- *   - "cheap" — price-sensitive emergency callers still convert
- *   - "review(s)" — even research-mode searchers may convert later
- *   - "best" — same reason
- *   - "quote" — high intent: people who want a quote will call
- *   - "emergency" — obviously stay
- *   - Specific UK city / county / postcode names — geo is handled by
- *     PRESENCE targeting, not by negative keywords
+ * Deliberate NON-blocks (against the simpler advice in some guides)
+ * ──────────────────────────────────────────────────────────────────
+ *   - "near me"                — fundamental to local emergency intent
+ *   - "cheap"                  — desperate emergency callers convert
+ *   - "review" / "reviews"     — research-mode users may convert
+ *   - "best"                   — same reason
+ *   - "quote"                  — "get a quote" leads to a call
+ *   - "emergency"              — obviously stays
+ *   - "rogue locksmith"        — high intent: user wants honest one
+ *   - "trustworthy locksmith"  — high intent
+ *   - "MLA approved"           — high intent
+ *   - "insurance approved locksmith" — high intent (fitter wanted)
+ *   - "anti-snap lock fitter"  — fitter wanted (block only +"buy"/"parts")
+ *   - "BS3621 lock fitter"     — same
+ *   - UK city/county/postcode  — geo targeting handles this
  *
- * What we DO block (with rationale embedded per category):
- *   - Price-research intent (how much / cost / price …)
- *   - DIY / how-to / tutorial intent (how to / yourself / youtube …)
- *   - Spare-parts and DIY retailer searches (parts / spares / Screwfix
- *     / B&Q / Argos / Wickes …)
- *   - Job seekers / training (salary / apprenticeship / course …)
- *   - Lock picking / hobby / locksport (lockpick / bump key /
- *     LockPickingLawyer …)
- *   - Smart-lock product research (yale smart lock / yale conexis …)
- *   - Wrong-geo / non-UK (NYC / brooklyn / florida …)
- *   - Wrong-service (padlock / bike lock / safe / gun safe …) where
- *     LockSafe does not currently dispatch
- *   - Adult / off-topic / pop culture (porn / lyrics / fortnite …)
- *   - Free / discount seekers (free / freebie / voucher …)
- *   - Insurance / legal claim adjacency
- *   - Locksmith name disambiguation (Locksmith rapper / wikipedia)
- *
- * Maintenance
- * ───────────
- * The cron at `/api/cron/google-ads-search-terms-review` (built
- * separately) inspects the search-terms report weekly and proposes
- * additions. Approved additions append to MASTER below; the upload
- * endpoint re-syncs the shared list.
+ * Future v3 directions
+ * ────────────────────
+ *   - Add seasonal terms when Halloween / New Year break-in surges
+ *   - Auto-import flagged terms from /api/cron/google-ads-search-terms
+ *   - When LockSafe expands to auto-locksmith, REMOVE the CAR_BRANDS
+ *     and AUTO_LOCKSMITH categories
+ *   - When LockSafe expands to safes, REMOVE the SAFE_SERVICES category
  */
 
 export interface NegativeKeyword {
@@ -76,15 +103,13 @@ export interface NegativeKeyword {
   matchType: "PHRASE" | "BROAD" | "EXACT";
 }
 
-/** Helper — most entries are phrase-match. */
 const P = (text: string): NegativeKeyword => ({ text, matchType: "PHRASE" });
-/** Broad — every word must appear, order doesn't matter. */
-const B = (text: string): NegativeKeyword => ({ text, matchType: "BROAD" });
-/** Exact — only this precise query. */
-const E = (text: string): NegativeKeyword => ({ text, matchType: "EXACT" });
+// const B = (text: string): NegativeKeyword => ({ text, matchType: "BROAD" });
+// const E = (text: string): NegativeKeyword => ({ text, matchType: "EXACT" });
 
-/** Category 1 — Price / cost research intent.
- *  Captured 5 of 11 wasted clicks in our 7-day search-terms diag. */
+// ═════════════════════════════════════════════════════════════════
+// Category 1 — Price / cost / quote research intent
+// ═════════════════════════════════════════════════════════════════
 const PRICE_RESEARCH: NegativeKeyword[] = [
   P("how much"),
   P("how much for"),
@@ -95,6 +120,12 @@ const PRICE_RESEARCH: NegativeKeyword[] = [
   P("how much should"),
   P("how much would"),
   P("how much will"),
+  P("how much money"),
+  P("how much earn"),
+  P("how much do they earn"),
+  P("how much do they make"),
+  P("how much does it cost"),
+  P("how much do i need"),
   P("cost"),
   P("costs"),
   P("how much cost"),
@@ -103,35 +134,55 @@ const PRICE_RESEARCH: NegativeKeyword[] = [
   P("pricing"),
   P("price list"),
   P("price guide"),
-  P("rates"),
-  P("rate"),
   P("price comparison"),
   P("compare prices"),
   P("price range"),
+  P("rates"),
+  P("rate"),
+  P("call out rate"),
+  P("call out price"),
   P("average cost"),
   P("typical cost"),
   P("typical price"),
+  P("standard price"),
+  P("standard cost"),
   P("estimate"),
   P("estimates"),
   P("get estimate"),
   P("ballpark"),
+  P("ballpark figure"),
   P("uk average"),
+  P("market rate"),
+  P("market price"),
+  P("rough price"),
+  P("rough cost"),
+  P("rough idea cost"),
+  P("expected cost"),
+  P("realistic cost"),
 ];
 
-/** Category 2 — DIY / How-to / Tutorial intent.
- *  Captured 4 of 11 wasted clicks (the "how to change locks", "changing
- *  locks on door" set). */
+// ═════════════════════════════════════════════════════════════════
+// Category 2 — DIY / how-to / tutorial / self-help
+// ═════════════════════════════════════════════════════════════════
 const DIY_HOWTO: NegativeKeyword[] = [
   P("how to"),
   P("how do you"),
   P("how do i"),
+  P("how can i"),
   P("can i"),
+  P("can you"),
+  P("can someone"),
   P("tutorial"),
   P("tutorials"),
+  P("how to tutorial"),
   P("guide"),
   P("guide to"),
   P("step by step"),
+  P("step-by-step"),
   P("instructions"),
+  P("instruction"),
+  P("manual"),
+  P("how-to manual"),
   P("walkthrough"),
   P("walk through"),
   P("diy"),
@@ -140,74 +191,153 @@ const DIY_HOWTO: NegativeKeyword[] = [
   P("yourself"),
   P("by yourself"),
   P("on your own"),
+  P("at home"),
+  P("home guide"),
+  P("homemade"),
+  P("hand made"),
   P("youtube"),
   P("video"),
   P("videos"),
   P("watch"),
   P("youtube video"),
+  P("youtube tutorial"),
   P("learn"),
   P("learning"),
   P("teach"),
   P("teach me"),
   P("teach yourself"),
   P("self taught"),
+  P("self help"),
+  P("self-help"),
   P("hack"),
+  P("hacks"),
+  P("life hack"),
   P("trick"),
   P("tricks"),
-  P("life hack"),
   P("tips"),
   P("tips and tricks"),
+  P("top tips"),
+  P("free advice"),
   P("explained"),
   P("explanation"),
   P("what is"),
   P("what are"),
   P("what does"),
+  P("what type"),
+  P("which type"),
   P("definition"),
   P("define"),
   P("meaning"),
-  P("wiki"),
-  P("wikipedia"),
+  P("explained simply"),
+  P("explained for dummies"),
+  P("for dummies"),
+  P("beginner"),
+  P("beginners"),
+  P("beginner guide"),
+  P("intro to"),
+  P("introduction to"),
+  P("basics of"),
+  P("course"),
+  P("free course"),
+  P("how does it work"),
+  P("how does that work"),
+  P("how do they work"),
+  P("how does a"),
+  P("can it be"),
+  P("is it possible"),
+  P("change locks yourself"),
+  P("replace locks yourself"),
+  P("fit lock yourself"),
+  P("install lock yourself"),
+  P("remove lock"),
+  P("remove broken key"),
+  P("open lock without key"),
+  P("open locked door"),
+  P("opening locked door"),
+  P("how to open locked door"),
+  P("get into locked"),
+  P("break a lock"),
+  P("break lock"),
+  P("force open"),
 ];
 
-/** Category 3 — Parts, spares, DIY retailers (UK).
- *  Captured 2 of 11 wasted clicks ("upvc door lock spares" and
- *  "cost to replace upvc door lock mechanism near me"). */
+// ═════════════════════════════════════════════════════════════════
+// Category 3 — Parts, spares, DIY retailers (UK + International)
+// ═════════════════════════════════════════════════════════════════
 const PARTS_SPARES_RETAILERS: NegativeKeyword[] = [
+  // Generic parts/spares language
   P("spares"),
   P("spare"),
   P("spare parts"),
   P("parts"),
   P("part"),
-  P("replacement parts"),
   P("replacement part"),
+  P("replacement parts"),
   P("mechanism"),
   P("mechanisms"),
   P("door mechanism"),
   P("lock mechanism"),
+  P("multipoint mechanism"),
+  P("multi point mechanism"),
+  P("multi-point mechanism"),
+  P("gearbox"),
+  P("lock gearbox"),
+  P("door gearbox"),
   P("kit"),
   P("kits"),
+  P("install kit"),
+  P("replacement kit"),
   P("supplies"),
   P("supply"),
+  P("locksmith supplies"),
   P("supplier"),
   P("suppliers"),
+  P("locksmith supplier"),
   P("wholesale"),
   P("wholesalers"),
+  P("trade only"),
+  P("trade prices"),
+  P("trade discount"),
   P("manufacturer"),
   P("manufacturers"),
   P("factory"),
+  P("factory direct"),
   P("dropship"),
   P("dropshipping"),
-  P("trade only"),
-  P("trade prices"),
+  P("white label"),
+  P("private label"),
   P("buy"),
+  P("buying"),
   P("for sale"),
+  P("on sale"),
   P("shop"),
-  P("store"),
   P("shop online"),
+  P("online shop"),
   P("online store"),
+  P("store"),
   P("buy online"),
   P("order online"),
-  // UK retailers
+  P("delivery"),
+  P("next day delivery"),
+  P("free delivery"),
+  P("amazon prime"),
+  P("prime delivery"),
+  P("where to buy"),
+  P("where can i buy"),
+  P("where do i buy"),
+  P("which to buy"),
+  // Lock product categories (research/buying)
+  P("door handle"),
+  P("door handles"),
+  P("handle set"),
+  P("escutcheon"),
+  P("strike plate"),
+  P("keep plate"),
+  P("cylinder buy"),
+  P("euro cylinder buy"),
+  P("anti snap cylinder buy"),
+  P("anti-snap cylinder buy"),
+  // UK High-street DIY retailers
   P("b&q"),
   P("b and q"),
   P("bandq"),
@@ -219,31 +349,65 @@ const PARTS_SPARES_RETAILERS: NegativeKeyword[] = [
   P("john lewis"),
   P("ikea"),
   P("amazon"),
+  P("amazon uk"),
   P("ebay"),
+  P("ebay uk"),
   P("etsy"),
   P("aliexpress"),
   P("alibaba"),
+  P("temu"),
+  P("shein"),
   P("wayfair"),
   P("manomano"),
+  P("mano mano"),
   P("tradepoint"),
+  P("trade point"),
   P("halfords"),
   P("currys"),
   P("selco"),
+  P("selco builders"),
   P("ao"),
   P("ao.com"),
   P("dunelm"),
+  P("the range"),
   P("range"),
   P("hobbycraft"),
-  P("the range"),
-  // Locksmith-supply specifics
+  P("dewalt"),
+  P("makita"),
+  // Specialist lock retailers / locksmith supply
+  P("locksmith pro"),
+  P("locksmithpro"),
+  P("locksmith ledger"),
   P("souber"),
-  P("locksmith supplies"),
-  P("locksmith supplier"),
+  P("souber tools"),
+  P("mr key world"),
+  P("midas"),
+  P("ksp"),
+  P("ksp locksmith"),
+  P("oxford locksmith supplies"),
+  P("lock monster"),
+  P("lockmonster"),
+  P("duffells"),
+  P("kingdom doors"),
+  P("ironmongerydirect"),
+  P("ironmongery direct"),
+  P("door furniture direct"),
+  P("doors direct"),
+  P("safelincs"),
+  P("hindleys"),
+  P("lockpro"),
+  P("keys 4 u"),
+  P("keys4u"),
+  P("oddlocks"),
+  P("rare locks"),
+  P("lockey uk"),
+  P("the locks shop"),
+  P("door & window"),
 ];
 
-/** Category 4 — Lock picking / Locksport / Hobby / YouTube creators.
- *  Burns budget on people who never want a service — they want to
- *  watch a lock get picked. */
+// ═════════════════════════════════════════════════════════════════
+// Category 4 — Lock picking, locksport, YouTube creators, sims
+// ═════════════════════════════════════════════════════════════════
 const LOCKPICKING_HOBBY: NegativeKeyword[] = [
   P("lock pick"),
   P("lockpick"),
@@ -253,64 +417,155 @@ const LOCKPICKING_HOBBY: NegativeKeyword[] = [
   P("pick lock"),
   P("picking a lock"),
   P("how to pick"),
+  P("how to pick a lock"),
   P("picked"),
   P("picking"),
   P("pick set"),
+  P("pick gun"),
+  P("snap gun"),
+  P("pickgun"),
   P("lockpick set"),
   P("lock pick set"),
+  P("starter pick set"),
+  P("beginner pick set"),
+  P("pick kit"),
+  P("padlock pick"),
+  P("padlock picking"),
+  P("transparent lock"),
+  P("clear lock"),
+  P("see through lock"),
+  P("cutaway lock"),
+  P("training lock"),
+  P("practice lock"),
+  P("learn to pick"),
+  P("master pick"),
+  P("rake"),
+  P("raking"),
+  P("rake a lock"),
+  P("tension wrench"),
+  P("tension tool"),
+  P("single pin picking"),
+  P("spp"),
   P("bump key"),
   P("bump keys"),
   P("bumping"),
   P("bumping a lock"),
   P("snap"),
   P("snapping"),
-  P("snap gun"),
   P("snapping lock"),
+  P("snapped lock"),
+  P("snap method"),
   P("bypass"),
   P("bypass tool"),
+  P("bypass attack"),
+  P("decoder"),
+  P("decoder pick"),
   P("locksport"),
   P("lock sport"),
+  P("lock smithing hobby"),
   P("locksmithing hobby"),
   P("hobby"),
   P("hobbyist"),
+  P("hobby pick"),
+  // YouTube channels / personalities
   P("lockpickinglawyer"),
   P("lock picking lawyer"),
   P("bosnianbill"),
   P("bosnian bill"),
+  P("bill johnson"),
   P("deviant ollam"),
   P("helpful lock picker"),
+  P("helpfullockpicker"),
   P("mr locksmith"),
+  P("mrlocksmith"),
+  P("mcnally"),
+  P("mcnallyofficial"),
+  P("mcnally locksmith"),
+  P("covert instruments"),
+  P("tool"),
+  P("nigel tolley"),
+  P("yt locksmith"),
+  P("asmr lock"),
   P("asmr"),
   P("satisfying"),
   P("oddly satisfying"),
+  P("oddly satisfying video"),
   P("compilation"),
+  P("compilation video"),
+  P("reaction"),
+  P("reaction video"),
+  // Games / simulators / interactive media
   P("game"),
   P("video game"),
   P("simulator"),
   P("lockpicking simulator"),
+  P("locksmith simulator"),
+  P("locksmith game"),
+  P("locksmith roblox"),
+  P("locksmith mod"),
   P("lock pick game"),
+  P("mini game"),
   P("fallout"),
+  P("fallout 4"),
+  P("fallout 76"),
+  P("fallout new vegas"),
   P("skyrim"),
+  P("skyrim lockpicking"),
+  P("skyrim lockpick"),
+  P("elder scrolls"),
+  P("oblivion lockpick"),
   P("ghost recon"),
   P("hitman"),
+  P("hitman game"),
   P("dishonored"),
+  P("thief"),
+  P("thief game"),
   P("minecraft"),
   P("roblox"),
   P("fortnite"),
+  P("rust"),
+  P("gta"),
+  P("gta 5"),
+  P("gta v"),
+  P("cyberpunk"),
+  P("starfield"),
+  P("baldurs gate"),
+  P("baldur's gate"),
+  P("escape room"),
+  P("escape game"),
+  P("puzzle"),
+  P("puzzle game"),
+  P("riddle"),
 ];
 
-/** Category 5 — Jobs / careers / training / apprenticeships.
- *  Job-seekers searching "locksmith jobs" or "become a locksmith"
- *  trigger our keywords easily under phrase match. */
+// ═════════════════════════════════════════════════════════════════
+// Category 5 — Jobs, careers, training, apprenticeships, education
+// ═════════════════════════════════════════════════════════════════
 const JOBS_TRAINING: NegativeKeyword[] = [
+  // Jobs
   P("jobs"),
   P("job"),
+  P("job listing"),
+  P("job listings"),
+  P("job opening"),
+  P("job openings"),
+  P("job vacancy"),
+  P("job description"),
   P("career"),
   P("careers"),
   P("vacancy"),
   P("vacancies"),
   P("hiring"),
   P("hire me"),
+  P("now hiring"),
+  P("we're hiring"),
+  P("looking for work"),
+  P("looking for job"),
+  P("seeking work"),
+  P("self employed"),
+  P("self-employed"),
+  P("freelance"),
+  P("freelancing"),
   P("recruitment"),
   P("recruiter"),
   P("recruit"),
@@ -322,44 +577,95 @@ const JOBS_TRAINING: NegativeKeyword[] = [
   P("wages"),
   P("pay"),
   P("payscale"),
-  P("how much earn"),
-  P("how much do they earn"),
-  P("how much do they make"),
+  P("hourly rate"),
+  P("uk salary"),
   P("cv"),
   P("resume"),
   P("cover letter"),
   P("interview"),
+  P("interview question"),
   P("interview questions"),
-  P("job description"),
+  // UK job boards
   P("indeed"),
+  P("indeed.co.uk"),
+  P("indeed uk"),
   P("totaljobs"),
+  P("total jobs"),
   P("reed"),
   P("reed.co.uk"),
   P("monster"),
+  P("monster.co.uk"),
   P("glassdoor"),
-  P("gumtree job"),
+  P("gumtree"),
   P("linkedin job"),
+  P("linkedin jobs"),
+  P("cwjobs"),
+  P("cv library"),
+  P("jobsite"),
+  P("the recruitment guru"),
+  P("national careers"),
+  P("national careers service"),
+  P("jobcentre"),
+  P("job centre"),
+  P("jcp"),
+  // Apprenticeships + training
   P("apprentice"),
   P("apprenticeship"),
+  P("apprenticeships"),
   P("intern"),
   P("internship"),
+  P("trainee"),
   P("training"),
   P("training course"),
+  P("training courses"),
   P("course"),
   P("courses"),
   P("classes"),
+  P("class"),
+  P("workshop"),
   P("school"),
+  P("schools"),
   P("college"),
   P("university"),
   P("academy"),
+  P("trade school"),
+  P("tafe"),
+  P("seminar"),
+  P("webinar"),
+  // Specific UK training providers
+  P("keytek academy"),
+  P("mpl locksmith"),
+  P("mpl-locksmith"),
+  P("mpl training"),
+  P("uk locksmith association"),
+  P("uk locksmiths association"),
+  P("gateshead locksmith training"),
+  P("taylor locksmith training"),
+  P("nclock"),
+  P("city locksmith training"),
+  P("manchester locksmith training"),
+  P("london locksmith training"),
+  P("birmingham locksmith training"),
+  // Becoming / starting
   P("learn locksmith"),
+  P("learn locksmithing"),
   P("become a locksmith"),
   P("become locksmith"),
   P("becoming a locksmith"),
   P("how to become"),
+  P("how do i become"),
   P("starting out"),
   P("start a business"),
+  P("starting a business"),
   P("how to start"),
+  P("how to start a locksmith"),
+  P("set up locksmith business"),
+  P("starting locksmith business"),
+  P("business plan locksmith"),
+  P("franchise"),
+  P("franchise opportunity"),
+  P("business for sale"),
+  // Qualifications
   P("qualification"),
   P("qualifications"),
   P("qualified"),
@@ -369,6 +675,7 @@ const JOBS_TRAINING: NegativeKeyword[] = [
   P("certify"),
   P("exam"),
   P("nvq"),
+  P("nvq level"),
   P("city and guilds"),
   P("city & guilds"),
   P("ncfe"),
@@ -376,175 +683,434 @@ const JOBS_TRAINING: NegativeKeyword[] = [
   P("gcse"),
   P("a level"),
   P("a-level"),
-  P("mla membership"),
-  P("master locksmiths association"),
   P("study"),
   P("studying"),
   P("study material"),
   P("test prep"),
   P("study guide"),
+  P("revision"),
+  P("revision notes"),
   P("training jobs"),
+  P("mla membership"),
+  P("become an mla member"),
+  P("join mla"),
+  P("master locksmiths association membership"),
 ];
 
-/** Category 6 — Smart lock / product research.
- *  "yale smart lock", "yale conexis", etc. — homeowner shopping for a
- *  product, not a service. */
+// ═════════════════════════════════════════════════════════════════
+// Category 6 — Smart lock + traditional lock product brand searches
+// ═════════════════════════════════════════════════════════════════
 const PRODUCT_BRANDS: NegativeKeyword[] = [
+  // Yale + smart family
   P("yale smart lock"),
   P("yale connect"),
   P("yale conexis"),
+  P("yale conexis l1"),
+  P("yale conexis l2"),
   P("yale keyless"),
+  P("yale keyless connected"),
   P("yale assure"),
+  P("yale assure 2"),
+  P("yale assure lock 2"),
   P("yale doorman"),
   P("yale linus"),
+  P("yale linus l2"),
   P("yale approach"),
   P("yale matter"),
   P("yale keypad"),
   P("yale app"),
+  P("yale review"),
+  P("yale lock review"),
+  P("yale install"),
+  P("yale installation"),
+  P("yale battery"),
+  P("yale fitting"),
   P("nest yale"),
   P("nest x yale"),
+  P("yale smart"),
+  // Chubb
   P("chubb"),
   P("chubb lock"),
   P("chubb mortice"),
+  P("chubb locks"),
+  P("chubb safe"),
+  // Mul-T-Lock
   P("mul-t-lock"),
   P("mul t lock"),
   P("multilock"),
+  P("mul-t-lock review"),
+  // ASSA Abloy
   P("assa abloy"),
+  P("assa"),
+  P("assa lock"),
+  P("assa twin"),
+  // ERA
   P("era"),
   P("era lock"),
+  P("era locks"),
+  P("era door"),
+  P("era multipoint"),
+  // Avocet
   P("avocet"),
   P("avocet abs"),
   P("abs lock"),
-  P("kale"),
-  P("kale kilit"),
-  P("abus"),
+  P("abs cylinder"),
+  P("avocet review"),
+  // Brisant Ultion
   P("brisant"),
+  P("brisant secure"),
   P("ultion"),
   P("ultion lock"),
   P("ultion key"),
+  P("ultion review"),
+  P("ultion 3 star"),
+  P("ultion nuki"),
+  P("ultion nuki 2025"),
+  P("ultion fit"),
+  // Banham
   P("banham"),
   P("banham lock"),
+  P("banham insurance"),
+  P("banham mortice"),
+  P("banham review"),
+  // Squire
   P("squire"),
   P("squire lock"),
+  P("squire padlock"),
+  // Ingersoll
   P("ingersoll"),
+  P("ingersoll lock"),
+  P("ingersoll sc71"),
+  // ABUS / Brisant tier
+  P("abus"),
+  P("abus lock"),
+  P("abus padlock"),
+  // EU / other manufacturers stocked at UK retailers
+  P("mottura"),
+  P("keso"),
+  P("kfv"),
+  P("roto"),
+  P("roto gear"),
+  P("gu lock"),
+  P("gu multipoint"),
+  P("mila"),
+  P("mila hardware"),
+  P("hoppe"),
+  P("hoppe handle"),
   P("fab&fix"),
   P("fab and fix"),
-  P("mila"),
-  P("hoppe"),
-  P("yale smart"),
+  P("winkhaus"),
+  P("winkhaus lock"),
+  P("ferco"),
+  P("charisma"),
+  P("maco"),
+  P("securistyle"),
+  P("simon swiss"),
+  P("evva"),
+  P("evva lock"),
+  P("dom lock"),
+  P("dom locks"),
+  P("cisa"),
+  P("cisa lock"),
+  P("union"),
+  P("union lock"),
+  P("union mortice"),
+  P("willenhall"),
+  P("kale"),
+  P("kale kilit"),
+  P("legge"),
+  P("legge lock"),
+  P("yale 5 lever"),
+  P("yale mortice"),
+  // Smart locks (other brands)
   P("nuki"),
+  P("nuki 4"),
+  P("nuki smart lock"),
+  P("nuki 2.0"),
+  P("nuki pro"),
   P("august smart"),
+  P("august lock"),
+  P("august wifi"),
   P("schlage"),
+  P("schlage encode"),
+  P("schlage sense"),
   P("kwikset"),
+  P("kwikset halo"),
+  P("bold smart"),
+  P("bold lock"),
+  P("loqed"),
+  P("loqed touch"),
+  P("simpled"),
+  P("danalock"),
+  P("danalock v3"),
+  P("netatmo"),
+  P("netatmo lock"),
+  P("samsung smartthings lock"),
+  P("eufy lock"),
+  P("eufy security"),
+  P("aqara"),
+  P("aqara lock"),
+  P("philips lock"),
+  P("philips smart"),
+  P("ring smart lock"),
+  // Generic product research signals
   P("smart lock review"),
+  P("smart lock reviews"),
   P("best smart lock"),
+  P("which smart lock"),
+  P("smart lock comparison"),
+  P("compare smart lock"),
+  P("smart lock 2026"),
+  P("smart lock 2025"),
+  P("smart lock for sale"),
   P("amazon ring"),
   P("ring doorbell"),
+  P("ring camera"),
+  // Old searches that include locksmith but really mean shopping
+  P("yale lock 5 lever buy"),
+  P("yale lock for sale"),
 ];
 
-/** Category 7 — Wrong / non-UK geography.
- *  We are UK-only. Phrase-match on US / international city names
- *  catches comparison shoppers from other markets. */
+// ═════════════════════════════════════════════════════════════════
+// Category 7 — Non-UK geography (we are UK-only)
+// ═════════════════════════════════════════════════════════════════
 const NON_UK_GEO: NegativeKeyword[] = [
+  // USA
   P("usa"),
-  P("us"),
+  P("u.s.a"),
   P("united states"),
   P("america"),
   P("american"),
+  P("americas"),
+  // US cities
   P("new york"),
+  P("new york city"),
   P("nyc"),
   P("brooklyn"),
   P("manhattan"),
   P("queens"),
   P("bronx"),
+  P("staten island"),
   P("los angeles"),
   P("la"),
+  P("hollywood"),
   P("chicago"),
+  P("illinois"),
   P("florida"),
   P("miami"),
   P("orlando"),
+  P("tampa"),
+  P("jacksonville"),
   P("texas"),
   P("houston"),
   P("dallas"),
   P("austin"),
+  P("san antonio"),
   P("boston"),
+  P("massachusetts"),
   P("philadelphia"),
+  P("pennsylvania"),
+  P("pittsburgh"),
   P("seattle"),
+  P("washington"),
+  P("washington dc"),
   P("denver"),
-  P("atlanta"),
-  P("phoenix"),
   P("colorado"),
+  P("atlanta"),
+  P("georgia"),
+  P("phoenix"),
+  P("arizona"),
   P("nevada"),
   P("vegas"),
   P("las vegas"),
   P("san francisco"),
+  P("san jose"),
   P("san diego"),
+  P("oakland"),
   P("california"),
+  P("oregon"),
+  P("portland"),
   P("hawaii"),
+  P("honolulu"),
+  P("alaska"),
+  P("minneapolis"),
+  P("minnesota"),
+  P("detroit"),
+  P("michigan"),
+  P("cleveland"),
+  P("ohio"),
+  P("cincinnati"),
+  P("kansas city"),
+  P("missouri"),
+  P("st louis"),
+  P("nashville"),
+  P("tennessee"),
+  P("memphis"),
+  P("charlotte"),
+  P("north carolina"),
+  P("south carolina"),
+  P("raleigh"),
+  P("atlanta georgia"),
+  P("baltimore"),
+  P("maryland"),
+  P("virginia"),
+  P("richmond va"),
+  P("indianapolis"),
+  P("indiana"),
+  P("wisconsin"),
+  P("milwaukee"),
+  P("oklahoma"),
+  P("louisiana"),
+  P("new orleans"),
+  P("salt lake city"),
+  P("utah"),
+  P("new jersey"),
+  P("connecticut"),
+  P("rhode island"),
+  P("vermont"),
+  P("maine"),
+  P("new hampshire"),
+  // Canada
   P("canada"),
+  P("canadian"),
   P("toronto"),
   P("vancouver"),
   P("montreal"),
   P("calgary"),
   P("ottawa"),
+  P("edmonton"),
+  P("winnipeg"),
+  P("quebec"),
+  P("alberta"),
+  P("british columbia"),
+  P("ontario"),
+  // Australia / NZ
   P("australia"),
+  P("australian"),
   P("sydney"),
   P("melbourne"),
   P("brisbane"),
   P("perth"),
   P("adelaide"),
+  P("canberra"),
+  P("gold coast"),
   P("new zealand"),
+  P("nz"),
   P("auckland"),
+  P("wellington"),
+  P("christchurch"),
+  // Ireland (we don't service ROI)
   P("ireland"),
   P("dublin"),
   P("cork"),
-  P("india"),
-  P("delhi"),
-  P("mumbai"),
-  P("bangalore"),
-  P("dubai"),
-  P("uae"),
-  P("singapore"),
-  P("philippines"),
-  P("manila"),
+  P("galway"),
+  P("limerick"),
+  P("waterford"),
+  P("kilkenny"),
+  P("republic of ireland"),
+  // Other English-speaking
   P("south africa"),
   P("johannesburg"),
   P("cape town"),
+  P("durban"),
+  P("pretoria"),
+  // Asia / Middle East
+  P("india"),
+  P("indian"),
+  P("delhi"),
+  P("mumbai"),
+  P("bangalore"),
+  P("chennai"),
+  P("kolkata"),
+  P("hyderabad"),
+  P("dubai"),
+  P("uae"),
+  P("united arab emirates"),
+  P("abu dhabi"),
+  P("qatar"),
+  P("doha"),
+  P("kuwait"),
+  P("saudi arabia"),
+  P("riyadh"),
+  P("singapore"),
+  P("hong kong"),
+  P("philippines"),
+  P("manila"),
+  P("malaysia"),
+  P("kuala lumpur"),
+  P("thailand"),
+  P("bangkok"),
+  P("japan"),
+  P("tokyo"),
+  P("china"),
+  P("beijing"),
+  P("shanghai"),
 ];
 
-/** Category 8 — Wrong service / out-of-scope.
- *  LockSafe dispatches domestic + commercial door locksmiths. We do NOT
- *  currently service: padlocks, bike/bicycle locks, suitcases, safes,
- *  gun safes, mailboxes, lockers, gates (large industrial), or piano
- *  locks. Block those upfront. */
+// ═════════════════════════════════════════════════════════════════
+// Category 8 — Out-of-scope service types (LockSafe doesn't dispatch)
+// ═════════════════════════════════════════════════════════════════
 const OUT_OF_SCOPE: NegativeKeyword[] = [
+  // Padlocks (retail)
   P("padlock"),
   P("padlocks"),
+  P("padlock buy"),
+  P("master padlock"),
+  P("master lock"),
+  P("combination padlock"),
+  P("combination lock"),
+  P("gym padlock"),
+  P("locker padlock"),
+  // Bike / bicycle
   P("bike lock"),
   P("bicycle lock"),
   P("cycle lock"),
   P("kryptonite"),
+  P("kryptonite lock"),
   P("d lock"),
+  P("d-lock"),
   P("u lock"),
+  P("u-lock"),
   P("chain lock"),
+  P("foldable lock"),
+  P("smart bike lock"),
+  // Bag / suitcase / cabinets
   P("suitcase lock"),
   P("luggage lock"),
+  P("travel lock"),
+  P("tsa lock"),
   P("briefcase lock"),
   P("backpack lock"),
+  P("rucksack lock"),
+  // Safes / vaults (we don't service safes today)
   P("safe"),
   P("safes"),
   P("safe locksmith"),
+  P("safe engineer"),
   P("safe cracker"),
   P("safe cracking"),
   P("safe opening"),
   P("safe combination"),
+  P("home safe"),
+  P("fireproof safe"),
+  P("digital safe"),
+  P("electronic safe"),
   P("gun safe"),
   P("vault"),
   P("vaults"),
+  P("vault engineer"),
   P("filing cabinet"),
   P("file cabinet"),
+  P("cash safe"),
+  P("deposit safe"),
+  P("hotel safe"),
+  // Drawers + cabinets
   P("desk drawer"),
   P("drawer lock"),
+  P("cabinet lock"),
+  P("cupboard lock"),
+  P("wardrobe lock"),
+  // Mailbox / post / locker
   P("mailbox lock"),
   P("post box lock"),
   P("postbox lock"),
@@ -553,37 +1119,120 @@ const OUT_OF_SCOPE: NegativeKeyword[] = [
   P("locker"),
   P("school locker"),
   P("gym locker"),
+  P("staff locker"),
+  // Misc small locks
   P("piano lock"),
   P("jewelry box"),
   P("jewellery box"),
+  // Gates + garage doors
   P("gate lock"),
   P("electric gate"),
   P("automatic gate"),
+  P("electric gate installation"),
   P("garage door"),
   P("garage door repair"),
+  P("garage door installation"),
+  P("up and over garage"),
+  P("up-and-over garage"),
+  P("roller shutter"),
+  P("roller shutter repair"),
+  P("shop shutter"),
+  // Outbuildings / windows / DIY door
   P("shed lock"),
   P("shed"),
+  P("conservatory lock"),
   P("conservatory"),
   P("window lock"),
   P("window locks"),
+  P("window catch"),
   P("upvc window"),
   P("upvc window lock"),
+  P("sash window"),
+  P("french door"),
+  P("french doors"),
+  P("bifold door"),
+  P("bi-fold door"),
+  P("patio door"),
+  P("patio door lock"),
+  // Firearms / restricted
   P("trigger lock"),
   P("ammo lock"),
+  P("gun trigger"),
+  P("firearms"),
+  P("firearm storage"),
+  // Auto locksmith (LockSafe does NOT do auto currently)
+  P("car key"),
+  P("car keys"),
   P("car key copy"),
   P("car key cutting"),
+  P("car key replacement"),
+  P("car key locksmith"),
+  P("auto locksmith"),
+  P("auto key"),
+  P("automotive locksmith"),
+  P("car lockout"),
+  P("locked out of car"),
+  P("locked out of vehicle"),
+  P("car door lock"),
+  P("car ignition"),
+  P("ignition lock"),
   P("transponder"),
   P("transponder key"),
-  P("rekey at home"),
+  P("transponder programming"),
+  P("immobiliser"),
+  P("immobiliser bypass"),
+  P("immobilizer"),
+  P("key fob"),
+  P("key fob programming"),
+  P("key fob battery"),
+  P("smart key programming"),
+  P("vehicle locksmith"),
+  P("van locksmith"),
+  P("motorbike locksmith"),
+  P("motorcycle locksmith"),
+  P("scooter lock"),
+  P("caravan lock"),
+  P("motorhome lock"),
+  P("boat lock"),
+  P("yacht lock"),
+  // Boiler / unrelated trades
+  P("boiler"),
+  P("boiler repair"),
+  P("boiler service"),
+  P("gas safe"),
+  P("plumber"),
+  P("plumbing"),
+  P("electrician"),
+  P("electrical"),
+  P("heating engineer"),
+  P("carpenter"),
+  P("roofer"),
+  P("builder"),
+  P("decorator"),
+  P("painter and decorator"),
+  P("handyman"),
+  // CCTV / alarm / non-lock security
+  P("cctv"),
+  P("cctv install"),
+  P("alarm system"),
+  P("burglar alarm"),
+  P("alarm install"),
+  P("intruder alarm"),
+  P("smoke alarm"),
+  P("co alarm"),
+  P("doorbell camera"),
+  P("ring doorbell install"),
 ];
 
-/** Category 9 — Adult / off-topic / pop culture.
- *  Standard universal negatives + locksmith-name-disambiguation
- *  (rapper "Locksmith", Lock band, etc). */
+// ═════════════════════════════════════════════════════════════════
+// Category 9 — Adult / off-topic / pop culture
+// ═════════════════════════════════════════════════════════════════
 const ADULT_OFF_TOPIC: NegativeKeyword[] = [
+  // Adult
   P("porn"),
   P("porno"),
   P("xxx"),
+  P("xxxx"),
   P("nude"),
   P("naked"),
   P("sex"),
@@ -591,14 +1240,22 @@ const ADULT_OFF_TOPIC: NegativeKeyword[] = [
   P("hentai"),
   P("anime"),
   P("manga"),
+  P("nsfw"),
+  P("erotic"),
+  // Gambling
   P("casino"),
   P("gambling"),
   P("bet"),
   P("betting"),
   P("poker"),
   P("blackjack"),
+  P("roulette"),
   P("slot"),
   P("slots"),
+  P("bingo"),
+  P("lottery"),
+  P("punter"),
+  // Humour / jokes / memes
   P("meme"),
   P("memes"),
   P("joke"),
@@ -608,9 +1265,13 @@ const ADULT_OFF_TOPIC: NegativeKeyword[] = [
   P("funny"),
   P("hilarious"),
   P("comedy"),
+  P("stand up"),
+  P("standup"),
+  // Music
   P("song"),
   P("songs"),
   P("lyrics"),
+  P("song lyrics"),
   P("rap"),
   P("rapper"),
   P("hip hop"),
@@ -618,46 +1279,109 @@ const ADULT_OFF_TOPIC: NegativeKeyword[] = [
   P("locksmith rapper"),
   P("locksmith music"),
   P("locksmith song"),
+  P("locksmith lyrics"),
+  P("locksmith spotify"),
+  P("locksmith album"),
+  P("locksmith mixtape"),
+  P("locksmith ep"),
+  // Specific "Locksmith" rapper details
+  P("davood asgari"),
+  P("davood ali asgari"),
+  P("the frontline"),
+  P("locksmith mc battle"),
+  P("locksmith mtv"),
+  P("locksmith bay area"),
+  P("a thousand cuts"),
+  P("lofty goals"),
+  P("olive branch album"),
+  P("hot new hip hop"),
+  P("hotnewhiphop"),
+  P("ambrosia for heads"),
+  // Music platforms
   P("music video"),
   P("spotify"),
   P("apple music"),
   P("mp3"),
   P("mp4"),
   P("download"),
-  P("torrent"),
   P("free download"),
+  P("torrent"),
+  P("kickass"),
+  P("1337x"),
+  // Film / TV
+  P("the locksmith film"),
+  P("the locksmith movie"),
+  P("the locksmith 2023"),
+  P("the locksmith trailer"),
+  P("locksmith trailer"),
+  P("locksmith netflix"),
+  P("locksmith bbc"),
+  P("locksmith itv"),
+  P("locksmith amazon prime"),
+  P("locksmith hulu"),
+  P("locksmith ryan phillippe"),
+  P("ryan phillippe"),
+  P("kate bosworth"),
+  P("ving rhames"),
+  P("nicholas harvard"),
+  P("imdb locksmith"),
+  P("rotten tomatoes locksmith"),
+  // Books / story
+  P("locksmith book"),
+  P("locksmith novel"),
+  P("locksmith biography"),
+  P("locksmith memoir"),
+  P("locksmith story"),
+  P("locksmith children's book"),
+  // Cooking / hospitality / unrelated brand names
   P("recipe"),
   P("recipes"),
   P("cake"),
+  P("cake recipe"),
   P("baking"),
   P("locksmith cake"),
   P("locksmith cocktail"),
   P("locksmith drink"),
+  P("locksmith beer"),
+  P("locksmith ale"),
+  P("locksmith ipa"),
   P("locksmith pub"),
   P("locksmith bar"),
   P("locksmith restaurant"),
   P("locksmith hotel"),
-  P("the locksmith film"),
-  P("the locksmith movie"),
-  P("locksmith trailer"),
-  P("locksmith netflix"),
-  P("locksmith bbc"),
+  P("locksmith cafe"),
+  P("locksmith coffee"),
+  // Cartoons / kids
   P("cartoon"),
   P("toy"),
   P("toys"),
   P("story for kids"),
-  P("story"),
-  P("story book"),
-  P("children"),
-  P("child"),
-  P("kids"),
+  P("nursery rhyme"),
   P("baby"),
   P("nursery"),
+  P("kids"),
+  P("children"),
+  P("child"),
+  P("colouring page"),
+  P("colouring book"),
+  P("coloring book"),
+  P("disney"),
+  P("nickelodeon"),
+  // Other random
+  P("fancy dress"),
+  P("costume"),
+  P("halloween costume"),
+  P("locksmith costume"),
+  P("tattoo"),
+  P("locksmith tattoo"),
+  P("design"),
+  P("logo"),
+  P("clip art"),
 ];
 
-/** Category 10 — Free / discount / coupon seekers.
- *  Combined with the playbook §10 content guardrail (no "no call-out
- *  fee" claims), these searchers won't convert with us. */
+// ═════════════════════════════════════════════════════════════════
+// Category 10 — Free / discount / coupon seekers
+// ═════════════════════════════════════════════════════════════════
 const FREE_DISCOUNT_SEEKERS: NegativeKeyword[] = [
   P("free"),
   P("for free"),
@@ -665,9 +1389,17 @@ const FREE_DISCOUNT_SEEKERS: NegativeKeyword[] = [
   P("free service"),
   P("free callout"),
   P("free call out"),
-  P("freebie"),
+  P("free call-out"),
   P("free quote"),
   P("free estimate"),
+  P("free consultation"),
+  P("free advice"),
+  P("freebie"),
+  P("complimentary"),
+  P("on the house"),
+  P("zero cost"),
+  P("no cost"),
+  P("nothing to pay"),
   P("voucher"),
   P("vouchers"),
   P("voucher code"),
@@ -684,43 +1416,87 @@ const FREE_DISCOUNT_SEEKERS: NegativeKeyword[] = [
   P("offer"),
   P("special offer"),
   P("cashback"),
+  P("rebate"),
   P("groupon"),
   P("wowcher"),
+  P("living social"),
   P("livingsocial"),
+  P("hotukdeals"),
+  P("money saving expert"),
+  P("moneysavingexpert"),
+  P("mse"),
+  P("cheap as chips"),
+  P("budget"),
+  P("budget locksmith"),
+  P("low cost"),
 ];
 
-/** Category 11 — Insurance / legal claim adjacency.
- *  "Locksmith claim insurance" — typically tenants chasing landlords
- *  or claim assessors, not buyers. Also lawyer / claim shoppers. */
+// ═════════════════════════════════════════════════════════════════
+// Category 11 — Insurance / legal claim adjacency
+// ═════════════════════════════════════════════════════════════════
 const INSURANCE_LEGAL: NegativeKeyword[] = [
   P("insurance"),
   P("insurance claim"),
+  P("home insurance"),
+  P("contents insurance"),
+  P("building insurance"),
+  P("buildings insurance"),
+  P("landlord insurance"),
+  P("renters insurance"),
+  P("aviva"),
+  P("admiral"),
+  P("direct line"),
+  P("axa"),
+  P("lv"),
+  P("more than"),
+  P("hastings insurance"),
+  P("compare the market"),
+  P("comparethemarket"),
+  P("go compare"),
+  P("gocompare"),
+  P("moneysupermarket"),
+  P("money supermarket"),
+  P("confused.com"),
   P("claim"),
   P("claims"),
+  P("claim form"),
+  P("how to claim"),
   P("broker"),
+  P("insurance broker"),
   P("policy"),
+  P("insurance policy"),
   P("excess"),
+  P("policy excess"),
   P("solicitor"),
   P("lawyer"),
   P("attorney"),
+  P("legal advice"),
   P("court"),
+  P("county court"),
+  P("small claims"),
   P("lawsuit"),
   P("sue"),
+  P("suing"),
   P("compensation"),
   P("ombudsman"),
+  P("financial ombudsman"),
   P("citizens advice"),
   P("trading standards"),
   P("legal aid"),
+  P("free legal advice"),
+  P("law society"),
 ];
 
-/** Category 12 — Wikipedia / reference / definition / forum research.
- *  Pure non-buying intent. */
+// ═════════════════════════════════════════════════════════════════
+// Category 12 — Wikipedia / reference / forum research
+// ═════════════════════════════════════════════════════════════════
 const RESEARCH_REFERENCE: NegativeKeyword[] = [
   P("wikipedia"),
   P("wiki"),
   P("define"),
   P("definition"),
   P("meaning"),
+  P("meanings"),
   P("etymology"),
   P("origin"),
   P("origins"),
@@ -728,7 +1504,12 @@ const RESEARCH_REFERENCE: NegativeKeyword[] = [
   P("when invented"),
   P("who invented"),
   P("who created"),
+  P("first locksmith"),
+  P("ancient locksmith"),
+  P("how old is"),
   P("reddit"),
+  P("r/locksmiths"),
+  P("r/ppc"),
   P("quora"),
   P("mumsnet"),
   P("trustpilot"),
@@ -751,15 +1532,29 @@ const RESEARCH_REFERENCE: NegativeKeyword[] = [
   P("stats"),
   P("study"),
   P("research"),
+  P("research paper"),
   P("survey"),
   P("benchmark"),
   P("trends"),
+  P("trend"),
   P("forecast"),
+  P("dictionary"),
+  P("thesaurus"),
+  P("glossary"),
+  P("encyclopedia"),
+  P("encyclopaedia"),
+  P("info"),
+  P("information"),
+  P("knowledge base"),
+  P("knowledgebase"),
+  P("blogger"),
+  P("medium article"),
+  P("substack"),
 ];
 
-/** Category 13 — Locksmith content guardrail negatives.
- *  Playbook §10: never claim "no call-out fee" or "free callout".
- *  Block those queries upfront so our ads never appear for them. */
+// ═════════════════════════════════════════════════════════════════
+// Category 13 — Content guardrail mirror (playbook §10)
+// ═════════════════════════════════════════════════════════════════
 const CONTENT_GUARDRAIL: NegativeKeyword[] = [
   P("no call out fee"),
   P("no call-out fee"),
@@ -771,18 +1566,23 @@ const CONTENT_GUARDRAIL: NegativeKeyword[] = [
   P("zero callout"),
   P("zero call out"),
   P("nothing to pay"),
+  P("locksmith without fee"),
+  P("locksmith no fee"),
+  P("no fee locksmith"),
 ];
 
-/** Category 14 — Generic non-commercial.
- *  Universal "every account should block" terms from groas 2026 guide
- *  that are also locksmith-relevant. */
+// ═════════════════════════════════════════════════════════════════
+// Category 14 — Generic non-commercial / scam-research / authority
+// ═════════════════════════════════════════════════════════════════
 const GENERIC_NON_COMMERCIAL: NegativeKeyword[] = [
   P("scam"),
   P("scammer"),
   P("scams"),
+  P("locksmith scam"),
   P("ripoff"),
   P("rip off"),
   P("fake"),
+  P("fakery"),
   P("fraud"),
   P("fraudulent"),
   P("complaint"),
@@ -790,20 +1590,758 @@ const GENERIC_NON_COMMERCIAL: NegativeKeyword[] = [
   P("complain"),
   P("watchdog"),
   P("bbc watchdog"),
-  P("rogue trader"),
-  P("rogue traders"),
-  P("trader"),
+  P("rip off britain"),
+  P("rip-off britain"),
   P("trade body"),
-  P("association"),
   P("federation"),
   P("regulator"),
   P("regulation"),
   P("regulations"),
+  P("price gouging"),
+  P("how to spot"),
+  P("red flag"),
+  P("red flags"),
+  P("warning signs"),
+  P("warning sign"),
+  P("avoid scam"),
+  P("avoiding scam"),
+  P("locksmith scam tips"),
+  P("scam alert"),
+  P("locksmith scam alert"),
+  P("rogue trader"),
+  P("rogue traders"),
+  P("dodgy"),
+  P("dodgy locksmith"),
+  P("which magazine"),
+  P("which.co.uk"),
+  P("which review"),
 ];
 
-/**
- * MASTER LIST — every category concatenated, de-duplicated by text.
- */
+// ═════════════════════════════════════════════════════════════════
+// Category 15 — UK national chain locksmith competitors
+// (Mostly to avoid bidding against direct national-chain branded
+//  searches and call-centre operators.)
+// ═════════════════════════════════════════════════════════════════
+const UK_NATIONAL_CHAIN_COMPETITORS: NegativeKeyword[] = [
+  P("keytek"),
+  P("keytek locksmith"),
+  P("keytek locksmiths"),
+  P("keytek reviews"),
+  P("keytek complaint"),
+  P("lockrite"),
+  P("lockrite locksmiths"),
+  P("lockrite reviews"),
+  P("anglian locksmith"),
+  P("anglian home"),
+  P("anglian doors"),
+  P("anglian windows"),
+  P("royal lock"),
+  P("royalock"),
+  P("city locksmiths"),
+  P("hi tech locksmith"),
+  P("hi-tech locksmith"),
+  P("aaa locksmith"),
+  P("capital locksmith"),
+  P("pickle lock"),
+  P("uk locksmiths 247"),
+  P("uk locksmith 247"),
+  P("247 locksmiths uk"),
+  P("24/7 locksmiths uk"),
+  P("national locksmiths"),
+  P("national locksmith"),
+  P("emergency locksmith uk"),
+  P("emergency locksmiths uk"),
+  P("uk locksmith association"),
+  P("master locksmiths association"),
+  P("findalocksmith"),
+  P("find a locksmith"),
+  P("rated people"),
+  P("checkatrade"),
+  P("checkatrade locksmith"),
+  P("trustatrader"),
+  P("trust a trader"),
+  P("my builder"),
+  P("mybuilder"),
+  P("local heroes"),
+  P("taskrabbit"),
+  P("airtasker"),
+];
+
+// ═════════════════════════════════════════════════════════════════
+// Category 16 — Scam bait price points (49er scam)
+// Documented in UK MLA + Which.co.uk + Wikipedia: rogue locksmiths
+// advertise £19 / £29 / £39 / £49 / £59 then charge 10x more.
+// We don't want to bid against those literal price-point searches.
+// ═════════════════════════════════════════════════════════════════
+const SCAMMER_BAIT_PRICE_POINTS: NegativeKeyword[] = [
+  P("£19 locksmith"),
+  P("19 pound locksmith"),
+  P("19 pounds locksmith"),
+  P("£29 locksmith"),
+  P("29 pound locksmith"),
+  P("£39 locksmith"),
+  P("39 pound locksmith"),
+  P("£49 locksmith"),
+  P("49 pound locksmith"),
+  P("49ers locksmith"),
+  P("49er locksmith"),
+  P("locksmith 49er"),
+  P("£59 locksmith"),
+  P("59 pound locksmith"),
+  P("£69 locksmith"),
+  P("69 pound locksmith"),
+  P("£79 locksmith"),
+  P("79 pound locksmith"),
+  P("from £19"),
+  P("from £29"),
+  P("from £39"),
+  P("from £49"),
+  P("from £59"),
+  P("from £69"),
+];
+
+// ═════════════════════════════════════════════════════════════════
+// Category 17 — Tenant / landlord lock-change legal queries
+// (UK Housing Act / Tenancy law — these are research, not booking.)
+// ═════════════════════════════════════════════════════════════════
+const TENANT_LANDLORD_LEGAL: NegativeKeyword[] = [
+  P("can a landlord"),
+  P("can my landlord"),
+  P("can a tenant"),
+  P("can my tenant"),
+  P("can the landlord"),
+  P("can the tenant"),
+  P("landlord change locks"),
+  P("landlord changed locks"),
+  P("landlord change locks without notice"),
+  P("tenant change locks"),
+  P("tenant changed locks"),
+  P("tenancy lock"),
+  P("rental property lock"),
+  P("rented property lock"),
+  P("tenant rights"),
+  P("landlord rights"),
+  P("housing act"),
+  P("section 21"),
+  P("section 8"),
+  P("eviction notice"),
+  P("deposit dispute"),
+  P("tenancy deposit"),
+  P("deposit return"),
+  P("rented house lock"),
+  P("between tenancies"),
+  P("end of tenancy"),
+  P("end of tenancy clean"),
+  P("ast"),
+  P("assured shorthold tenancy"),
+  P("tenancy agreement"),
+  P("breach of tenancy"),
+  P("squatter"),
+  P("squatters"),
+  P("squatting"),
+  P("trespasser"),
+  P("right to remain"),
+  P("domestic violence"),
+  P("dv lock change"),
+  P("harassment lock change"),
+];
+
+// ═════════════════════════════════════════════════════════════════
+// Category 18 — Car brands + models (LockSafe doesn't do auto)
+// ═════════════════════════════════════════════════════════════════
+const CAR_BRANDS_MODELS: NegativeKeyword[] = [
+  // Brand only
+  P("bmw"),
+  P("audi"),
+  P("mercedes"),
+  P("mercedes benz"),
+  P("vw"),
+  P("volkswagen"),
+  P("ford"),
+  P("vauxhall"),
+  P("nissan"),
+  P("toyota"),
+  P("honda"),
+  P("kia"),
+  P("hyundai"),
+  P("peugeot"),
+  P("citroen"),
+  P("citroën"),
+  P("renault"),
+  P("fiat"),
+  P("alfa romeo"),
+  P("mini"),
+  P("range rover"),
+  P("land rover"),
+  P("jaguar"),
+  P("porsche"),
+  P("ferrari"),
+  P("lamborghini"),
+  P("bentley"),
+  P("rolls royce"),
+  P("aston martin"),
+  P("mclaren"),
+  P("lotus"),
+  P("tesla"),
+  P("byd"),
+  P("polestar"),
+  P("subaru"),
+  P("mazda"),
+  P("suzuki"),
+  P("seat"),
+  P("skoda"),
+  P("mg"),
+  P("dacia"),
+  P("smart car"),
+  P("smart fortwo"),
+  P("volvo"),
+  P("saab"),
+  P("lexus"),
+  P("infiniti"),
+  P("acura"),
+  P("genesis"),
+  P("chevy"),
+  P("chevrolet"),
+  P("gmc"),
+  P("dodge"),
+  P("jeep"),
+  P("ram truck"),
+  P("ram 1500"),
+  P("cadillac"),
+  P("buick"),
+  P("lincoln car"),
+  P("ssangyong"),
+  // Specific models (most-stolen UK list per DVLA)
+  P("ford fiesta"),
+  P("ford focus"),
+  P("ford transit"),
+  P("ford mondeo"),
+  P("ford ranger"),
+  P("ford kuga"),
+  P("ford puma"),
+  P("ford ecosport"),
+  P("vw golf"),
+  P("vw polo"),
+  P("vw passat"),
+  P("vw tiguan"),
+  P("vw transporter"),
+  P("vw t5"),
+  P("vw t6"),
+  P("vw caddy"),
+  P("vw arteon"),
+  P("bmw 1 series"),
+  P("bmw 2 series"),
+  P("bmw 3 series"),
+  P("bmw 4 series"),
+  P("bmw 5 series"),
+  P("bmw x1"),
+  P("bmw x3"),
+  P("bmw x5"),
+  P("bmw m3"),
+  P("bmw m5"),
+  P("bmw i3"),
+  P("audi a1"),
+  P("audi a3"),
+  P("audi a4"),
+  P("audi a5"),
+  P("audi a6"),
+  P("audi q3"),
+  P("audi q5"),
+  P("audi q7"),
+  P("audi rs3"),
+  P("mercedes a class"),
+  P("mercedes b class"),
+  P("mercedes c class"),
+  P("mercedes e class"),
+  P("mercedes glc"),
+  P("mercedes sprinter"),
+  P("vauxhall corsa"),
+  P("vauxhall astra"),
+  P("vauxhall insignia"),
+  P("vauxhall mokka"),
+  P("vauxhall vivaro"),
+  P("nissan qashqai"),
+  P("nissan juke"),
+  P("nissan navara"),
+  P("nissan x trail"),
+  P("nissan note"),
+  P("nissan micra"),
+  P("nissan leaf"),
+  P("toyota corolla"),
+  P("toyota yaris"),
+  P("toyota rav4"),
+  P("toyota hilux"),
+  P("toyota proace"),
+  P("kia sportage"),
+  P("kia ceed"),
+  P("kia picanto"),
+  P("kia niro"),
+  P("hyundai i10"),
+  P("hyundai i20"),
+  P("hyundai i30"),
+  P("hyundai tucson"),
+  P("hyundai kona"),
+  P("peugeot 208"),
+  P("peugeot 308"),
+  P("peugeot 3008"),
+  P("peugeot 2008"),
+  P("peugeot expert"),
+  P("citroen c3"),
+  P("citroen c4"),
+  P("citroen berlingo"),
+  P("renault clio"),
+  P("renault megane"),
+  P("renault captur"),
+  P("renault kangoo"),
+  P("renault trafic"),
+  P("fiat 500"),
+  P("fiat panda"),
+  P("fiat ducato"),
+  P("range rover sport"),
+  P("range rover evoque"),
+  P("range rover velar"),
+  P("range rover discovery"),
+  P("tesla model 3"),
+  P("tesla model y"),
+  P("tesla model s"),
+  P("tesla model x"),
+  // Van / commercial
+  P("van locksmith"),
+  P("van lock"),
+  P("van key"),
+  P("transit lock"),
+  P("transit key"),
+  P("sprinter lock"),
+  P("transporter lock"),
+];
+
+// ═════════════════════════════════════════════════════════════════
+// Category 19 — Wikipedia / dictionary / "what is" pattern
+// ═════════════════════════════════════════════════════════════════
+const WIKIPEDIA_DICTIONARY: NegativeKeyword[] = [
+  P("what is a locksmith"),
+  P("what does a locksmith do"),
+  P("what do locksmiths do"),
+  P("locksmith meaning"),
+  P("locksmith definition"),
+  P("locksmith wikipedia"),
+  P("locksmith etymology"),
+  P("locksmith history"),
+  P("history of locksmithing"),
+  P("locksmith tools list"),
+  P("ancient locksmith"),
+  P("medieval locksmith"),
+  P("first lock"),
+  P("first key"),
+  P("who invented locks"),
+  P("when were locks invented"),
+  P("oldest lock"),
+  P("oldest key"),
+  P("locks through history"),
+  P("locksmith origin"),
+  P("locksmith job description"),
+  P("locksmith vs"),
+  P("locksmith versus"),
+  P("vs locksmith"),
+  P("versus locksmith"),
+  P("locksmith comparison"),
+  P("compare locksmith"),
+  P("locksmith and"),
+  P("locksmith or"),
+  P("locksmith near"),
+  P("locksmith information"),
+  P("locksmith info"),
+  P("locksmith facts"),
+  P("locksmith trivia"),
+  P("locksmith day"),
+  P("national locksmith day"),
+];
+
+// ═════════════════════════════════════════════════════════════════
+// Category 20 — Relay attack / keyless theft / Faraday research
+// (Education / news consumption — not service buyers.)
+// ═════════════════════════════════════════════════════════════════
+const RELAY_ATTACK_KEYLESS: NegativeKeyword[] = [
+  P("relay attack"),
+  P("relay theft"),
+  P("relay attack car"),
+  P("relay attack uk"),
+  P("relay attack prevention"),
+  P("keyless theft"),
+  P("keyless car theft"),
+  P("how to prevent keyless theft"),
+  P("how to prevent car theft"),
+  P("faraday"),
+  P("faraday pouch"),
+  P("faraday bag"),
+  P("faraday wallet"),
+  P("signal blocking pouch"),
+  P("signal blocker"),
+  P("rfid blocker"),
+  P("rfid wallet"),
+  P("metal tin car key"),
+  P("car key in microwave"),
+  P("most stolen car"),
+  P("most stolen car uk"),
+  P("car theft statistics"),
+  P("vehicle theft statistics"),
+  P("trackershop"),
+  P("tracker.co.uk"),
+  P("ghost immobiliser"),
+  P("autowatch ghost"),
+  P("ghost 2"),
+  P("steering lock"),
+  P("disklok"),
+  P("disk lok"),
+  P("stoplock"),
+  P("crook lock"),
+  P("oboid"),
+];
+
+// ═════════════════════════════════════════════════════════════════
+// Category 21 — Lock terminology / BS3621 research (NOT booking)
+// (Block only when paired with research language. We deliberately
+//  leave "BS3621 lock fitter", "anti-snap fitter" etc. alone.)
+// ═════════════════════════════════════════════════════════════════
+const LOCK_TERMINOLOGY_RESEARCH: NegativeKeyword[] = [
+  P("what is bs3621"),
+  P("what does bs3621 mean"),
+  P("bs3621 meaning"),
+  P("bs3621 explained"),
+  P("bs3621 guide"),
+  P("bs3621 standard"),
+  P("what is ts007"),
+  P("ts007 explained"),
+  P("ts007 meaning"),
+  P("what is kitemark"),
+  P("kitemark meaning"),
+  P("3 star cylinder explained"),
+  P("3 star lock explained"),
+  P("what is anti snap"),
+  P("what is anti-snap"),
+  P("anti snap explained"),
+  P("anti-snap explained"),
+  P("anti snap guide"),
+  P("what is a mortice lock"),
+  P("what is a deadlock"),
+  P("what is a nightlatch"),
+  P("what is a euro cylinder"),
+  P("what is multipoint"),
+  P("what is a 5 lever"),
+  P("what is a sash lock"),
+  P("mortice vs deadlock"),
+  P("mortice vs sash"),
+  P("mortice or sash"),
+  P("deadlock vs nightlatch"),
+  P("nightlatch vs deadlock"),
+  P("euro cylinder explained"),
+  P("multipoint explained"),
+  P("multi point explained"),
+  P("multi-point explained"),
+  P("what is bsi"),
+  P("british standard institute"),
+  P("british standards institute"),
+  P("bsi kitemark"),
+];
+
+// ═════════════════════════════════════════════════════════════════
+// Category 22 — Key cutting RETAIL (Timpson, Sainsbury's, Tesco, etc.)
+// One Base Media UK locksmith keyword research shows "key cutting" has
+// 90,500 monthly searches but the overwhelming majority are retail
+// (Timpson is the UK's largest key-cutting chain — inside Sainsbury's,
+// Tesco, Morrisons, Asda). Source:
+//   - https://onebasemedia.co.uk/seo-keywords-for-locksmiths/
+//   - Timpson — UK leading retail key cutting chain
+// LockSafe does NOT operate retail key-cutting kiosks. Block.
+// ═════════════════════════════════════════════════════════════════
+const KEY_CUTTING_RETAIL: NegativeKeyword[] = [
+  // Generic key cutting (retail intent dominates the SERP for these)
+  P("key cutting"),
+  P("key cutting near me"),
+  P("key cutting service"),
+  P("key cutting service near me"),
+  P("key cutting prices"),
+  P("key cutting price"),
+  P("key cutting cost"),
+  P("key cutting shop"),
+  P("key cutting shop near me"),
+  P("key cutting near me now"),
+  P("key cutting near me open now"),
+  P("key cutting brixton"),
+  P("key cutting peckham"),
+  P("nearest key cutting"),
+  P("cheap key cutting"),
+  P("cheap key cutting near me"),
+  P("get a key cut near me"),
+  P("mobile key cutting"),
+  P("mobile key cutting near me"),
+  P("local key cutting"),
+  P("auto key cutting"),
+  P("vehicle key cutting"),
+  P("vehicle key cutting near me"),
+  P("automotive key cutting"),
+  P("24 hour key cutting"),
+  P("house key cutting near me"),
+  // Key duplication
+  P("key duplication"),
+  P("key duplication near me"),
+  P("key duplication service"),
+  P("key duplication shop near me"),
+  P("key duplication price"),
+  P("key duplication shop"),
+  // Specific manufacturer key cutting (retail)
+  P("ultion key cutting"),
+  P("ultion key cutting near me"),
+  P("yale key cutting"),
+  P("banham key cutting"),
+  P("abloy key cutting"),
+  P("ford key cutting"),
+  P("bmw key cutting"),
+  P("security key cutting"),
+  P("security key cutting near me"),
+  P("laser key cutting"),
+  P("laser key cutting near me"),
+  // Timpson + supermarket key kiosks
+  P("timpson"),
+  P("timpson key cutting"),
+  P("timpson key cutting cost"),
+  P("timpson key cutting price"),
+  P("timpson mobile locksmith"),
+  P("timpson locksmith"),
+  P("timpson cobbler"),
+  P("timpson watch"),
+  P("timpson shoe repair"),
+  P("sainsbury's key cutting"),
+  P("sainsburys key cutting"),
+  P("tesco key cutting"),
+  P("morrisons key cutting"),
+  P("asda key cutting"),
+  P("waitrose key cutting"),
+  P("co-op key cutting"),
+  P("aldi key cutting"),
+  P("lidl key cutting"),
+  // Generic key/lock shop
+  P("lock shop"),
+  P("lock shop near me"),
+  P("locksmith shop"),
+  P("locksmith shop near me"),
+  P("lock and key shop"),
+  P("lock and key shop near me"),
+  P("the lock shop"),
+  P("the locks shop"),
+  P("door lock shop"),
+  P("door lock shop near me"),
+  P("key and locksmith near me"),
+  P("key locksmith near me"),
+  P("key locksmith"),
+  // Locksmith retail names that appear in search (One Base Media data)
+  P("keysmith near me"),
+  P("keysmith"),
+  P("key me locksmith"),
+  P("key tech locksmiths"),
+  P("key service near me"),
+  P("mobile key replacement"),
+  P("mobile key fob replacement"),
+  P("key extraction"),
+  P("broken key extractor"),
+  P("garage key replacement"),
+  P("garage door key replacement"),
+  P("locksmith key fob"),
+  P("locksmith key maker"),
+  P("master keying"),
+  P("master key locksmith"),
+  P("master key"),
+  P("restricted keys"),
+  P("rekey"),
+  P("rekey locks"),
+  P("rekey locks near me"),
+];
+
+// ═════════════════════════════════════════════════════════════════
+// Category 23 — Additional UK named locksmith businesses
+// (One Base Media keyword data surfaced ~40 specific named UK
+// locksmith businesses that bid on their own brand searches. We do
+// NOT want to compete on these — they're branded queries with low
+// conversion for us.)
+// ═════════════════════════════════════════════════════════════════
+const UK_NAMED_LOCKSMITH_BUSINESSES: NegativeKeyword[] = [
+  P("a1 locksmith"),
+  P("a1 lock"),
+  P("a1 locksmith near me"),
+  P("able locksmith"),
+  P("abra cadabra locksmith"),
+  P("abacus locksmith"),
+  P("aabacus locksmith"),
+  P("aabacus"),
+  P("abacus"),
+  P("all safe locksmith"),
+  P("all secure locksmith"),
+  P("andersons locksmith"),
+  P("anglian locksmith"),
+  P("associated locksmith"),
+  P("banham locksmith"),
+  P("banham emergency locksmith"),
+  P("barnet lock and security"),
+  P("c&t locksmiths"),
+  P("c and t locksmiths"),
+  P("callow master locksmiths"),
+  P("castle locksmiths"),
+  P("checkatrade locksmith"),
+  P("city lock and safe"),
+  P("city locksmith"),
+  P("city locksmiths"),
+  P("cjs locksmith"),
+  P("cjw locksmiths"),
+  P("county locksmiths"),
+  P("franchi locksmith"),
+  P("franchi locksmith holloway road"),
+  P("harrisons locksmith"),
+  P("island locksmith"),
+  P("jcm locksmiths"),
+  P("jg locksmiths"),
+  P("lock master locksmith"),
+  P("metrolock"),
+  P("mjs locksmiths"),
+  P("morgan locksmith"),
+  P("mpl locksmith"),
+  P("national locksmiths"),
+  P("national locksmith"),
+  P("northwest locksmiths"),
+  P("pimlico locksmith"),
+  P("popa lock"),
+  P("premier locksmith"),
+  P("prestige locksmiths"),
+  P("pro locksmith"),
+  P("professional locksmith"),
+  P("speedy locksmith"),
+  P("smith locksmith"),
+  P("telco locksmith"),
+  P("terry's locksmiths"),
+  P("terrys locksmiths"),
+  P("the master locksmith"),
+  P("toplock locksmiths"),
+  P("toplock"),
+  P("tyne tees locks"),
+  P("1st call locksmith"),
+  P("first call locksmith"),
+  P("metropolitan locksmith"),
+  P("locksmith shopify"),
+];
+
+// ═════════════════════════════════════════════════════════════════
+// Category 24 — Car-key replacement specific
+// (Extra granularity on top of CAR_BRANDS_MODELS, capturing the
+// long-tail searches that One Base Media data showed have real
+// volume: "audi a3 key replacement" 170/mo, "vw replacement key fob"
+// 260/mo, etc. — almost £20+ CPC and zero relevance to us.)
+// ═════════════════════════════════════════════════════════════════
+const CAR_KEY_REPLACEMENT_SPECIFIC: NegativeKeyword[] = [
+  // Generic car-key terms
+  P("fob key replacement"),
+  P("key fob replacement"),
+  P("car key replacement"),
+  P("car key replacement near me"),
+  P("car key cost"),
+  P("car key locksmith"),
+  P("vehicle key replacement"),
+  P("vehicle key replacement near me"),
+  P("auto key replacement"),
+  P("auto key replacement near me"),
+  P("auto key locksmith"),
+  P("auto key locksmith near me"),
+  P("auto keys near me"),
+  P("automotive keys"),
+  P("automobile locksmith"),
+  P("automobile locksmith in my area"),
+  P("transponder key replacement"),
+  P("smart key replacement"),
+  P("emergency key replacement"),
+  P("key replacement"),
+  P("key replacement near me"),
+  P("key replacement cost"),
+  P("key replacements"),
+  P("lost house key replacement cost"),
+  P("lost bmw key no spare"),
+  // Per-make replacement (UK most-stolen DVLA list)
+  P("bmw key replacement"),
+  P("bmw key replacement near me"),
+  P("bmw key replacement cost"),
+  P("bmw key fob replacement"),
+  P("bmw key fob replacement near me"),
+  P("bmw e46 key replacement"),
+  P("bmw locksmith"),
+  P("ford key replacement"),
+  P("ford key replacement cost"),
+  P("vauxhall key replacement"),
+  P("vauxhall key replacement near me"),
+  P("vauxhall key replacement prices"),
+  P("vauxhall key replacement price"),
+  P("audi key replacement"),
+  P("audi key replacement near me"),
+  P("audi a3 key replacement"),
+  P("audi a4 key replacement"),
+  P("audi replacement key cost"),
+  P("audi replacement key service near me"),
+  P("vw replacement key"),
+  P("vw replacement key fob"),
+  P("vw key replacement"),
+  P("vw key replacement near me"),
+  P("volkswagen key replacement"),
+  P("volvo key replacement"),
+  P("volvo key replacement near me"),
+  P("volvo xc90 key replacement"),
+  P("nissan key replacement"),
+  P("nissan key replacement near me"),
+  P("honda key replacement"),
+  P("mazda key replacement"),
+  P("mazda key replacement near me"),
+  P("porsche key replacement"),
+  P("porsche key replacement cost"),
+  P("mitsubishi key replacement"),
+  P("mitsubishi key replacement near me"),
+  P("van key replacement"),
+  P("van key replacement near me"),
+  P("van locksmith"),
+  P("van locksmith near me"),
+  P("ignition key replacement"),
+  P("ignition lock"),
+  P("mobile ignition repair near me"),
+  P("locksmith ignition replacement cost"),
+];
+
+// ═════════════════════════════════════════════════════════════════
+// Category 25 — Property / real estate / removal / utility services
+// ═════════════════════════════════════════════════════════════════
+const PROPERTY_UTILITY: NegativeKeyword[] = [
+  P("estate agent"),
+  P("rightmove"),
+  P("zoopla"),
+  P("on the market"),
+  P("onthemarket"),
+  P("primelocation"),
+  P("mortgage"),
+  P("mortgage broker"),
+  P("mortgage rate"),
+  P("conveyancing"),
+  P("conveyancer"),
+  P("removal company"),
+  P("removal van"),
+  P("man and van"),
+  P("storage unit"),
+  P("self storage"),
+  P("council tax"),
+  P("utility bills"),
+  P("british gas"),
+  P("eon"),
+  P("octopus energy"),
+  P("ovo energy"),
+  P("bulb"),
+  P("e.on"),
+];
+
+// ═════════════════════════════════════════════════════════════════
+// MASTER LIST — every category, deduplicated by (text, matchType)
+// ═════════════════════════════════════════════════════════════════
 export const LOCKSMITH_NEGATIVE_KEYWORDS_MASTER: NegativeKeyword[] = (() => {
   const all = [
     ...PRICE_RESEARCH,
@@ -820,9 +2358,18 @@ export const LOCKSMITH_NEGATIVE_KEYWORDS_MASTER: NegativeKeyword[] = (() => {
     ...RESEARCH_REFERENCE,
     ...CONTENT_GUARDRAIL,
     ...GENERIC_NON_COMMERCIAL,
+    ...UK_NATIONAL_CHAIN_COMPETITORS,
+    ...SCAMMER_BAIT_PRICE_POINTS,
+    ...TENANT_LANDLORD_LEGAL,
+    ...CAR_BRANDS_MODELS,
+    ...WIKIPEDIA_DICTIONARY,
+    ...RELAY_ATTACK_KEYLESS,
+    ...LOCK_TERMINOLOGY_RESEARCH,
+    ...KEY_CUTTING_RETAIL,
+    ...UK_NAMED_LOCKSMITH_BUSINESSES,
+    ...CAR_KEY_REPLACEMENT_SPECIFIC,
+    ...PROPERTY_UTILITY,
   ];
-  // De-duplicate by (text, matchType). Keep first occurrence (preserves
-  // category-order so audits are predictable).
   const seen = new Set<string>();
   const out: NegativeKeyword[] = [];
   for (const kw of all) {
@@ -834,9 +2381,6 @@ export const LOCKSMITH_NEGATIVE_KEYWORDS_MASTER: NegativeKeyword[] = (() => {
   return out;
 })();
 
-/**
- * Categorised export for documentation + maintenance UI.
- */
 export const LOCKSMITH_NEGATIVE_KEYWORDS_BY_CATEGORY = {
   price_research: PRICE_RESEARCH,
   diy_howto: DIY_HOWTO,
@@ -852,7 +2396,113 @@ export const LOCKSMITH_NEGATIVE_KEYWORDS_BY_CATEGORY = {
   research_reference: RESEARCH_REFERENCE,
   content_guardrail: CONTENT_GUARDRAIL,
   generic_non_commercial: GENERIC_NON_COMMERCIAL,
+  uk_national_chain_competitors: UK_NATIONAL_CHAIN_COMPETITORS,
+  scammer_bait_price_points: SCAMMER_BAIT_PRICE_POINTS,
+  tenant_landlord_legal: TENANT_LANDLORD_LEGAL,
+  car_brands_models: CAR_BRANDS_MODELS,
+  wikipedia_dictionary: WIKIPEDIA_DICTIONARY,
+  relay_attack_keyless: RELAY_ATTACK_KEYLESS,
+  lock_terminology_research: LOCK_TERMINOLOGY_RESEARCH,
+  key_cutting_retail: KEY_CUTTING_RETAIL,
+  uk_named_locksmith_businesses: UK_NAMED_LOCKSMITH_BUSINESSES,
+  car_key_replacement_specific: CAR_KEY_REPLACEMENT_SPECIFIC,
+  property_utility: PROPERTY_UTILITY,
 } as const;
 
 export const LOCKSMITH_NEGATIVE_KEYWORDS_COUNT =
   LOCKSMITH_NEGATIVE_KEYWORDS_MASTER.length;
+
+// ═════════════════════════════════════════════════════════════════
+// HIGH-INTENT POSITIVE KEYWORDS (companion list — NOT a negative list)
+// ───────────────────────────────────────────────────────────────────
+// Exported so the keyword-templates store / draft generator can prefer
+// these over generic "locksmith" terms. These are the queries we WANT
+// to win, with documented high booking intent per the same sources
+// used for the negative research above.
+// ═════════════════════════════════════════════════════════════════
+export const LOCKSMITH_HIGH_INTENT_KEYWORDS = [
+  // Emergency / urgency
+  "emergency locksmith",
+  "emergency locksmith near me",
+  "24 hour locksmith",
+  "24 hour locksmith near me",
+  "24/7 locksmith",
+  "locksmith open now",
+  "locksmith available now",
+  "locksmith near me open now",
+  "locksmith now",
+  "locksmith out of hours",
+  "locksmith tonight",
+  "locksmith this weekend",
+  "locksmith bank holiday",
+  // Lockout
+  "locked out of house",
+  "locked out of flat",
+  "locked out of home",
+  "locked out tonight",
+  "lockout service",
+  "house lockout",
+  "flat lockout",
+  "key stuck in lock",
+  "key broken in lock",
+  "broken key in lock",
+  "lost keys locksmith",
+  "lost house keys",
+  "lost door key",
+  "snapped key locksmith",
+  "snapped key in lock",
+  // Service-specific
+  "lock change",
+  "lock change near me",
+  "change locks today",
+  "change locks emergency",
+  "lock repair",
+  "lock repair near me",
+  "broken lock",
+  "broken lock repair",
+  "broken door lock",
+  "door wont lock",
+  "door won't lock",
+  "door wont open",
+  "door won't open",
+  "stuck door",
+  "stuck lock",
+  "uPVC door lock repair",
+  "upvc door won't lock",
+  "upvc door wont lock",
+  "multipoint lock repair",
+  "multi-point lock repair",
+  // Burglary / urgent re-secure
+  "burglary lock change",
+  "after burglary lock change",
+  "break in lock repair",
+  "broken in lock change",
+  "door kicked in repair",
+  "door forced lock change",
+  "police lock change",
+  // Insurance / standards
+  "BS3621 lock change",
+  "BS3621 lock fitter",
+  "british standard lock fitter",
+  "insurance approved locksmith",
+  "insurance approved lock change",
+  "anti-snap lock fitter",
+  "anti snap lock fit",
+  "anti snap upgrade",
+  "tss007 lock fit",
+  "ts007 lock fitter",
+  "3 star cylinder fit",
+  // Trust
+  "MLA approved locksmith",
+  "MLA locksmith near me",
+  "DBS checked locksmith",
+  "vetted locksmith",
+  "qualified locksmith",
+  "registered locksmith",
+  "local locksmith near me",
+  "trustworthy locksmith near me",
+  "honest locksmith",
+];
+
+export const LOCKSMITH_HIGH_INTENT_KEYWORDS_COUNT =
+  LOCKSMITH_HIGH_INTENT_KEYWORDS.length;
