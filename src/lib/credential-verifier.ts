@@ -241,16 +241,23 @@ export async function verifyInsuranceDocument(
     durationMs: Date.now() - start,
   };
 
-  // Ping admin via Telegram if manual review needed
-  if (status === "pending_review") {
+  // Ping admin via Telegram when a human needs to step in. This includes
+  // "unreadable": the locksmith DID upload something the scanner couldn't read,
+  // so a person must review it rather than leaving them stuck in a re-upload
+  // loop with no path forward.
+  if (status === "pending_review" || status === "unreadable") {
     await sendAdminAlert({
-      title: "Insurance Review Required",
+      title:
+        status === "unreadable"
+          ? "Insurance — couldn't auto-read (needs manual review)"
+          : "Insurance Review Required",
       message:
         `Locksmith: ${locksmithName ?? "Unknown"}\n` +
+        `AI status: ${status}\n` +
         `AI confidence: ${Math.round(parsed.confidence * 100)}%\n` +
         `Notes: ${parsed.notes}\n\n` +
         `Review at: /admin/locksmiths`,
-      severity: "info",
+      severity: status === "unreadable" ? "warning" : "info",
     }).catch(() => {});
   }
 
@@ -324,16 +331,22 @@ export async function verifyDbsDocument(
     durationMs: Date.now() - start,
   };
 
-  // Ping admin via Telegram if manual review needed
-  if (status === "pending_review") {
+  // Ping admin via Telegram when a human needs to step in (including
+  // "unreadable" — they uploaded a doc the scanner couldn't read, so a person
+  // should review it rather than leaving them in a re-upload loop).
+  if (status === "pending_review" || status === "unreadable") {
     await sendAdminAlert({
-      title: "DBS Review Required",
+      title:
+        status === "unreadable"
+          ? "DBS — couldn't auto-read (needs manual review)"
+          : "DBS Review Required",
       message:
         `Locksmith: ${locksmithName ?? "Unknown"}\n` +
+        `AI status: ${status}\n` +
         `AI confidence: ${Math.round(parsed.confidence * 100)}%\n` +
         `Notes: ${parsed.notes}\n\n` +
         `Review at: /admin/locksmiths`,
-      severity: "info",
+      severity: status === "unreadable" ? "warning" : "info",
     }).catch(() => {});
   }
 

@@ -27,6 +27,11 @@ import {
   type LocksmithBotMessage,
 } from "@/lib/locksmith-bot";
 import { getLocksmithCompleteness } from "@/lib/locksmith-completeness";
+import {
+  verifyInsuranceDocument,
+  verifyDbsDocument,
+  verifyProfilePhoto,
+} from "@/lib/credential-verifier";
 import { chat, Models, type LLMMessage, type OllamaTool } from "@/lib/llm-router";
 import { upsertConversationByPhone, getWhatsAppConversationMessages } from "@/lib/whatsapp-inbox";
 import { sendAdminAlert } from "@/lib/telegram";
@@ -436,6 +441,8 @@ const LOCKSMITH_TOOLS: OllamaTool[] = [
   { type: "function", function: { name: "get_pending_jobs", description: "Jobs offered to the locksmith that they have NOT yet accepted.", parameters: { type: "object", properties: {} } } },
   { type: "function", function: { name: "get_earnings", description: "Earnings summary: today, this week, this month, pending payout, lifetime, jobs completed.", parameters: { type: "object", properties: {} } } },
   { type: "function", function: { name: "get_profile_status", description: "What's missing on the locksmith's profile and whether they're blocked from receiving jobs.", parameters: { type: "object", properties: {} } } },
+  { type: "function", function: { name: "check_credential_status", description: "Read the TRUE status of this locksmith's documents (insurance, DBS, profile photo) and Stripe payouts — whether each is uploaded, its exact verification status, and whether it counts toward going live. Use whenever they ask about their insurance/photo/DBS/documents, say they 'already uploaded' something, or you need to tell them precisely why they're not live yet. Always prefer this over guessing — NEVER tell a locksmith an upload 'didn't come through' without calling this first.", parameters: { type: "object", properties: {} } } },
+  { type: "function", function: { name: "retry_verification", description: "Re-run our automatic document scanner on a document the locksmith has ALREADY uploaded (insurance, DBS, or profile photo). Use when they insist they've uploaded a document but check_credential_status shows it unread/unverified — this re-checks the file already on record and does NOT need a new upload.", parameters: { type: "object", properties: { credential: { type: "string", enum: ["insurance", "dbs", "photo", "all"], description: "Which document to re-check. Default 'all'." } } } } },
   { type: "function", function: { name: "set_availability", description: "Turn the locksmith Available (online, receives jobs) or Offline. Call when they clearly ask to go on or off.", parameters: { type: "object", properties: { available: { type: "boolean", description: "true = Available/online; false = Offline" } }, required: ["available"] } } },
   { type: "function", function: { name: "accept_job", description: "Accept a specific job offer. ONLY call after the locksmith has explicitly CONFIRMED accepting this exact job in their most recent message.", parameters: { type: "object", properties: { job_number: { type: "string", description: "e.g. NR2-JOB030" } }, required: ["job_number"] } } },
   { type: "function", function: { name: "decline_job", description: "Decline a specific job offer. ONLY call after the locksmith has explicitly CONFIRMED declining.", parameters: { type: "object", properties: { job_number: { type: "string" }, reason: { type: "string" } }, required: ["job_number"] } } },
@@ -474,7 +481,138 @@ async function executeLocksmithTool(
           optionalMissing: c?.missing.filter((m) => !m.blocking).map((m) => m.label) ?? [],
         });
       }
+      case "check_credential_status": {
+        const l = await prisma.locksmith.findUnique({
+          where: { id: locksmithId },
+          select: {
+            insuranceDocumentUrl: true,
+            insuranceStatus: true,
+            insuranceExpiryDate: true,
+            insuranceVerificationNotes: true,
+            certificationDocumentUrl: true,
+            dbsStatus: true,
+            profileImage: true,
+            profilePhotoVerified: true,
+            profilePhotoRejectionReason: true,
+            stripeConnectOnboarded: true,
+            stripeConnectVerified: true,
+          },
+        });
+        const c = await getLocksmithCompleteness(locksmithId);
+        const itemDone = (key: string) => c?.items.find((i) => i.key === key)?.done ?? null;
+        return JSON.stringify({
+          canReceiveJobs: c ? !c.blockingDispatch : null,
+          insurance: {
+            uploaded: Boolean(l?.insuranceDocumentUrl),
+            status: l?.insuranceStatus ?? "none",
+            countsAsDone: itemDone("insurance"),
+            expiry: l?.insuranceExpiryDate ?? null,
+            note: l?.insuranceVerificationNotes ?? null,
+          },
+          dbs: {
+            uploaded: Boolean(l?.certificationDocumentUrl),
+            status: l?.dbsStatus ?? "none",
+            countsAsDone: itemDone("dbs"),
+            blocking: false,
+          },
+          photo: {
+            uploaded: Boolean(l?.profileImage),
+            verified: l?.profilePhotoVerified ?? false,
+            rejectionReason: l?.profilePhotoRejectionReason ?? null,
+            countsAsDone: itemDone("photo"),
+          },
+          stripe: {
+            onboarded: l?.stripeConnectOnboarded ?? false,
+            verified: l?.stripeConnectVerified ?? false,
+            countsAsDone: itemDone("stripe"),
+          },
+          statusMeaning:
+            "verified / pending_review / expiring_soon = the document is accepted, locksmith is fine (expiring_soon is still valid now). unreadable = our scanner couldn't read it and a human has been alerted to review it — offer retry_verification, don't just ask them to re-upload. expired = they need a current document. none = nothing on file yet.",
+        });
+      }
       // Mutating tools — in dryRun (trial mode) report intent instead of acting.
+      case "retry_verification": {
+        if (dryRun) return "(dry run) would re-run document verification on file.";
+        const which = String(args.credential ?? "all").toLowerCase();
+        const l = await prisma.locksmith.findUnique({
+          where: { id: locksmithId },
+          select: {
+            name: true,
+            insuranceDocumentUrl: true,
+            insuranceExpiryDate: true,
+            certificationDocumentUrl: true,
+            profileImage: true,
+          },
+        });
+        if (!l) return "Locksmith not found.";
+        const out: Record<string, string> = {};
+        const doIns = which === "all" || which === "insurance";
+        const doDbs = which === "all" || which === "dbs";
+        const doPhoto = which === "all" || which === "photo";
+
+        if (doIns) {
+          if (!l.insuranceDocumentUrl) out.insurance = "no document on file to re-check";
+          else {
+            try {
+              const v = await verifyInsuranceDocument(l.insuranceDocumentUrl, l.name ?? undefined);
+              let status: string = v.status;
+              // If the AI didn't read an expiry, fall back to the stored one.
+              if ((status === "verified" || status === "pending_review") && l.insuranceExpiryDate) {
+                const now = new Date();
+                const soon = new Date();
+                soon.setDate(soon.getDate() + 30);
+                if (l.insuranceExpiryDate < now) status = "expired";
+                else if (l.insuranceExpiryDate <= soon) status = "expiring_soon";
+              }
+              await prisma.locksmith.update({
+                where: { id: locksmithId },
+                data: {
+                  insuranceStatus: status,
+                  insuranceVerifiedAt: status === "verified" ? new Date() : null,
+                  insuranceVerificationNotes: v.notes,
+                  insuranceAiConfidence: v.confidence,
+                },
+              });
+              out.insurance = `re-checked → ${status}`;
+            } catch {
+              out.insurance = "re-check failed (scanner unavailable) — flagged for human review";
+            }
+          }
+        }
+        if (doDbs) {
+          if (!l.certificationDocumentUrl) out.dbs = "no document on file to re-check";
+          else {
+            try {
+              const v = await verifyDbsDocument(l.certificationDocumentUrl, l.name ?? undefined);
+              await prisma.locksmith.update({ where: { id: locksmithId }, data: { dbsStatus: v.status } });
+              out.dbs = `re-checked → ${v.status}`;
+            } catch {
+              out.dbs = "re-check failed (scanner unavailable)";
+            }
+          }
+        }
+        if (doPhoto) {
+          if (!l.profileImage) out.photo = "no photo on file to re-check";
+          else {
+            try {
+              const v = await verifyProfilePhoto(l.profileImage, l.name ?? undefined, { timeoutMs: 20_000 });
+              await prisma.locksmith.update({
+                where: { id: locksmithId },
+                data: {
+                  profilePhotoVerified: v.isRealFace,
+                  profilePhotoVerifiedAt: v.isRealFace ? new Date() : null,
+                  profilePhotoRejectionReason: v.rejectionReason ?? null,
+                  profilePhotoAiConfidence: v.confidence,
+                },
+              });
+              out.photo = v.isRealFace ? "re-checked → accepted" : `re-checked → not accepted (${v.rejectionReason ?? "unclear"})`;
+            } catch {
+              out.photo = "re-check failed (scanner unavailable)";
+            }
+          }
+        }
+        return JSON.stringify(out);
+      }
       case "set_availability": {
         if (dryRun) return `(dry run) would set this locksmith ${Boolean(args.available) ? "Available/online" : "Offline"}.`;
         const r = await setAvailability(locksmithId, Boolean(args.available));
@@ -596,6 +734,7 @@ export async function handleLocksmithAIChat(
 
       "TEAMS: a locksmith can run a team/company on LockSafe. A team OWNER (manager) invites their colleagues or employees — who must already be LockSafe locksmiths — by their email, and sets each member's earnings split (e.g. the member keeps 70%, the manager keeps the rest, after the platform fee). Members work under the owner's company. Any locksmith is either an OWNER, a MEMBER of someone's team, or SOLO (no team). They set all this up on the Team page of their LockSafe dashboard. When they ask about teams, adding staff, or managing a company, call get_team_status first to see where they stand, explain it plainly from that, and point them to the Team section of their dashboard to create a team or invite members (invites are by the colleague's email). Don't invent member limits, fees, or rules beyond this — if you're unsure, offer to have a teammate walk them through it.",
       "REQUIRED vs OPTIONAL — this matters, get it right: the items that BLOCK a locksmith from receiving jobs are — accept terms & conditions, set base location (postcode), set call-out fee, connect Stripe payouts, upload valid insurance, and upload a real profile photo. OPTIONAL (NOT required to receive jobs) are just the DBS check and installing the app — these boost trust and dispatch ranking only. NEVER tell a locksmith they must have a DBS or the app installed to get jobs — that's false; a locksmith without a DBS is perfectly fine since locksmithing isn't a regulated trade. Always trust canReceiveJobs and the REQUIRED vs OPTIONAL split in the data rather than guessing. If only optional items remain, tell them they're all set to receive jobs and mention DBS only as an optional edge (earns a Verified badge + better ranking).",
+      "DOCUMENTS / 'I already uploaded it': if a locksmith says they've uploaded insurance, DBS or a photo but it's not showing, or asks why they're not live, call check_credential_status to read the REAL state and tell them the truth — e.g. 'your insurance is uploaded and pending review, you're all set' or 'it's marked expiring soon but still counts'. NEVER tell them an upload 'didn't come through' or to re-upload without checking first. If check shows a document they uploaded is 'unreadable' or unverified, call retry_verification to re-scan the file already on record (a human has also been alerted) — only ask them to re-upload if check shows nothing on file at all (status 'none'). expiring_soon and pending_review both count as done — don't tell those locksmiths they're blocked.",
       "SAFETY: before calling accept_job or decline_job, the locksmith must have CLEARLY CONFIRMED that exact action in their latest message. If they're only asking about or considering a job, reply and ask them to confirm first (e.g. 'Want me to accept NR2-JOB030? Just say yes') — do NOT call the tool yet.",
       "Refunds, disputes, chargebacks, complaints, payment/account problems, or anything you genuinely can't resolve → you MUST call the escalate_to_human tool in that same turn. Never just say 'I'll escalate' or 'a human will be in touch' without actually calling escalate_to_human — saying it without calling it means nobody is notified.",
       "STYLE: sound like a real person, not a bot. Short (1-4 sentences), natural British English, warm and direct. Answer first, then act. Use *bold* sparingly. NEVER list keyword commands or menus — just have the conversation. Never invent data beyond what tools/LIVE DATA give you. Never promise specific job volumes or earnings.",

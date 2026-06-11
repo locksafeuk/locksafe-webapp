@@ -9,6 +9,7 @@ import {
   reverseGeocodePostcodeFromCoords,
 } from "@/lib/location-display";
 import { verifyProfilePhoto } from "@/lib/credential-verifier";
+import { sendAdminAlert } from "@/lib/telegram";
 
 // Locksmith receives 85% of the total (100% - 15% platform fee)
 const LOCKSMITH_SHARE_RATE = 1 - PLATFORM_FEE_PERCENT;
@@ -369,38 +370,47 @@ export async function PATCH(request: NextRequest) {
       data: filteredUpdates,
     });
 
-    // If profileImage was changed, kick off async AI face verification.
-    // We reset the verification flags immediately so the new photo is treated
-    // as "pending" until the AI check returns.
+    // If profileImage was changed, verify it BEFORE responding.
+    // This used to be fire-and-forget, but on serverless the event loop is
+    // frozen the moment the response is sent, so the async verification often
+    // never ran — leaving the photo stuck profilePhotoVerified=false forever
+    // (a real onboarding dead-end). Awaiting it (the vision call is bounded by
+    // a timeout and fails open inside verifyProfilePhoto) guarantees the flag
+    // is written. Adds ~5–15s to a photo change only.
     if (typeof filteredUpdates.profileImage === "string" && filteredUpdates.profileImage.length > 0) {
       const newPhotoUrl = filteredUpdates.profileImage;
-      // Mark photo as pending re-verification immediately
-      prisma.locksmith
-        .update({
+      try {
+        const result = await verifyProfilePhoto(newPhotoUrl, locksmith.name, { timeoutMs: 20_000 });
+        await prisma.locksmith.update({
           where: { id: locksmithId },
           data: {
-            profilePhotoVerified: false,
-            profilePhotoVerifiedAt: null,
-            profilePhotoRejectionReason: null,
-            profilePhotoAiConfidence: null,
+            profilePhotoVerified: result.isRealFace,
+            profilePhotoVerifiedAt: result.isRealFace ? new Date() : null,
+            profilePhotoRejectionReason: result.rejectionReason ?? null,
+            profilePhotoAiConfidence: result.confidence,
           },
-        })
-        .catch((err) => console.error("[ProfilePatch] reset face flags failed:", err));
-
-      // Fire-and-forget verification
-      verifyProfilePhoto(newPhotoUrl, locksmith.name)
-        .then((result) =>
-          prisma.locksmith.update({
+        });
+      } catch (err) {
+        // Don't leave the photo silently stuck because the check itself errored
+        // — flag it for a human to eyeball instead of blocking the locksmith.
+        console.error("[ProfilePatch] face verify failed:", err);
+        await prisma.locksmith
+          .update({
             where: { id: locksmithId },
             data: {
-              profilePhotoVerified: result.isRealFace,
-              profilePhotoVerifiedAt: result.isRealFace ? new Date() : null,
-              profilePhotoRejectionReason: result.rejectionReason ?? null,
-              profilePhotoAiConfidence: result.confidence,
+              profilePhotoVerified: false,
+              profilePhotoRejectionReason: "Automatic photo check unavailable — pending manual review.",
             },
           })
-        )
-        .catch((err) => console.error("[ProfilePatch] face verify failed:", err));
+          .catch(() => {});
+        await sendAdminAlert({
+          title: "📸 Profile photo needs manual review",
+          message: `${locksmith.name}'s profile photo couldn't be auto-verified (vision check errored). Review at /admin/locksmiths.`,
+          severity: "info",
+          topic: "agents",
+          dedupeKey: `photo-review:${locksmithId}`,
+        }).catch(() => {});
+      }
     }
 
     return NextResponse.json({
