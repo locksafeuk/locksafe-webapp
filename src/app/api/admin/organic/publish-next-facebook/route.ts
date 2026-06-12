@@ -47,6 +47,9 @@ export async function POST() {
     const nextPost = await prisma.socialPost.findFirst({
       where: {
         status: { in: ["APPROVED", "DRAFT", "PENDING_APPROVAL", "SCHEDULED"] },
+        // Never publish a post without its branded poster image. Posts wait
+        // here until generate-images has produced an imageUrl.
+        imageUrl: { not: null },
         AND: [
           {
             OR: [

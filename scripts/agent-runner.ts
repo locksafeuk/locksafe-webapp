@@ -37,6 +37,7 @@ if (process.env.AGENTS_ENABLED !== "true") {
 // ─── Imports ────────────────────────────────────────────────────────────────
 import { initializeAgentSystem, runAgentHeartbeats } from "@/agents/index";
 import { sendAdminAlert } from "@/lib/telegram";
+import { generatePendingPostImages } from "@/lib/generate-post-images";
 
 // ─── Config ─────────────────────────────────────────────────────────────────
 const TICK_INTERVAL_MS  = 5 * 60 * 1000;  // 5 minutes between ticks
@@ -111,6 +112,19 @@ async function tick() {
       await alertTelegram(`🚨 ${alert}`, "error");
       consecutiveErrors = 0; // reset so we don't spam Telegram every tick
     }
+  }
+
+  // ── Generate poster images for pending posts ────────────────────────────────
+  // ComfyUI lives on this Mac (localhost), so this is the reliable place to run
+  // image generation. Independent of agent heartbeats; degrades gracefully if
+  // ComfyUI is down (returns { skipped }). Posts can't publish until they have
+  // an imageUrl (publish paths are gated), so this is what keeps posters flowing.
+  try {
+    const img = await generatePendingPostImages({ limit: 5 });
+    if (img.generated > 0) log(`🎨 Generated ${img.generated} poster image(s).`);
+    else if (img.skipped) log(`🎨 Image gen skipped — ${img.reason}`);
+  } catch (err) {
+    log(`⚠️  Image gen task error: ${err instanceof Error ? err.message : String(err)}`);
   } finally {
     isRunning = false;
   }
