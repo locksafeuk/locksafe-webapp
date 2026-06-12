@@ -147,9 +147,26 @@ function classifyHealth(
   return { label: "YELLOW", note: "Serving but no conversions in last 7d — monitor closely" };
 }
 
+// In-memory response cache (added 2026-06-12). Each load fires 3 GAQL queries;
+// on a Basic-access developer token (15k ops/day) repeated dashboard refreshes
+// were a real chunk of the daily quota and contributed to the 429s. A short TTL
+// keeps the view "live enough" for triage while collapsing rapid re-loads onto
+// a single set of queries. Module-scoped — survives within a warm lambda.
+let _healthCache: { at: number; payload: Record<string, unknown> } | null = null;
+const HEALTH_CACHE_TTL_MS = Number(process.env["GOOGLE_ADS_HEALTH_CACHE_TTL_MS"] ?? "90000");
+
 export async function GET() {
   const admin = await verifyAdmin();
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Serve a fresh-enough cached payload without touching the Google Ads API.
+  if (_healthCache && Date.now() - _healthCache.at < HEALTH_CACHE_TTL_MS) {
+    return NextResponse.json({
+      ...(_healthCache.payload as object),
+      cached: true,
+      cacheAgeMs: Date.now() - _healthCache.at,
+    });
+  }
 
   // Pull all live-ish drafts (PUBLISHED + PAUSED + PUBLISHING). PAUSED
   // is included so admins can spot what's currently down.
@@ -314,7 +331,7 @@ export async function GET() {
     };
   }));
 
-  return NextResponse.json({
+  const payload: Record<string, unknown> = {
     generatedAt: new Date().toISOString(),
     rollingDays: ROLLING_DAYS,
     totals: {
@@ -328,5 +345,10 @@ export async function GET() {
       totalConv:   rows.reduce((s, r) => s + r.rolling.conversions, 0),
     },
     rows,
-  });
+  };
+
+  // Cache the fresh result so rapid re-loads don't re-hit the GAQL quota.
+  _healthCache = { at: Date.now(), payload };
+
+  return NextResponse.json({ ...payload, cached: false });
 }
