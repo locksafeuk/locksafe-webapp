@@ -4,6 +4,7 @@ import "./globals.css";
 import ClientBody from "./ClientBody";
 import { GoogleTagManager, GTMNoScript } from "@/components/analytics/GoogleTagManager";
 import { GoogleAdsCallTracking } from "@/components/analytics/GoogleAdsCallTracking";
+import { PhoneClickConversion } from "@/components/analytics/PhoneClickConversion";
 import { MetaPixel } from "@/components/analytics/MetaPixel";
 import { SITE_URL, SITE_NAME, SUPPORT_PHONE, SUPPORT_EMAIL } from "@/lib/config";
 
@@ -262,6 +263,11 @@ export default function RootLayout({
             WEBSITE_CALL conversion when ≥30s. Renders nothing when
             NEXT_PUBLIC_GOOGLE_ADS_ID is unset (safe default). */}
         <GoogleAdsCallTracking />
+        {/* Fires a Google Ads "Call Click" lead conversion on any tel: tap —
+            the upper-funnel, call-intent signal MAXIMIZE_CONVERSIONS needs to
+            escape cold start. Inert until NEXT_PUBLIC_GOOGLE_LEAD_CONVERSION_LABEL
+            is set, so safe to ship ahead of the Google Ads conversion action. */}
+        <PhoneClickConversion />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="LockSafe" />

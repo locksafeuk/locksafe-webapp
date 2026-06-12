@@ -184,9 +184,14 @@ export function useTrackingEvents(config: TrackingConfig = defaultConfig) {
         };
 
         switch (eventType) {
-          // Lead — someone submits the quote/request form
+          // Lead — someone submits the quote/request form, enters a postcode,
+          // or taps a call button (phone_click). For a call-driven service the
+          // tap is the key upper-funnel intent signal; the site-wide
+          // PhoneClickConversion component also fires this directly for tel:
+          // links that don't go through this hook.
           case "lead":
           case "postcode_entered":
+          case "phone_click":
             if (leadLabel) fireConversion(leadLabel, value || 50);
             break;
           // Purchase / job completed — server-side Stripe webhook fires the
