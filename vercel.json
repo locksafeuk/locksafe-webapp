@@ -10,6 +10,10 @@
       "schedule": "30 0 * * *"
     },
     {
+      "path": "/api/cron/vendor-audit-anomaly",
+      "schedule": "5 * * * *"
+    },
+    {
       "path": "/api/cron/onboarding-nudge",
       "schedule": "0 9 * * *"
     },
