@@ -25,8 +25,30 @@ interface EventRow {
   latencyMs:     number | null;
   identifiersShared:   Record<string, string> | null;
   identifiersReceived: Record<string, string> | null;
+  fieldsShared:        Record<string, string> | null;
+  fieldsReceived:      Record<string, string> | null;
   callerRoute:   string | null;
   errorMessage:  string | null;
+}
+
+const FIELD_CATEGORY_COLOR: Record<string, string> = {
+  PII:        "bg-red-100 text-red-900",
+  identifier: "bg-yellow-100 text-yellow-900",
+  monetary:   "bg-emerald-100 text-emerald-900",
+  geo:        "bg-blue-100 text-blue-900",
+  behavioral: "bg-purple-100 text-purple-900",
+  aggregate:  "bg-gray-100 text-gray-900",
+  other:      "bg-neutral-100 text-neutral-700",
+};
+
+function fieldChips(fields: Record<string, string> | null): { label: string; cat: string }[] {
+  if (!fields) return [];
+  // Summarise by category — show counts instead of individual fields.
+  const counts = new Map<string, number>();
+  for (const cat of Object.values(fields)) counts.set(cat, (counts.get(cat) ?? 0) + 1);
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([cat, n]) => ({ label: `${cat} ×${n}`, cat }));
 }
 
 interface SummaryRow {
@@ -214,6 +236,7 @@ export default function DataOwnershipPage() {
                 <th className="p-2 text-right">Out</th>
                 <th className="p-2 text-right">In</th>
                 <th className="p-2 text-right">Latency</th>
+                <th className="p-2">Fields shared</th>
                 <th className="p-2">Identifiers</th>
               </tr>
             </thead>
@@ -248,6 +271,19 @@ export default function DataOwnershipPage() {
                     <td className="p-2 text-right">{fmtBytes(row.requestBytes)}</td>
                     <td className="p-2 text-right">{fmtBytes(row.responseBytes)}</td>
                     <td className="p-2 text-right">{row.latencyMs != null ? `${row.latencyMs}ms` : "—"}</td>
+                    <td className="p-2">
+                      <div className="flex flex-wrap gap-1">
+                        {fieldChips(row.fieldsShared).map((c) => (
+                          <span
+                            key={c.cat}
+                            className={`text-[9px] px-1.5 py-0.5 rounded ${FIELD_CATEGORY_COLOR[c.cat] ?? ""}`}
+                            title={`${c.cat} fields shared with vendor`}
+                          >
+                            {c.label}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
                     <td className="p-2 font-mono text-[10px] truncate max-w-xs">{idStr}</td>
                   </tr>
                 );
@@ -299,6 +335,9 @@ export default function DataOwnershipPage() {
             <Section title="Identifiers shared (we → vendor)" data={selected.identifiersShared} />
             <Section title="Identifiers received (vendor → us)" data={selected.identifiersReceived} />
 
+            <FieldFlow title="Fields we shared with vendor"   fields={selected.fieldsShared} />
+            <FieldFlow title="Fields vendor returned to us"   fields={selected.fieldsReceived} />
+
             {drillDown?.requestSample && (
               <div className="mb-4">
                 <h3 className="text-sm font-semibold mb-1">Request payload</h3>
@@ -314,6 +353,33 @@ export default function DataOwnershipPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function FieldFlow({ title, fields }: { title: string; fields: Record<string, string> | null }) {
+  if (!fields || Object.keys(fields).length === 0) return null;
+  // Group field names by category for a cleaner read.
+  const byCat = new Map<string, string[]>();
+  for (const [name, cat] of Object.entries(fields)) {
+    if (!byCat.has(cat)) byCat.set(cat, []);
+    byCat.get(cat)!.push(name);
+  }
+  return (
+    <div className="mb-4">
+      <h3 className="text-sm font-semibold mb-1">{title}</h3>
+      <div className="space-y-1">
+        {Array.from(byCat.entries()).sort().map(([cat, names]) => (
+          <div key={cat} className="flex items-start gap-2">
+            <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${FIELD_CATEGORY_COLOR[cat] ?? ""}`}>
+              {cat}
+            </span>
+            <span className="text-[11px] text-gray-700 font-mono break-all">
+              {names.sort().join(", ")}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

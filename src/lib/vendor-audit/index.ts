@@ -16,4 +16,5 @@
 export { vendorFetch, recordSdkCall, withVendorAudit } from "./capture";
 export { classifyVendor, canonicalEndpoint }          from "./classify";
 export { extractIdentifiers, tryParseBody }           from "./identifiers";
+export { classifyField, classifyPayload }             from "./field-catalog";
 export type { VendorId, Direction, FieldCategory, VendorEventCapture } from "./types";

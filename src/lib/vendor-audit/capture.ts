@@ -18,6 +18,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { canonicalEndpoint, classifyVendor } from "./classify";
 import { extractIdentifiers, tryParseBody } from "./identifiers";
+import { classifyPayload } from "./field-catalog";
 import { recordVendorEvent } from "./store";
 import type { VendorEventCapture, VendorId, Direction } from "./types";
 
@@ -101,6 +102,8 @@ export async function vendorFetch(
     latencyMs,
     identifiersShared:   reqParsed ? extractIdentifiers(reqParsed) : undefined,
     identifiersReceived: resParsed ? extractIdentifiers(resParsed) : undefined,
+    fieldsShared:        classifyPayload(reqParsed, vendor) ?? undefined,
+    fieldsReceived:      classifyPayload(resParsed, vendor) ?? undefined,
     requestSample:  reqBodyStr,
     responseSample: resBodyStr,
     callerRoute: opts?.callerRoute,
@@ -170,6 +173,7 @@ export function withVendorAudit(
       resBytes   = Buffer.byteLength(resBodyStr);
     } catch { /* ignore */ }
 
+    const resParsed = tryParseBody(resBodyStr);
     recordVendorEvent({
       vendor,
       direction:    "inbound",
@@ -180,6 +184,10 @@ export function withVendorAudit(
       responseBytes: resBytes,
       latencyMs,
       identifiersShared:   reqParsed ? extractIdentifiers(reqParsed) : undefined,
+      identifiersReceived: resParsed ? extractIdentifiers(resParsed) : undefined,
+      // Inbound: "shared with us" by the vendor.
+      fieldsReceived: classifyPayload(reqParsed, vendor) ?? undefined,
+      fieldsShared:   classifyPayload(resParsed, vendor) ?? undefined,
       requestSample:  reqBodyStr,
       responseSample: resBodyStr,
       callerRoute:    new URL(req.url).pathname,

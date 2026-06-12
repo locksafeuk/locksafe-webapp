@@ -67,6 +67,8 @@ export async function GET(request: NextRequest) {
       latencyMs: true,
       identifiersShared: true,
       identifiersReceived: true,
+      fieldsShared: true,
+      fieldsReceived: true,
       callerRoute: true,
       errorMessage: true,
     },
