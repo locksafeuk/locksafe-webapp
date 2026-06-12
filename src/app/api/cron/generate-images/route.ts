@@ -1,17 +1,16 @@
 /**
  * Cron Job: /api/cron/generate-images
  *
- * Generates AI images for scheduled social posts that have an imagePrompt
- * but no imageUrl yet. Uses Flux Schnell via local ComfyUI.
+ * Generates poster images for scheduled social posts that have an imagePrompt
+ * but no imageUrl yet, then sets imageUrl. Tries local ComfyUI (Flux) first and
+ * falls back to the OpenAI Images API — so this works on Vercel **even when the
+ * Mac Studio is off** (ComfyUI@localhost is unreachable from Vercel → OpenAI).
  *
- * Pipeline:
- *   1. generate-organic (5am)  → creates SocialPost with imagePrompt
- *   2. generate-images  (7am)  → this route: generates + uploads image → sets imageUrl
- *   3. publish-organic  (9am)  → publishes post WITH image to Facebook/Instagram
+ * Two runners share generatePendingPostImages():
+ *   - Mac agent runner (every tick) — uses free local ComfyUI when the Mac is on.
+ *   - This Vercel cron (hourly) — the cloud safety net via the OpenAI fallback.
  *
- * Requirements:
- *   COMFYUI_BASE_URL  — ComfyUI server (default: http://localhost:8188)
- *   BLOB_READ_WRITE_TOKEN — Vercel Blob token for image storage
+ * Requirements: BLOB_READ_WRITE_TOKEN, and either a reachable ComfyUI or OPENAI_API_KEY.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -19,6 +18,9 @@ import { verifyCronAuth } from "@/lib/cron-auth";
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth";
 import { generatePendingPostImages } from "@/lib/generate-post-images";
+
+// OpenAI image generation can take ~20s each; allow headroom for a small batch.
+export const maxDuration = 300;
 
 async function verifyAccess(request: NextRequest): Promise<boolean> {
   if (verifyCronAuth(request)) return true;
@@ -37,9 +39,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  // Note: image generation needs ComfyUI reachable from the executing environment.
-  // On Vercel that is usually NOT the case, so the reliable path is the Mac Studio
-  // agent runner, which calls generatePendingPostImages() on every tick.
-  const summary = await generatePendingPostImages();
+  // Small batch on the cloud path (each OpenAI image ~20s). The Mac runner does
+  // the bulk for free when it's on; this is the backup.
+  const summary = await generatePendingPostImages({ limit: 4 });
   return NextResponse.json({ success: true, ...summary });
 }

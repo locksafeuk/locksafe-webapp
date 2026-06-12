@@ -123,20 +123,19 @@ async function tick() {
   try {
     const img = await generatePendingPostImages({ limit: 5 });
     if (img.generated > 0) {
-      log(`🎨 Generated ${img.generated} poster image(s).`);
-    } else if (img.skipped) {
-      log(`🎨 Image gen skipped — ${img.reason}`);
-      // Surface a ComfyUI outage: posts won't publish without an image, so this
-      // silently halts posting. Throttle the alert to once per hour.
-      if (img.reason?.includes("ComfyUI") && Date.now() - lastComfyAlertAt > 60 * 60 * 1000) {
+      log(`🎨 Generated ${img.generated} poster image(s)${img.usedFallback ? ` (${img.usedFallback} via OpenAI fallback)` : ""}.`);
+      // Posters still flow via the cloud fallback, but it costs a little — nudge
+      // to restart the free local ComfyUI. Throttled to once per hour.
+      if (img.usedFallback > 0 && Date.now() - lastComfyAlertAt > 60 * 60 * 1000) {
         lastComfyAlertAt = Date.now();
         await alertTelegram(
-          "🎨 Poster generation paused — ComfyUI is unreachable on the Mac Studio.\n" +
-          "Scheduled posts will WAIT (they won't go out without an image).\n" +
-          "Start ComfyUI (localhost:8188) to resume.",
+          "🎨 ComfyUI appears DOWN — posters are being generated via the OpenAI fallback (small per-image cost).\n" +
+          "Posting is unaffected, but restart ComfyUI (localhost:8188) to use the free local path.",
           "warning"
         );
       }
+    } else if (img.skipped) {
+      log(`🎨 Image gen skipped — ${img.reason}`);
     }
   } catch (err) {
     log(`⚠️  Image gen task error: ${err instanceof Error ? err.message : String(err)}`);

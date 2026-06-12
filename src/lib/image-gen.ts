@@ -12,6 +12,7 @@
  */
 
 import { put } from "@vercel/blob";
+import sharp from "sharp";
 import { overlayHeadline } from "@/lib/poster-overlay";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
@@ -203,6 +204,62 @@ export interface GenerateImageResult {
   filename: string;
   /** Generation seed used */
   seed: number;
+  /** Which backend produced the background: local ComfyUI, or the OpenAI fallback */
+  backend: "comfyui" | "openai";
+}
+
+/** Generate a raw background buffer via local ComfyUI (fast-fails if unreachable). */
+async function comfyBackground(prompt: string, width: number, height: number, seed: number): Promise<Buffer> {
+  // Fast health check so we fall back quickly instead of waiting on a dead server.
+  const health = await fetch(`${COMFYUI_BASE_URL}/system_stats`, { signal: AbortSignal.timeout(3_000) });
+  if (!health.ok) throw new Error(`ComfyUI status ${health.status}`);
+
+  const workflow = buildFluxWorkflow(prompt, seed, width, height);
+  const promptId = await submitPrompt(workflow);
+  const imageRef = await pollForResult(promptId);
+  return fetchImage(imageRef.filename, imageRef.subfolder, imageRef.type);
+}
+
+/**
+ * Cloud fallback: generate a background via the OpenAI Images API. Works from
+ * anywhere (incl. Vercel when the Mac/ComfyUI is off). Output is resized to the
+ * exact target dimensions so posters look identical regardless of backend.
+ * Model is configurable via OPENAI_IMAGE_MODEL (default gpt-image-1; set to
+ * "dall-e-3" if the org isn't verified for gpt-image-1).
+ */
+async function openaiBackground(prompt: string, width: number, height: number): Promise<Buffer> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error("OPENAI_API_KEY not set — no image fallback available");
+
+  const model = process.env.OPENAI_IMAGE_MODEL ?? "gpt-image-1";
+  const size = model === "dall-e-3" ? "1024x1792" : "1024x1536"; // portrait
+  const body: Record<string, unknown> = { model, prompt, n: 1, size };
+  if (model === "gpt-image-1") body.quality = "medium";
+  if (model === "dall-e-3") body.response_format = "b64_json";
+
+  const resp = await fetch("https://api.openai.com/v1/images/generations", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(120_000),
+  });
+  if (!resp.ok) {
+    throw new Error(`OpenAI images ${resp.status}: ${(await resp.text()).slice(0, 200)}`);
+  }
+  const json = (await resp.json()) as { data?: Array<{ b64_json?: string; url?: string }> };
+  const item = json.data?.[0];
+
+  let raw: Buffer;
+  if (item?.b64_json) {
+    raw = Buffer.from(item.b64_json, "base64");
+  } else if (item?.url) {
+    raw = Buffer.from(await (await fetch(item.url)).arrayBuffer());
+  } else {
+    throw new Error("OpenAI returned no image data");
+  }
+
+  // Normalise to the requested poster dimensions.
+  return sharp(raw).resize(width, height, { fit: "cover" }).png().toBuffer();
 }
 
 /**
@@ -221,16 +278,21 @@ export async function generateImage(opts: GenerateImageOptions): Promise<Generat
   };
 
   const [width, height] = dimensions[format];
-  const workflow = buildFluxWorkflow(prompt, seed, width, height);
 
-  console.log(`[ImageGen] Submitting Flux prompt (${width}×${height}, seed=${seed})...`);
-  const promptId = await submitPrompt(workflow);
-  console.log(`[ImageGen] Prompt ID: ${promptId}, polling...`);
-
-  const imageRef = await pollForResult(promptId);
-  console.log(`[ImageGen] Generated: ${imageRef.filename}`);
-
-  let imageBuffer = await fetchImage(imageRef.filename, imageRef.subfolder, imageRef.type);
+  // Primary: local ComfyUI (free). Fallback: OpenAI (cloud, works when the Mac
+  // is off). Both produce a text-free background; the headline is overlaid below.
+  let imageBuffer: Buffer;
+  let backend: "comfyui" | "openai";
+  try {
+    console.log(`[ImageGen] Generating via ComfyUI (${width}×${height}, seed=${seed})...`);
+    imageBuffer = await comfyBackground(prompt, width, height, seed);
+    backend = "comfyui";
+  } catch (comfyErr) {
+    const msg = comfyErr instanceof Error ? comfyErr.message : String(comfyErr);
+    console.warn(`[ImageGen] ComfyUI unavailable (${msg}) — falling back to OpenAI`);
+    imageBuffer = await openaiBackground(prompt, width, height);
+    backend = "openai";
+  }
 
   // Overlay the proofread headline as real text (clean, typo-free, on-brand).
   if (opts.overlayHeadline) {
@@ -238,15 +300,15 @@ export async function generateImage(opts: GenerateImageOptions): Promise<Generat
   }
 
   // Upload to Vercel Blob
-  const blobPath = `${blobPrefix}/${Date.now()}-${imageRef.filename}`;
+  const blobPath = `${blobPrefix}/${Date.now()}-${backend}-${seed}.png`;
   const { url } = await put(blobPath, imageBuffer, {
     access: "public",
     contentType: "image/png",
   });
 
-  console.log(`[ImageGen] Uploaded to Vercel Blob: ${url}`);
+  console.log(`[ImageGen] Uploaded (${backend}) to Vercel Blob: ${url}`);
 
-  return { url, filename: imageRef.filename, seed };
+  return { url, filename: `${backend}-${seed}.png`, seed, backend };
 }
 
 /**

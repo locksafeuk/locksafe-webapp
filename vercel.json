@@ -46,6 +46,10 @@
       "schedule": "0 6 * * *"
     },
     {
+      "path": "/api/cron/generate-images",
+      "schedule": "0 * * * *"
+    },
+    {
       "path": "/api/cron/publish-organic",
       "schedule": "*/15 * * * *"
     },

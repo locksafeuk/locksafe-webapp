@@ -25,7 +25,9 @@ export interface ImageGenSummary {
   processed: number;
   generated: number;
   failed: number;
-  results: Array<{ postId: string; success: boolean; url?: string; error?: string }>;
+  /** How many of the generated images used the OpenAI cloud fallback (ComfyUI was down). */
+  usedFallback: number;
+  results: Array<{ postId: string; success: boolean; url?: string; backend?: string; error?: string }>;
 }
 
 export async function generatePendingPostImages(
@@ -33,22 +35,17 @@ export async function generatePendingPostImages(
 ): Promise<ImageGenSummary> {
   const limit = opts?.limit ?? 10;
   const alert = opts?.alert ?? true;
-  const empty: ImageGenSummary = { processed: 0, generated: 0, failed: 0, results: [] };
+  const empty: ImageGenSummary = { processed: 0, generated: 0, failed: 0, usedFallback: 0, results: [] };
 
   // Blob storage is required to persist the generated image.
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
     return { ...empty, skipped: true, reason: "BLOB_READ_WRITE_TOKEN not configured" };
   }
 
-  // ComfyUI must be reachable (localhost on the Mac runner; elsewhere it won't be).
-  const comfyUrl = process.env.COMFYUI_BASE_URL ?? "http://localhost:8188";
-  try {
-    const health = await fetch(`${comfyUrl}/system_stats`, { signal: AbortSignal.timeout(5_000) });
-    if (!health.ok) throw new Error(`Status ${health.status}`);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return { ...empty, skipped: true, reason: `ComfyUI unreachable at ${comfyUrl}: ${msg}` };
-  }
+  // No hard ComfyUI gate any more: generateImage() tries local ComfyUI first and
+  // automatically falls back to the OpenAI cloud API, so this works even when the
+  // Mac/ComfyUI is off. (If neither backend is available, each post just fails
+  // gracefully in the loop below.)
 
   // Prioritise posts due within 24h that still lack a poster.
   // NB: MongoDB treats `imageUrl: null` as literal-null, so brand-new rows whose
@@ -69,6 +66,7 @@ export async function generatePendingPostImages(
 
   const results: ImageGenSummary["results"] = [];
   let generated = 0;
+  let usedFallback = 0;
 
   for (const post of posts) {
     if (!post.imagePrompt) continue;
@@ -90,7 +88,8 @@ export async function generatePendingPostImages(
       });
       await prisma.socialPost.update({ where: { id: post.id }, data: { imageUrl: result.url } });
       generated++;
-      results.push({ postId: post.id, success: true, url: result.url });
+      if (result.backend === "openai") usedFallback++;
+      results.push({ postId: post.id, success: true, url: result.url, backend: result.backend });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       results.push({ postId: post.id, success: false, error: msg });
@@ -98,9 +97,12 @@ export async function generatePendingPostImages(
   }
 
   if (alert && generated > 0) {
+    const via = usedFallback > 0
+      ? `${generated - usedFallback} via ComfyUI, ${usedFallback} via OpenAI fallback`
+      : `Flux Schnell via ComfyUI`;
     await sendAdminAlert({
       title: "🎨 Images Generated",
-      message: `Generated ${generated}/${posts.length} poster image(s) for scheduled social posts.\nModel: Flux Schnell via ComfyUI`,
+      message: `Generated ${generated}/${posts.length} poster image(s) for scheduled social posts.\n${via}`,
       severity: "info",
     }).catch(() => {});
   }
@@ -109,10 +111,10 @@ export async function generatePendingPostImages(
   if (alert && failed > 0 && generated === 0) {
     await sendAdminAlert({
       title: "⚠️ Image Generation Failed",
-      message: `All ${failed} image generations failed.\nFirst error: ${results.find((r) => !r.success)?.error}`,
+      message: `All ${failed} image generations failed (ComfyUI + OpenAI fallback both unavailable?).\nFirst error: ${results.find((r) => !r.success)?.error}`,
       severity: "warning",
     }).catch(() => {});
   }
 
-  return { processed: posts.length, generated, failed, results };
+  return { processed: posts.length, generated, failed, usedFallback, results };
 }
