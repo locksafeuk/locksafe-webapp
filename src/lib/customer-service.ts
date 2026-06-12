@@ -105,6 +105,14 @@ export async function checkOrCreateCustomer(
     passwordResetToken = crypto.randomBytes(32).toString("hex");
     const tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
+    // Phase 3, 2026-06-12: derive a sensible firstTouchSource from
+    // the upstream creation source. customer-service.ts is called from
+    // WhatsApp/Retell/Stripe flows that don't carry a web visitorId.
+    const fallbackTouchSource =
+      source === "whatsapp" ? "whatsapp" :
+      source === "retell_ai" ? "phone" :
+      source === "api" ? "api" :
+      "direct";
     customer = await prisma.customer.create({
       data: {
         email: normalizedEmail,
@@ -115,7 +123,12 @@ export async function checkOrCreateCustomer(
         resetTokenExpiry: tokenExpiry,
         // Track source
         createdVia: source === "whatsapp" ? "app" : source === "retell_ai" ? "phone" : "web",
-      },
+        firstTouchAt: new Date(),
+        firstTouchSource: fallbackTouchSource,
+        lastTouchAt: new Date(),
+        lastTouchSource: fallbackTouchSource,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any,
     });
 
     console.log(`[CustomerService] Created new customer: ${customer.id} via ${source}`);

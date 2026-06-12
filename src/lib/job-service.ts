@@ -110,7 +110,10 @@ async function findOrCreateCustomer(params: {
     }
   }
 
-  // Create new customer
+  // Create new customer. Phase 3, 2026-06-12: stamp firstTouch/lastTouch
+  // from createdVia (job-service is only called from internal phone paths;
+  // no visitor session is available here).
+  const touchSource = params.createdVia === "app" ? "app" : "phone";
   const newCustomer = await prisma.customer.create({
     data: {
       name: params.name,
@@ -119,7 +122,12 @@ async function findOrCreateCustomer(params: {
       // MongoDB's unique index, which treats null as a single shared value.
       ...(params.email ? { email: params.email } : {}),
       createdVia: params.createdVia || "phone",
-    },
+      firstTouchAt: new Date(),
+      firstTouchSource: touchSource,
+      lastTouchAt: new Date(),
+      lastTouchSource: touchSource,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any,
     select: { id: true, name: true, phone: true, email: true },
   });
 
