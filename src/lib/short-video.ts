@@ -437,21 +437,52 @@ export async function generateShortVideo(opts: ShortVideoOptions): Promise<Short
 
 // ─── Script → caption cards ────────────────────────────────────────────────────
 
+/**
+ * Condense a sentence into a punchy on-screen caption (the VO speaks the full
+ * script; captions show the gist). Keeps the first sentence + primary clause,
+ * shortens "and"→"&", and caps the word count so nothing gets silently dropped
+ * mid-phrase during wrapping.
+ */
+function tidyCaption(text: string, maxWords = 11): string {
+  let t = text.replace(/\s+/g, " ").trim();
+  // First sentence only (drops trailing CTAs like "… Search LockSafe.").
+  const sentence = t.match(/^[^.!?]*[.!?]/);
+  if (sentence) t = sentence[0];
+  // Primary clause only (drop a secondary clause after an em/en dash).
+  t = t.split(/\s[—–-]\s/)[0].trim();
+  t = t.replace(/\band\b/gi, "&");
+  // Hard word cap with an ellipsis if we genuinely had to cut.
+  const words = t.split(/\s+/);
+  if (words.length > maxWords) {
+    t = words.slice(0, maxWords).join(" ").replace(/[,;:]+$/, "") + "…";
+  }
+  return t.replace(/[,;:]+\s*$/, "").trim();
+}
+
 /** Wrap a string to ~`maxChars` per line, max `maxLines` lines (for captions). */
-function wrapCaption(text: string, maxChars = 22, maxLines = 3): string {
+function wrapCaption(text: string, maxChars = 22, maxLines = 4): string {
   const words = text.replace(/\s+/g, " ").trim().split(" ");
   const lines: string[] = [];
   let line = "";
+  let dropped = false;
   for (const w of words) {
     const cand = line ? `${line} ${w}` : w;
-    if (cand.length <= maxChars) line = cand;
-    else {
+    if (cand.length <= maxChars) {
+      line = cand;
+    } else {
+      if (lines.length + 1 >= maxLines && line) {
+        // Last available line is full and more words remain → signal the cut.
+        dropped = true;
+        break;
+      }
       if (line) lines.push(line);
       line = w;
     }
-    if (lines.length >= maxLines) break;
   }
   if (line && lines.length < maxLines) lines.push(line);
+  if (dropped && lines.length) {
+    lines[lines.length - 1] = lines[lines.length - 1].replace(/[.,;:]*$/, "") + "…";
+  }
   return lines.join("\n");
 }
 
@@ -462,19 +493,19 @@ function wrapCaption(text: string, maxChars = 22, maxLines = 3): string {
  */
 export function scriptToCards(script: { hook: string; body: string; cta: string }): CaptionCard[] {
   const cards: CaptionCard[] = [];
-  if (script.hook?.trim()) cards.push({ text: wrapCaption(script.hook) });
+  if (script.hook?.trim()) cards.push({ text: wrapCaption(tidyCaption(script.hook)) });
 
   const stepMatches = script.body.match(/\d+[.)]\s+[^0-9]+/g);
   if (stepMatches && stepMatches.length >= 2) {
     stepMatches.slice(0, 4).forEach((s, i) => {
       const clean = s.replace(/^\d+[.)]\s*/, "").trim();
-      cards.push({ badge: String(i + 1), text: wrapCaption(clean) });
+      cards.push({ badge: String(i + 1), text: wrapCaption(tidyCaption(clean)) });
     });
   } else {
     const sentences = script.body.split(/(?<=[.!?])\s+/).filter((s) => s.trim()).slice(0, 3);
-    sentences.forEach((s, i) => cards.push({ badge: String(i + 1), text: wrapCaption(s.trim()) }));
+    sentences.forEach((s, i) => cards.push({ badge: String(i + 1), text: wrapCaption(tidyCaption(s.trim())) }));
   }
 
-  if (script.cta?.trim()) cards.push({ text: wrapCaption(script.cta) });
+  if (script.cta?.trim()) cards.push({ text: wrapCaption(tidyCaption(script.cta)) });
   return cards;
 }
