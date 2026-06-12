@@ -15,6 +15,7 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { withVendorAudit } from "@/lib/vendor-audit";
 import {
   handleIncomingMessage,
   type WhatsAppIncomingMessage,
@@ -91,7 +92,7 @@ function stripWhatsAppPrefix(value: string): string {
   return value.replace(/^whatsapp:/i, "");
 }
 
-export async function POST(request: NextRequest) {
+async function twilioWhatsappWebhookHandler(request: NextRequest) {
   try {
     const ip = getRequestIdentifier(request);
     const rateLimitResult = checkRateLimit(`twilio_whatsapp_webhook:${ip}`, {
@@ -195,3 +196,7 @@ export async function POST(request: NextRequest) {
     return twimlResponse();
   }
 }
+
+
+// Data Ownership Layer
+export const POST = withVendorAudit("twilio", twilioWhatsappWebhookHandler);

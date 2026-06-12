@@ -14,6 +14,7 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { withVendorAudit } from "@/lib/vendor-audit";
 import {
   recordIncomingWhatsAppMessage,
   recordOutgoingWhatsAppMessage,
@@ -104,7 +105,7 @@ async function routeToLockie(phone: string, text: string): Promise<string | null
   return handleCustomerLockie(phone, text);
 }
 
-export async function POST(request: NextRequest) {
+async function twilioSmsWebhookHandler(request: NextRequest) {
   try {
     const ip = getRequestIdentifier(request);
     const rateLimitResult = checkRateLimit(`twilio_sms_webhook:${ip}`, {
@@ -227,3 +228,7 @@ export async function POST(request: NextRequest) {
     return twimlResponse(200);
   }
 }
+
+
+// Data Ownership Layer
+export const POST = withVendorAudit("twilio", twilioSmsWebhookHandler);

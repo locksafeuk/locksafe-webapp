@@ -136,11 +136,12 @@ export function recordSdkCall(
  *
  *   export const POST = withVendorAudit("stripe", async (req) => { ... });
  */
-type RouteHandler = (req: NextRequest) => Promise<Response> | Response;
+type RouteHandlerIn  = (req: NextRequest) => Promise<Response> | Response;
+type RouteHandlerOut = (req: NextRequest) => Promise<Response>;
 export function withVendorAudit(
   vendor: VendorId,
-  handler: RouteHandler,
-): RouteHandler {
+  handler: RouteHandlerIn,
+): RouteHandlerOut {
   return async (req: NextRequest): Promise<Response> => {
     const t0 = Date.now();
     let reqBodyStr: string | undefined;

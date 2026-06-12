@@ -16,6 +16,7 @@
 
 import { createHmac, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { withVendorAudit } from "@/lib/vendor-audit";
 import { prisma } from "@/lib/db";
 import { sendAdminAlert } from "@/lib/telegram";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
@@ -108,7 +109,7 @@ export async function GET(request: NextRequest) {
 /**
  * POST - Receive webhook events
  */
-export async function POST(request: NextRequest) {
+async function metaWebhookHandler(request: NextRequest) {
   try {
     const ip = getRequestIdentifier(request);
     const rateLimitResult = checkRateLimit(`meta_webhook:${ip}`, {
@@ -389,3 +390,6 @@ function mapMetaStatus(metaStatus: string): "DRAFT" | "PENDING_REVIEW" | "ACTIVE
 
   return mapping[metaStatus] || "PAUSED";
 }
+
+// Data Ownership Layer: every Meta webhook is captured into VendorEvent.
+export const POST = withVendorAudit("meta", metaWebhookHandler);

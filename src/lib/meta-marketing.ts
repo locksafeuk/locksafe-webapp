@@ -306,7 +306,16 @@ export class MetaMarketingClient {
       options.body = JSON.stringify(body);
     }
 
-    const response = await fetch(url.toString(), options);
+    // Data Ownership Layer: route through vendorFetch when available.
+    const vf: typeof fetch = await (async () => {
+      try { return (await import("@/lib/vendor-audit")).vendorFetch as unknown as typeof fetch; }
+      catch { return fetch; }
+    })();
+    const response = await (vf as (u: string, i?: RequestInit, o?: unknown) => Promise<Response>)(
+      url.toString(),
+      options,
+      { vendor: "meta", callerRoute: "lib/meta-marketing.ts:request" },
+    );
     const data = await response.json();
 
     if (!response.ok) {
@@ -721,7 +730,15 @@ export class MetaMarketingClient {
     if (proof) form.append('appsecret_proof', proof);
 
     const url = `${META_BASE_URL}/${this.adAccountId}/adimages`;
-    const response = await fetch(url, { method: 'POST', body: form });
+    // Data Ownership Layer
+    const _vf: typeof fetch = await (async () => {
+      try { return (await import("@/lib/vendor-audit")).vendorFetch as unknown as typeof fetch; }
+      catch { return fetch; }
+    })();
+    const response = await (_vf as (u: string, i?: RequestInit, o?: unknown) => Promise<Response>)(
+      url, { method: 'POST', body: form },
+      { vendor: "meta", callerRoute: "lib/meta-marketing.ts:uploadImage" },
+    );
     const data = await response.json();
     if (!response.ok) {
       const err = data.error || {};
@@ -1222,15 +1239,20 @@ export async function sendConversionsAPIEvent(
     url += `&appsecret_proof=${appsecret_proof}`;
   }
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+  // Data Ownership Layer: log every Meta Conversions API event.
+  const _vf: typeof fetch = await (async () => {
+    try { return (await import("@/lib/vendor-audit")).vendorFetch as unknown as typeof fetch; }
+    catch { return fetch; }
+  })();
+  const response = await (_vf as (u: string, i?: RequestInit, o?: unknown) => Promise<Response>)(
+    url,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: events }),
     },
-    body: JSON.stringify({
-      data: events,
-    }),
-  });
+    { vendor: "meta", callerRoute: "lib/meta-marketing.ts:sendConversionsAPIEvent" },
+  );
 
   const data = await response.json();
 

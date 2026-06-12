@@ -117,14 +117,23 @@ export async function zadarmaRequest<T = unknown>(
   const url = `${ZADARMA_API_BASE}${method}`;
 
   try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `${userKey}:${signature}`,
-        "Content-Type": "application/x-www-form-urlencoded",
+    // Data Ownership Layer: route Zadarma calls through vendorFetch.
+    const _vf: typeof fetch = await (async () => {
+      try { return (await import("@/lib/vendor-audit")).vendorFetch as unknown as typeof fetch; }
+      catch { return fetch; }
+    })();
+    const response = await (_vf as (u: string, i?: RequestInit, o?: unknown) => Promise<Response>)(
+      url,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `${userKey}:${signature}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: queryString,
       },
-      body: queryString,
-    });
+      { vendor: "zadarma", callerRoute: "lib/sms-zadarma.ts:callZadarma" },
+    );
 
     const raw = await response.text();
     let data: T | undefined;

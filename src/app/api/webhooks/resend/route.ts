@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "crypto";
 import prisma from "@/lib/db";
+import { withVendorAudit } from "@/lib/vendor-audit";
 
 // Resend webhook events
 // https://resend.com/docs/dashboard/webhooks/event-types
@@ -88,7 +89,7 @@ async function verifyResendSignature(
   return false;
 }
 
-export async function POST(request: NextRequest) {
+async function resendWebhookHandler(request: NextRequest) {
   try {
     const body = await request.text();
 
@@ -321,3 +322,6 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+// Data Ownership Layer
+export const POST = withVendorAudit("resend", resendWebhookHandler);

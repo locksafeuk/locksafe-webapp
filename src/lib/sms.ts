@@ -243,7 +243,12 @@ async function sendViaTwilio(
   }
 
   try {
-    const response = await fetch(
+    // Data Ownership Layer
+    const _vf: typeof fetch = await (async () => {
+      try { return (await import("@/lib/vendor-audit")).vendorFetch as unknown as typeof fetch; }
+      catch { return fetch; }
+    })();
+    const response = await (_vf as (u: string, i?: RequestInit, o?: unknown) => Promise<Response>)(
       `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
       {
         method: "POST",
@@ -255,6 +260,7 @@ async function sendViaTwilio(
           buildTwilioApiPayload(normalizedTo, message, options?.channel ?? "marketing"),
         ),
       },
+      { vendor: "twilio", callerRoute: "lib/sms.ts:sendTwilioSMS" },
     );
 
     const data = await response.json();

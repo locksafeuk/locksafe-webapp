@@ -6,6 +6,7 @@ import { processRetellEvent } from "@/lib/retell-handler";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { getRequestIdentifier } from "@/lib/auth-rate-limit";
 import { logSuspiciousActivity } from "@/lib/fraud-logger";
+import { withVendorAudit } from "@/lib/vendor-audit";
 
 const RETELL_WEBHOOK_MAX_REQUESTS = Number.parseInt(
   process.env.RETELL_WEBHOOK_RATE_LIMIT_MAX || "240",
@@ -16,7 +17,7 @@ const RETELL_WEBHOOK_WINDOW_SECONDS = Number.parseInt(
   10,
 );
 
-export async function POST(request: NextRequest) {
+async function retellWebhookHandler(request: NextRequest) {
   try {
     const ip = getRequestIdentifier(request);
     const rateLimitResult = checkRateLimit(`retell_webhook:${ip}`, {
@@ -89,3 +90,7 @@ export async function GET() {
     version: "1.0.0",
   });
 }
+
+
+// Data Ownership Layer
+export const POST = withVendorAudit("retell", retellWebhookHandler);

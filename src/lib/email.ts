@@ -207,6 +207,7 @@ export async function sendEmail(data: EmailData) {
       return { success: true, mock: true };
     }
 
+    const t0 = Date.now();
     const result = await getResend().emails.send({
       from: FROM_EMAIL,
       to: data.to,
@@ -214,6 +215,23 @@ export async function sendEmail(data: EmailData) {
       html: data.html,
       ...(data.replyTo ? { reply_to: data.replyTo } : {}),
     });
+
+    // Data Ownership Layer: log every email send via Resend.
+    // We use recordSdkCall because Resend's SDK hides the raw fetch.
+    try {
+      const { recordSdkCall } = await import("@/lib/vendor-audit");
+      recordSdkCall("resend", "outbound", "api.resend.com/emails", {
+        method: "POST",
+        status: result.error ? 500 : 200,
+        requestBytes:  Buffer.byteLength(data.html ?? ""),
+        responseBytes: Buffer.byteLength(JSON.stringify(result)),
+        latencyMs:     Date.now() - t0,
+        identifiersShared: { to: data.to },
+        identifiersReceived: result.data?.id ? { message_id: result.data.id } : undefined,
+        callerRoute: "lib/email.ts:sendEmail",
+        errorMessage: result.error ? String(result.error) : undefined,
+      });
+    } catch { /* audit failure must not break email */ }
 
     return { success: true, id: result.data?.id };
   } catch (error) {
