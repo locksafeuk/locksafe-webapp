@@ -67,6 +67,20 @@ const WARMUP_DAYS                   = Number(process.env["AUTO_PAUSE_WARMUP_DAYS
 const MIN_IMPRESSIONS               = Number(process.env["AUTO_PAUSE_MIN_IMPRESSIONS"]               ?? "200");
 const LANDING_HEALTH_TIMEOUT_MS     = Number(process.env["AUTO_PAUSE_LANDING_HEALTH_TIMEOUT_MS"]     ?? "5000");
 
+// ── Dead-spend guards added 2026-06-12 ──────────────────────────────────────
+// The original two pause rules (cost-per-completed too high, OR ≥N bookings
+// with 0 completions) BOTH require the campaign to produce *something*. A
+// campaign that spends real money with real reach but generates ZERO bookings
+// and ZERO completed jobs matched neither rule and could burn budget forever —
+// it's the pure-waste / "drain the budget" failure mode. These two thresholds
+// close that hole:
+//   • HARD_DEADSPEND_GBP — pause even during warmup once dead spend crosses
+//     this. No amount of "learning" justifies this much spend with zero leads;
+//     that's a dead campaign, not a cold start.
+//   • Post-warmup, ANY zero-lead campaign past MIN_SPEND/MIN_IMPRESSIONS with a
+//     healthy landing page is paused (handled inline in the decision chain).
+const HARD_DEADSPEND_GBP            = Number(process.env["AUTO_PAUSE_HARD_DEADSPEND_GBP"]            ?? "120");
+
 // ── Per-campaign evaluation ─────────────────────────────────────────────────
 
 interface CampaignVerdict {
@@ -198,8 +212,24 @@ async function evaluateCampaign(
     landing = await checkLandingHealth(campaign.finalUrl);
   }
 
+  // "Dead spend" = real reach + healthy page, but zero leads of ANY kind.
+  // Distinguished from the vanity-conversion case (bookings that don't
+  // complete): this campaign produces absolutely nothing.
+  const hasRealReach = impressions >= MIN_IMPRESSIONS;
+  const landingOk    = landing.status === "ok" || landing.status === "skipped";
+  const zeroLeads    = bookings === 0 && completedJobs.length === 0;
+
   // Now the rules:
-  if (inWarmup) {
+  if (hasRealReach && landingOk && zeroLeads && spend >= HARD_DEADSPEND_GBP) {
+    // HARD DEAD-SPEND CAP — overrides warmup. £120+ spent with real reach, a
+    // healthy landing page, and 0 bookings + 0 completed jobs is a dead
+    // campaign draining budget, not a cold start that needs more learning time.
+    shouldPause = true;
+    pauseReason =
+      `DEAD SPEND: £${spend.toFixed(2)} over ${ROLLING_DAYS}d with 0 bookings & 0 completed jobs ` +
+      `(${impressions} impressions, landing ok) — hard cap £${HARD_DEADSPEND_GBP} hit, ` +
+      `pausing even in warmup (${daysSincePublished ?? "?"}d old) to stop the budget drain`;
+  } else if (inWarmup) {
     skipReason = `in warmup (${daysSincePublished}d old, threshold ${WARMUP_DAYS}d) — not evaluating yet`;
   } else if (spend < MIN_SPEND_GBP) {
     skipReason = `spend £${spend.toFixed(2)} below MIN_SPEND_GBP £${MIN_SPEND_GBP} — not enough data`;
@@ -223,6 +253,15 @@ async function evaluateCampaign(
       `${bookings} bookings produced but 0 completed jobs ` +
       `(£${spend.toFixed(2)} spent over ${ROLLING_DAYS}d, ${impressions} impressions) — looks like ` +
       `vanity conversions, classic Google rip-off pattern`;
+  } else if (zeroLeads) {
+    // BLIND-SPOT FIX (2026-06-12) — past warmup, real reach, healthy page, real
+    // spend (all guaranteed by the else-if chain above), yet 0 bookings AND
+    // 0 completed jobs. The original rules required ≥3 bookings or a completed
+    // job to fire, so a produces-nothing campaign slipped through forever.
+    shouldPause = true;
+    pauseReason =
+      `ZERO LEADS past warmup: £${spend.toFixed(2)} over ${ROLLING_DAYS}d, ${impressions} impressions, ` +
+      `0 bookings & 0 completed jobs (${daysSincePublished ?? "?"}d old) — campaign produces nothing, pausing`;
   }
 
   return {
@@ -447,6 +486,7 @@ async function runAutoPause(request: NextRequest): Promise<Response> {
       ROLLING_DAYS,
       WARMUP_DAYS,
       MIN_IMPRESSIONS,
+      HARD_DEADSPEND_GBP,
     },
   });
 }

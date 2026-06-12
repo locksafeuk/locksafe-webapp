@@ -194,6 +194,7 @@ export async function GET() {
     metrics: { impressions?: string; clicks?: string; costMicros?: string; conversions?: number };
   }> = [];
 
+  try {
   if (ids.length > 0) {
     [adRows, campRows, perfRows] = await Promise.all([
       client.query<AdGroupAdRow>(`
@@ -220,6 +221,20 @@ export async function GET() {
           AND segments.date BETWEEN '${sinceStr}' AND '${untilStr}'
       `),
     ]);
+  }
+  } catch (err) {
+    // Previously any GAQL failure here (token refresh, bad campaign id, API
+    // quota, transient Google outage) threw unhandled → the route returned an
+    // opaque 500 with an EMPTY body, so the health dashboard just broke with no
+    // explanation. Now it degrades to a structured 502 that names the actual
+    // cause, and logs it server-side for diagnosis.
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[google-ads/health] GAQL query failed:", msg);
+    return NextResponse.json({
+      error: "Google Ads query failed",
+      detail: msg,
+      generatedAt: new Date().toISOString(),
+    }, { status: 502 });
   }
 
   const liveAgg = new Map<string, {
