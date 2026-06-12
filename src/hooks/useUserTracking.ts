@@ -20,7 +20,22 @@ interface UseUserTrackingOptions {
   onSessionReady?: (session: TrackingSession) => void;
 }
 
-// Generate visitor ID (persistent across sessions)
+// Generate visitor ID (persistent across sessions). Also writes a
+// matching cookie so server-side persist sites (auth/register,
+// auth/login, /api/jobs etc.) can resolve the same visitor without the
+// frontend having to thread it through every body. 2026-06-12 Phase 4.
+const VISITOR_COOKIE_NAME = "ls_visitor_id";
+function setVisitorCookie(visitorId: string) {
+  if (typeof document === "undefined") return;
+  // 2 years, sameSite Lax (sent on top-level cross-site navigation —
+  // required so the cookie is present on the initial form POST after
+  // a click from an external ad).
+  const twoYears = 60 * 60 * 24 * 365 * 2;
+  document.cookie =
+    `${VISITOR_COOKIE_NAME}=${encodeURIComponent(visitorId)}; ` +
+    `Max-Age=${twoYears}; Path=/; SameSite=Lax`;
+}
+
 function getOrCreateVisitorId(): string {
   if (typeof window === "undefined") return "";
 
@@ -32,7 +47,54 @@ function getOrCreateVisitorId(): string {
     localStorage.setItem(storageKey, visitorId);
   }
 
+  // Always (re)write the cookie so the server can read it even when
+  // the browser cleared cookies independently of localStorage.
+  setVisitorCookie(visitorId);
+
   return visitorId;
+}
+
+/**
+ * Re-fire the /api/marketing/session POST to update the visitor's
+ * lastTouch values server-side. Called from login / job-place flows so
+ * Customer.lastTouch* refreshes on every meaningful action. 2026-06-12.
+ */
+export async function refreshUserSession(): Promise<void> {
+  if (typeof window === "undefined") return;
+  const visitorId = getOrCreateVisitorId();
+  const params = new URLSearchParams(window.location.search);
+  try {
+    await fetch("/api/marketing/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        visitorId,
+        userAgent:   navigator.userAgent,
+        referrer:    document.referrer,
+        utmSource:   params.get("utm_source"),
+        utmMedium:   params.get("utm_medium"),
+        utmCampaign: params.get("utm_campaign"),
+        utmContent:  params.get("utm_content"),
+        utmTerm:     params.get("utm_term"),
+        gclid:       params.get("gclid"),
+        fbclid:      params.get("fbclid"),
+        landingPage: window.location.pathname,
+        force:       true,
+      }),
+    });
+  } catch (err) {
+    console.warn("[useUserTracking] refresh failed", err);
+  }
+}
+
+/**
+ * Read the visitor id without creating one. Returns "" on server-side
+ * or when no cookie/localStorage entry is present. Used by auth forms
+ * to include `visitorId` in their request body.
+ */
+export function getVisitorId(): string {
+  if (typeof window === "undefined") return "";
+  return localStorage.getItem("ls_visitor_id") ?? "";
 }
 
 // Get visit count
