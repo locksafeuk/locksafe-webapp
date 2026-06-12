@@ -129,7 +129,7 @@ async function runBackfill(request: NextRequest) {
           let first = await resolveFirstTouch(c.visitorId);
           let last  = await resolveLastTouch(c.visitorId);
           if (!first || !last) {
-            // Fallback: find any session linked to this customer by id.
+            // Fallback 1: find any session linked to this customer by id.
             const linked = await p.userSession.findFirst({
               where:   { customerId: c.id },
               orderBy: { startedAt: "asc" },
@@ -168,6 +168,64 @@ async function runBackfill(request: NextRequest) {
                 fbclid:      linkedLast.fbclid,
                 landingPage: linkedLast.landingPage,
                 referrer:    linkedLast.referrer,
+              };
+            }
+          }
+          if (!first || !last) {
+            // Fallback 2 (2026-06-12): derive from the customer's Jobs.
+            // Existing Jobs carry utm/gclid/landingPage in their own
+            // columns (the last-touch at booking time). Oldest such Job
+            // = first-touch proxy; newest = last-touch proxy. This
+            // recovers attribution for the customers who registered
+            // before P3 wired the touch-resolver into customer.create.
+            const oldestJob = await p.job.findFirst({
+              where: { customerId: c.id },
+              orderBy: { createdAt: "asc" },
+              select: {
+                id: true, createdAt: true, utmSource: true, utmMedium: true,
+                utmCampaign: true, utmContent: true, utmTerm: true,
+                gclid: true, fbclid: true, landingPage: true,
+              },
+            });
+            const newestJob = await p.job.findFirst({
+              where: { customerId: c.id },
+              orderBy: { createdAt: "desc" },
+              select: {
+                id: true, createdAt: true, utmSource: true, utmMedium: true,
+                utmCampaign: true, utmContent: true, utmTerm: true,
+                gclid: true, fbclid: true, landingPage: true,
+              },
+            });
+            if (!first && oldestJob) {
+              first = {
+                visitorId:   "",
+                sessionId:   oldestJob.id,
+                at:          oldestJob.createdAt,
+                source:      oldestJob.utmSource ?? "direct",
+                medium:      oldestJob.utmMedium ?? null,
+                campaign:    oldestJob.utmCampaign ?? null,
+                content:     oldestJob.utmContent ?? null,
+                term:        oldestJob.utmTerm ?? null,
+                gclid:       oldestJob.gclid ?? null,
+                fbclid:      oldestJob.fbclid ?? null,
+                landingPage: oldestJob.landingPage ?? null,
+                referrer:    null,
+              };
+            }
+            if (!last && newestJob) {
+              last = {
+                visitorId:   "",
+                sessionId:   newestJob.id,
+                at:          newestJob.createdAt,
+                source:      newestJob.utmSource ?? "direct",
+                medium:      newestJob.utmMedium ?? null,
+                campaign:    newestJob.utmCampaign ?? null,
+                content:     newestJob.utmContent ?? null,
+                term:        newestJob.utmTerm ?? null,
+                gclid:       newestJob.gclid ?? null,
+                fbclid:      newestJob.fbclid ?? null,
+                landingPage: newestJob.landingPage ?? null,
+                referrer:    null,
               };
             }
           }
