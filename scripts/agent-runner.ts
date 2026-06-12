@@ -48,6 +48,7 @@ let tickCount       = 0;
 let lastTickAt: Date | null = null;
 let consecutiveErrors = 0;
 const MAX_CONSECUTIVE_ERRORS = 5;
+let lastComfyAlertAt = 0; // throttle the "ComfyUI down" alert to ~hourly
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function log(msg: string) {
@@ -121,8 +122,22 @@ async function tick() {
   // an imageUrl (publish paths are gated), so this is what keeps posters flowing.
   try {
     const img = await generatePendingPostImages({ limit: 5 });
-    if (img.generated > 0) log(`🎨 Generated ${img.generated} poster image(s).`);
-    else if (img.skipped) log(`🎨 Image gen skipped — ${img.reason}`);
+    if (img.generated > 0) {
+      log(`🎨 Generated ${img.generated} poster image(s).`);
+    } else if (img.skipped) {
+      log(`🎨 Image gen skipped — ${img.reason}`);
+      // Surface a ComfyUI outage: posts won't publish without an image, so this
+      // silently halts posting. Throttle the alert to once per hour.
+      if (img.reason?.includes("ComfyUI") && Date.now() - lastComfyAlertAt > 60 * 60 * 1000) {
+        lastComfyAlertAt = Date.now();
+        await alertTelegram(
+          "🎨 Poster generation paused — ComfyUI is unreachable on the Mac Studio.\n" +
+          "Scheduled posts will WAIT (they won't go out without an image).\n" +
+          "Start ComfyUI (localhost:8188) to resume.",
+          "warning"
+        );
+      }
+    }
   } catch (err) {
     log(`⚠️  Image gen task error: ${err instanceof Error ? err.message : String(err)}`);
   } finally {

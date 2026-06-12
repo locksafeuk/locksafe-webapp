@@ -74,10 +74,19 @@ export async function generatePendingPostImages(
     if (!post.imagePrompt) continue;
     try {
       const enhancedPrompt = await enhanceImagePrompt(post.imagePrompt);
+      // Force a TEXT-FREE background — the headline is overlaid as real font
+      // text afterwards (AI-rendered text is always misspelled).
+      const cleanPrompt =
+        `${enhancedPrompt}\n\nIMPORTANT: Do NOT render any text, letters, words, ` +
+        `numbers, captions, logos, signs, or watermarks anywhere in the image. ` +
+        `Produce only photographic/illustrative imagery with clean, uncluttered ` +
+        `space in the lower third where a headline will be placed separately.`;
       const result = await generateImage({
-        prompt: enhancedPrompt,
+        prompt: cleanPrompt,
         format: "poster",
         blobPrefix: `social/${post.contentPillar ?? "general"}`,
+        // Exact, proofread headline → rendered as real text (zero typos).
+        overlayHeadline: post.headline ?? undefined,
       });
       await prisma.socialPost.update({ where: { id: post.id }, data: { imageUrl: result.url } });
       generated++;

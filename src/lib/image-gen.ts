@@ -12,6 +12,7 @@
  */
 
 import { put } from "@vercel/blob";
+import { overlayHeadline } from "@/lib/poster-overlay";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -187,6 +188,12 @@ export interface GenerateImageOptions {
   seed?: number;
   /** Prefix used for the Vercel Blob path */
   blobPrefix?: string;
+  /**
+   * If set, this exact (proofread) headline is overlaid onto the generated
+   * background as real, brand-styled text — guaranteeing zero typos. The Flux
+   * background should be generated text-free (see the no-text prompt clause).
+   */
+  overlayHeadline?: string;
 }
 
 export interface GenerateImageResult {
@@ -223,7 +230,12 @@ export async function generateImage(opts: GenerateImageOptions): Promise<Generat
   const imageRef = await pollForResult(promptId);
   console.log(`[ImageGen] Generated: ${imageRef.filename}`);
 
-  const imageBuffer = await fetchImage(imageRef.filename, imageRef.subfolder, imageRef.type);
+  let imageBuffer = await fetchImage(imageRef.filename, imageRef.subfolder, imageRef.type);
+
+  // Overlay the proofread headline as real text (clean, typo-free, on-brand).
+  if (opts.overlayHeadline) {
+    imageBuffer = await overlayHeadline(imageBuffer, opts.overlayHeadline);
+  }
 
   // Upload to Vercel Blob
   const blobPath = `${blobPrefix}/${Date.now()}-${imageRef.filename}`;
