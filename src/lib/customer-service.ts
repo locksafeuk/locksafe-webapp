@@ -20,7 +20,7 @@ export interface CheckOrCreateCustomerInput {
   email: string;
   phone: string;
   name: string;
-  source?: "website" | "retell_ai" | "whatsapp" | "api";
+  source?: "website" | "retell_ai" | "whatsapp" | "api" | "stripe";
 }
 
 export interface CheckOrCreateCustomerResult {
@@ -43,7 +43,7 @@ export interface CreateJobInput {
   propertyType: string;
   description?: string;
   isUrgent?: boolean;
-  source?: "website" | "retell_ai" | "whatsapp" | "api";
+  source?: "website" | "retell_ai" | "whatsapp" | "api" | "stripe";
   sourceCallId?: string; // Retell call ID or WhatsApp message ID
 }
 
