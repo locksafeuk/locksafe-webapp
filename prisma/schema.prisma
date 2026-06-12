@@ -940,6 +940,11 @@ model Job {
   firstTouchLandingPage String?
   firstTouchReferrer    String?
 
+  // Phase C, 2026-06-12: denormalised hours from earliest known touch to
+  // booking (createdAt - firstTouchAt). Lets dashboards compute median /
+  // p90 without re-joining UserSession on every query.
+  firstTouchToBookingHours Float?
+
   @@index([continueToken])
   // Frequently-filtered Job queries (dispatch, dashboard, lifecycle crons)
   @@index([status])
@@ -950,6 +955,7 @@ model Job {
   @@index([scheduledFor])
   @@index([confirmationDeadline])
   @@index([firstTouchSource])
+  @@index([firstTouchToBookingHours])
 }
 
 // Job status enum

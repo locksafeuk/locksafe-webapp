@@ -115,6 +115,22 @@ export async function POST(request: NextRequest) {
       data: customerData as any,
     });
 
+    // Phase B, 2026-06-12: link this visitor's UserSession history to the
+    // newly-created customer so analytics joins work straight away.
+    if (visitorId) {
+      try {
+        await prisma.userSession.updateMany({
+          where: { visitorId, customerId: null },
+          data:  { customerId: customer.id },
+        });
+      } catch (err) {
+        console.warn(
+          "[auth/register] UserSession.customerId link failed:",
+          err instanceof Error ? err.message : err,
+        );
+      }
+    }
+
     // Link referral after customer created
     if (validatedRefCode) {
       await applyReferralOnRegistration(validatedRefCode, customer.id, name, email.toLowerCase());
@@ -192,6 +208,13 @@ export async function POST(request: NextRequest) {
         },
         visitorIdForJob,
       );
+      // Phase C, 2026-06-12: compute time-to-purchase hours for dashboard.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const jd = jobData as any;
+      const ftAt = jd.firstTouchAt as Date | undefined;
+      if (ftAt instanceof Date) {
+        jd.firstTouchToBookingHours = Math.max(0, (Date.now() - ftAt.getTime()) / (1000 * 60 * 60));
+      }
       createdJob = await prisma.job.create({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         data: jobData as any,

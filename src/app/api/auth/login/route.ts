@@ -178,6 +178,23 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Phase B, 2026-06-12: link this visitor's UserSession rows to the
+      // customer so analytics joins (UserSession ↔ Customer) work without
+      // visitorId-matching gymnastics.
+      if (visitorId) {
+        try {
+          await prisma.userSession.updateMany({
+            where: { visitorId, customerId: null },
+            data:  { customerId: customer.id },
+          });
+        } catch (err) {
+          console.warn(
+            "[auth/login] UserSession.customerId link failed:",
+            err instanceof Error ? err.message : err,
+          );
+        }
+      }
+
       const token = generateToken({
         id: customer.id,
         email: sanitizedCustomerEmail,

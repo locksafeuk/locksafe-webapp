@@ -55,6 +55,8 @@ export async function GET(request: NextRequest) {
       customerId: true,
       utmSource: true,           // last-touch (on Job)
       firstTouchSource: true,    // first-touch (on Job)
+      firstTouchAt: true,
+      firstTouchToBookingHours: true,
       assessmentFee: true,
       createdAt: true,
       quote: { select: { total: true } },
@@ -143,6 +145,61 @@ export async function GET(request: NextRequest) {
   const totalRevenue = jobs.reduce((s: number, j: { assessmentFee?: number; quote?: { total?: number } }) =>
     s + ((j.quote?.total as number | undefined) ?? (j.assessmentFee as number | undefined) ?? 0), 0);
 
+  // ── Time-to-purchase aggregation by first-touch source (Phase C) ───
+  interface TimeRow {
+    source: string;
+    n:      number;            // sample size
+    hours:  number[];          // raw values, sorted asc in finalize step
+    bucketLte1h:   number;
+    bucketLte24h:  number;
+    bucketLte7d:   number;
+    bucketLte30d:  number;
+    bucketGt30d:   number;
+  }
+  const timeMap = new Map<string, TimeRow>();
+  const timeRow = (source: string): TimeRow => {
+    let r = timeMap.get(source);
+    if (!r) {
+      r = { source, n: 0, hours: [],
+            bucketLte1h: 0, bucketLte24h: 0, bucketLte7d: 0, bucketLte30d: 0, bucketGt30d: 0 };
+      timeMap.set(source, r);
+    }
+    return r;
+  };
+  for (const j of jobs) {
+    const h = j.firstTouchToBookingHours as number | null | undefined;
+    if (typeof h !== "number" || h < 0) continue;
+    const src = j.firstTouchSource ?? "(none)";
+    const r = timeRow(src);
+    r.n++;
+    r.hours.push(h);
+    if      (h <=    1) r.bucketLte1h++;
+    else if (h <=   24) r.bucketLte24h++;
+    else if (h <=  168) r.bucketLte7d++;   // 7d  = 168h
+    else if (h <=  720) r.bucketLte30d++;  // 30d = 720h
+    else                r.bucketGt30d++;
+  }
+  const percentile = (sorted: number[], p: number): number => {
+    if (sorted.length === 0) return 0;
+    const idx = Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * p));
+    return sorted[idx];
+  };
+  const timeToPurchase = Array.from(timeMap.values()).map((r) => {
+    const sorted = [...r.hours].sort((a, b) => a - b);
+    return {
+      source:        r.source,
+      n:             r.n,
+      medianHours:   Number(percentile(sorted, 0.5).toFixed(1)),
+      p75Hours:      Number(percentile(sorted, 0.75).toFixed(1)),
+      p90Hours:      Number(percentile(sorted, 0.9).toFixed(1)),
+      bucketLte1h:   r.bucketLte1h,
+      bucketLte24h:  r.bucketLte24h,
+      bucketLte7d:   r.bucketLte7d,
+      bucketLte30d:  r.bucketLte30d,
+      bucketGt30d:   r.bucketGt30d,
+    };
+  }).sort((a, b) => b.n - a.n);
+
   return NextResponse.json({
     windowDays: days,
     totals: {
@@ -159,5 +216,6 @@ export async function GET(request: NextRequest) {
       ...r,
       revenue: Number(r.revenue.toFixed(2)),
     })),
+    timeToPurchase,
   });
 }

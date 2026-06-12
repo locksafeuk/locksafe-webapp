@@ -133,6 +133,17 @@ export async function POST(request: NextRequest) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           data: customerData as any,
         });
+        // Phase B, 2026-06-12: link history sessions to this customer.
+        if (visitorId) {
+          try {
+            await prisma.userSession.updateMany({
+              where: { visitorId, customerId: null },
+              data:  { customerId: customer.id },
+            });
+          } catch (err) {
+            console.warn("[jobs] UserSession.customerId link failed:", err instanceof Error ? err.message : err);
+          }
+        }
       } else if (visitorId) {
         // Existing customer placing another booking — refresh lastTouch*.
         try {
@@ -252,6 +263,13 @@ export async function POST(request: NextRequest) {
         );
       }
     }
+    // Phase C, 2026-06-12: denormalised time-to-purchase. Lets the
+    // dashboard render histograms without joining UserSession per row.
+    const firstTouchAt = jobFirstTouch.firstTouchAt as Date | undefined;
+    const firstTouchToBookingHours =
+      firstTouchAt instanceof Date
+        ? Math.max(0, (Date.now() - firstTouchAt.getTime()) / (1000 * 60 * 60))
+        : null;
 
     // Create job
     const job = await prisma.job.create({
@@ -284,6 +302,8 @@ export async function POST(request: NextRequest) {
         ...((attribution as any) ?? {}),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ...(jobFirstTouch as any),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...(firstTouchToBookingHours !== null ? ({ firstTouchToBookingHours } as any) : {}),
         // Create photo records if provided
         photos: photos && photos.length > 0 ? {
           create: photos.map((url: string) => ({

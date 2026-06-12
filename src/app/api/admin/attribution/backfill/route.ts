@@ -300,19 +300,33 @@ async function runBackfill(request: NextRequest) {
             },
           });
           if (!cust?.firstTouchAt) return "skipped";
+          // Also pull this Job's createdAt to compute time-to-purchase.
+          const jobMeta = await p.job.findUnique({
+            where: { id: j.id },
+            select: { createdAt: true },
+          });
+          const firstTouchToBookingHours =
+            cust.firstTouchAt && jobMeta?.createdAt
+              ? Math.max(
+                  0,
+                  (new Date(jobMeta.createdAt).getTime() - new Date(cust.firstTouchAt).getTime()) /
+                    (1000 * 60 * 60),
+                )
+              : null;
           await p.job.update({
             where: { id: j.id },
             data: {
-              firstTouchAt:          cust.firstTouchAt,
-              firstTouchSource:      cust.firstTouchSource,
-              firstTouchMedium:      cust.firstTouchMedium,
-              firstTouchCampaign:    cust.firstTouchCampaign,
-              firstTouchContent:     cust.firstTouchContent,
-              firstTouchTerm:        cust.firstTouchTerm,
-              firstTouchGclid:       cust.firstTouchGclid,
-              firstTouchFbclid:      cust.firstTouchFbclid,
-              firstTouchLandingPage: cust.firstTouchLandingPage,
-              firstTouchReferrer:    cust.firstTouchReferrer,
+              firstTouchAt:             cust.firstTouchAt,
+              firstTouchSource:         cust.firstTouchSource,
+              firstTouchMedium:         cust.firstTouchMedium,
+              firstTouchCampaign:       cust.firstTouchCampaign,
+              firstTouchContent:        cust.firstTouchContent,
+              firstTouchTerm:           cust.firstTouchTerm,
+              firstTouchGclid:          cust.firstTouchGclid,
+              firstTouchFbclid:         cust.firstTouchFbclid,
+              firstTouchLandingPage:    cust.firstTouchLandingPage,
+              firstTouchReferrer:       cust.firstTouchReferrer,
+              firstTouchToBookingHours,
             },
           });
           if (examples.length < 5) examples.push(j.id);

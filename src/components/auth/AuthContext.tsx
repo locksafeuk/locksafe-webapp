@@ -1,6 +1,8 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
+import { getClientAttribution } from "@/lib/marketing/client-attribution";
+import { refreshUserSession } from "@/hooks/useUserTracking";
 
 interface User {
   id: string;
@@ -69,16 +71,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
+      // Phase A, 2026-06-12: include the visitor's attribution payload so
+      // the server can stamp Customer.lastTouch* on login.
+      const attribution = getClientAttribution();
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, ...attribution }),
       });
 
       const data = await response.json();
 
       if (response.ok && data.success) {
         setUser(data.user);
+        // Refresh the marketing session row so its customerId gets bound
+        // (Phase B server work links UserSession → Customer for joins).
+        refreshUserSession().catch(() => {});
         return { success: true, redirectTo: data.redirectTo };
       }
 
@@ -91,16 +99,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = async (registerData: RegisterData) => {
     try {
+      // Phase A, 2026-06-12: include the visitor's attribution payload so
+      // Customer.firstTouch* + Customer.lastTouch* + the pendingRequest
+      // Job get stamped from the originating UserSession.
+      const attribution = getClientAttribution();
       const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(registerData),
+        body: JSON.stringify({ ...registerData, ...attribution }),
       });
 
       const data = await response.json();
 
       if (response.ok && data.success) {
         setUser(data.user);
+        refreshUserSession().catch(() => {});
         return { success: true, redirectTo: data.redirectTo };
       }
 

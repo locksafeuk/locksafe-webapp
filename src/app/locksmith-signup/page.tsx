@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { getClientAttribution } from "@/lib/marketing/client-attribution";
 import { extractUkPostcode, formatBaseLocationLabel, normalizeUkPostcode } from "@/lib/location-display";
 import {
   KeyRound,
@@ -192,6 +193,9 @@ export default function LocksmithSignupPage() {
     }
 
     try {
+      // Phase A, 2026-06-12: spread the visitor's attribution payload so
+      // Locksmith.firstTouch* gets stamped from the originating session.
+      const attribution = getClientAttribution();
       const response = await fetch("/api/locksmiths/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -205,6 +209,7 @@ export default function LocksmithSignupPage() {
           baseLng,
           baseAddress,
           coverageRadius,
+          ...attribution,
         }),
       });
 

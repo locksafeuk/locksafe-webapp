@@ -27,11 +27,32 @@ interface CrossRow {
   count:       number;
   revenue:     number;
 }
+interface TimeRow {
+  source:       string;
+  n:            number;
+  medianHours:  number;
+  p75Hours:     number;
+  p90Hours:     number;
+  bucketLte1h:  number;
+  bucketLte24h: number;
+  bucketLte7d:  number;
+  bucketLte30d: number;
+  bucketGt30d:  number;
+}
 interface Report {
   windowDays: number;
   totals: { customers: number; jobs: number; revenue: number };
   bySource: BySourceRow[];
   crossChannel: CrossRow[];
+  timeToPurchase: TimeRow[];
+}
+
+function fmtHours(h: number): string {
+  if (h < 1) return `${Math.round(h * 60)}m`;
+  if (h < 48) return `${h.toFixed(1)}h`;
+  if (h < 168) return `${(h / 24).toFixed(1)}d`;
+  if (h < 720) return `${(h / 24).toFixed(0)}d`;
+  return `${(h / (24 * 30)).toFixed(1)}mo`;
 }
 
 export default function TouchReportPage() {
@@ -186,6 +207,54 @@ export default function TouchReportPage() {
                 {report.crossChannel.length === 0 && (
                   <tr><td colSpan={4} className="p-4 text-center text-gray-500">
                     No cross-channel jobs in window.
+                  </td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <h2 className="text-lg font-semibold mt-8 mb-2">
+            Time from first touch → booking
+          </h2>
+          <p className="text-sm text-gray-500 mb-3">
+            How long it takes a customer to convert after their first known
+            touch. Median + p75 + p90 by source. Short = high-intent traffic
+            (emergency calls). Long = awareness journey (assist channels).
+          </p>
+          <div className="overflow-x-auto border rounded">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr className="text-left">
+                  <th className="p-2">First-touch source</th>
+                  <th className="p-2 text-right">Jobs</th>
+                  <th className="p-2 text-right">Median</th>
+                  <th className="p-2 text-right">p75</th>
+                  <th className="p-2 text-right">p90</th>
+                  <th className="p-2 text-right">≤1h</th>
+                  <th className="p-2 text-right">≤24h</th>
+                  <th className="p-2 text-right">≤7d</th>
+                  <th className="p-2 text-right">≤30d</th>
+                  <th className="p-2 text-right">&gt;30d</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(report.timeToPurchase ?? []).map((r) => (
+                  <tr key={r.source} className="border-t">
+                    <td className="p-2 font-mono">{r.source}</td>
+                    <td className="p-2 text-right">{r.n}</td>
+                    <td className="p-2 text-right">{fmtHours(r.medianHours)}</td>
+                    <td className="p-2 text-right">{fmtHours(r.p75Hours)}</td>
+                    <td className="p-2 text-right">{fmtHours(r.p90Hours)}</td>
+                    <td className="p-2 text-right">{r.bucketLte1h}</td>
+                    <td className="p-2 text-right">{r.bucketLte24h}</td>
+                    <td className="p-2 text-right">{r.bucketLte7d}</td>
+                    <td className="p-2 text-right">{r.bucketLte30d}</td>
+                    <td className="p-2 text-right">{r.bucketGt30d}</td>
+                  </tr>
+                ))}
+                {(report.timeToPurchase ?? []).length === 0 && (
+                  <tr><td colSpan={10} className="p-4 text-center text-gray-500">
+                    No time-to-purchase data yet — run backfill to compute on existing jobs.
                   </td></tr>
                 )}
               </tbody>
