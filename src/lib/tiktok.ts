@@ -200,6 +200,85 @@ export async function postPhotoToTikTok(params: {
   }
 }
 
+/**
+ * Publish a VIDEO post to TikTok via the Content Posting API (DIRECT_POST).
+ * `videoUrl` must be publicly reachable on a TikTok-verified domain (use the
+ * /api/social/video/[id] proxy, which serves our Blob MP4 from locksafe.uk).
+ */
+export async function postVideoToTikTok(params: {
+  accessToken: string;
+  caption: string;
+  videoUrl: string;
+  title?: string;
+  privacyLevel?: "PUBLIC_TO_EVERYONE" | "FOLLOWER_OF_CREATOR" | "SELF_ONLY";
+  wait?: boolean;
+}): Promise<TikTokPhotoResult> {
+  const {
+    accessToken,
+    caption,
+    videoUrl,
+    title = "LockSafe",
+    privacyLevel = (process.env.TIKTOK_PRIVACY_LEVEL as "PUBLIC_TO_EVERYONE" | "SELF_ONLY") || "PUBLIC_TO_EVERYONE",
+    wait = true,
+  } = params;
+
+  if (!videoUrl) return { success: false, error: "No video URL provided" };
+
+  // Surface auth/audit errors early.
+  const creator = await queryTikTokCreatorInfo(accessToken);
+  if (!creator.ok) return { success: false, error: `creator_info: ${creator.error}` };
+
+  try {
+    const initRes = await fetch(`${TIKTOK_API}/post/publish/video/init/`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json; charset=UTF-8",
+      },
+      body: JSON.stringify({
+        post_info: {
+          title: title.slice(0, 90),
+          description: caption.slice(0, 2200),
+          privacy_level: privacyLevel,
+          disable_comment: false,
+          disable_duet: false,
+          disable_stitch: false,
+        },
+        source_info: {
+          source: "PULL_FROM_URL",
+          video_url: videoUrl,
+        },
+        post_mode: "DIRECT_POST",
+        media_type: "VIDEO",
+      }),
+    });
+
+    const initJson = (await initRes.json()) as {
+      data?: { publish_id?: string };
+      error?: { code?: string; message?: string };
+    };
+
+    if (!initRes.ok || (initJson.error?.code && initJson.error.code !== "ok")) {
+      return { success: false, error: `${initJson.error?.code ?? initRes.status}: ${initJson.error?.message ?? "video init failed"}` };
+    }
+
+    const publishId = initJson.data?.publish_id;
+    if (!publishId) return { success: false, error: "video init returned no publish_id" };
+    if (!wait) return { success: true, publishId, status: "PROCESSING" };
+
+    const { status, failReason } = await pollTikTokStatus(accessToken, publishId);
+    const ok = status === "PUBLISH_COMPLETE" || status === "SEND_TO_USER_INBOX";
+    return {
+      success: ok,
+      publishId,
+      status,
+      error: ok ? undefined : `final status: ${status}${failReason ? ` (${failReason})` : ""}`,
+    };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 async function pollTikTokStatus(
   accessToken: string,
   publishId: string,

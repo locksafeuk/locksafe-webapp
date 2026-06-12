@@ -69,3 +69,4 @@ test-reports/
 reports/daily-checks/
 reports/reliability/
 .env.backup*
+.github-token

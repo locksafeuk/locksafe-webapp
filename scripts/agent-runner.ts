@@ -38,6 +38,7 @@ if (process.env.AGENTS_ENABLED !== "true") {
 import { initializeAgentSystem, runAgentHeartbeats } from "@/agents/index";
 import { sendAdminAlert } from "@/lib/telegram";
 import { generatePendingPostImages } from "@/lib/generate-post-images";
+import { generatePendingPostVideos } from "@/lib/generate-post-videos";
 
 // ─── Config ─────────────────────────────────────────────────────────────────
 const TICK_INTERVAL_MS  = 5 * 60 * 1000;  // 5 minutes between ticks
@@ -139,6 +140,23 @@ async function tick() {
     }
   } catch (err) {
     log(`⚠️  Image gen task error: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // ── TikTok short-video generation (Mac runner only — needs ffmpeg) ──────────
+  // Renders captioned 9:16 shorts with a TTS voiceover for TikTok-targeted posts
+  // that still lack a videoUrl. Heavier than image gen, so a small limit. Posts
+  // with a videoUrl are published as native TikTok video (preferred over photo).
+  try {
+    const vid = await generatePendingPostVideos({ limit: 2 });
+    if (vid.generated > 0) {
+      log(`🎬 Rendered ${vid.generated} TikTok short(s).`);
+    } else if (vid.skipped) {
+      log(`🎬 Short-video gen skipped — ${vid.reason}`);
+    } else if (vid.failed > 0) {
+      log(`🎬 Short-video gen: ${vid.failed} failed — ${vid.results.find((r) => !r.success)?.error}`);
+    }
+  } catch (err) {
+    log(`⚠️  Short-video task error: ${err instanceof Error ? err.message : String(err)}`);
   } finally {
     isRunning = false;
   }

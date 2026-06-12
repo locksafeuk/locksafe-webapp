@@ -22,7 +22,7 @@ import {
 import { formatPostForPlatform } from "@/lib/organic-content";
 import { isTwitterConfigured, postTweet, postThread, postTweetWithImage } from "@/lib/twitter";
 import { isLinkedInConfigured, postToLinkedIn } from "@/lib/linkedin";
-import { isTikTokApiConfigured, generateTikTokScript, postPhotoToTikTok } from "@/lib/tiktok";
+import { isTikTokApiConfigured, generateTikTokScript, postPhotoToTikTok, postVideoToTikTok } from "@/lib/tiktok";
 import { sendAdminAlert } from "@/lib/telegram";
 import { isPlatformEnabled } from "@/lib/social-platforms";
 
@@ -321,13 +321,30 @@ export async function GET(request: NextRequest) {
       // TikTok: real PHOTO post when a connected account + image exist; else
       // fall back to generating a script for manual/AI video production.
       if (post.platforms.includes("TIKTOK")) {
-        if (tiktokDbAccount?.accessToken && post.imageUrl) {
+        const caption = (post as Record<string, unknown>).tiktokContent as string | undefined || post.content;
+        const base = process.env.NEXT_PUBLIC_APP_URL || "https://www.locksafe.uk";
+        if (tiktokDbAccount?.accessToken && post.videoUrl) {
+          // Preferred: native short VIDEO post. PULL_FROM_URL needs the MP4 on
+          // our VERIFIED domain — serve it through the proxy route (the raw Blob
+          // URL would be rejected: wrong domain).
           try {
-            const caption = (post as Record<string, unknown>).tiktokContent as string | undefined || post.content;
+            const result = await postVideoToTikTok({
+              accessToken: tiktokDbAccount.accessToken,
+              caption: caption.slice(0, 2200),
+              videoUrl: `${base}/api/social/video/${post.id}`,
+              title: post.headline || "LockSafe",
+            });
+            platformResults.tiktok = result.success
+              ? { success: true, postId: result.publishId }
+              : { success: false, error: result.error };
+          } catch (err) {
+            platformResults.tiktok = { success: false, error: err instanceof Error ? err.message : String(err) };
+          }
+        } else if (tiktokDbAccount?.accessToken && post.imageUrl) {
+          try {
             // TikTok PULL_FROM_URL needs a JPEG on our VERIFIED domain — serve
             // the poster via the proxy route (the raw Blob URL would be rejected:
             // wrong domain + PNG).
-            const base = process.env.NEXT_PUBLIC_APP_URL || "https://www.locksafe.uk";
             const tiktokImageUrl = `${base}/api/social/poster/${post.id}`;
             const result = await postPhotoToTikTok({
               accessToken: tiktokDbAccount.accessToken,
