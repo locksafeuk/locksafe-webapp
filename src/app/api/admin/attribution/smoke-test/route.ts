@@ -77,6 +77,8 @@ export async function POST() {
         landingPage: "/locksmith-in/bs1",
         startedAt:   new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7d ago
         lastActiveAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+        deviceType:  "desktop",
+        browser:     "smoke-test",
       },
     });
     firstSessionId = firstSession.id;
@@ -92,6 +94,8 @@ export async function POST() {
         landingPage: "/",
         startedAt:   new Date(),
         lastActiveAt: new Date(),
+        deviceType:  "desktop",
+        browser:     "smoke-test",
       },
     });
     lastSessionId = lastSession.id;
