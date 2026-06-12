@@ -284,11 +284,13 @@ export async function GET(request: NextRequest) {
     });
   }
   try {
+    // NB: Google Ads enum literals in GAQL are unquoted (CALL, ENABLED,
+    // PAUSED). Quoting them produces 400 INVALID_ARGUMENT.
     campaignAssets = (await client.query(`
       SELECT campaign.resource_name, campaign.name, campaign_asset.field_type, asset.type
         FROM campaign_asset
-       WHERE campaign.status = 'ENABLED'
-         AND campaign_asset.field_type = 'CALL'
+       WHERE campaign.status = ENABLED
+         AND campaign_asset.field_type = CALL
     `)) as CampaignAssetRow[];
   } catch (err) {
     checks.push({
