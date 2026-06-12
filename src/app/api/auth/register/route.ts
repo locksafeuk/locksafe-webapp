@@ -5,6 +5,27 @@ import { sendVerificationEmail } from "@/lib/email";
 import { notifyNewCustomer, notifyNewJob } from "@/lib/telegram";
 import { applyReferralOnRegistration, validateReferralCode } from "@/lib/referrals";
 import { generateJobNumber } from "@/lib/job-number";
+import {
+  stampFirstAndLastTouchOn,
+  stampJobAttribution,
+} from "@/lib/attribution/touch-resolver";
+
+/**
+ * Resolve the visitor id for attribution stamping. Tries (in order):
+ *   1. body.visitorId (frontend form passes ls_visitor_id from localStorage)
+ *   2. ls_visitor_id cookie (set as backup by useUserTracking on init)
+ * Returns null when neither is available (admin-created accounts, etc).
+ */
+function resolveVisitorId(
+  request: NextRequest,
+  bodyVisitorId: unknown,
+): string | null {
+  if (typeof bodyVisitorId === "string" && bodyVisitorId.length > 0) {
+    return bodyVisitorId;
+  }
+  const cookie = request.cookies.get("ls_visitor_id")?.value;
+  return cookie && cookie.length > 0 ? cookie : null;
+}
 
 // Generate a random token
 function generateRandomToken(): string {
@@ -20,6 +41,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { name, email, phone, password, pendingRequest, referralCode } = body;
+    const visitorId = resolveVisitorId(request, body.visitorId);
 
     if (!name || !email || !phone || !password) {
       return NextResponse.json(
@@ -71,9 +93,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create the customer
-    const customer = await prisma.customer.create({
-      data: {
+    // Create the customer with first/last touch attribution stamped from
+    // their UserSession history (Phase 3, 2026-06-12).
+    const customerData = await stampFirstAndLastTouchOn(
+      {
         name,
         email: email.toLowerCase(),
         phone,
@@ -84,6 +107,12 @@ export async function POST(request: NextRequest) {
         // Pre-load referral credits if they have a discount code
         referralCredits: referralDiscount,
       },
+      visitorId,
+      { fallbackSource: "direct" },
+    );
+    const customer = await prisma.customer.create({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      data: customerData as any,
     });
 
     // Link referral after customer created
@@ -144,8 +173,13 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      createdJob = await prisma.job.create({
-        data: {
+      // Phase 3, 2026-06-12: stamp Job.firstTouch* from the visitor's
+      // earliest UserSession. The legacy utm* fields keep the last-touch
+      // values (recovered above by the explicit-attribution merge).
+      const visitorIdForJob =
+        typeof pr.visitorId === "string" ? pr.visitorId : visitorId;
+      const jobData = await stampJobAttribution(
+        {
           jobNumber,
           customerId: customer.id,
           problemType: pendingRequest.problemType,
@@ -153,11 +187,14 @@ export async function POST(request: NextRequest) {
           postcode: pendingRequest.postcode,
           address: pendingRequest.address,
           description: pendingRequest.description || null,
-          // Cast through `as any` until `npx prisma generate` picks up
-          // the new Job UTM fields. Same pattern used elsewhere.
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          ...(attribution as any),
+          // explicit utm* from the pending body wins over resolver values.
+          ...attribution,
         },
+        visitorIdForJob,
+      );
+      createdJob = await prisma.job.create({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        data: jobData as any,
       });
     }
 

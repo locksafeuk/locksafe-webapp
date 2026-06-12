@@ -3,6 +3,22 @@ import prisma from "@/lib/db";
 import { generateToken, verifyPassword, AUTH_COOKIE_OPTIONS, getRedirectPath } from "@/lib/auth";
 import { enforceAuthRateLimit } from "@/lib/auth-rate-limit";
 import { sendLocksmithFirstLoginInstallOptionsEmail } from "@/lib/email";
+import { stampLastTouchOn } from "@/lib/attribution/touch-resolver";
+
+/**
+ * Pull the visitor id from request body (frontend includes it) or the
+ * ls_visitor_id backup cookie. Returns null when neither present.
+ */
+function resolveVisitorId(
+  request: NextRequest,
+  bodyVisitorId: unknown,
+): string | null {
+  if (typeof bodyVisitorId === "string" && bodyVisitorId.length > 0) {
+    return bodyVisitorId;
+  }
+  const cookie = request.cookies.get("ls_visitor_id")?.value;
+  return cookie && cookie.length > 0 ? cookie : null;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,6 +29,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const { email, password } = body;
+    const visitorId = resolveVisitorId(request, body.visitorId);
 
     if (!email || !password) {
       return NextResponse.json(
@@ -142,6 +159,24 @@ export async function POST(request: NextRequest) {
       const sanitizedCustomerName = customer.name?.trim() || "";
       const sanitizedCustomerEmail = customer.email?.trim().toLowerCase() || "";
       const sanitizedPhone = customer.phone?.trim() || "";
+
+      // Phase 3, 2026-06-12: refresh lastTouch* from the current visitor
+      // session. Non-blocking: failure to stamp must not break login.
+      try {
+        const update = await stampLastTouchOn({}, visitorId);
+        if (Object.keys(update).length > 0) {
+          await prisma.customer.update({
+            where: { id: customer.id },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            data: update as any,
+          });
+        }
+      } catch (err) {
+        console.warn(
+          "[auth/login] lastTouch stamp failed:",
+          err instanceof Error ? err.message : err,
+        );
+      }
 
       const token = generateToken({
         id: customer.id,

@@ -185,7 +185,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create new customer with onboarding flags set to false
+    // Create new customer with onboarding flags set to false.
+    // Phase 3 (2026-06-12): firstTouch + lastTouch both default to
+    // "phone" — Retell callers don't carry a web session id.
     customer = await prisma.customer.create({
       data: {
         name: full_name,
@@ -196,7 +198,12 @@ export async function POST(request: NextRequest) {
         onboardingCompleted: false,
         passwordSet: false,
         locationConfirmed: false,
-      },
+        firstTouchAt: new Date(),
+        firstTouchSource: "phone",
+        lastTouchAt: new Date(),
+        lastTouchSource: "phone",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any,
     });
 
     // Telegram notification (non-blocking)

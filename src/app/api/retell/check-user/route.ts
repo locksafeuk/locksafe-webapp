@@ -233,6 +233,11 @@ export async function POST(request: NextRequest) {
       onboardingCompleted: false,
       passwordSet: false,
       locationConfirmed: false,
+      // Phase 3, 2026-06-12: Retell-call customers default to phone touch.
+      firstTouchAt: new Date(),
+      firstTouchSource: "phone",
+      lastTouchAt: new Date(),
+      lastTouchSource: "phone",
     };
 
     // Only set email if provided and valid

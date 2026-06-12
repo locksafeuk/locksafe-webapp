@@ -14,6 +14,7 @@ import {
 // POST - Locksmith registration
 export async function POST(request: NextRequest) {
   try {
+    const reqBody = await request.json();
     const {
       email,
       password,
@@ -24,7 +25,13 @@ export async function POST(request: NextRequest) {
       baseLng,
       baseAddress,
       coverageRadius,
-    } = await request.json();
+    } = reqBody;
+
+    // Phase 3, 2026-06-12: capture first-touch attribution from session history.
+    const visitorId =
+      (typeof reqBody.visitorId === "string" && reqBody.visitorId) ||
+      request.cookies.get("ls_visitor_id")?.value ||
+      null;
 
     // Validate required fields
     if (!email || !password || !name || !phone) {
@@ -95,9 +102,11 @@ export async function POST(request: NextRequest) {
         ? cleanedBaseAddress
         : null;
 
-    // Create locksmith
-    const locksmith = await prisma.locksmith.create({
-      data: {
+    // Create locksmith with first-touch attribution from session history
+    // (Phase 3, 2026-06-12). Locksmith doesn't carry lastTouch* — recruitment
+    // is a one-shot event; we only care where they first heard of us.
+    const { stampFirstTouchOn } = await import("@/lib/attribution/touch-resolver");
+    const locksmithBase = {
         email: email.toLowerCase(),
         passwordHash,
         name,
@@ -111,6 +120,15 @@ export async function POST(request: NextRequest) {
         coverageAreas: [],
         services: [],
         yearsExperience: 0,
+    };
+    const locksmithDataStamped = await stampFirstTouchOn(
+      locksmithBase,
+      visitorId,
+      { fallbackSource: "direct" },
+    );
+    const locksmith = await prisma.locksmith.create({
+      data: {
+        ...locksmithDataStamped,
         // Location & Coverage
         baseLat: baseLat,
         baseLng: baseLng,

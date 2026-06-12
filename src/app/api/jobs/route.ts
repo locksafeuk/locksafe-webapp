@@ -118,12 +118,39 @@ export async function POST(request: NextRequest) {
       }
 
       if (!customer) {
-        customer = await prisma.customer.create({
-          data: {
+        // Phase 3, 2026-06-12: stamp first/last touch from session history
+        // when the anonymous customer is created via the booking form.
+        const { stampFirstAndLastTouchOn } = await import("@/lib/attribution/touch-resolver");
+        const customerData = await stampFirstAndLastTouchOn(
+          {
             name,
             phone: normalizedPhone || phone,
           },
+          visitorId,
+          { fallbackSource: "direct" },
+        );
+        customer = await prisma.customer.create({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          data: customerData as any,
         });
+      } else if (visitorId) {
+        // Existing customer placing another booking — refresh lastTouch*.
+        try {
+          const { stampLastTouchOn } = await import("@/lib/attribution/touch-resolver");
+          const update = await stampLastTouchOn({}, visitorId);
+          if (Object.keys(update).length > 0) {
+            await prisma.customer.update({
+              where: { id: customer.id },
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              data: update as any,
+            });
+          }
+        } catch (err) {
+          console.warn(
+            "[jobs] customer lastTouch refresh failed:",
+            err instanceof Error ? err.message : err,
+          );
+        }
       }
       customerIdToUse = customer.id;
     }
@@ -210,6 +237,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Resolve Job.firstTouch* from the visitor's earliest UserSession
+    // (Phase 3, 2026-06-12). The existing utm*/gclid/landingPage above
+    // already carry the last-touch values.
+    let jobFirstTouch: Record<string, unknown> = {};
+    if (visitorId) {
+      try {
+        const { stampFirstTouchOn } = await import("@/lib/attribution/touch-resolver");
+        jobFirstTouch = (await stampFirstTouchOn({}, visitorId)) as Record<string, unknown>;
+      } catch (err) {
+        console.warn(
+          "[jobs] firstTouch stamp failed:",
+          err instanceof Error ? err.message : err,
+        );
+      }
+    }
+
     // Create job
     const job = await prisma.job.create({
       data: {
@@ -234,13 +277,13 @@ export async function POST(request: NextRequest) {
         longitude,
         // GPS tracking for anti-fraud protection
         requestGps: requestGps || null,
-        // Marketing attribution — captured from session or request body
-        // and persisted so the Conversions API uploader can credit the
-        // right Google Ads click when this Job becomes paid+complete.
-        // Cast through `as any` until `npx prisma generate` picks up the
-        // new fields on the Job model.
+        // Marketing attribution — last-touch (legacy utm*/gclid/landingPage
+        // columns) + first-touch (new firstTouch* columns added Phase 1).
+        // Both populated from the visitor's session history.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ...((attribution as any) ?? {}),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...(jobFirstTouch as any),
         // Create photo records if provided
         photos: photos && photos.length > 0 ? {
           create: photos.map((url: string) => ({

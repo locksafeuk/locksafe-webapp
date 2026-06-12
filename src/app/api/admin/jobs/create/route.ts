@@ -127,7 +127,13 @@ export async function POST(request: NextRequest) {
             verificationToken: onboardingToken,
             verificationTokenExpiry: tokenExpiry,
             onboardingCompleted: false,
-          },
+            // Phase 3, 2026-06-12: admin-created customers default to admin touch.
+            firstTouchAt: new Date(),
+            firstTouchSource: "admin",
+            lastTouchAt: new Date(),
+            lastTouchSource: "admin",
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          } as any,
         });
       }
     }
