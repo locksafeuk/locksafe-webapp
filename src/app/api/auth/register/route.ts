@@ -119,8 +119,12 @@ export async function POST(request: NextRequest) {
     // newly-created customer so analytics joins work straight away.
     if (visitorId) {
       try {
+        // NB: MongoDB connector treats `customerId: null` filter strictly
+        // (matches literal null, not missing field). Filter on visitorId
+        // only — claim every session for this visitor. Idempotent and
+        // last-seen-wins on the rare shared-device case.
         await prisma.userSession.updateMany({
-          where: { visitorId, customerId: null },
+          where: { visitorId },
           data:  { customerId: customer.id },
         });
       } catch (err) {

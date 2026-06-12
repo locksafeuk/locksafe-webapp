@@ -157,8 +157,11 @@ export async function POST() {
 
     // ── Step 4. Simulate the UserSession.customerId link that Phase B
     // performs at login/register/jobs.
+    // NB: MongoDB connector treats `customerId: null` filter strictly
+    // (literal null, not missing field). Filter on visitorId only — the
+    // smoke-test sessions are freshly minted and have no customerId.
     await p.userSession.updateMany({
-      where: { visitorId, customerId: null },
+      where: { visitorId },
       data:  { customerId: customer.id },
     });
     const linkedSessions = await p.userSession.findMany({

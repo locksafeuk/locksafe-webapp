@@ -183,8 +183,11 @@ export async function POST(request: NextRequest) {
       // visitorId-matching gymnastics.
       if (visitorId) {
         try {
+          // NB: MongoDB connector treats `customerId: null` filter strictly
+          // (matches literal null, not missing field). Filter on visitorId
+          // only — claim every session for this visitor.
           await prisma.userSession.updateMany({
-            where: { visitorId, customerId: null },
+            where: { visitorId },
             data:  { customerId: customer.id },
           });
         } catch (err) {
