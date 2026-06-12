@@ -160,14 +160,9 @@ export async function POST() {
     // NB: MongoDB connector treats `customerId: null` filter strictly
     // (literal null, not missing field). Filter on visitorId only — the
     // smoke-test sessions are freshly minted and have no customerId.
-    const updateResult = await p.userSession.updateMany({
+    await p.userSession.updateMany({
       where: { visitorId },
       data:  { customerId: customer.id },
-    });
-    // Diagnostic: do a wide scan to confirm the rows really exist.
-    const allByVisitor = await p.userSession.findMany({
-      where:  { visitorId },
-      select: { id: true, customerId: true, visitorId: true },
     });
     const linkedSessions = await p.userSession.findMany({
       where:  { visitorId, customerId: customer.id },
@@ -176,12 +171,7 @@ export async function POST() {
     checks.push({
       name:     "Phase B: UserSession.customerId linked",
       expected: 2,
-      actual:   {
-        linkedCount:   linkedSessions.length,
-        updateCount:   updateResult?.count,
-        allByVisitor:  allByVisitor,
-        targetCustomer: customer.id,
-      },
+      actual:   linkedSessions.length,
       passed:   linkedSessions.length === 2,
     });
 
