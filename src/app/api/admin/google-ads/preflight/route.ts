@@ -268,8 +268,11 @@ export async function GET(request: NextRequest) {
     });
   }
   try {
+    // NB: every field referenced in WHERE must also appear in SELECT,
+    // hence campaign.status is in both clauses even though we don't
+    // read its value back.
     campaignSets = (await client.query(`
-      SELECT campaign.resource_name, campaign.name,
+      SELECT campaign.resource_name, campaign.name, campaign.status,
              shared_set.resource_name, shared_set.name,
              campaign_shared_set.status
         FROM campaign_shared_set
@@ -286,8 +289,12 @@ export async function GET(request: NextRequest) {
   try {
     // NB: Google Ads enum literals in GAQL are unquoted (CALL, ENABLED,
     // PAUSED). Quoting them produces 400 INVALID_ARGUMENT.
+    // GAQL also requires every field referenced in WHERE to appear in
+    // SELECT — `campaign.status` must be present even if we don't use
+    // its value, or the request 400s with EXPECTED_REFERENCED_FIELD_IN_SELECT_CLAUSE.
     campaignAssets = (await client.query(`
-      SELECT campaign.resource_name, campaign.name, campaign_asset.field_type, asset.type
+      SELECT campaign.resource_name, campaign.name, campaign.status,
+             campaign_asset.field_type, asset.type
         FROM campaign_asset
        WHERE campaign.status = ENABLED
          AND campaign_asset.field_type = CALL
