@@ -120,6 +120,8 @@ export default function DataOwnershipPage() {
   const [selected,  setSelected]  = useState<EventRow | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [drillDown, setDrillDown] = useState<any | null>(null);
+  const [live,      setLive]      = useState(false);
+  const [liveCount, setLiveCount] = useState(0);
 
   const load = async () => {
     setLoading(true);
@@ -151,6 +153,33 @@ export default function DataOwnershipPage() {
       .then((j) => setFlow(j));
   }, []);
 
+  // SSE live tail. Toggling Live opens EventSource; toggle off closes it.
+  useEffect(() => {
+    if (!live) return;
+    const es = new EventSource("/api/admin/vendor-audit/stream", { withCredentials: true });
+    es.onmessage = (msg) => {
+      try {
+        const payload = JSON.parse(msg.data);
+        if (payload.type === "event" && payload.row) {
+          // Apply current filters client-side before prepending.
+          const row = payload.row as EventRow;
+          if (filters.vendor    && row.vendor    !== filters.vendor)    return;
+          if (filters.direction && row.direction !== filters.direction) return;
+          if (filters.endpoint  && !row.endpoint.includes(filters.endpoint)) return;
+          setData((prev) => prev
+            ? { ...prev, items: [row, ...prev.items].slice(0, 200) }
+            : prev,
+          );
+          setLiveCount((n) => n + 1);
+        }
+      } catch { /* ignore malformed payload */ }
+    };
+    es.onerror = () => {
+      // Browser will auto-reconnect; nothing to do.
+    };
+    return () => { es.close(); };
+  }, [live, filters]);
+
   const openDrillDown = async (row: EventRow) => {
     setSelected(row);
     setDrillDown(null);
@@ -176,14 +205,30 @@ export default function DataOwnershipPage() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Data Ownership Dashboard</h1>
-        <p className="text-sm text-gray-600 mt-1">
-          Every outbound and inbound HTTP exchange between LockSafe and
-          third-party vendors. What data leaves the platform, what comes
-          back, and from whom. Phase 1: Google Ads + Stripe wired. More
-          vendors landing in Phase 2.
-        </p>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Data Ownership Dashboard</h1>
+          <p className="text-sm text-gray-600 mt-1">
+            Every outbound and inbound HTTP exchange between LockSafe and
+            third-party vendors. What data leaves the platform, what comes
+            back, and from whom.
+          </p>
+        </div>
+        <button
+          onClick={() => { setLive((v) => !v); setLiveCount(0); }}
+          className={`px-3 py-1.5 text-sm rounded ${
+            live
+              ? "bg-emerald-100 text-emerald-900 ring-2 ring-emerald-500"
+              : "bg-gray-100 text-gray-900 hover:bg-gray-200"
+          }`}
+        >
+          {live ? (
+            <span className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              Live · {liveCount} new
+            </span>
+          ) : "Go live"}
+        </button>
       </div>
 
       {/* Field-flow Sankey — what kind of data goes to whom */}
