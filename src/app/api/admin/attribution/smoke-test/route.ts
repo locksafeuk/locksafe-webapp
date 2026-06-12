@@ -68,7 +68,6 @@ export async function POST() {
     const firstSession = await p.userSession.create({
       data: {
         visitorId,
-        userAgent:   "smoke-test",
         referrer:    "https://www.google.com/",
         utmSource:   "google",
         utmMedium:   "cpc",
@@ -86,7 +85,6 @@ export async function POST() {
     const lastSession = await p.userSession.create({
       data: {
         visitorId,
-        userAgent:   "smoke-test",
         referrer:    "",
         utmSource:   "direct",
         utmMedium:   null,
