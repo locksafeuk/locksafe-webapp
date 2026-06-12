@@ -86,14 +86,21 @@ export async function POST(request: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const p = prisma as any;
   const results: Record<string, BackfillResult> = {};
+  const errors: Array<{ step: string; message: string }> = [];
 
   // ── Customers ──────────────────────────────────────────────────────
   if (scope === "all" || scope === "customers") {
-    const customers = await p.customer.findMany({
-      select: { id: true, phone: true, visitorId: true, firstTouchAt: true },
-      where:  force ? {} : { firstTouchAt: null },
-      take:   5000, // safety cap per run
-    });
+    let customers: Array<{ id: string; phone: string; visitorId: string | null; firstTouchAt: Date | null }> = [];
+    try {
+      customers = await p.customer.findMany({
+        select: { id: true, phone: true, visitorId: true, firstTouchAt: true },
+        where:  force ? {} : { firstTouchAt: null },
+        take:   5000, // safety cap per run
+      });
+    } catch (err) {
+      errors.push({ step: "customers.findMany", message: err instanceof Error ? err.message : String(err) });
+      return NextResponse.json({ success: false, errors, results }, { status: 500 });
+    }
     const examples: string[] = [];
     results.customers = await batchProcess(
       customers,
@@ -191,11 +198,17 @@ export async function POST(request: NextRequest) {
 
   // ── Jobs (copy customer.firstTouch* onto Job.firstTouch*) ──────────
   if (scope === "all" || scope === "jobs") {
-    const jobs = await p.job.findMany({
-      where:  force ? { customerId: { not: null } } : { firstTouchAt: null, customerId: { not: null } },
-      select: { id: true, customerId: true },
-      take:   5000,
-    });
+    let jobs: Array<{ id: string; customerId: string }> = [];
+    try {
+      jobs = await p.job.findMany({
+        where:  force ? { customerId: { not: null } } : { firstTouchAt: null, customerId: { not: null } },
+        select: { id: true, customerId: true },
+        take:   5000,
+      });
+    } catch (err) {
+      errors.push({ step: "jobs.findMany", message: err instanceof Error ? err.message : String(err) });
+      return NextResponse.json({ success: false, errors, results }, { status: 500 });
+    }
     const examples: string[] = [];
     results.jobs = await batchProcess(
       jobs,
@@ -239,11 +252,17 @@ export async function POST(request: NextRequest) {
 
   // ── Locksmiths ─────────────────────────────────────────────────────
   if (scope === "all" || scope === "locksmiths") {
-    const locks = await p.locksmith.findMany({
-      where:  force ? {} : { firstTouchAt: null },
-      select: { id: true, phone: true, visitorId: true },
-      take:   2000,
-    });
+    let locks: Array<{ id: string; phone: string; visitorId: string | null }> = [];
+    try {
+      locks = await p.locksmith.findMany({
+        where:  force ? {} : { firstTouchAt: null },
+        select: { id: true, phone: true, visitorId: true },
+        take:   2000,
+      });
+    } catch (err) {
+      errors.push({ step: "locksmiths.findMany", message: err instanceof Error ? err.message : String(err) });
+      return NextResponse.json({ success: false, errors, results }, { status: 500 });
+    }
     const examples: string[] = [];
     results.locksmiths = await batchProcess(
       locks,
@@ -280,9 +299,10 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({
-    success: true,
+    success: errors.length === 0,
     force,
     scope,
     results,
+    errors,
   });
 }
