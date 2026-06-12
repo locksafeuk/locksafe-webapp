@@ -324,10 +324,15 @@ export async function GET(request: NextRequest) {
         if (tiktokDbAccount?.accessToken && post.imageUrl) {
           try {
             const caption = (post as Record<string, unknown>).tiktokContent as string | undefined || post.content;
+            // TikTok PULL_FROM_URL needs a JPEG on our VERIFIED domain — serve
+            // the poster via the proxy route (the raw Blob URL would be rejected:
+            // wrong domain + PNG).
+            const base = process.env.NEXT_PUBLIC_APP_URL || "https://www.locksafe.uk";
+            const tiktokImageUrl = `${base}/api/social/poster/${post.id}`;
             const result = await postPhotoToTikTok({
               accessToken: tiktokDbAccount.accessToken,
               caption: caption.slice(0, 4000),
-              imageUrls: [post.imageUrl],
+              imageUrls: [tiktokImageUrl],
               title: post.headline || "LockSafe",
             });
             platformResults.tiktok = result.success

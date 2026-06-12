@@ -265,7 +265,7 @@ async function sendFcm(
           default_vibrate_timings: false,
           default_light_settings: false,
           // Match the vibration pattern set on the channel (0, 700, 250, 700, 250, 700 ms)
-          vibrate_timings_seconds: ["0s", "0.7s", "0.25s", "0.7s", "0.25s", "0.7s"],
+          vibrate_timings: ["0s", "0.7s", "0.25s", "0.7s", "0.25s", "0.7s"],
           light_settings: {
             color: { red: 0.976, green: 0.451, blue: 0.086, alpha: 1 }, // #f97316
             light_on_duration: "0.5s",
