@@ -110,11 +110,11 @@ model ParameterChange {
 
 // Stripe onboarding reminder log for auditing admin sends
 model StripeReminderLog {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
-  locksmithId  String   @db.ObjectId
-  locksmith    Locksmith @relation(fields: [locksmithId], references: [id])
-  adminEmail   String
-  sentAt       DateTime @default(now())
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  locksmithId String    @db.ObjectId
+  locksmith   Locksmith @relation(fields: [locksmithId], references: [id])
+  adminEmail  String
+  sentAt      DateTime  @default(now())
 }
 
 model BaseLocationReminderLog {
@@ -126,22 +126,22 @@ model BaseLocationReminderLog {
 }
 
 model AppInstallReminderLog {
-  id          String    @id @default(auto()) @map("_id") @db.ObjectId
-  locksmithId String    @db.ObjectId
-  locksmith   Locksmith @relation(fields: [locksmithId], references: [id])
-  adminEmail  String
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  locksmithId   String    @db.ObjectId
+  locksmith     Locksmith @relation(fields: [locksmithId], references: [id])
+  adminEmail    String
   resendEmailId String?
-  status      String    @default("sent") // sent | delivered | opened | clicked | bounced | complained
-  deliveredAt DateTime?
-  openedAt    DateTime?
-  openCount   Int       @default(0)
-  clickedAt   DateTime?
-  clickCount  Int       @default(0)
-  clickedLinks String[] @default([])
-  bouncedAt   DateTime?
-  bounceReason String?
-  complainedAt DateTime?
-  sentAt      DateTime  @default(now())
+  status        String    @default("sent") // sent | delivered | opened | clicked | bounced | complained
+  deliveredAt   DateTime?
+  openedAt      DateTime?
+  openCount     Int       @default(0)
+  clickedAt     DateTime?
+  clickCount    Int       @default(0)
+  clickedLinks  String[]  @default([])
+  bouncedAt     DateTime?
+  bounceReason  String?
+  complainedAt  DateTime?
+  sentAt        DateTime  @default(now())
 
   @@index([locksmithId, sentAt])
   @@index([resendEmailId])
@@ -151,14 +151,14 @@ model AppInstallReminderLog {
 // One row per click; non-blocking — admin still gets to WhatsApp if the
 // log call fails. Used for "who contacted whom about what" reporting.
 model WhatsAppClickLog {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  actorId     String   // admin user id from JWT payload (sub)
-  actorEmail  String
-  targetType  String   // "locksmith" | "lead" | "customer"
-  targetId    String
-  jobId       String?
-  phone       String   // recipient phone, raw as displayed
-  clickedAt   DateTime @default(now())
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  actorId    String // admin user id from JWT payload (sub)
+  actorEmail String
+  targetType String // "locksmith" | "lead" | "customer"
+  targetId   String
+  jobId      String?
+  phone      String // recipient phone, raw as displayed
+  clickedAt  DateTime @default(now())
 
   @@index([targetId, clickedAt])
   @@index([actorId, clickedAt])
@@ -166,22 +166,22 @@ model WhatsAppClickLog {
 
 // Persistent WhatsApp inbox for admin-side in-app messaging.
 model WhatsAppConversation {
-  id                String   @id @default(auto()) @map("_id") @db.ObjectId
-  waId              String?  @unique // WhatsApp wa_id when known (digits-only)
-  phone             String   // Normalized destination/source phone
-  channel           String   @default("whatsapp") // "whatsapp" | "sms"
-  contactName       String?
-  assignedAdminId   String?
+  id                 String    @id @default(auto()) @map("_id") @db.ObjectId
+  waId               String?   @unique // WhatsApp wa_id when known (digits-only)
+  phone              String // Normalized destination/source phone
+  channel            String    @default("whatsapp") // "whatsapp" | "sms"
+  contactName        String?
+  assignedAdminId    String?
   assignedAdminEmail String?
-  assignedAdminName String?
-  assignedAt        DateTime?
-  isUrgent          Boolean  @default(false)
-  lastMessageAt     DateTime @default(now())
+  assignedAdminName  String?
+  assignedAt         DateTime?
+  isUrgent           Boolean   @default(false)
+  lastMessageAt      DateTime  @default(now())
   lastMessagePreview String?
-  unreadCount       Int      @default(0)
-  archived          Boolean  @default(false)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  unreadCount        Int       @default(0)
+  archived           Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   messages WhatsAppConversationMessage[]
 
@@ -192,17 +192,17 @@ model WhatsAppConversation {
 }
 
 model WhatsAppConversationMessage {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
-  conversationId  String   @db.ObjectId
-  conversation    WhatsAppConversation @relation(fields: [conversationId], references: [id])
+  id             String               @id @default(auto()) @map("_id") @db.ObjectId
+  conversationId String               @db.ObjectId
+  conversation   WhatsAppConversation @relation(fields: [conversationId], references: [id])
 
-  direction       String   // inbound | outbound
-  messageType     String   // text | interactive | template | status
-  content         String?
+  direction         String // inbound | outbound
+  messageType       String // text | interactive | template | status
+  content           String?
   providerMessageId String?
-  status          String?  // sent | delivered | read | failed
-  rawPayload      Json?
-  createdAt       DateTime @default(now())
+  status            String? // sent | delivered | read | failed
+  rawPayload        Json?
+  createdAt         DateTime @default(now())
 
   @@index([conversationId, createdAt])
   @@index([providerMessageId])
@@ -243,17 +243,17 @@ model LocksmithLead {
 
 // Lead batch intake tracking (for scraper → agent monitoring)
 model LeadBatch {
-  id            String    @id @default(auto()) @map("_id") @db.ObjectId
-  batchId       String    @unique // External batch ID from scraper
-  source        String    @default("scraper") // scraper, manual, import, etc.
-  leadCount     Int // Number of leads in this batch
-  leadIds       String[]  @default([]) // Optional: specific lead IDs in this batch
-  status        String    @default("received") // received, processing, completed, failed
-  processedAt   DateTime  @default(now())
-  completedAt   DateTime?
-  errorMessage  String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  batchId      String    @unique // External batch ID from scraper
+  source       String    @default("scraper") // scraper, manual, import, etc.
+  leadCount    Int // Number of leads in this batch
+  leadIds      String[]  @default([]) // Optional: specific lead IDs in this batch
+  status       String    @default("received") // received, processing, completed, failed
+  processedAt  DateTime  @default(now())
+  completedAt  DateTime?
+  errorMessage String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@index([status, processedAt])
 }
@@ -323,10 +323,42 @@ model Customer {
   // B2B / Landlord
   orgMemberships OrgMember[]
 
+  // First-touch / last-touch attribution (2026-06-12, Phase 1-6 rollout).
+  // firstTouch* is stamped ONCE at Customer.create and never overwritten.
+  // lastTouch* is updated at every meaningful interaction (login, job place).
+  // Resolved server-side from UserSession history via touch-resolver.ts.
+  visitorId             String? // ls_visitor_id cookie/localStorage value
+  firstSessionId        String?   @db.ObjectId
+  lastSessionId         String?   @db.ObjectId
+  firstTouchAt          DateTime?
+  firstTouchSource      String?
+  firstTouchMedium      String?
+  firstTouchCampaign    String?
+  firstTouchContent     String?
+  firstTouchTerm        String?
+  firstTouchGclid       String?
+  firstTouchFbclid      String?
+  firstTouchLandingPage String?
+  firstTouchReferrer    String?
+  lastTouchAt           DateTime?
+  lastTouchSource       String?
+  lastTouchMedium       String?
+  lastTouchCampaign     String?
+  lastTouchContent      String?
+  lastTouchTerm         String?
+  lastTouchGclid        String?
+  lastTouchFbclid       String?
+  lastTouchLandingPage  String?
+  lastTouchReferrer     String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   jobs      Job[]
   reviews   Review[]
+
+  @@index([visitorId])
+  @@index([firstTouchSource])
+  @@index([lastTouchSource])
 }
 
 // ==========================================
@@ -392,22 +424,22 @@ model LocksmithCompanyMember {
 
 // Locksmith/Technician model
 model Locksmith {
-  id            String  @id @default(auto()) @map("_id") @db.ObjectId
-  name          String
-  companyName   String?
-  email         String  @unique
-  phone         String
-  passwordHash  String? // For login
-  profileImage  String?
-  profilePhotoVerified   Boolean @default(false) // True once AI face check passes
-  profilePhotoVerifiedAt DateTime? // When face check passed
+  id                          String    @id @default(auto()) @map("_id") @db.ObjectId
+  name                        String
+  companyName                 String?
+  email                       String    @unique
+  phone                       String
+  passwordHash                String? // For login
+  profileImage                String?
+  profilePhotoVerified        Boolean   @default(false) // True once AI face check passes
+  profilePhotoVerifiedAt      DateTime? // When face check passed
   profilePhotoRejectionReason String? // Why AI rejected the photo (if any)
-  profilePhotoAiConfidence    Float?  // AI face verification confidence 0–1
-  rating        Float   @default(5.0)
-  totalJobs     Int     @default(0)
-  totalEarnings Float   @default(0)
-  isVerified    Boolean @default(false)
-  isActive      Boolean @default(true)
+  profilePhotoAiConfidence    Float? // AI face verification confidence 0–1
+  rating                      Float     @default(5.0)
+  totalJobs                   Int       @default(0)
+  totalEarnings               Float     @default(0)
+  isVerified                  Boolean   @default(false)
+  isActive                    Boolean   @default(true)
 
   // Team account linkage (via join table)
   teamMemberships LocksmithCompanyMember[] @relation("TeamMemberships")
@@ -451,15 +483,15 @@ model Locksmith {
   activationCompletedAt DateTime? // when they became dispatch-ready (stop nudging)
 
   // Scheduled availability (working hours)
-  scheduleEnabled   Boolean  @default(false) // Enable automatic availability schedule
-  scheduleTimezone  String   @default("Europe/London") // Timezone for schedule
-  scheduleStartTime String? // Start time in HH:MM format (e.g., "08:00")
-  scheduleEndTime   String? // End time in HH:MM format (e.g., "20:00")
-  scheduleDays      String[] // Days of week: ["monday", "tuesday", "wednesday", "thursday", "friday"]
+  scheduleEnabled    Boolean  @default(false) // Enable automatic availability schedule
+  scheduleTimezone   String   @default("Europe/London") // Timezone for schedule
+  scheduleStartTime  String? // Start time in HH:MM format (e.g., "08:00")
+  scheduleEndTime    String? // End time in HH:MM format (e.g., "20:00")
+  scheduleDays       String[] // Days of week: ["monday", "tuesday", "wednesday", "thursday", "friday"]
   // Per-day schedule: { mon: { enabled: true, start: "08:00", end: "18:00" }, tue: {...}, ... }
   // Keys: mon tue wed thu fri sat sun
-  scheduleWeekly    Json?    // Replaces/extends scheduleDays+Start/End with per-day hours
-  scheduleOverridden Boolean @default(false) // True when locksmith manually went offline mid-shift; auto-cleared at shift end
+  scheduleWeekly     Json? // Replaces/extends scheduleDays+Start/End with per-day hours
+  scheduleOverridden Boolean  @default(false) // True when locksmith manually went offline mid-shift; auto-cleared at shift end
 
   // Bot registration for direct messaging
   telegramChatId       String? // Telegram chat ID for bot notifications
@@ -473,39 +505,39 @@ model Locksmith {
   nativeTokenRegisteredAt DateTime? // When the native token was last registered
 
   // PWA Web Push (browser-installed Progressive Web App, separate from native app)
-  webPushSubscription   String?   // JSON: { endpoint, keys: { p256dh, auth } }
-  webPushPlatform       String?   // OS hint derived from User-Agent: "ios" | "android" | "desktop"
-  webPushRegisteredAt   DateTime? // When the web-push subscription was last saved
+  webPushSubscription String? // JSON: { endpoint, keys: { p256dh, auth } }
+  webPushPlatform     String? // OS hint derived from User-Agent: "ios" | "android" | "desktop"
+  webPushRegisteredAt DateTime? // When the web-push subscription was last saved
 
   // Onboarding & Terms
-  termsAcceptedAt          DateTime? // When locksmith accepted T&C
-  onboardingCompleted      Boolean   @default(false)
+  termsAcceptedAt             DateTime? // When locksmith accepted T&C
+  onboardingCompleted         Boolean   @default(false)
   onboardingLastInteractionAt DateTime? // Last interaction relevant to onboarding reminders
-  firstLocksmithLoginAt    DateTime? // First successful locksmith login (for one-time post-login onboarding email)
-  tourCompletedAt          DateTime? // Web walkthrough finished/skipped (null = auto-start tour on dashboard)
-  insuranceDocumentUrl     String? // Uploaded insurance document
-  certificationDocumentUrl String? // Uploaded locksmith certification
-  additionalDocumentUrls   String[] // Any additional supporting documents
-  documentationUploadedAt  DateTime? // When documentation was uploaded
+  firstLocksmithLoginAt       DateTime? // First successful locksmith login (for one-time post-login onboarding email)
+  tourCompletedAt             DateTime? // Web walkthrough finished/skipped (null = auto-start tour on dashboard)
+  insuranceDocumentUrl        String? // Uploaded insurance document
+  certificationDocumentUrl    String? // Uploaded locksmith certification
+  additionalDocumentUrls      String[] // Any additional supporting documents
+  documentationUploadedAt     DateTime? // When documentation was uploaded
 
   // Insurance expiry tracking
-  insuranceExpiryDate   DateTime? // When insurance certificate expires
-  insuranceVerifiedAt   DateTime? // When admin/AI verified the insurance
-  insuranceVerifiedById String? // Admin ID who verified (null = AI auto-verified)
-  insuranceStatus       String    @default("pending") // pending, pending_review, verified, expired, expiring_soon, unreadable
-  insuranceReminderSent Boolean   @default(false) // Track if expiry reminder was sent
+  insuranceExpiryDate        DateTime? // When insurance certificate expires
+  insuranceVerifiedAt        DateTime? // When admin/AI verified the insurance
+  insuranceVerifiedById      String? // Admin ID who verified (null = AI auto-verified)
+  insuranceStatus            String    @default("pending") // pending, pending_review, verified, expired, expiring_soon, unreadable
+  insuranceReminderSent      Boolean   @default(false) // Track if expiry reminder was sent
   insuranceVerificationNotes String? // AI notes when confidence < threshold
-  insuranceAiConfidence Float?    // AI confidence score 0–1 from vision check
+  insuranceAiConfidence      Float? // AI confidence score 0–1 from vision check
 
   // DBS (Disclosure and Barring Service) check
   // certificationDocumentUrl (see above) is the DBS certificate URL
   dbsStatus            String    @default("pending") // pending, pending_review, verified, expired, expiring_soon, unreadable
   dbsExpiryDate        DateTime? // DBS certificate expiry (typically 3 years)
   dbsVerifiedAt        DateTime? // When admin/AI verified the DBS
-  dbsVerifiedById      String?   // Admin ID who verified (null = AI auto-verified)
+  dbsVerifiedById      String? // Admin ID who verified (null = AI auto-verified)
   dbsReminderSent      Boolean   @default(false)
-  dbsVerificationNotes String?   // AI notes when confidence < threshold
-  dbsAiConfidence      Float?    // AI confidence score 0–1 from vision check
+  dbsVerificationNotes String? // AI notes when confidence < threshold
+  dbsAiConfidence      Float? // AI confidence score 0–1 from vision check
 
   // Password reset
   resetToken       String?
@@ -533,11 +565,11 @@ model Locksmith {
 
   updatedAt DateTime @updatedAt
 
-  jobs             Job[]
-  quotes           Quote[]
-  applications     LocksmithApplication[]
-  payouts          Payout[]
-  reviews          Review[]
+  jobs         Job[]
+  quotes       Quote[]
+  applications LocksmithApplication[]
+  payouts      Payout[]
+  reviews      Review[]
 
   auctionsAccepted JobAuction[]
 
@@ -548,9 +580,24 @@ model Locksmith {
   coverages LocksmithCoverage[]
 
   // Stripe onboarding reminder log relation
-  stripeReminderLogs StripeReminderLog[]
+  stripeReminderLogs       StripeReminderLog[]
   baseLocationReminderLogs BaseLocationReminderLog[]
-  appInstallReminderLogs AppInstallReminderLog[]
+  appInstallReminderLogs   AppInstallReminderLog[]
+
+  // First-touch attribution only (locksmiths sign up once; we don't care
+  // about last-touch on the locksmith side). 2026-06-12, Phase 1.
+  visitorId             String?
+  firstSessionId        String?   @db.ObjectId
+  firstTouchAt          DateTime?
+  firstTouchSource      String?
+  firstTouchMedium      String?
+  firstTouchCampaign    String?
+  firstTouchContent     String?
+  firstTouchTerm        String?
+  firstTouchGclid       String?
+  firstTouchFbclid      String?
+  firstTouchLandingPage String?
+  firstTouchReferrer    String?
 
   // Performance indexes for dispatch / matcher queries (Locksmith lookups by
   // active+available status combined with base location). MongoDB B-tree
@@ -560,6 +607,7 @@ model Locksmith {
   @@index([baseLat, baseLng])
   @@index([telegramChatId])
   @@index([whatsappChatId])
+  @@index([firstTouchSource])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -613,14 +661,14 @@ model LocksmithCoverage {
   // Manual override flag — used for vacations, sickness, training, capacity
   // reductions, voluntary pauses. When true the campaign gate treats this
   // coverage row as absent regardless of weeklyCapacity.
-  isPaused        Boolean   @default(false)
-  pauseReason     String?
-  pausedUntil     DateTime?
+  isPaused    Boolean   @default(false)
+  pauseReason String?
+  pausedUntil DateTime?
 
   // Provenance for trustworthiness. Manual entries from the admin UI are
   // worth more than radius-based inferences.
-  source          String  @default("manual") // "manual" | "radius_backfill" | "legacy_array_import"
-  confidenceScore Float   @default(1.0)      // 0.0–1.0; backfilled rows start at 0.7
+  source          String @default("manual") // "manual" | "radius_backfill" | "legacy_array_import"
+  confidenceScore Float  @default(1.0) // 0.0–1.0; backfilled rows start at 0.7
 
   // When ops last confirmed this row is still accurate. Lets us nag for
   // re-confirmation after N days (planned: cron job that pings locksmiths
@@ -692,13 +740,13 @@ model SharkDomain {
   // and we have spend data confirming it suppresses our ROI, we want a
   // permanent audit trail. Toggle isActive=false if a previously-flagged
   // operator demonstrably cleans up (rare but possible).
-  isActive   Boolean   @default(true)
-  source     String    @default("manual") // "manual" | "auto_fingerprint" | "import_research"
-  notes      String?
+  isActive Boolean @default(true)
+  source   String  @default("manual") // "manual" | "auto_fingerprint" | "import_research"
+  notes    String?
 
   firstSeenAt DateTime  @default(now())
-  lastSeenAt  DateTime?  // when competitor-intel last observed this domain in a SERP
-  seenCount   Int        @default(0)  // total SERPs we've observed this domain in
+  lastSeenAt  DateTime? // when competitor-intel last observed this domain in a SERP
+  seenCount   Int       @default(0) // total SERPs we've observed this domain in
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -750,20 +798,20 @@ model Job {
   //      the original gclid — so Google bids on real outcomes, not vanity
   //      clicks. This is the single biggest defence against being ripped
   //      off by Google's auction.
-  utmSource     String?  // "google" | "facebook" | "meta" | "direct" | …
-  utmMedium     String?  // "cpc" | "organic" | "email" | …
-  utmCampaign   String?  // The campaign name in our ad tool
-  utmContent    String?  // Ad/creative identifier
-  utmTerm       String?  // Keyword (if exposed by the platform)
-  gclid         String?  // Google Click ID — required by Google's Conversions API
-  fbclid        String?  // Facebook Click ID — for Meta Conversions API
-  landingPage   String?  // First page the visitor landed on
+  utmSource              String? // "google" | "facebook" | "meta" | "direct" | …
+  utmMedium              String? // "cpc" | "organic" | "email" | …
+  utmCampaign            String? // The campaign name in our ad tool
+  utmContent             String? // Ad/creative identifier
+  utmTerm                String? // Keyword (if exposed by the platform)
+  gclid                  String? // Google Click ID — required by Google's Conversions API
+  fbclid                 String? // Facebook Click ID — for Meta Conversions API
+  landingPage            String? // First page the visitor landed on
   // Conversion upload bookkeeping — when COMPLETED+paid, the upload-cron
   // sends the conversion event back to Google. These columns mark whether
   // that succeeded, when, and the upload error if any.
-  conversionUploadedAt    DateTime?
-  conversionUploadStatus  String?    // "pending" | "uploaded" | "failed" | "skipped_no_gclid"
-  conversionUploadError   String?
+  conversionUploadedAt   DateTime?
+  conversionUploadStatus String? // "pending" | "uploaded" | "failed" | "skipped_no_gclid"
+  conversionUploadError  String?
 
   // Emergency workflow tracking
   isEmergency          Boolean   @default(false) // Whether this is an emergency request
@@ -876,6 +924,22 @@ model Job {
   // Metadata
   updatedAt DateTime @updatedAt
 
+  // First-touch attribution on the JOB itself (2026-06-12, Phase 1).
+  // Existing utm/gclid/landingPage fields on Job are the LAST-TOUCH (resolved
+  // from current session at booking time). These new firstTouch* columns
+  // capture the EARLIEST touch from the same visitor's history, so we can
+  // see "google → direct" (Google Ads built awareness, direct closed).
+  firstTouchAt          DateTime?
+  firstTouchSource      String?
+  firstTouchMedium      String?
+  firstTouchCampaign    String?
+  firstTouchContent     String?
+  firstTouchTerm        String?
+  firstTouchGclid       String?
+  firstTouchFbclid      String?
+  firstTouchLandingPage String?
+  firstTouchReferrer    String?
+
   @@index([continueToken])
   // Frequently-filtered Job queries (dispatch, dashboard, lifecycle crons)
   @@index([status])
@@ -885,6 +949,7 @@ model Job {
   @@index([createdAt])
   @@index([scheduledFor])
   @@index([confirmationDeadline])
+  @@index([firstTouchSource])
 }
 
 // Job status enum
@@ -1523,17 +1588,17 @@ model GoogleAdsCampaignDraft {
   verificationDetails Json?
 
   // Forensic-validation geo-drift audit entries (added 2026-06-04, playbook §15).
-  geoAuditEntries     GoogleAdsGeoAuditEntry[]
+  geoAuditEntries GoogleAdsGeoAuditEntry[]
 
   // Manual-vs-AI provenance + post-publish snapshot.
   // createdBy: "ai" (default existing rows) | "admin" (manual via UI)
   // publishedSnapshot: full live state pulled back via GAQL after a successful
   //   publish. Used as the source of truth for cloning / future automations.
-  createdBy         String? @default("ai") // "ai" | "admin"
-  createdByAdminId  String? @db.ObjectId
+  createdBy         String?   @default("ai") // "ai" | "admin"
+  createdByAdminId  String?   @db.ObjectId
   publishedSnapshot Json?
   snapshotAt        DateTime?
-  templateId        String?  @db.ObjectId
+  templateId        String?   @db.ObjectId
 
   // ── Phase 2 campaign settings ─────────────────────────────────────────────
   // Location targeting precision
@@ -1603,11 +1668,11 @@ model GoogleAdsGeoAuditEntry {
   actedBy    String? // admin ID or "cron"
 
   // The geo target ID arrays at the moment of detection / action.
-  baselineSnapshot   String[] @default([]) // publishedSnapshot.geoTargets at the time
-  liveGeoTargets     String[] @default([]) // Google live state at the time
-  geoTargetsAdded    String[] @default([]) // in live, not in baseline
-  geoTargetsRemoved  String[] @default([]) // in baseline, not in live
-  notes              String?
+  baselineSnapshot  String[] @default([]) // publishedSnapshot.geoTargets at the time
+  liveGeoTargets    String[] @default([]) // Google live state at the time
+  geoTargetsAdded   String[] @default([]) // in live, not in baseline
+  geoTargetsRemoved String[] @default([]) // in baseline, not in live
+  notes             String?
 
   createdAt DateTime @default(now())
 
@@ -1619,7 +1684,7 @@ model GoogleAdsSharedNegativeList {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId
   name         String
   keywords     String[] // negative keywords in this list
-  googleListId String?  // resource ID once created in Google Ads
+  googleListId String? // resource ID once created in Google Ads
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1630,18 +1695,18 @@ model GoogleAdsSharedNegativeList {
 // Evaluate every 4 hours via cron. Condition → Action mappings.
 // =========================================================================
 model GoogleAdsAutomationRule {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  name       String
-  enabled    Boolean  @default(true)
-  condition  String   // SPEND_NO_CONV | CTR_DROP | BUDGET_80PCT
+  id                  String    @id @default(auto()) @map("_id") @db.ObjectId
+  name                String
+  enabled             Boolean   @default(true)
+  condition           String // SPEND_NO_CONV | CTR_DROP | BUDGET_80PCT
   thresholdSpend      Float?
   thresholdPeriodDays Int?
   thresholdCtr        Float?
-  action     String   // PAUSE_CAMPAIGN | ALERT_TELEGRAM
-  campaignIds String[] // ["*"] = all
-  lastTriggeredAt DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  action              String // PAUSE_CAMPAIGN | ALERT_TELEGRAM
+  campaignIds         String[] // ["*"] = all
+  lastTriggeredAt     DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 }
 
 // =========================================================================
@@ -1670,16 +1735,16 @@ model GoogleAdsOpportunity {
   medianCompetitionIndex Float
   competitionTier        String   @default("UNKNOWN") // LOW | MEDIUM | HIGH | UNKNOWN
   totalMonthlySearches   Int      @default(0)
-  topKeywords            Json     // OpportunityKeyword[]
+  topKeywords            Json // OpportunityKeyword[]
 
   // Fulfilment context (zero for RECRUIT rows).
-  locksmithCount    Int      @default(0)
-  locksmithIds      String[] @default([])
-  supplyRatio       Float    @default(0)
+  locksmithCount Int      @default(0)
+  locksmithIds   String[] @default([])
+  supplyRatio    Float    @default(0)
 
   // Workflow.
-  status      String   @default("NEW") // NEW | REVIEWED | DRAFTED | DISMISSED
-  draftId     String?  @db.ObjectId
+  status      String    @default("NEW") // NEW | REVIEWED | DRAFTED | DISMISSED
+  draftId     String?   @db.ObjectId
   dismissedAt DateTime?
   dismissedBy String?
   agentNotes  String?
@@ -1706,16 +1771,16 @@ model GoogleAdsCampaignTemplate {
   sourceAccountId        String? @db.ObjectId
 
   // Captured campaign plan (same shape as GoogleAdsCampaignDraft)
-  channel         String   @default("SEARCH")
-  biddingStrategy String   @default("MAXIMIZE_CONVERSIONS")
-  targetCpa       Float?
-  dailyBudget     Float
-  geoTargets      String[] @default([])
-  languageTargets String[] @default([])
-  headlines       String[] @default([])
-  descriptions    String[] @default([])
-  finalUrl        String
-  keywords        Json
+  channel          String   @default("SEARCH")
+  biddingStrategy  String   @default("MAXIMIZE_CONVERSIONS")
+  targetCpa        Float?
+  dailyBudget      Float
+  geoTargets       String[] @default([])
+  languageTargets  String[] @default([])
+  headlines        String[] @default([])
+  descriptions     String[] @default([])
+  finalUrl         String
+  keywords         Json
   negativeKeywords String[] @default([])
 
   // Full live snapshot of the published campaign at template-save time
@@ -2722,8 +2787,8 @@ model VoiceCall {
   id String @id @default(auto()) @map("_id") @db.ObjectId
 
   // Retell AI identifiers
-  retellCallId String  @unique // Retell's call_id
-  agentId      String? // Retell agent ID used
+  retellCallId    String  @unique // Retell's call_id
+  agentId         String? // Retell agent ID used
   configVersionId String? @db.ObjectId
 
   // Caller info
@@ -2811,9 +2876,9 @@ model VoiceAgentConfig {
   retellLlmId   String? // Retell LLM ID
 
   // Voice settings
-  voiceId      String? // TTS voice ID
-  language     String  @default("en-GB")
-  speakingRate Float   @default(1.0)
+  voiceId        String? // TTS voice ID
+  language       String  @default("en-GB")
+  speakingRate   Float   @default(1.0)
   realismProfile Json?
 
   // Prompts
@@ -2857,22 +2922,22 @@ model VoiceAgentConfigVersion {
   configId String           @db.ObjectId
   config   VoiceAgentConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
 
-  version     Int
-  title       String?
-  notes       String?
-  isDeployed  Boolean   @default(false)
-  deployedAt  DateTime?
-  deployedBy  String?
-  createdBy   String?
-  createdAt   DateTime  @default(now())
+  version    Int
+  title      String?
+  notes      String?
+  isDeployed Boolean   @default(false)
+  deployedAt DateTime?
+  deployedBy String?
+  createdBy  String?
+  createdAt  DateTime  @default(now())
 
   systemPrompt    String
   greetingMessage String?
   fallbackMessage String?
 
-  language     String
-  speakingRate Float
-  voiceId      String?
+  language       String
+  speakingRate   Float
+  voiceId        String?
   realismProfile Json?
 
   maxCallDuration Int
@@ -2888,18 +2953,18 @@ model VoiceAgentConfigVersion {
   enableFAQ        Boolean
   enableEscalation Boolean
 
-  isPaused      Boolean
-  pauseReason   String?
+  isPaused       Boolean
+  pauseReason    String?
   blockedNumbers String[]
 
   retellAgentId String?
   retellLlmId   String?
 
   // Publish/deploy orchestration state
-  publishStatus     String   @default("draft") // draft | publishing | published | failed | rolled_back
-  retellVersionId   String?
-  publishedAt       DateTime?
-  publishError      String?
+  publishStatus   String    @default("draft") // draft | publishing | published | failed | rolled_back
+  retellVersionId String?
+  publishedAt     DateTime?
+  publishError    String?
 
   deployments VoiceConfigDeployment[]
   simulations VoiceSimulationRun[]
@@ -2912,18 +2977,18 @@ model VoiceAgentConfigVersion {
 model VoiceConfigDeployment {
   id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  versionId String                 @db.ObjectId
+  versionId String                  @db.ObjectId
   version   VoiceAgentConfigVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
 
-  provider        String   @default("retell")
-  providerAgentId String?
-  providerLlmId   String?
+  provider          String   @default("retell")
+  providerAgentId   String?
+  providerLlmId     String?
   providerVersionId String?
-  status          String   @default("pending") // pending | deployed | failed | rolled_back
-  notes           String?
-  deployedBy      String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  status            String   @default("pending") // pending | deployed | failed | rolled_back
+  notes             String?
+  deployedBy        String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   @@index([versionId, createdAt])
   @@index([status, createdAt])
@@ -2933,16 +2998,16 @@ model VoiceDatasetExportJob {
   id String @id @default(auto()) @map("_id") @db.ObjectId
 
   requestedBy String?
-  mode        String   @default("incremental") // full | incremental
-  status      String   @default("pending") // pending | running | completed | failed
+  mode        String    @default("incremental") // full | incremental
+  status      String    @default("pending") // pending | running | completed | failed
   since       DateTime?
   until       DateTime?
-  limit       Int      @default(500)
-  rowCount    Int      @default(0)
+  limit       Int       @default(500)
+  rowCount    Int       @default(0)
   filtersJson Json?
   outputJson  Json?
   error       String?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
   startedAt   DateTime?
   completedAt DateTime?
 
@@ -2953,7 +3018,7 @@ model VoiceDatasetExportJob {
 model VoiceCallReview {
   id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  callId String   @db.ObjectId
+  callId String    @db.ObjectId
   call   VoiceCall @relation(fields: [callId], references: [id], onDelete: Cascade)
 
   reviewerId String?
@@ -2965,8 +3030,8 @@ model VoiceCallReview {
   empathyScore     Int? // 1-5
   complianceScore  Int? // 1-5
 
-  shouldEscalate   Boolean @default(false)
-  isGoldenExample  Boolean @default(false)
+  shouldEscalate  Boolean @default(false)
+  isGoldenExample Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2981,14 +3046,14 @@ model VoiceSimulationRun {
   versionId String?                  @db.ObjectId
   version   VoiceAgentConfigVersion? @relation(fields: [versionId], references: [id], onDelete: SetNull)
 
-  scenario     String
-  inputJson    Json?
-  outputJson   Json?
-  passed       Boolean
-  score        Float?
+  scenario      String
+  inputJson     Json?
+  outputJson    Json?
+  passed        Boolean
+  score         Float?
   failureReason String?
-  runBy        String?
-  createdAt    DateTime @default(now())
+  runBy         String?
+  createdAt     DateTime @default(now())
 
   @@index([scenario, createdAt])
   @@index([passed, createdAt])
@@ -2997,19 +3062,19 @@ model VoiceSimulationRun {
 model VoiceExperiment {
   id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  name        String
-  status      String   @default("draft") // draft | running | stopped | completed
-  controlVersionId   String? @db.ObjectId
-  challengerVersionId String? @db.ObjectId
-  trafficSplit Int      @default(50) // challenger traffic percentage
-  stopLossThreshold Float @default(15) // percent regression threshold
-  winnerVersionId String? @db.ObjectId
-  summaryJson Json?
-  createdBy   String?
-  startedAt   DateTime?
-  endedAt     DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  name                String
+  status              String    @default("draft") // draft | running | stopped | completed
+  controlVersionId    String?   @db.ObjectId
+  challengerVersionId String?   @db.ObjectId
+  trafficSplit        Int       @default(50) // challenger traffic percentage
+  stopLossThreshold   Float     @default(15) // percent regression threshold
+  winnerVersionId     String?   @db.ObjectId
+  summaryJson         Json?
+  createdBy           String?
+  startedAt           DateTime?
+  endedAt             DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   @@index([status, createdAt])
 }
@@ -3019,13 +3084,13 @@ model VoiceDailyScorecard {
 
   date DateTime @unique
 
-  totalCalls Int @default(0)
+  totalCalls     Int   @default(0)
   completionRate Float @default(0)
-  callToJobRate Float @default(0)
+  callToJobRate  Float @default(0)
   escalationRate Float @default(0)
   avgNaturalness Float @default(0)
-  alertCount Int @default(0)
-  alertsJson Json?
+  alertCount     Int   @default(0)
+  alertsJson     Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -3272,7 +3337,7 @@ model AgentDecision {
 // the narrative + lessons. Lessons feed back into AgentMemory for the next
 // heartbeat.
 model AgentReflection {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  id          String @id @default(auto()) @map("_id") @db.ObjectId
   agentName   String // "opportunity-scout" | "ads-specialist" | "copywriter" | ...
   subjectType String // "opportunity" | "draft" | "campaign" | "adset" | "ad" | "pause-action"
   subjectId   String // loose FK to whatever was decided about
@@ -3310,11 +3375,11 @@ model KeywordSeed {
   keyword  String @unique
   category String @default("baseline") // "baseline" | "learned" | "competitor" | "experimental"
 
-  score              Float @default(1.0) // Wilson-ish (winCount+1) / (winCount+lossCount+2)
-  winCount           Int   @default(0)
-  lossCount          Int   @default(0)
-  inconclusiveCount  Int   @default(0)
-  usageCount         Int   @default(0)
+  score             Float @default(1.0) // Wilson-ish (winCount+1) / (winCount+lossCount+2)
+  winCount          Int   @default(0)
+  lossCount         Int   @default(0)
+  inconclusiveCount Int   @default(0)
+  usageCount        Int   @default(0)
 
   lastUsedAt DateTime?
   lastWinAt  DateTime?
@@ -3334,23 +3399,23 @@ model KeywordSeed {
   // Applied as a multiplier to profitPerClick in the scorer so new/volatile
   // keywords are discounted until they prove consistent.
 
-    // First time this keyword was returned by a Keyword Planner scan (not when it was added as a seed).
+  // First time this keyword was returned by a Keyword Planner scan (not when it was added as a seed).
   firstScannedAt           DateTime?
-    // Most recent Planner scan where this keyword appeared.
+  // Most recent Planner scan where this keyword appeared.
   lastScannedAt            DateTime?
-    // Total number of Planner scans in which this keyword appeared.
+  // Total number of Planner scans in which this keyword appeared.
   scanCount                Int       @default(0)
-    // Consecutive scans where keyword appeared with profitPerClick > 0.
+  // Consecutive scans where keyword appeared with profitPerClick > 0.
   // Resets to 0 on first unprofitable scan.
   consecutiveSurvivalCount Int       @default(0)
-    // Rolling last-8 profitPerClick readings from Planner scans (GBP per click).
+  // Rolling last-8 profitPerClick readings from Planner scans (GBP per click).
   // Used to compute volatilityScore. Stored as Float[] (oldest first).
   profitHistory            Float[]
-    // Standard deviation of profitHistory.
+  // Standard deviation of profitHistory.
   // 0 = perfectly stable; high = volatile / spike-driven.
   // Applied as a discount: effectiveProfitPerClick × (1 / (1 + volatilityScore)).
   volatilityScore          Float     @default(0)
-    // Combined stability weight: min(1, consecutiveSurvivalCount / 4) × volatilityDiscount.
+  // Combined stability weight: min(1, consecutiveSurvivalCount / 4) × volatilityDiscount.
   // New seeds start at 0.25. Stable seeds reach 1.0 after 4+ profitable scans.
   // Volatile seeds stay below 1.0 regardless of survival count.
   stabilityWeight          Float     @default(0.25)
@@ -3382,9 +3447,9 @@ model KeywordGeoScore {
   geoId   String
 
   // Local performance (isolated to this geo only)
-  localScore    Float   @default(1.0) // Wilson-ish: (localWins+1)/(localWins+localLosses+2)
-  localWinCount Int     @default(0)
-  localLossCount Int    @default(0)
+  localScore     Float @default(1.0) // Wilson-ish: (localWins+1)/(localWins+localLosses+2)
+  localWinCount  Int   @default(0)
+  localLossCount Int   @default(0)
 
   // Local scan history
   scanCount       Int     @default(0)
@@ -3395,7 +3460,7 @@ model KeywordGeoScore {
   // Last profitable scan profit (used to weight the geo score vs global score)
   lastProfitPerClick Float?
 
-  firstSeenAt DateTime @default(now())
+  firstSeenAt DateTime  @default(now())
   lastSeenAt  DateTime?
 
   @@unique([keyword, geoId])
@@ -3427,39 +3492,39 @@ model GeoOperationalMetrics {
   label String
 
   // ── Lead quality ─────────────────────────────────────────────────────────
-    // Fraction of inbound leads that are spam, fake, or test entries (0–1).
-  spamLeadRate Float?
-    // Fraction of leads that are duplicates of a lead seen in the last 30 days (0–1).
+  // Fraction of inbound leads that are spam, fake, or test entries (0–1).
+  spamLeadRate      Float?
+  // Fraction of leads that are duplicates of a lead seen in the last 30 days (0–1).
   duplicateLeadRate Float?
 
   // ── Dispatch / operations ─────────────────────────────────────────────────
-    // Fraction of dispatched leads where a locksmith was successfully assigned (0–1).
+  // Fraction of dispatched leads where a locksmith was successfully assigned (0–1).
   dispatchSuccessRate Float?
-    // Fraction of booked jobs cancelled before completion (0–1).
-  cancellationRate Float?
+  // Fraction of booked jobs cancelled before completion (0–1).
+  cancellationRate    Float?
 
   // ── Revenue quality ───────────────────────────────────────────────────────
-    // Fraction of calls that go unanswered (affects conversion from click to lead) (0–1).
-  missedCallRate Float?
-    // Fraction of completed jobs that result in a refund or dispute (0–1).
+  // Fraction of calls that go unanswered (affects conversion from click to lead) (0–1).
+  missedCallRate    Float?
+  // Fraction of completed jobs that result in a refund or dispute (0–1).
   refundProbability Float?
 
   // ── Derived ───────────────────────────────────────────────────────────────
-    // Operational efficiency factor — pre-computed product of all non-null metrics.
+  // Operational efficiency factor — pre-computed product of all non-null metrics.
   // = (1 - spamLeadRate) × dispatchSuccessRate × (1 - cancellationRate)
   // × (1 - missedCallRate) × (1 - refundProbability) × (1 - duplicateLeadRate)
   // Null until at least one metric is populated. Applied as a discount to
   // expectedMonthlyProfitGbp. A fully-efficient geo scores 1.0.
   operationalEfficiencyFactor Float?
 
-    // Number of leads/jobs used to compute the above metrics.
-  sampleSize Int?
-    // Date range these metrics cover (ISO string, e.g. "2026-01-01/2026-04-30").
+  // Number of leads/jobs used to compute the above metrics.
+  sampleSize   Int?
+  // Date range these metrics cover (ISO string, e.g. "2026-01-01/2026-04-30").
   samplePeriod String?
 
   lastComputedAt DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@unique([geoId])
 }
@@ -3468,23 +3533,23 @@ model GeoOperationalMetrics {
 // COMPETITOR INTELLIGENCE
 // ==========================================
 
-  // A competitor domain we actively monitor via SEMrush + SpyFu.
-  // Admins can add/remove domains; the competitor-intel agent reads this list.
+// A competitor domain we actively monitor via SEMrush + SpyFu.
+// Admins can add/remove domains; the competitor-intel agent reads this list.
 model CompetitorDomain {
   id     String @id @default(auto()) @map("_id") @db.ObjectId
-  domain String @unique  // e.g. "lockforce.co.uk"
-  label  String          // e.g. "Lockforce (national franchise)"
+  domain String @unique // e.g. "lockforce.co.uk"
+  label  String // e.g. "Lockforce (national franchise)"
 
-    // Is monitoring active? Admins can pause individual domains.
+  // Is monitoring active? Admins can pause individual domains.
   isActive Boolean @default(true)
 
-    // Approximate monthly PPC spend (£) — SEMrush estimate, updated each scan.
+  // Approximate monthly PPC spend (£) — SEMrush estimate, updated each scan.
   estimatedMonthlySpendGbp Float?
 
-    // Last time the agent successfully scanned this domain.
+  // Last time the agent successfully scanned this domain.
   lastScannedAt DateTime?
 
-    // ISO country code for the primary market (default "GB").
+  // ISO country code for the primary market (default "GB").
   countryCode String @default("GB")
 
   createdAt DateTime @default(now())
@@ -3497,53 +3562,53 @@ model CompetitorDomain {
   @@index([isActive])
 }
 
-  // A single paid keyword attributed to a competitor domain.
-  // "dualSource" = keyword confirmed by BOTH SEMrush AND SpyFu →
-  // higher confidence it's a live, intentional bid (not sampling noise).
-  // Graduated keywords (passedQualityGate=true) are written to the seed bank
-  // with category="competitor". They only stay in the seed bank while they
-  // remain active — if a competitor drops the keyword, we mark it inactive
-  // and the seed bank score decays naturally.
+// A single paid keyword attributed to a competitor domain.
+// "dualSource" = keyword confirmed by BOTH SEMrush AND SpyFu →
+// higher confidence it's a live, intentional bid (not sampling noise).
+// Graduated keywords (passedQualityGate=true) are written to the seed bank
+// with category="competitor". They only stay in the seed bank while they
+// remain active — if a competitor drops the keyword, we mark it inactive
+// and the seed bank score decays naturally.
 model CompetitorKeyword {
-  id         String @id @default(auto()) @map("_id") @db.ObjectId
-  domainId   String @db.ObjectId
-  domain     CompetitorDomain @relation(fields: [domainId], references: [id])
+  id       String           @id @default(auto()) @map("_id") @db.ObjectId
+  domainId String           @db.ObjectId
+  domain   CompetitorDomain @relation(fields: [domainId], references: [id])
 
-  keyword    String
-    // ISO country code this keyword was fetched for (usually "GB").
+  keyword     String
+  // ISO country code this keyword was fetched for (usually "GB").
   countryCode String @default("GB")
 
-    // Average CPC (£) as estimated by SEMrush.
-  cpcGbp     Float?
-    // Estimated monthly clicks.
+  // Average CPC (£) as estimated by SEMrush.
+  cpcGbp        Float?
+  // Estimated monthly clicks.
   monthlyClicks Int?
-    // Average position (1–4 for ads).
-  avgPosition  Float?
+  // Average position (1–4 for ads).
+  avgPosition   Float?
 
-    // SEMrush competition index 0–100.
+  // SEMrush competition index 0–100.
   competitionIndex Int?
 
-    // Seen in SEMrush data.
+  // Seen in SEMrush data.
   seenInSemrush Boolean @default(false)
-    // Seen in SpyFu data.
+  // Seen in SpyFu data.
   seenInSpyFu   Boolean @default(false)
 
-    // True when both SEMrush AND SpyFu reported this keyword in the same scan.
+  // True when both SEMrush AND SpyFu reported this keyword in the same scan.
   // Dual-source keywords are treated as high-confidence seeds.
   dualSource Boolean @default(false)
 
-    // Passed the locksmith relevance filter AND profitPerClick > 0 check.
+  // Passed the locksmith relevance filter AND profitPerClick > 0 check.
   passedQualityGate Boolean @default(false)
 
-    // Whether the competitor is currently actively bidding (vs. historical).
+  // Whether the competitor is currently actively bidding (vs. historical).
   isActive Boolean @default(true)
 
-    // When we first saw this competitor bidding on this keyword.
-  firstSeenAt DateTime @default(now())
-    // When we last confirmed the competitor is still bidding.
+  // When we first saw this competitor bidding on this keyword.
+  firstSeenAt     DateTime  @default(now())
+  // When we last confirmed the competitor is still bidding.
   lastConfirmedAt DateTime?
-    // When the competitor stopped bidding (if detected).
-  droppedAt DateTime?
+  // When the competitor stopped bidding (if detected).
+  droppedAt       DateTime?
 
   @@unique([domainId, keyword, countryCode])
   @@index([domainId, isActive])
@@ -3551,16 +3616,16 @@ model CompetitorKeyword {
   @@index([dualSource, passedQualityGate])
 }
 
-  // A competitor ad copy snapshot (headline + descriptions).
-  // Used to identify messaging angles and USPs we're not covering.
-  // Multiple copies per domain — stored as rolling history so we can see
-  // when competitors change messaging (e.g. moving from price to trust).
+// A competitor ad copy snapshot (headline + descriptions).
+// Used to identify messaging angles and USPs we're not covering.
+// Multiple copies per domain — stored as rolling history so we can see
+// when competitors change messaging (e.g. moving from price to trust).
 model CompetitorAdCopy {
-  id       String @id @default(auto()) @map("_id") @db.ObjectId
-  domainId String @db.ObjectId
+  id       String           @id @default(auto()) @map("_id") @db.ObjectId
+  domainId String           @db.ObjectId
   domain   CompetitorDomain @relation(fields: [domainId], references: [id])
 
-    // The keyword(s) this ad appeared for.
+  // The keyword(s) this ad appeared for.
   triggerKeyword String
 
   headline1    String?
@@ -3569,64 +3634,64 @@ model CompetitorAdCopy {
   description1 String?
   description2 String?
 
-    // Estimated CTR for this ad (SEMrush estimate).
+  // Estimated CTR for this ad (SEMrush estimate).
   estimatedCtr Float?
 
-    // Display URL path components.
+  // Display URL path components.
   displayPath1 String?
   displayPath2 String?
 
-    // SEMrush / SpyFu source.
+  // SEMrush / SpyFu source.
   source String @default("semrush")
 
-  firstSeenAt DateTime @default(now())
+  firstSeenAt DateTime  @default(now())
   lastSeenAt  DateTime?
 
-    // Still appearing in current scans.
+  // Still appearing in current scans.
   isActive Boolean @default(true)
 
   @@index([domainId, triggerKeyword])
   @@index([domainId, isActive])
 }
 
-  // Per-competitor per-city presence signal.
-  // Tracks whether a competitor is ENTERING or EXITING a geo, which is a
-  // leading indicator of market opportunity:
-  // - Competitor EXITS a geo → reduced auction pressure → better ROI for us
-  // - Competitor ENTERS a geo → increased pressure → review our bids
-  // "presenceScore" = 0 (absent) → 1 (strong presence). Computed from
-  // estimated impression share and number of active keywords in that geo.
+// Per-competitor per-city presence signal.
+// Tracks whether a competitor is ENTERING or EXITING a geo, which is a
+// leading indicator of market opportunity:
+// - Competitor EXITS a geo → reduced auction pressure → better ROI for us
+// - Competitor ENTERS a geo → increased pressure → review our bids
+// "presenceScore" = 0 (absent) → 1 (strong presence). Computed from
+// estimated impression share and number of active keywords in that geo.
 model CompetitorGeoSignal {
-  id       String @id @default(auto()) @map("_id") @db.ObjectId
-  domainId String @db.ObjectId
+  id       String           @id @default(auto()) @map("_id") @db.ObjectId
+  domainId String           @db.ObjectId
   domain   CompetitorDomain @relation(fields: [domainId], references: [id])
 
-    // Google Ads geo target constant ID (same IDs used in coverage universe).
+  // Google Ads geo target constant ID (same IDs used in coverage universe).
   // E.g. "1006502" = Sheffield.
   geoId   String
   geoName String
 
-    // 0–1 score representing how strongly this competitor is present in this geo.
+  // 0–1 score representing how strongly this competitor is present in this geo.
   // Based on: estimated keywords × avg position × impression share proxy.
   presenceScore Float @default(0)
 
-    // Estimated monthly ad spend in this geo (£). SEMrush estimate.
+  // Estimated monthly ad spend in this geo (£). SEMrush estimate.
   estimatedSpendGbp Float?
 
-    // Number of active paid keywords attributed to this geo.
+  // Number of active paid keywords attributed to this geo.
   activeKeywordCount Int @default(0)
 
-    // Trend vs. previous scan:
+  // Trend vs. previous scan:
   // "ENTERING"  — presenceScore grew > 0.15 since last scan
   // "EXITING"   — presenceScore fell > 0.15 since last scan
   // "STABLE"    — no significant change
   // "NEW"       — first time we've seen this competitor in this geo
   trend String @default("STABLE")
 
-    // Previous presenceScore (for trend computation).
+  // Previous presenceScore (for trend computation).
   previousPresenceScore Float?
 
-  firstSeenAt DateTime @default(now())
+  firstSeenAt   DateTime  @default(now())
   lastUpdatedAt DateTime?
 
   @@unique([domainId, geoId])
@@ -3941,7 +4006,7 @@ model CampaignSuggestion {
   type String
 
   // Which Google Ads campaign draft this concerns (nullable for NEW_DRAFT_CITY).
-  draftId          String? @db.ObjectId
+  draftId          String?                 @db.ObjectId
   draft            GoogleAdsCampaignDraft? @relation(fields: [draftId], references: [id])
   googleCampaignId String?
   campaignName     String?
@@ -4029,8 +4094,8 @@ model CallIntent {
   pagePath    String? // page the Call button was clicked from
 
   // ── Click context ───────────────────────────────────────────────────
-  source   String  // "website_call_button" | "ad_click_to_call" | "modal_cta"
-  buttonId String? // optional CTA identifier (e.g. "hero", "sticky-footer")
+  source    String // "website_call_button" | "ad_click_to_call" | "modal_cta"
+  buttonId  String? // optional CTA identifier (e.g. "hero", "sticky-footer")
   userAgent String?
 
   // ── Retell match ────────────────────────────────────────────────────
@@ -4043,7 +4108,7 @@ model CallIntent {
   callerIdE164 String?
 
   // ── Downstream linkage ──────────────────────────────────────────────
-  jobId String? @db.ObjectId
+  jobId                  String?   @db.ObjectId
   // Conversion upload tracking — mirrors the per-Job fields on Job.
   conversionUploadedAt   DateTime?
   conversionUploadStatus String? // "uploaded" | "skipped:no_gclid" | "skipped:no_job" | "error"
@@ -4079,60 +4144,60 @@ model CallIntent {
 ///   • manual edits via admin set contentSource = "manual_override"
 ///     and the regenerator never overwrites them.
 model DistrictLandingPage {
-  id        String @id @default(auto()) @map("_id") @db.ObjectId
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
   /// UK outcode, uppercase. E.g. "RG1", "SW1A", "M1".
-  district  String @unique
+  district String @unique
   /// URL slug — lowercase district. Stored separately so we can change
   /// the URL convention later without losing the district key.
-  slug      String @unique
+  slug     String @unique
 
   // ── Resolved local facts (the LLM's grounding data) ─────────────────
   /// Anchor town for the outcode (Reading, Manchester, etc.)
-  anchorTown      String?
+  anchorTown           String?
   /// County or region (Berkshire, Greater Manchester, etc.)
-  region          String?
+  region               String?
   /// Outcode centroid for distance computation.
-  lat             Float?
-  lng             Float?
+  lat                  Float?
+  lng                  Float?
   /// Outcodes adjacent to this one (within ~10mi). E.g. for RG1: ["RG2","RG4","RG6","RG30"]
-  nearbyOutcodes  String[] @default([])
+  nearbyOutcodes       String[] @default([])
   /// Locksmith IDs covering this district (mirrors LocksmithCoverage).
-  locksmithIds    String[] @default([])
+  locksmithIds         String[] @default([])
   /// The primary engineer to highlight in the hero copy.
-  featuredLocksmithId String?
+  featuredLocksmithId  String?
   /// Their displayed first name in the copy (cached so we don't re-join).
   featuredEngineerName String?
 
   // ── Generated content blocks ────────────────────────────────────────
   /// Hero headline — 6-12 words, district-specific. NOT a template fill.
-  heroHeadline       String?
+  heroHeadline      String?
   /// One short sentence supporting the hero.
-  heroSubcopy        String?
+  heroSubcopy       String?
   /// Opening paragraph (3-5 sentences) introducing the district.
-  introParagraph     String?
+  introParagraph    String?
   /// Paragraph about WHO covers the district — names the engineer.
-  coverageNarrative  String?
+  coverageNarrative String?
   /// Trust paragraph — fixed price, MLA, DBS, no-callout-fee positioning.
-  whyChooseUs        String?
+  whyChooseUs       String?
   /// District-specific FAQs (4-6 entries). [{question, answer}]
-  faqs               Json     @default("[]")
+  faqs              Json     @default("[]")
   /// Short bullet points for the trust strip ("Within 8mi of all RG1 postcodes").
-  localTrustAnchors  String[] @default([])
+  localTrustAnchors String[] @default([])
 
   // ── Provenance + lifecycle ──────────────────────────────────────────
   /// "ai_generated" | "manual_override" | "needs_refresh"
-  contentSource  String   @default("ai_generated")
+  contentSource String  @default("ai_generated")
   /// Which model produced the content. e.g. "ollama:llama3.1:8b" / "openai:gpt-4o-mini"
-  llmModel       String?
+  llmModel      String?
   /// Free-text notes from an admin (only used when contentSource = manual_override).
-  adminNotes     String?
+  adminNotes    String?
   /// True = visible at /locksmith/{district}. False = hidden (e.g. coverage paused).
-  isPublished    Boolean  @default(true)
+  isPublished   Boolean @default(true)
 
-  generatedAt  DateTime?
-  publishedAt  DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  generatedAt DateTime?
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([isPublished])
   @@index([contentSource])
