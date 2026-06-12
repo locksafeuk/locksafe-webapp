@@ -52,7 +52,10 @@ async function handle(request: NextRequest): Promise<NextResponse> {
       googleCampaignId: { not: null },
       createdAt: { gte: horizonCutoff },
       OR: [
-        { lastVerifiedAt: null },
+        // NB: MongoDB connector treats `lastVerifiedAt: null` as literal-
+        // null match, so freshly-published drafts (field unset) are missed.
+        // `{ isSet: false }` catches both missing and null.
+        { lastVerifiedAt: { isSet: false } },
         {
           AND: [
             { verificationStatus: { in: ["api_error", "google_pending"] } },

@@ -71,11 +71,14 @@ export async function GET(request: NextRequest) {
   const now = new Date();
   const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
+  // NB: MongoDB connector treats `imageUrl: null` as literal-null match
+  // (not "missing OR null"), so brand-new SocialPost rows whose imageUrl
+  // was never set are silently skipped. `{ isSet: false }` catches both.
   const posts = await prisma.socialPost.findMany({
     where: {
       status: { in: ["SCHEDULED", "PENDING_APPROVAL"] },
       imagePrompt: { not: null },
-      imageUrl: null,
+      imageUrl: { isSet: false },
       scheduledFor: { lte: in24h },
     },
     orderBy: { scheduledFor: "asc" },

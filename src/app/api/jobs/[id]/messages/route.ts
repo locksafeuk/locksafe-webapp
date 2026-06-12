@@ -57,10 +57,13 @@ export async function POST(
     },
   });
 
-  // Mark previous messages from the other party as read
+  // Mark previous messages from the other party as read.
+  // NB: MongoDB connector treats `readAt: null` as literal-null match (not
+  // "missing OR null"), so unread messages whose readAt was never set are
+  // silently skipped. Use `{ isSet: false }` to catch missing fields too.
   const otherType = senderType === "customer" ? "locksmith" : "customer";
   await prisma.jobMessage.updateMany({
-    where: { jobId, senderType: otherType, readAt: null },
+    where: { jobId, senderType: otherType, readAt: { isSet: false } },
     data: { readAt: new Date() },
   });
 
