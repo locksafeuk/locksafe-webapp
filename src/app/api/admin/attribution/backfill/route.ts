@@ -1,0 +1,288 @@
+/**
+ * POST /api/admin/attribution/backfill
+ *
+ * One-off (re-runnable) backfill of first/last touch fields on existing
+ * Customer, Locksmith and Job rows.
+ *
+ * Strategy:
+ *   - For each Customer that has a `phone` we can use to identify their
+ *     visitor history, OR a `customerId` linked from a UserSession row,
+ *     resolve their earliest + latest UserSession and stamp the
+ *     firstTouch* / lastTouch* columns.
+ *   - For each Locksmith with a matching UserSession (joined by phone
+ *     or by manual `visitorId` if present), stamp firstTouch*.
+ *   - For each Job that has a `customerId`, stamp Job.firstTouch* from
+ *     that customer's firstTouch*.
+ *
+ * Idempotent: every row is checked for `firstTouchAt` first; rows that
+ * already have a stamp are skipped. Pass `?force=1` to overwrite.
+ *
+ * Batching: chunks of 100 customers per Promise.all to keep memory low.
+ *
+ * Auth: admin JWT cookie.
+ */
+
+import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import prisma from "@/lib/db";
+import { verifyToken } from "@/lib/auth";
+import {
+  resolveFirstTouch,
+  resolveLastTouch,
+} from "@/lib/attribution/touch-resolver";
+
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
+async function verifyAdmin() {
+  const c = await cookies();
+  const t = c.get("auth_token")?.value;
+  if (!t) return null;
+  const p = await verifyToken(t);
+  return p?.type === "admin" ? p : null;
+}
+
+interface BackfillResult {
+  scanned:  number;
+  stamped:  number;
+  skipped:  number;
+  failed:   number;
+  examples: string[];
+}
+
+const CHUNK = 100;
+
+/**
+ * For each row in `rows`, run `processOne` with concurrency = CHUNK.
+ */
+async function batchProcess<T>(
+  rows: T[],
+  processOne: (row: T) => Promise<"stamped" | "skipped" | "failed">,
+  examples: string[],
+): Promise<BackfillResult> {
+  let stamped = 0;
+  let skipped = 0;
+  let failed  = 0;
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const chunk = rows.slice(i, i + CHUNK);
+    const outcomes = await Promise.all(chunk.map(processOne));
+    for (const o of outcomes) {
+      if (o === "stamped") stamped++;
+      else if (o === "skipped") skipped++;
+      else failed++;
+    }
+  }
+  return { scanned: rows.length, stamped, skipped, failed, examples };
+}
+
+export async function POST(request: NextRequest) {
+  const admin = await verifyAdmin();
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const url = new URL(request.url);
+  const force = url.searchParams.get("force") === "1";
+  const scope = url.searchParams.get("scope") ?? "all"; // all | customers | jobs | locksmiths
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const p = prisma as any;
+  const results: Record<string, BackfillResult> = {};
+
+  // ── Customers ──────────────────────────────────────────────────────
+  if (scope === "all" || scope === "customers") {
+    const customers = await p.customer.findMany({
+      select: { id: true, phone: true, visitorId: true, firstTouchAt: true },
+      where:  force ? {} : { firstTouchAt: null },
+      take:   5000, // safety cap per run
+    });
+    const examples: string[] = [];
+    results.customers = await batchProcess(
+      customers,
+      async (c: { id: string; phone: string; visitorId: string | null; firstTouchAt: Date | null }) => {
+        if (!force && c.firstTouchAt) return "skipped";
+        // Resolve visitor history. We try the stored visitorId first;
+        // for customers created before Phase 4 (no visitorId), we look
+        // up sessions by customerId (UserSession.customerId).
+        try {
+          let first = await resolveFirstTouch(c.visitorId);
+          let last  = await resolveLastTouch(c.visitorId);
+          if (!first || !last) {
+            // Fallback: find any session linked to this customer by id.
+            const linked = await p.userSession.findFirst({
+              where:   { customerId: c.id },
+              orderBy: { startedAt: "asc" },
+            });
+            const linkedLast = await p.userSession.findFirst({
+              where:   { customerId: c.id },
+              orderBy: { lastActiveAt: "desc" },
+            });
+            if (linked && !first) {
+              first = {
+                visitorId:   linked.visitorId,
+                sessionId:   linked.id,
+                at:          linked.startedAt,
+                source:      linked.utmSource,
+                medium:      linked.utmMedium,
+                campaign:    linked.utmCampaign,
+                content:     linked.utmContent,
+                term:        linked.utmTerm,
+                gclid:       linked.gclid,
+                fbclid:      linked.fbclid,
+                landingPage: linked.landingPage,
+                referrer:    linked.referrer,
+              };
+            }
+            if (linkedLast && !last) {
+              last = {
+                visitorId:   linkedLast.visitorId,
+                sessionId:   linkedLast.id,
+                at:          linkedLast.lastActiveAt,
+                source:      linkedLast.utmSource,
+                medium:      linkedLast.utmMedium,
+                campaign:    linkedLast.utmCampaign,
+                content:     linkedLast.utmContent,
+                term:        linkedLast.utmTerm,
+                gclid:       linkedLast.gclid,
+                fbclid:      linkedLast.fbclid,
+                landingPage: linkedLast.landingPage,
+                referrer:    linkedLast.referrer,
+              };
+            }
+          }
+          if (!first && !last) return "skipped";
+          const update: Record<string, unknown> = {};
+          if (first) {
+            update.firstSessionId        = first.sessionId;
+            update.firstTouchAt          = first.at;
+            update.firstTouchSource      = first.source;
+            update.firstTouchMedium      = first.medium;
+            update.firstTouchCampaign    = first.campaign;
+            update.firstTouchContent     = first.content;
+            update.firstTouchTerm        = first.term;
+            update.firstTouchGclid       = first.gclid;
+            update.firstTouchFbclid      = first.fbclid;
+            update.firstTouchLandingPage = first.landingPage;
+            update.firstTouchReferrer    = first.referrer;
+            update.visitorId             = first.visitorId;
+          }
+          if (last) {
+            update.lastSessionId        = last.sessionId;
+            update.lastTouchAt          = last.at;
+            update.lastTouchSource      = last.source;
+            update.lastTouchMedium      = last.medium;
+            update.lastTouchCampaign    = last.campaign;
+            update.lastTouchContent     = last.content;
+            update.lastTouchTerm        = last.term;
+            update.lastTouchGclid       = last.gclid;
+            update.lastTouchFbclid      = last.fbclid;
+            update.lastTouchLandingPage = last.landingPage;
+            update.lastTouchReferrer    = last.referrer;
+          }
+          await p.customer.update({ where: { id: c.id }, data: update });
+          if (examples.length < 5) examples.push(c.id);
+          return "stamped";
+        } catch (err) {
+          console.warn("[backfill/customer]", c.id, err);
+          return "failed";
+        }
+      },
+      examples,
+    );
+  }
+
+  // ── Jobs (copy customer.firstTouch* onto Job.firstTouch*) ──────────
+  if (scope === "all" || scope === "jobs") {
+    const jobs = await p.job.findMany({
+      where:  force ? { customerId: { not: null } } : { firstTouchAt: null, customerId: { not: null } },
+      select: { id: true, customerId: true },
+      take:   5000,
+    });
+    const examples: string[] = [];
+    results.jobs = await batchProcess(
+      jobs,
+      async (j: { id: string; customerId: string }) => {
+        try {
+          const cust = await p.customer.findUnique({
+            where: { id: j.customerId },
+            select: {
+              firstTouchAt: true, firstTouchSource: true, firstTouchMedium: true,
+              firstTouchCampaign: true, firstTouchContent: true, firstTouchTerm: true,
+              firstTouchGclid: true, firstTouchFbclid: true, firstTouchLandingPage: true,
+              firstTouchReferrer: true,
+            },
+          });
+          if (!cust?.firstTouchAt) return "skipped";
+          await p.job.update({
+            where: { id: j.id },
+            data: {
+              firstTouchAt:          cust.firstTouchAt,
+              firstTouchSource:      cust.firstTouchSource,
+              firstTouchMedium:      cust.firstTouchMedium,
+              firstTouchCampaign:    cust.firstTouchCampaign,
+              firstTouchContent:     cust.firstTouchContent,
+              firstTouchTerm:        cust.firstTouchTerm,
+              firstTouchGclid:       cust.firstTouchGclid,
+              firstTouchFbclid:      cust.firstTouchFbclid,
+              firstTouchLandingPage: cust.firstTouchLandingPage,
+              firstTouchReferrer:    cust.firstTouchReferrer,
+            },
+          });
+          if (examples.length < 5) examples.push(j.id);
+          return "stamped";
+        } catch (err) {
+          console.warn("[backfill/job]", j.id, err);
+          return "failed";
+        }
+      },
+      examples,
+    );
+  }
+
+  // ── Locksmiths ─────────────────────────────────────────────────────
+  if (scope === "all" || scope === "locksmiths") {
+    const locks = await p.locksmith.findMany({
+      where:  force ? {} : { firstTouchAt: null },
+      select: { id: true, phone: true, visitorId: true },
+      take:   2000,
+    });
+    const examples: string[] = [];
+    results.locksmiths = await batchProcess(
+      locks,
+      async (l: { id: string; visitorId: string | null }) => {
+        try {
+          const first = await resolveFirstTouch(l.visitorId);
+          if (!first) return "skipped";
+          await p.locksmith.update({
+            where: { id: l.id },
+            data: {
+              firstSessionId:        first.sessionId,
+              firstTouchAt:          first.at,
+              firstTouchSource:      first.source,
+              firstTouchMedium:      first.medium,
+              firstTouchCampaign:    first.campaign,
+              firstTouchContent:     first.content,
+              firstTouchTerm:        first.term,
+              firstTouchGclid:       first.gclid,
+              firstTouchFbclid:      first.fbclid,
+              firstTouchLandingPage: first.landingPage,
+              firstTouchReferrer:    first.referrer,
+              visitorId:             first.visitorId,
+            },
+          });
+          if (examples.length < 5) examples.push(l.id);
+          return "stamped";
+        } catch (err) {
+          console.warn("[backfill/locksmith]", l.id, err);
+          return "failed";
+        }
+      },
+      examples,
+    );
+  }
+
+  return NextResponse.json({
+    success: true,
+    force,
+    scope,
+    results,
+  });
+}
