@@ -76,6 +76,19 @@ async function batchProcess<T>(
 }
 
 export async function POST(request: NextRequest) {
+  try {
+    return await runBackfill(request);
+  } catch (err) {
+    const msg = err instanceof Error ? `${err.message}\n${err.stack ?? ""}` : String(err);
+    console.error("[attribution/backfill] top-level crash:", msg);
+    return NextResponse.json(
+      { success: false, error: "backfill_top_level_crash", details: msg.slice(0, 1500) },
+      { status: 500 },
+    );
+  }
+}
+
+async function runBackfill(request: NextRequest) {
   const admin = await verifyAdmin();
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
