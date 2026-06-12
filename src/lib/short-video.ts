@@ -3,43 +3,70 @@
  *
  * Philosophy (same as the posters): **we own the text, AI makes the visuals,
  * ffmpeg stitches it.** Captions are rendered from our proofread script as real
- * Poppins font text — never AI-rendered — so there are ZERO typos. The visuals
- * are a branded animated background (or, optionally, a Veo-Lite b-roll clip),
- * and an OpenAI TTS voiceover is mixed underneath.
+ * font text via **sharp/SVG** (identical to the poster pipeline) — never
+ * AI-rendered, so ZERO typos. Each caption is rasterised to a transparent PNG
+ * and composited with ffmpeg's `overlay` filter; we deliberately avoid ffmpeg's
+ * `drawtext` because some Homebrew ffmpeg bottles ship without libfreetype, and
+ * `overlay`/`drawbox`/`zoompan` are universally available.
  *
- * Output: 1080×1920 (9:16) H.264/AAC MP4, sized natively for mobile, with
- * captions kept in the centre safe-zone clear of TikTok's right-rail and bottom
- * UI. Uploaded to Vercel Blob → served as a verified-domain MP4 for TikTok.
+ * Output: 1080×1920 (9:16) H.264/AAC MP4, sized natively for mobile, captions in
+ * the centre safe-zone (clear of TikTok's right-rail + bottom UI). An OpenAI TTS
+ * voiceover is mixed underneath. Uploaded to Vercel Blob → served as a
+ * verified-domain MP4 for TikTok.
  *
  * IMPORTANT: This runs where `ffmpeg` is on PATH — i.e. the **Mac Studio agent
  * runner**, not Vercel serverless. Callers must degrade gracefully (see
- * `isShortVideoSupported`).
+ * `isShortVideoSupported`). Set `FFMPEG_PATH` to override the binary.
  */
 
 import { spawn } from "node:child_process";
 import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { copyFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
+import { tmpdir, homedir } from "node:os";
 import path from "node:path";
 import sharp from "sharp";
 import { put } from "@vercel/blob";
 
 // ─── Brand ─────────────────────────────────────────────────────────────────
 const BRAND = {
-  orange: "F97316",
-  slateBg1: [13, 20, 38] as [number, number, number],
-  slateBg2: [23, 36, 64] as [number, number, number],
-  scrim: "0B1426",
+  orange: "#F97316",
+  white: "#FFFFFF",
+  scrim: "#0B1426",
+  slateBg1: "rgb(13,20,38)",
+  slateBg2: "rgb(23,36,64)",
 };
 
 const W = 1080;
 const H = 1920;
 const FPS = 30;
+const FFMPEG = process.env.FFMPEG_PATH || "ffmpeg";
 
-// Fonts are bundled in the repo so the host doesn't need them installed.
+// Caption font: prefer Poppins (bundled in repo + auto-installed below), but
+// fall back to Helvetica Neue — which every macOS has and the poster pipeline
+// already renders successfully — so captions ALWAYS render.
+const CAPTION_FONT_FAMILY = `'Poppins', 'Helvetica Neue', Helvetica, Arial, sans-serif`;
 const FONT_DIR = path.join(process.cwd(), "assets", "fonts");
-const FONT_CAPTION = path.join(FONT_DIR, "Poppins-Bold.ttf");
-const FONT_BADGE = path.join(FONT_DIR, "Poppins-Bold.ttf");
-const FONT_WORDMARK = path.join(FONT_DIR, "Poppins-Medium.ttf");
+
+/**
+ * Best-effort: copy the bundled Poppins TTFs into the user's font dir so
+ * sharp/fontconfig can resolve `font-family: Poppins`. Runs once at import,
+ * before any render, so a fresh process picks the fonts up. Silent on failure
+ * (we fall back to Helvetica Neue in the SVG font stack).
+ */
+(function ensureFontsInstalled() {
+  try {
+    if (!existsSync(FONT_DIR)) return;
+    const dest = path.join(homedir(), "Library", "Fonts");
+    if (!existsSync(dest)) mkdirSync(dest, { recursive: true });
+    for (const f of readdirSync(FONT_DIR)) {
+      if (!f.toLowerCase().endsWith(".ttf")) continue;
+      const target = path.join(dest, f);
+      if (!existsSync(target)) copyFileSync(path.join(FONT_DIR, f), target);
+    }
+  } catch {
+    /* fall back to Helvetica Neue */
+  }
+})();
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -86,42 +113,97 @@ export interface ShortVideoResult {
 
 let _ffmpegChecked: boolean | null = null;
 
-/** True if ffmpeg is available on PATH (i.e. we can build video here). */
+/** True if ffmpeg is available (i.e. we can build video here). */
 export async function isShortVideoSupported(): Promise<boolean> {
   if (_ffmpegChecked !== null) return _ffmpegChecked;
   _ffmpegChecked = await new Promise<boolean>((resolve) => {
-    const p = spawn("ffmpeg", ["-version"]);
+    const p = spawn(FFMPEG, ["-version"]);
     p.on("error", () => resolve(false));
     p.on("close", (code) => resolve(code === 0));
   });
   return _ffmpegChecked;
 }
 
-// ─── Branded background (no PIL — pure sharp/SVG) ──────────────────────────────
+// ─── SVG helpers ───────────────────────────────────────────────────────────────
 
-/**
- * Render a 1350×2400 branded background (slate vertical gradient + two soft
- * orange glows + vignette), upscaled so the Ken-Burns zoom has room to move.
- */
+function escXml(s: string): string {
+  return s.replace(/[<>&'"]/g, (c) =>
+    ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" }[c] as string)
+  );
+}
+
+// Layout (matches the look locked with the user: centred caption block, badge +
+// accent bar grouped just above, small bottom wordmark, progress bar).
+const CAP_TOP = Math.round(H * 0.46); // top of the caption text block
+const FONT_SIZE = 78;
+const LINE_H = 100;
+const BADGE_Y = CAP_TOP - 150;
+const BAR_Y = CAP_TOP - 176;
+
+/** Render one caption card to a full-frame transparent PNG (accent bar + badge + text). */
+async function renderCaptionPng(card: CaptionCard, outPath: string): Promise<void> {
+  const lines = card.text.split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 4);
+  const cx = W / 2;
+
+  const accent = `<rect x="${(W - 220) / 2}" y="${BAR_Y}" width="220" height="8" rx="4" fill="${BRAND.orange}"/>`;
+
+  let badge = "";
+  if (card.badge) {
+    badge =
+      `<rect x="${(W - 96) / 2}" y="${BADGE_Y}" width="96" height="96" rx="14" fill="${BRAND.orange}"/>` +
+      `<text x="${cx}" y="${BADGE_Y + 66}" text-anchor="middle" font-family="${CAPTION_FONT_FAMILY}" ` +
+      `font-size="60" font-weight="700" fill="${BRAND.white}">${escXml(card.badge)}</text>`;
+  }
+
+  const textEls = lines
+    .map((ln, i) => {
+      const baseline = CAP_TOP + FONT_SIZE + i * LINE_H;
+      const safe = escXml(ln);
+      // dark shadow copy behind for legibility, white on top
+      return (
+        `<text x="${cx + 2}" y="${baseline + 3}" text-anchor="middle" font-family="${CAPTION_FONT_FAMILY}" ` +
+        `font-size="${FONT_SIZE}" font-weight="700" fill="${BRAND.scrim}" fill-opacity="0.85">${safe}</text>` +
+        `<text x="${cx}" y="${baseline}" text-anchor="middle" font-family="${CAPTION_FONT_FAMILY}" ` +
+        `font-size="${FONT_SIZE}" font-weight="700" fill="${BRAND.white}">${safe}</text>`
+      );
+    })
+    .join("");
+
+  const svg = `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">${accent}${badge}${textEls}</svg>`;
+  const buf = await sharp(Buffer.from(svg)).png().toBuffer();
+  await writeFile(outPath, buf);
+}
+
+/** Render the persistent brand wordmark (orange dot + LOCKSAFE UK) to a PNG. */
+async function renderWordmarkPng(outPath: string): Promise<void> {
+  const wmY = H - 175;
+  const svg =
+    `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">` +
+    `<rect x="${W / 2 - 110}" y="${wmY - 12}" width="16" height="16" rx="3" fill="${BRAND.orange}"/>` +
+    `<text x="${W / 2 + 12}" y="${wmY + 2}" text-anchor="middle" font-family="${CAPTION_FONT_FAMILY}" ` +
+    `font-size="34" font-weight="500" fill="${BRAND.white}" fill-opacity="0.85">LOCKSAFE UK</text>` +
+    `</svg>`;
+  const buf = await sharp(Buffer.from(svg)).png().toBuffer();
+  await writeFile(outPath, buf);
+}
+
+/** Render the branded gradient background (slate + twin orange glows + vignette). */
 async function renderBrandBackground(outPath: string): Promise<void> {
   const BW = 1350;
   const BH = 2400;
-  const [r1, g1, b1] = BRAND.slateBg1;
-  const [r2, g2, b2] = BRAND.slateBg2;
-
   const svg = `<svg width="${BW}" height="${BH}" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="rgb(${r1},${g1},${b1})"/>
-        <stop offset="100%" stop-color="rgb(${r2},${g2},${b2})"/>
+        <stop offset="0%" stop-color="${BRAND.slateBg1}"/>
+        <stop offset="100%" stop-color="${BRAND.slateBg2}"/>
       </linearGradient>
       <radialGradient id="glowA" cx="30%" cy="22%" r="42%">
-        <stop offset="0%" stop-color="#F97316" stop-opacity="0.42"/>
-        <stop offset="100%" stop-color="#F97316" stop-opacity="0"/>
+        <stop offset="0%" stop-color="${BRAND.orange}" stop-opacity="0.42"/>
+        <stop offset="100%" stop-color="${BRAND.orange}" stop-opacity="0"/>
       </radialGradient>
       <radialGradient id="glowB" cx="78%" cy="72%" r="38%">
-        <stop offset="0%" stop-color="#F97316" stop-opacity="0.28"/>
-        <stop offset="100%" stop-color="#F97316" stop-opacity="0"/>
+        <stop offset="0%" stop-color="${BRAND.orange}" stop-opacity="0.28"/>
+        <stop offset="100%" stop-color="${BRAND.orange}" stop-opacity="0"/>
       </radialGradient>
       <radialGradient id="vig" cx="50%" cy="50%" r="75%">
         <stop offset="55%" stop-color="#000000" stop-opacity="0"/>
@@ -133,8 +215,8 @@ async function renderBrandBackground(outPath: string): Promise<void> {
     <rect width="${BW}" height="${BH}" fill="url(#glowB)"/>
     <rect width="${BW}" height="${BH}" fill="url(#vig)"/>
   </svg>`;
-
-  await sharp(Buffer.from(svg)).png().toBuffer().then((buf) => writeFile(outPath, buf));
+  const buf = await sharp(Buffer.from(svg)).png().toBuffer();
+  await writeFile(outPath, buf);
 }
 
 /** Normalise an arbitrary still to the 1350×2400 background canvas (cover). */
@@ -158,7 +240,6 @@ function planTiming(opts: ShortVideoOptions): { cards: TimedCard[]; total: numbe
   if (opts.seconds && opts.seconds.length === cards.length) {
     durations = opts.seconds;
   } else {
-    // Estimate from word count; clamp so no card is too short/long to read.
     durations = cards.map((c) => {
       const words = c.text.replace(/\n/g, " ").trim().split(/\s+/).length;
       return Math.min(5.0, Math.max(2.4, words / wps + 0.8));
@@ -174,71 +255,54 @@ function planTiming(opts: ShortVideoOptions): { cards: TimedCard[]; total: numbe
   return { cards: timed, total: t };
 }
 
-// ─── Filtergraph (the locked, centred-caption look) ───────────────────────────
+// ─── Filtergraph (overlay-based, no drawtext) ──────────────────────────────────
 
-function escBadge(s: string): string {
-  // Badge text is a short literal (a digit); keep it filter-safe.
-  return s.replace(/[\\:']/g, "");
-}
-
-function buildFiltergraph(timed: TimedCard[], total: number, tmpDir: string): string {
+/**
+ * Build the filter_complex. Inputs (in order):
+ *   0           background (looped image or looping video)
+ *   1..K        caption PNGs (one per card)
+ *   K+1         wordmark PNG (persistent)
+ *   K+2         audio (anullsrc or voiceover)
+ */
+function buildFiltergraph(timed: TimedCard[], total: number): { filter: string; audioInput: number } {
   const frames = Math.round(total * FPS);
-  const CAP_Y = Math.round(H * 0.46); // caption top → block sits centred
-  const BADGE_Y = CAP_Y - 150; // header group just above caption
-  const BAR_Y = CAP_Y - 176;
-  const scrimY = Math.round(H * 0.32);
-  const scrimH = Math.round(H * 0.42);
   const CW = Math.round(W * 1.25);
   const CH = Math.round(H * 1.25);
+  const scrimY = Math.round(H * 0.32);
+  const scrimH = Math.round(H * 0.42);
+  const K = timed.length;
 
-  // Background: cover-crop to frame, slow Ken-Burns zoom with a gentle drift,
-  // then a centred dark scrim band for caption legibility.
-  // NB: the whole filtergraph is passed as a SINGLE argv element to spawn (no
-  // shell), so commas inside single-quoted expressions are literal — no
-  // backslash-escaping needed (matches the validated prototype).
-  const bg =
+  // Background: cover-crop, slow Ken-Burns zoom with gentle drift, centred scrim.
+  let g =
     `[0:v]scale=${CW}:${CH}:force_original_aspect_ratio=increase,crop=${CW}:${CH},` +
     `zoompan=z='min(zoom+0.0007,1.18)':x='iw/2-(iw/zoom/2)+sin(on/90)*40':y='ih/2-(ih/zoom/2)':` +
     `d=${frames}:s=${W}x${H}:fps=${FPS},setsar=1,` +
-    `drawbox=x=0:y=${scrimY}:w=${W}:h=${scrimH}:color=0x${BRAND.scrim}@0.60:t=fill`;
+    `drawbox=x=0:y=${scrimY}:w=${W}:h=${scrimH}:color=${BRAND.scrim.replace("#", "0x")}@0.60:t=fill[bg];`;
 
-  let dt = "";
+  // Overlay each caption with a 0.3s alpha fade-in, gated to its time window.
+  let prev = "bg";
   timed.forEach((card, i) => {
     const a = card.start.toFixed(2);
     const b = card.end.toFixed(2);
-    const fade = `if(lt(t,${a}+0.30),(t-${a})/0.30,1)`;
-    const between = `between(t,${a},${b})`;
-
-    // animated orange accent bar
-    dt += `,drawbox=x=(iw-220)/2:y=${BAR_Y}:w=220:h=8:color=0x${BRAND.orange}:t=fill:enable='${between}'`;
-
-    if (card.badge) {
-      dt += `,drawbox=x=(iw-96)/2:y=${BADGE_Y}:w=96:h=96:color=0x${BRAND.orange}:t=fill:enable='${between}'`;
-      dt += `,drawtext=fontfile='${FONT_BADGE}':text='${escBadge(card.badge)}':fontcolor=white:fontsize=64:x=(w-text_w)/2:y=${BADGE_Y + 12}:enable='${between}'`;
-    }
-
-    dt += `,drawtext=fontfile='${FONT_CAPTION}':textfile='${path.join(tmpDir, `c${i}.txt`)}':fontcolor=white:fontsize=78:line_spacing=20:x=(w-text_w)/2:y=${CAP_Y}:alpha='${fade}':borderw=3:bordercolor=0x${BRAND.scrim}@0.85:enable='${between}'`;
+    g += `[${i + 1}:v]format=yuva420p,fade=t=in:st=${a}:d=0.30:alpha=1[c${i}];`;
+    g += `[${prev}][c${i}]overlay=enable='between(t,${a},${b})'[v${i}];`;
+    prev = `v${i}`;
   });
 
-  // Brand watermark (small, bottom, safe zone) + TikTok-style progress bar.
-  const wmY = H - 175; // nudged up into guaranteed-safe area (clear of TikTok UI)
-  dt += `,drawbox=x=(iw-300)/2-26:y=${wmY + 8}:w=18:h=18:color=0x${BRAND.orange}:t=fill`;
-  dt += `,drawtext=fontfile='${FONT_WORDMARK}':text='LOCKSAFE UK':fontcolor=white@0.85:fontsize=34:x=(w-text_w)/2+14:y=${wmY}`;
-  dt += `,drawbox=x=0:y=${H - 10}:w='iw*t/${total.toFixed(2)}':h=10:color=0x${BRAND.orange}:t=fill`;
+  // Persistent wordmark.
+  g += `[${K + 1}:v]format=yuva420p[wm];[${prev}][wm]overlay[vw];`;
 
-  return `${bg}${dt}[v]`;
+  // TikTok-style progress bar.
+  g += `[vw]drawbox=x=0:y=${H - 10}:w='iw*t/${total.toFixed(2)}':h=10:color=${BRAND.orange.replace("#", "0x")}:t=fill[v]`;
+
+  return { filter: g, audioInput: K + 2 };
 }
 
 // ─── OpenAI TTS voiceover ──────────────────────────────────────────────────────
 
-/**
- * Synthesize a voiceover via OpenAI TTS. Returns a local mp3 path, or null if
- * OpenAI isn't configured / the call fails (video still renders, just silent).
- */
 async function synthesizeVoiceover(text: string, tmpDir: string): Promise<string | null> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey || !text.trim()) return null;
-
   try {
     const resp = await fetch("https://api.openai.com/v1/audio/speech", {
       method: "POST",
@@ -256,9 +320,8 @@ async function synthesizeVoiceover(text: string, tmpDir: string): Promise<string
       console.warn(`[short-video] TTS ${resp.status}: ${(await resp.text()).slice(0, 160)}`);
       return null;
     }
-    const mp3 = Buffer.from(await resp.arrayBuffer());
     const out = path.join(tmpDir, "vo.mp3");
-    await writeFile(out, mp3);
+    await writeFile(out, Buffer.from(await resp.arrayBuffer()));
     return out;
   } catch (err) {
     console.warn(`[short-video] TTS failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -268,7 +331,6 @@ async function synthesizeVoiceover(text: string, tmpDir: string): Promise<string
 
 // ─── ffmpeg runner ─────────────────────────────────────────────────────────────
 
-/** Download a URL (e.g. Vercel Blob) to a local file. */
 async function downloadTo(url: string, dest: string): Promise<void> {
   const resp = await fetch(url, { signal: AbortSignal.timeout(60_000) });
   if (!resp.ok) throw new Error(`download ${resp.status} for ${url}`);
@@ -277,7 +339,7 @@ async function downloadTo(url: string, dest: string): Promise<void> {
 
 function runFfmpeg(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
-    const p = spawn("ffmpeg", args);
+    const p = spawn(FFMPEG, args);
     let stderr = "";
     p.stderr.on("data", (d) => {
       stderr += d.toString();
@@ -301,12 +363,15 @@ export async function generateShortVideo(opts: ShortVideoOptions): Promise<Short
   try {
     const { cards: timed, total } = planTiming(opts);
 
-    // Write each caption to a textfile (drawtext textfile = exact, proofread copy).
-    await Promise.all(
-      timed.map((c, i) => writeFile(path.join(tmpDir, `c${i}.txt`), c.text, "utf8"))
-    );
+    // Render caption PNGs + wordmark (sharp/SVG — exact, proofread copy).
+    const capPaths = timed.map((_, i) => path.join(tmpDir, `cap${i}.png`));
+    const wmPath = path.join(tmpDir, "wm.png");
+    await Promise.all([
+      ...timed.map((c, i) => renderCaptionPng(c, capPaths[i])),
+      renderWordmarkPng(wmPath),
+    ]);
 
-    // Resolve background sources, downloading URLs to temp files if needed.
+    // Resolve background (download URLs if needed).
     let videoPath = opts.backgroundVideoPath;
     if (!videoPath && opts.backgroundVideoUrl) {
       videoPath = path.join(tmpDir, "bgvid.mp4");
@@ -338,23 +403,19 @@ export async function generateShortVideo(opts: ShortVideoOptions): Promise<Short
     // Optional voiceover.
     const voPath = opts.voiceover ? await synthesizeVoiceover(opts.voiceover, tmpDir) : null;
 
-    const filtergraph = buildFiltergraph(timed, total, tmpDir);
-    const outPath = path.join(tmpDir, "out.mp4");
-
+    // Assemble inputs: bg, captions…, wordmark, audio.
+    const { filter, audioInput } = buildFiltergraph(timed, total);
     const args = ["-y", ...bgInputArgs];
+    for (const cp of capPaths) args.push("-loop", "1", "-t", total.toFixed(2), "-i", cp);
+    args.push("-loop", "1", "-t", total.toFixed(2), "-i", wmPath);
+
+    const outPath = path.join(tmpDir, "out.mp4");
     if (voPath) {
-      // Real voiceover track, padded to full length with trailing silence.
       args.push("-i", voPath);
-      args.push(
-        "-filter_complex",
-        `${filtergraph};[1:a]apad[vo]`,
-        "-map", "[v]", "-map", "[vo]"
-      );
+      args.push("-filter_complex", `${filter};[${audioInput}:a]apad[vo]`, "-map", "[v]", "-map", "[vo]");
     } else {
-      // Silent track so the MP4 always has audio (TikTok prefers it). The
-      // anullsrc is always input index 1 (background is input 0).
       args.push("-f", "lavfi", "-t", total.toFixed(2), "-i", "anullsrc=channel_layout=stereo:sample_rate=44100");
-      args.push("-filter_complex", filtergraph, "-map", "[v]", "-map", "1:a");
+      args.push("-filter_complex", filter, "-map", "[v]", "-map", `${audioInput}:a`);
     }
     args.push(
       "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", String(FPS),
@@ -399,15 +460,10 @@ function wrapCaption(text: string, maxChars = 22, maxLines = 3): string {
  * per numbered body step (badged 1/2/3…), and a CTA card. Splits the body on
  * sentence boundaries when no explicit steps exist.
  */
-export function scriptToCards(script: {
-  hook: string;
-  body: string;
-  cta: string;
-}): CaptionCard[] {
+export function scriptToCards(script: { hook: string; body: string; cta: string }): CaptionCard[] {
   const cards: CaptionCard[] = [];
   if (script.hook?.trim()) cards.push({ text: wrapCaption(script.hook) });
 
-  // Prefer explicit "1. … 2. …" steps; else split into ≤3 sentences.
   const stepMatches = script.body.match(/\d+[.)]\s+[^0-9]+/g);
   if (stepMatches && stepMatches.length >= 2) {
     stepMatches.slice(0, 4).forEach((s, i) => {

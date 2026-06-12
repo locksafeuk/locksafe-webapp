@@ -70,3 +70,6 @@ reports/daily-checks/
 reports/reliability/
 .env.backup*
 .github-token
+
+# sandbox scratch
+_lvtest.mjs
