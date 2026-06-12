@@ -78,7 +78,31 @@ export function getStripe(): Stripe {
   if (!_stripe) {
     const key = process.env.STRIPE_SECRET_KEY;
     if (!key) throw new Error("STRIPE_SECRET_KEY is not set");
-    _stripe = new Stripe(key, { apiVersion: "2026-02-25.clover", typescript: true });
+
+    // Data Ownership Layer: route every outbound Stripe call through
+    // our vendor-audit fetch wrapper. Stripe's SDK lets us inject a
+    // custom http client built on a fetch impl, so we get the full
+    // payload (incl. PII, payment intent IDs, customer IDs) into our
+    // audit log without per-call instrumentation.
+    let httpClient: Stripe.HttpClient | undefined;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { vendorFetch } = require("@/lib/vendor-audit");
+      const wrapped: typeof fetch = (input, init) =>
+        vendorFetch(input, init, {
+          vendor:      "stripe",
+          callerRoute: "lib/stripe.ts:getStripe (SDK fetch)",
+        });
+      httpClient = Stripe.createFetchHttpClient(wrapped);
+    } catch {
+      // Audit layer not ready — fall back to default Stripe http client.
+    }
+
+    _stripe = new Stripe(key, {
+      apiVersion: "2026-02-25.clover",
+      typescript: true,
+      ...(httpClient ? { httpClient } : {}),
+    });
   }
   return _stripe;
 }

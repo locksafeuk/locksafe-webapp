@@ -306,9 +306,20 @@ export class GoogleAdsClient {
     init: RequestInit,
     maxRetries = 2,
   ): Promise<Response> {
+    // Data Ownership Layer: wrap every Google Ads HTTP call. vendorFetch
+    // is imported lazily inside the loop so a circular-import or schema
+    // hiccup never breaks ad pipelines — fall back to raw fetch.
+    let vFetch: typeof fetch;
+    try {
+      vFetch = (await import("@/lib/vendor-audit")).vendorFetch as unknown as typeof fetch;
+    } catch {
+      vFetch = fetch;
+    }
+    const opts = { vendor: "google-ads" as const, callerRoute: "lib/google-ads.ts:fetchWithBurstRetry" };
+
     let backoffMs = 1000;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      const res = await fetch(url, init);
+      const res = await (vFetch as (u: string, i: RequestInit, o?: unknown) => Promise<Response>)(url, init, opts);
       if (res.status !== 429) return res;
 
       // 429 — read body without consuming the stream the caller needs.

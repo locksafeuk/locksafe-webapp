@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { stripe, verifyWebhookSignature, formatAmountFromStripe, PLATFORM_FEE_PERCENT } from "@/lib/stripe";
+import { withVendorAudit } from "@/lib/vendor-audit";
 import prisma from "@/lib/db";
 import crypto from "crypto";
 import {
@@ -112,7 +113,7 @@ async function sendConversionEvent(
   }
 }
 
-export async function POST(request: NextRequest) {
+async function stripeWebhookHandler(request: NextRequest) {
   try {
     const body = await request.text();
     const signature = request.headers.get("stripe-signature");
@@ -931,3 +932,9 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+// Data Ownership Layer: every Stripe webhook is logged into VendorEvent
+// so the dashboard at /admin/data-ownership shows exactly what Stripe is
+// pushing to us (payment_intent payloads, customer objects, dispute
+// events) alongside what we send out.
+export const POST = withVendorAudit("stripe", stripeWebhookHandler);
