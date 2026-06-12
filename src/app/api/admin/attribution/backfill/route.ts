@@ -105,10 +105,13 @@ async function runBackfill(request: NextRequest) {
   if (scope === "all" || scope === "customers") {
     let customers: Array<{ id: string; phone: string; visitorId: string | null; firstTouchAt: Date | null }> = [];
     try {
+      // Prisma's MongoDB connector treats `firstTouchAt: null` strictly
+      // (matches only docs where the field is explicitly null, NOT docs
+      // where the field is missing). Existing rows don't have the field
+      // at all. So we fetch ALL rows and filter in the loop.
       customers = await p.customer.findMany({
         select: { id: true, phone: true, visitorId: true, firstTouchAt: true },
-        where:  force ? {} : { firstTouchAt: null },
-        take:   5000, // safety cap per run
+        take:   5000,
       });
     } catch (err) {
       errors.push({ step: "customers.findMany", message: err instanceof Error ? err.message : String(err) });
@@ -211,11 +214,11 @@ async function runBackfill(request: NextRequest) {
 
   // ── Jobs (copy customer.firstTouch* onto Job.firstTouch*) ──────────
   if (scope === "all" || scope === "jobs") {
-    let jobs: Array<{ id: string; customerId: string }> = [];
+    let jobs: Array<{ id: string; customerId: string | null; firstTouchAt: Date | null }> = [];
     try {
+      // Same MongoDB-null caveat as Customer above. Fetch all + filter.
       jobs = await p.job.findMany({
-        where:  force ? { customerId: { not: null } } : { firstTouchAt: null, customerId: { not: null } },
-        select: { id: true, customerId: true },
+        select: { id: true, customerId: true, firstTouchAt: true },
         take:   5000,
       });
     } catch (err) {
@@ -225,7 +228,9 @@ async function runBackfill(request: NextRequest) {
     const examples: string[] = [];
     results.jobs = await batchProcess(
       jobs,
-      async (j: { id: string; customerId: string }) => {
+      async (j: { id: string; customerId: string | null; firstTouchAt: Date | null }) => {
+        if (!j.customerId) return "skipped";
+        if (!force && j.firstTouchAt) return "skipped";
         try {
           const cust = await p.customer.findUnique({
             where: { id: j.customerId },
@@ -265,11 +270,10 @@ async function runBackfill(request: NextRequest) {
 
   // ── Locksmiths ─────────────────────────────────────────────────────
   if (scope === "all" || scope === "locksmiths") {
-    let locks: Array<{ id: string; phone: string; visitorId: string | null }> = [];
+    let locks: Array<{ id: string; phone: string; visitorId: string | null; firstTouchAt: Date | null }> = [];
     try {
       locks = await p.locksmith.findMany({
-        where:  force ? {} : { firstTouchAt: null },
-        select: { id: true, phone: true, visitorId: true },
+        select: { id: true, phone: true, visitorId: true, firstTouchAt: true },
         take:   2000,
       });
     } catch (err) {
@@ -279,7 +283,8 @@ async function runBackfill(request: NextRequest) {
     const examples: string[] = [];
     results.locksmiths = await batchProcess(
       locks,
-      async (l: { id: string; visitorId: string | null }) => {
+      async (l: { id: string; visitorId: string | null; firstTouchAt: Date | null }) => {
+        if (!force && l.firstTouchAt) return "skipped";
         try {
           const first = await resolveFirstTouch(l.visitorId);
           if (!first) return "skipped";
