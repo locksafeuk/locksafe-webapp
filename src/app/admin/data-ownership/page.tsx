@@ -94,8 +94,27 @@ function fmtTime(iso: string): string {
   return d.toLocaleString("en-GB", { hour12: false });
 }
 
+interface Flow {
+  vendor:     string;
+  category:   string;
+  fieldCount: number;
+  fieldNames: string[];
+  eventCount: number;
+  bytesOut:   number;
+}
+interface FlowResponse {
+  windowDays: number;
+  totals:     { events: number; bytesOut: number; bytesIn: number };
+  flows:      Flow[];
+  vendors:    string[];
+  categories: string[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  dailyValueScores: any[];
+}
+
 export default function DataOwnershipPage() {
   const [data,      setData]      = useState<FeedResponse | null>(null);
+  const [flow,      setFlow]      = useState<FlowResponse | null>(null);
   const [loading,   setLoading]   = useState(true);
   const [filters,   setFilters]   = useState({ vendor: "", direction: "", endpoint: "", since: "" });
   const [selected,  setSelected]  = useState<EventRow | null>(null);
@@ -122,6 +141,15 @@ export default function DataOwnershipPage() {
   };
 
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [filters]);
+
+  useEffect(() => {
+    fetch("/api/admin/vendor-audit/flow?days=7", {
+      credentials: "include",
+      cache:       "no-store",
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => setFlow(j));
+  }, []);
 
   const openDrillDown = async (row: EventRow) => {
     setSelected(row);
@@ -157,6 +185,48 @@ export default function DataOwnershipPage() {
           vendors landing in Phase 2.
         </p>
       </div>
+
+      {/* Field-flow Sankey — what kind of data goes to whom */}
+      {flow && flow.flows.length > 0 && (
+        <div className="mb-8 border rounded p-4">
+          <h2 className="text-sm font-semibold mb-1">
+            Field flow — last {flow.windowDays} days
+          </h2>
+          <p className="text-xs text-gray-500 mb-4">
+            Each row = one vendor. Each block = a category of field we shared
+            with that vendor; block width is the number of distinct field
+            names. Wide red blocks = we&apos;re feeding the vendor a lot of PII.
+          </p>
+          <div className="space-y-2">
+            {(flow.vendors).map((vendor) => {
+              const vendorFlows = flow.flows
+                .filter((f) => f.vendor === vendor)
+                .sort((a, b) => b.fieldCount - a.fieldCount);
+              const total = vendorFlows.reduce((s, f) => s + f.fieldCount, 0);
+              if (total === 0) return null;
+              return (
+                <div key={vendor} className="flex items-center gap-2">
+                  <span className={`w-32 text-xs font-mono px-2 py-1 rounded ${VENDOR_COLORS[vendor] ?? ""}`}>
+                    {vendor}
+                  </span>
+                  <div className="flex flex-1 h-6 rounded overflow-hidden border">
+                    {vendorFlows.map((f) => (
+                      <div
+                        key={f.category}
+                        className={`${FIELD_CATEGORY_COLOR[f.category] ?? ""} px-1 text-[10px] flex items-center justify-center`}
+                        style={{ width: `${(f.fieldCount / total) * 100}%` }}
+                        title={`${f.category}: ${f.fieldNames.join(", ")}`}
+                      >
+                        {f.fieldCount > 1 ? `${f.category} ×${f.fieldCount}` : f.category}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Vendor chips */}
       <div className="flex flex-wrap gap-2 mb-6">

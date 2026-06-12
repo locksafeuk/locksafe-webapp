@@ -6,6 +6,10 @@
   "regions": ["lhr1"],
   "crons": [
     {
+      "path": "/api/cron/vendor-audit-daily",
+      "schedule": "30 0 * * *"
+    },
+    {
       "path": "/api/cron/onboarding-nudge",
       "schedule": "0 9 * * *"
     },
