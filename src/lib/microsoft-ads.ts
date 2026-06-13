@@ -25,7 +25,77 @@
 
 import { vendorFetch } from "@/lib/vendor-audit";
 
-const TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
+const TOKEN_URL     = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
+const AUTHORIZE_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize";
+
+/** OAuth scopes — `offline_access` is required to receive a refresh_token. */
+const OAUTH_SCOPES = "https://ads.microsoft.com/msads.manage offline_access";
+
+/**
+ * Build the Microsoft authorize URL for the OAuth consent flow.
+ * The callback receives ?code=…&state=… at the configured redirect_uri.
+ */
+export function buildMicrosoftAuthorizeUrl(opts: {
+  clientId:    string;
+  redirectUri: string;
+  state:       string;
+}): string {
+  const params = new URLSearchParams({
+    client_id:     opts.clientId,
+    response_type: "code",
+    redirect_uri:  opts.redirectUri,
+    scope:         OAUTH_SCOPES,
+    response_mode: "query",
+    state:         opts.state,
+    prompt:        "consent", // always re-prompt — guarantees we get a refresh_token
+  });
+  return `${AUTHORIZE_URL}?${params.toString()}`;
+}
+
+/**
+ * Exchange an OAuth authorization code for an access_token + refresh_token.
+ * Returns null on any failure. The refresh_token is what we want to save
+ * to Vercel as `MICROSOFT_ADS_REFRESH_TOKEN`.
+ */
+export async function exchangeMicrosoftOAuthCode(opts: {
+  clientId:     string;
+  clientSecret: string;
+  code:         string;
+  redirectUri:  string;
+}): Promise<{ accessToken: string; refreshToken: string; expiresIn: number } | { error: string }> {
+  const params = new URLSearchParams({
+    client_id:     opts.clientId,
+    client_secret: opts.clientSecret,
+    code:          opts.code,
+    grant_type:    "authorization_code",
+    redirect_uri:  opts.redirectUri,
+    scope:         OAUTH_SCOPES,
+  });
+  try {
+    const res = await vendorFetch(TOKEN_URL, {
+      method:  "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body:    params.toString(),
+    }, { vendor: "microsoft-ads", callerRoute: "lib/microsoft-ads.ts:exchangeMicrosoftOAuthCode" });
+    const json = await res.json() as {
+      access_token?: string;
+      refresh_token?: string;
+      expires_in?:   number;
+      error?:        string;
+      error_description?: string;
+    };
+    if (!res.ok || !json.access_token || !json.refresh_token) {
+      return { error: json.error_description ?? json.error ?? `HTTP ${res.status}` };
+    }
+    return {
+      accessToken:  json.access_token,
+      refreshToken: json.refresh_token,
+      expiresIn:    json.expires_in ?? 3600,
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
+}
 
 interface MicrosoftAdsClientCtx {
   customerId:         string;
