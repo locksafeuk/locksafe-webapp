@@ -182,6 +182,7 @@ import {
   SUPPORT_EMAIL,
 } from "./config";
 import { buildWhatsAppUrl } from "./whatsapp-link";
+import { publicReviewEmailBlock } from "./reviews/public-review-links";
 
 const getResend = () => new Resend(process.env.RESEND_API_KEY);
 
@@ -3862,6 +3863,7 @@ export async function sendReviewRequestEmail(data: {
             <span class="stars">⭐⭐⭐⭐⭐</span>
             <a href="${data.reviewUrl}" class="cta">Leave a Review →</a>
             <p style="font-size:13px; color:#64748b; text-align:center; margin-top:8px;">Takes less than 30 seconds · No account needed</p>
+            ${publicReviewEmailBlock()}
           </div>
           <div class="footer">
             LockSafe UK · <a href="${SITE_URL}/unsubscribe" style="color:#94a3b8;">Unsubscribe</a>
