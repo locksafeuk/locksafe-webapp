@@ -73,6 +73,8 @@ const FONT_DIR = path.join(process.cwd(), "assets", "fonts");
 export interface CaptionCard {
   /** Optional step number shown in an orange badge (e.g. "1", "2", "3"). */
   badge?: string;
+  /** Optional icon badge (used when there's no step number): hook → alert, CTA → check. */
+  icon?: "alert" | "check";
   /** Caption text. Use "\n" for explicit line breaks (kept verbatim — proofread). */
   text: string;
 }
@@ -140,31 +142,69 @@ const LINE_H = 100;
 const BADGE_Y = CAP_TOP - 150;
 const BAR_Y = CAP_TOP - 176;
 
-/** Render one caption card to a full-frame transparent PNG (accent bar + badge + text). */
+/** Is this token a key word/figure worth emphasising in orange? (£ amounts, numbers, ALL-CAPS.) */
+function isEmphasisToken(token: string): boolean {
+  const core = token.replace(/[^\p{L}\p{N}£%]/gu, "");
+  if (!core) return false;
+  if (/£?\d/.test(core)) return true; // £50, 380, 24/7…
+  if (/^[\p{Lu}]{2,}$/u.test(core)) return true; // IN WRITING, ID, NEVER…
+  return false;
+}
+
+/** Build inline tspans for one line, colouring emphasis tokens orange, the rest white. */
+function emphasizedTspans(line: string): string {
+  return line
+    .split(/(\s+)/)
+    .map((tok) => {
+      if (/^\s+$/.test(tok)) return escXml(tok);
+      const fill = isEmphasisToken(tok) ? BRAND.orange : BRAND.white;
+      return `<tspan fill="${fill}">${escXml(tok)}</tspan>`;
+    })
+    .join("");
+}
+
+/** White glyph inside the orange badge: "!" for alert, a drawn ✓ for check. */
+function iconGlyph(icon: "alert" | "check", cx: number, topY: number, size: number): string {
+  if (icon === "alert") {
+    return (
+      `<text x="${cx}" y="${topY + size * 0.74}" text-anchor="middle" font-family="${CAPTION_FONT_FAMILY}" ` +
+      `font-size="${Math.round(size * 0.64)}" font-weight="700" fill="${BRAND.white}">!</text>`
+    );
+  }
+  // checkmark as a stroked polyline
+  const x0 = cx - size * 0.26, y0 = topY + size * 0.52;
+  const x1 = cx - size * 0.05, y1 = topY + size * 0.70;
+  const x2 = cx + size * 0.30, y2 = topY + size * 0.32;
+  return `<path d="M ${x0} ${y0} L ${x1} ${y1} L ${x2} ${y2}" fill="none" stroke="${BRAND.white}" stroke-width="${size * 0.12}" stroke-linecap="round" stroke-linejoin="round"/>`;
+}
+
+/** Render one caption card to a full-frame transparent PNG (accent bar + icon/number badge + emphasised text). */
 async function renderCaptionPng(card: CaptionCard, outPath: string): Promise<void> {
   const lines = card.text.split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 4);
   const cx = W / 2;
+  const BADGE = 96;
+  const badgeX = (W - BADGE) / 2;
 
   const accent = `<rect x="${(W - 220) / 2}" y="${BAR_Y}" width="220" height="8" rx="4" fill="${BRAND.orange}"/>`;
 
+  // Badge above the caption: a step number, or an icon (alert/check), in an orange square.
   let badge = "";
-  if (card.badge) {
-    badge =
-      `<rect x="${(W - 96) / 2}" y="${BADGE_Y}" width="96" height="96" rx="14" fill="${BRAND.orange}"/>` +
-      `<text x="${cx}" y="${BADGE_Y + 66}" text-anchor="middle" font-family="${CAPTION_FONT_FAMILY}" ` +
-      `font-size="60" font-weight="700" fill="${BRAND.white}">${escXml(card.badge)}</text>`;
+  if (card.badge || card.icon) {
+    badge = `<rect x="${badgeX}" y="${BADGE_Y}" width="${BADGE}" height="${BADGE}" rx="14" fill="${BRAND.orange}"/>`;
+    badge += card.badge
+      ? `<text x="${cx}" y="${BADGE_Y + 66}" text-anchor="middle" font-family="${CAPTION_FONT_FAMILY}" font-size="60" font-weight="700" fill="${BRAND.white}">${escXml(card.badge)}</text>`
+      : iconGlyph(card.icon as "alert" | "check", cx, BADGE_Y, BADGE);
   }
 
   const textEls = lines
     .map((ln, i) => {
       const baseline = CAP_TOP + FONT_SIZE + i * LINE_H;
-      const safe = escXml(ln);
-      // dark shadow copy behind for legibility, white on top
+      // dark shadow copy of the whole line for legibility, then the coloured line on top
       return (
         `<text x="${cx + 2}" y="${baseline + 3}" text-anchor="middle" font-family="${CAPTION_FONT_FAMILY}" ` +
-        `font-size="${FONT_SIZE}" font-weight="700" fill="${BRAND.scrim}" fill-opacity="0.85">${safe}</text>` +
+        `font-size="${FONT_SIZE}" font-weight="700" fill="${BRAND.scrim}" fill-opacity="0.85">${escXml(ln)}</text>` +
         `<text x="${cx}" y="${baseline}" text-anchor="middle" font-family="${CAPTION_FONT_FAMILY}" ` +
-        `font-size="${FONT_SIZE}" font-weight="700" fill="${BRAND.white}">${safe}</text>`
+        `font-size="${FONT_SIZE}" font-weight="700">${emphasizedTspans(ln)}</text>`
       );
     })
     .join("");
@@ -300,20 +340,35 @@ function buildFiltergraph(timed: TimedCard[], total: number): { filter: string; 
 
 // ─── OpenAI TTS voiceover ──────────────────────────────────────────────────────
 
+// Default delivery direction — punchy, authoritative consumer-protection tone
+// for the anti-scam shorts. Override with OPENAI_TTS_INSTRUCTIONS.
+const DEFAULT_TTS_INSTRUCTIONS =
+  "Speak in a clear, confident British English accent. Tone: a trusted " +
+  "consumer-protection expert warning people about locksmith scams — urgent " +
+  "but reassuring, punchy and engaging, not flat or robotic. Land each point " +
+  "with conviction, add natural emphasis on key warnings and figures, and a " +
+  "brief pause between sentences.";
+
 async function synthesizeVoiceover(text: string, tmpDir: string): Promise<string | null> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey || !text.trim()) return null;
   try {
+    const model = process.env.OPENAI_TTS_MODEL ?? "gpt-4o-mini-tts";
+    const body: Record<string, unknown> = {
+      model,
+      voice: process.env.OPENAI_TTS_VOICE ?? "ash", // livelier than onyx
+      input: text,
+      response_format: "mp3",
+      speed: Number(process.env.OPENAI_TTS_SPEED ?? "1.0"),
+    };
+    // gpt-4o-mini-tts supports a delivery-style `instructions` field.
+    if (model.includes("gpt-4o")) {
+      body.instructions = process.env.OPENAI_TTS_INSTRUCTIONS ?? DEFAULT_TTS_INSTRUCTIONS;
+    }
     const resp = await fetch("https://api.openai.com/v1/audio/speech", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: process.env.OPENAI_TTS_MODEL ?? "gpt-4o-mini-tts",
-        voice: process.env.OPENAI_TTS_VOICE ?? "onyx",
-        input: text,
-        response_format: "mp3",
-        speed: 1.0,
-      }),
+      body: JSON.stringify(body),
       signal: AbortSignal.timeout(60_000),
     });
     if (!resp.ok) {
@@ -335,6 +390,22 @@ async function downloadTo(url: string, dest: string): Promise<void> {
   const resp = await fetch(url, { signal: AbortSignal.timeout(60_000) });
   if (!resp.ok) throw new Error(`download ${resp.status} for ${url}`);
   await writeFile(dest, Buffer.from(await resp.arrayBuffer()));
+}
+
+const FFPROBE = process.env.FFPROBE_PATH || "ffprobe";
+
+/** Probe a media file's duration in seconds (0 on failure). */
+function probeDuration(file: string): Promise<number> {
+  return new Promise((resolve) => {
+    const p = spawn(FFPROBE, [
+      "-v", "error", "-show_entries", "format=duration",
+      "-of", "default=noprint_wrappers=1:nokey=1", file,
+    ]);
+    let out = "";
+    p.stdout.on("data", (d) => (out += d.toString()));
+    p.on("error", () => resolve(0));
+    p.on("close", () => resolve(Number(out.trim()) || 0));
+  });
 }
 
 function runFfmpeg(args: string[]): Promise<void> {
@@ -361,7 +432,26 @@ export async function generateShortVideo(opts: ShortVideoOptions): Promise<Short
 
   const tmpDir = await mkdtemp(path.join(tmpdir(), "lsv-"));
   try {
-    const { cards: timed, total } = planTiming(opts);
+    const { cards: timed, total: captionTotal } = planTiming(opts);
+
+    // Voiceover FIRST, so we can size the video to the actual speech length.
+    const voPath = opts.voiceover ? await synthesizeVoiceover(opts.voiceover, tmpDir) : null;
+
+    // The video must outlast the voiceover (otherwise it cuts off mid-sentence).
+    // If the speech is longer than the caption pacing, stretch ALL caption
+    // timings proportionally to fill it — keeps captions roughly in step with
+    // the voice instead of racing ahead and holding.
+    let total = captionTotal;
+    if (voPath) {
+      const audioDur = await probeDuration(voPath);
+      if (audioDur > 0) total = Math.max(captionTotal, audioDur + 0.7);
+    }
+    if (total > captionTotal && captionTotal > 0) {
+      const scale = total / captionTotal;
+      for (let i = 0; i < timed.length; i++) {
+        timed[i] = { ...timed[i], start: timed[i].start * scale, end: timed[i].end * scale };
+      }
+    }
 
     // Render caption PNGs + wordmark (sharp/SVG — exact, proofread copy).
     const capPaths = timed.map((_, i) => path.join(tmpDir, `cap${i}.png`));
@@ -399,9 +489,6 @@ export async function generateShortVideo(opts: ShortVideoOptions): Promise<Short
       }
       bgInputArgs = ["-loop", "1", "-t", total.toFixed(2), "-i", bgPng];
     }
-
-    // Optional voiceover.
-    const voPath = opts.voiceover ? await synthesizeVoiceover(opts.voiceover, tmpDir) : null;
 
     // Assemble inputs: bg, captions…, wordmark, audio.
     const { filter, audioInput } = buildFiltergraph(timed, total);
@@ -493,7 +580,8 @@ function wrapCaption(text: string, maxChars = 22, maxLines = 4): string {
  */
 export function scriptToCards(script: { hook: string; body: string; cta: string }): CaptionCard[] {
   const cards: CaptionCard[] = [];
-  if (script.hook?.trim()) cards.push({ text: wrapCaption(tidyCaption(script.hook)) });
+  // Hook leads with an alert badge (anti-scam framing); CTA closes with a check.
+  if (script.hook?.trim()) cards.push({ icon: "alert", text: wrapCaption(tidyCaption(script.hook)) });
 
   const stepMatches = script.body.match(/\d+[.)]\s+[^0-9]+/g);
   if (stepMatches && stepMatches.length >= 2) {
@@ -506,6 +594,6 @@ export function scriptToCards(script: { hook: string; body: string; cta: string 
     sentences.forEach((s, i) => cards.push({ badge: String(i + 1), text: wrapCaption(tidyCaption(s.trim())) }));
   }
 
-  if (script.cta?.trim()) cards.push({ text: wrapCaption(tidyCaption(script.cta)) });
+  if (script.cta?.trim()) cards.push({ icon: "check", text: wrapCaption(tidyCaption(script.cta)) });
   return cards;
 }

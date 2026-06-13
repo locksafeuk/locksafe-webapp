@@ -29,14 +29,14 @@ async function main() {
   }
   console.log(`🎬 TTS: ${process.env.OPENAI_API_KEY ? "on (OpenAI)" : "OFF (no OPENAI_API_KEY → silent video)"}`);
 
-  // A proofread sample script (the same anti-rip-off angle as the demo).
+  // A proofread, high-impact ANTI-SCAM sample (the new direction).
   const script = {
-    hook: "That £50 quote just became £380.",
+    hook: "They drilled your lock in 5 minutes and charged £350.",
     body:
-      "1. Get the full price in writing before any work begins. " +
-      "2. Check ID, insurance and real reviews — walk away from 'cash only'. " +
-      "3. No paperwork means no proof, so always get a written report.",
-    cta: "LockSafe shows the price before the door opens. Search LockSafe.",
+      "1. A real locksmith PICKS the lock — drilling is a red flag. " +
+      "2. Get the full price IN WRITING before any work starts. " +
+      "3. No ID and no invoice? That's your cue to walk away.",
+    cta: "LockSafe vets every locksmith and shows the price upfront.",
   };
 
   const cards = scriptToCards(script);
@@ -53,7 +53,18 @@ async function main() {
   console.log(`   duration : ${result.durationSeconds.toFixed(1)}s`);
   console.log(`   voiceover: ${result.hasVoiceover ? "yes" : "no (silent)"}`);
   console.log(`   background: ${result.background}`);
-  console.log(`\n🔗 ${result.url}\n`);
+  console.log(`\n🔗 ${result.url}`);
+
+  // Also save a local copy in the workspace folder so it can be reviewed/inspected.
+  try {
+    const { writeFile } = await import("node:fs/promises");
+    const localPath = `${process.cwd()}/../short-sample.mp4`;
+    const buf = Buffer.from(await (await fetch(result.url)).arrayBuffer());
+    await writeFile(localPath, buf);
+    console.log(`💾 Saved a copy to: ~/Locksafe Project/short-sample.mp4\n`);
+  } catch {
+    console.log("");
+  }
 }
 
 main().catch((err) => {
