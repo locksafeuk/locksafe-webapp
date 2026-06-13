@@ -24,6 +24,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import prisma from "@/lib/db";
 import { verifyToken } from "@/lib/auth";
+import {
+  effectiveSource,
+  isAiAssistantSource,
+  aiEngineLabel,
+} from "@/lib/marketing/ai-source";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -55,6 +60,7 @@ export async function GET(request: NextRequest) {
       customerId: true,
       utmSource: true,           // last-touch (on Job)
       firstTouchSource: true,    // first-touch (on Job)
+      firstTouchReferrer: true,  // lets us recover AI engine when no utm_source
       firstTouchAt: true,
       firstTouchToBookingHours: true,
       assessmentFee: true,
@@ -67,12 +73,24 @@ export async function GET(request: NextRequest) {
     where:  { createdAt: { gte: since } },
     select: {
       id: true,
-      firstTouchSource: true,
-      lastTouchSource:  true,
-      firstTouchAt:     true,
-      lastTouchAt:      true,
+      firstTouchSource:   true,
+      lastTouchSource:    true,
+      firstTouchReferrer: true,
+      lastTouchReferrer:  true,
+      firstTouchAt:       true,
+      lastTouchAt:        true,
     },
   });
+
+  // AI assistants (ChatGPT, Gemini, …) rarely add utm_source — recover the
+  // engine from the stored referrer so AI traffic isn't miscounted as direct.
+  const custFirst = (c: { firstTouchSource: string | null; firstTouchReferrer: string | null }) =>
+    effectiveSource(c.firstTouchSource, c.firstTouchReferrer);
+  const custLast = (c: { lastTouchSource: string | null; lastTouchReferrer: string | null }) =>
+    effectiveSource(c.lastTouchSource, c.lastTouchReferrer);
+  const jobFirst = (j: { firstTouchSource: string | null; firstTouchReferrer: string | null }) =>
+    effectiveSource(j.firstTouchSource, j.firstTouchReferrer);
+  const jobLast = (j: { utmSource: string | null }) => effectiveSource(j.utmSource, null);
 
   // ── Aggregate by source ────────────────────────────────────────────
   interface Row {
@@ -103,18 +121,22 @@ export async function GET(request: NextRequest) {
   };
 
   for (const c of customers) {
-    if (c.firstTouchSource) row(c.firstTouchSource).firstTouchCustomers++;
-    if (c.lastTouchSource)  row(c.lastTouchSource).lastTouchCustomers++;
+    const fs = custFirst(c);
+    const ls = custLast(c);
+    if (fs) row(fs).firstTouchCustomers++;
+    if (ls) row(ls).lastTouchCustomers++;
   }
   for (const j of jobs) {
     const rev = (j.quote?.total as number | undefined) ?? (j.assessmentFee as number | undefined) ?? 0;
-    if (j.firstTouchSource) {
-      const r = row(j.firstTouchSource);
+    const fs = jobFirst(j);
+    const ls = jobLast(j);
+    if (fs) {
+      const r = row(fs);
       r.firstTouchJobs++;
       r.firstTouchRevenue += rev;
     }
-    if (j.utmSource) {
-      const r = row(j.utmSource);
+    if (ls) {
+      const r = row(ls);
       r.lastTouchJobs++;
       r.lastTouchRevenue += rev;
     }
@@ -128,8 +150,8 @@ export async function GET(request: NextRequest) {
   // ── Cross-channel mix: firstSource → lastSource ────────────────────
   const crossMap = new Map<string, { firstSource: string; lastSource: string; count: number; revenue: number }>();
   for (const j of jobs) {
-    const f = j.firstTouchSource ?? "(none)";
-    const l = j.utmSource ?? "(none)";
+    const f = jobFirst(j) ?? "(none)";
+    const l = jobLast(j) ?? "(none)";
     if (f === l) continue; // skip same-touch jobs
     const key = `${f}::${l}`;
     let e = crossMap.get(key);
@@ -169,7 +191,7 @@ export async function GET(request: NextRequest) {
   for (const j of jobs) {
     const h = j.firstTouchToBookingHours as number | null | undefined;
     if (typeof h !== "number" || h < 0) continue;
-    const src = j.firstTouchSource ?? "(none)";
+    const src = jobFirst(j) ?? "(none)";
     const r = timeRow(src);
     r.n++;
     r.hours.push(h);
@@ -200,6 +222,39 @@ export async function GET(request: NextRequest) {
     };
   }).sort((a, b) => b.n - a.n);
 
+  // ── AI Assistant rollup (ChatGPT / Gemini / Perplexity / …) ─────────
+  // Groups every AI-engine source into one headline channel + per-engine
+  // breakdown. This is the outcome metric for the "lean off Google Ads"
+  // thesis: real leads + revenue that AI search drove.
+  const aiRows = bySource.filter((r) => isAiAssistantSource(r.source));
+  const aiAssistant = {
+    byEngine: aiRows.map((r) => ({
+      engine:              r.source,
+      label:               aiEngineLabel(r.source),
+      firstTouchCustomers: r.firstTouchCustomers,
+      lastTouchCustomers:  r.lastTouchCustomers,
+      firstTouchJobs:      r.firstTouchJobs,
+      lastTouchJobs:       r.lastTouchJobs,
+      firstTouchRevenue:   Number(r.firstTouchRevenue.toFixed(2)),
+      lastTouchRevenue:    Number(r.lastTouchRevenue.toFixed(2)),
+    })),
+    totals: aiRows.reduce(
+      (acc, r) => ({
+        firstTouchCustomers: acc.firstTouchCustomers + r.firstTouchCustomers,
+        lastTouchCustomers:  acc.lastTouchCustomers + r.lastTouchCustomers,
+        firstTouchJobs:      acc.firstTouchJobs + r.firstTouchJobs,
+        lastTouchJobs:       acc.lastTouchJobs + r.lastTouchJobs,
+        firstTouchRevenue:   Number((acc.firstTouchRevenue + r.firstTouchRevenue).toFixed(2)),
+        lastTouchRevenue:    Number((acc.lastTouchRevenue + r.lastTouchRevenue).toFixed(2)),
+      }),
+      {
+        firstTouchCustomers: 0, lastTouchCustomers: 0,
+        firstTouchJobs: 0, lastTouchJobs: 0,
+        firstTouchRevenue: 0, lastTouchRevenue: 0,
+      },
+    ),
+  };
+
   return NextResponse.json({
     windowDays: days,
     totals: {
@@ -207,6 +262,7 @@ export async function GET(request: NextRequest) {
       jobs: jobs.length,
       revenue: Number(totalRevenue.toFixed(2)),
     },
+    aiAssistant,
     bySource: bySource.map((r) => ({
       ...r,
       firstTouchRevenue: Number(r.firstTouchRevenue.toFixed(2)),

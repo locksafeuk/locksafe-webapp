@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { classifyAiReferrer } from "@/lib/marketing/ai-source";
 
 // Device type detection
 export function getDeviceType(userAgent: string): string {
@@ -87,7 +88,9 @@ export async function getOrCreateSession(
       deviceType: getDeviceType(data.userAgent),
       browser: getBrowser(data.userAgent),
       referrer: data.referrer || null,
-      utmSource: data.utmSource || null,
+      // AI assistants (ChatGPT, Gemini, …) don't send utm_source — derive the
+      // engine from the referrer so this session attributes to AI, not direct.
+      utmSource: data.utmSource || classifyAiReferrer(data.referrer)?.engine || null,
       utmMedium: data.utmMedium || null,
       utmCampaign: data.utmCampaign || null,
       utmContent: data.utmContent || null,

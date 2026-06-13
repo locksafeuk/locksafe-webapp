@@ -39,9 +39,31 @@ interface TimeRow {
   bucketLte30d: number;
   bucketGt30d:  number;
 }
+interface AiEngineRow {
+  engine:              string;
+  label:               string;
+  firstTouchCustomers: number;
+  lastTouchCustomers:  number;
+  firstTouchJobs:      number;
+  lastTouchJobs:       number;
+  firstTouchRevenue:   number;
+  lastTouchRevenue:    number;
+}
+interface AiAssistant {
+  byEngine: AiEngineRow[];
+  totals: {
+    firstTouchCustomers: number;
+    lastTouchCustomers:  number;
+    firstTouchJobs:      number;
+    lastTouchJobs:       number;
+    firstTouchRevenue:   number;
+    lastTouchRevenue:    number;
+  };
+}
 interface Report {
   windowDays: number;
   totals: { customers: number; jobs: number; revenue: number };
+  aiAssistant?: AiAssistant;
   bySource: BySourceRow[];
   crossChannel: CrossRow[];
   timeToPurchase: TimeRow[];
@@ -138,6 +160,67 @@ export default function TouchReportPage() {
             <Stat label="Jobs" value={report.totals.jobs} />
             <Stat label="Revenue" value={`£${report.totals.revenue.toFixed(2)}`} />
           </div>
+
+          {/* ── AI Assistant channel (ChatGPT / Gemini / …) ── */}
+          {report.aiAssistant && (
+            <div className="mb-8 rounded-xl border border-amber-300 bg-amber-50/60 p-4">
+              <div className="flex items-baseline justify-between mb-3">
+                <h2 className="text-lg font-semibold text-amber-900">
+                  🤖 AI Assistant channel
+                </h2>
+                <span className="text-xs text-amber-700">
+                  first-touch (discovery) — the &quot;lean off Google Ads&quot; metric
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <Stat label="AI-referred customers" value={report.aiAssistant.totals.firstTouchCustomers} />
+                <Stat label="AI-referred jobs" value={report.aiAssistant.totals.firstTouchJobs} />
+                <Stat label="AI-referred revenue" value={`£${report.aiAssistant.totals.firstTouchRevenue.toFixed(2)}`} />
+              </div>
+
+              {report.aiAssistant.byEngine.length > 0 ? (
+                <div className="overflow-x-auto border border-amber-200 rounded bg-white">
+                  <table className="w-full text-sm">
+                    <thead className="bg-amber-100/60">
+                      <tr className="text-left">
+                        <th className="p-2">Engine</th>
+                        <th className="p-2 text-right">FT customers</th>
+                        <th className="p-2 text-right">FT jobs</th>
+                        <th className="p-2 text-right">FT revenue</th>
+                        <th className="p-2 text-right">LT revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {report.aiAssistant.byEngine.map((e) => (
+                        <tr key={e.engine} className="border-t border-amber-100">
+                          <td className="p-2 font-medium">{e.label}</td>
+                          <td className="p-2 text-right">{e.firstTouchCustomers}</td>
+                          <td className="p-2 text-right">{e.firstTouchJobs}</td>
+                          <td className="p-2 text-right">£{e.firstTouchRevenue.toFixed(2)}</td>
+                          <td className="p-2 text-right">£{e.lastTouchRevenue.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-sm text-amber-800">
+                  No AI-referred sessions detected yet in this window. New ChatGPT/Gemini
+                  click-throughs will appear here automatically.
+                </p>
+              )}
+
+              <p className="text-[11px] text-amber-700 mt-3 leading-relaxed">
+                Counts <strong>clicks</strong> from AI assistants (referrer = chatgpt.com,
+                gemini.google.com, perplexity.ai, …). AI search is mostly <strong>zero-click</strong>,
+                so this is a <strong>floor</strong>, not the full influence — many who read an AI
+                answer call you directly (shows as &quot;direct&quot;). Gemini answers inside Google
+                Search (AI Overviews) look like organic Google and can&apos;t be split out here.
+                Pair with the citation tracker + &quot;how did you hear about us&quot; for the rest.
+              </p>
+            </div>
+          )}
 
           <h2 className="text-lg font-semibold mb-2">By source</h2>
           <p className="text-sm text-gray-500 mb-3">
