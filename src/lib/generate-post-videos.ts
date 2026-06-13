@@ -115,9 +115,19 @@ export async function generatePendingPostVideos(
         blobPrefix: `social/video/${post.contentPillar ?? "general"}`,
       });
 
+      // Reuse the short across other platforms: ensure the post also targets the
+      // fan-out platforms (default FB + Instagram) so publish-organic posts the
+      // same video there (as a Reel / page video). Publish branches still gate on
+      // a connected account, so adding a platform is harmless if it's not set up.
+      const fanout = (process.env.LOCKSAFE_VIDEO_FANOUT_PLATFORMS ?? "FACEBOOK,INSTAGRAM")
+        .split(",")
+        .map((p) => p.trim().toUpperCase())
+        .filter(Boolean) as typeof post.platforms;
+      const mergedPlatforms = Array.from(new Set([...post.platforms, ...fanout]));
+
       await prisma.socialPost.update({
         where: { id: post.id },
-        data: { videoUrl: result.url, tiktokScript: JSON.stringify(script) },
+        data: { videoUrl: result.url, tiktokScript: JSON.stringify(script), platforms: mergedPlatforms },
       });
       generated++;
       results.push({ postId: post.id, success: true, url: result.url, background: result.background });

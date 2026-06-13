@@ -174,6 +174,8 @@ export async function GET(request: NextRequest) {
           pageId: facebookAccount.pageId || facebookAccount.accountId,
           pageAccessToken: facebookAccount.pageAccessToken || facebookAccount.accessToken,
           message: fbContent,
+          // Reuse the short as a page video when we have one; else the poster image.
+          videoUrl: post.videoUrl || undefined,
           imageUrl: post.imageUrl || undefined,
         });
 
@@ -205,8 +207,9 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Publish to Instagram if platform is selected, enabled, and has image
-      if (post.platforms.includes("INSTAGRAM") && isPlatformEnabled("INSTAGRAM") && instagramAccount && post.imageUrl) {
+      // Publish to Instagram if platform is selected, enabled, and has media
+      // (a Reel video or an image).
+      if (post.platforms.includes("INSTAGRAM") && isPlatformEnabled("INSTAGRAM") && instagramAccount && (post.imageUrl || post.videoUrl)) {
         const igContent = formatPostForPlatform(
           {
             content: post.content,
@@ -226,8 +229,10 @@ export async function GET(request: NextRequest) {
           instagramAccountId: instagramAccount.accountId,
           accessToken: instagramAccount.accessToken,
           caption: igContent,
-          imageUrl: post.imageUrl,
-          carouselItems: post.carouselImages.length > 0 ? post.carouselImages : undefined,
+          // Reel when we have a short; else the poster image / carousel.
+          videoUrl: post.videoUrl || undefined,
+          imageUrl: post.imageUrl || "",
+          carouselItems: !post.videoUrl && post.carouselImages.length > 0 ? post.carouselImages : undefined,
         });
 
         platformResults.instagram = {

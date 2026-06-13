@@ -54,10 +54,32 @@ export async function publishToFacebook(params: {
   message: string;
   link?: string;
   imageUrl?: string;
+  videoUrl?: string;
   scheduledTime?: Date;
 }): Promise<PublishResult> {
   try {
-    const { pageId, pageAccessToken, message, link, imageUrl, scheduledTime } = params;
+    const { pageId, pageAccessToken, message, link, imageUrl, videoUrl, scheduledTime } = params;
+
+    // Video takes priority — post as a page video from the hosted URL (reused short).
+    if (videoUrl) {
+      const vbody: Record<string, string | number | boolean | undefined> = {
+        file_url: videoUrl,
+        description: message,
+        access_token: pageAccessToken,
+      };
+      if (scheduledTime) {
+        vbody.published = false;
+        vbody.scheduled_publish_time = Math.floor(scheduledTime.getTime() / 1000);
+      }
+      const vres = await fetch(`${META_BASE_URL}/${pageId}/videos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: toMetaFormBody(vbody),
+      });
+      const vdata = await vres.json();
+      if (!vres.ok) throw new Error(vdata.error?.message || 'Facebook video publishing failed');
+      return { success: true, platform: 'facebook', postId: vdata.id || vdata.post_id, publishedAt: new Date() };
+    }
 
     let endpoint = `${META_BASE_URL}/${pageId}`;
     const body: Record<string, string | number | boolean | undefined> = {
@@ -125,14 +147,23 @@ export async function publishToInstagram(params: {
   accessToken: string;
   caption: string;
   imageUrl: string;
+  videoUrl?: string; // when set, publishes a REEL (reused short)
   carouselItems?: string[]; // Array of image URLs for carousel
 }): Promise<PublishResult> {
   try {
-    const { instagramAccountId, accessToken, caption, imageUrl, carouselItems } = params;
+    const { instagramAccountId, accessToken, caption, imageUrl, videoUrl, carouselItems } = params;
 
     let containerId: string;
 
-    if (carouselItems && carouselItems.length > 0) {
+    if (videoUrl) {
+      // Reel (vertical video) — preferred when we have a short.
+      containerId = await createInstagramReelContainer({
+        instagramAccountId,
+        accessToken,
+        caption,
+        videoUrl,
+      });
+    } else if (carouselItems && carouselItems.length > 0) {
       // Carousel post
       containerId = await createInstagramCarousel({
         instagramAccountId,
@@ -185,6 +216,37 @@ export async function publishToInstagram(params: {
       error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
+}
+
+async function createInstagramReelContainer(params: {
+  instagramAccountId: string;
+  accessToken: string;
+  caption: string;
+  videoUrl: string;
+}): Promise<string> {
+  const { instagramAccountId, accessToken, caption, videoUrl } = params;
+
+  const response = await fetch(`${META_BASE_URL}/${instagramAccountId}/media`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: toMetaFormBody({
+      media_type: 'REELS',
+      video_url: videoUrl,
+      caption,
+      share_to_feed: true,
+      access_token: accessToken,
+    }),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error?.message || 'Failed to create Instagram Reel container');
+  }
+
+  // Video containers take longer to process than images — poll generously.
+  await waitForMediaReady(data.id, accessToken, 40, 3000);
+
+  return data.id;
 }
 
 async function createInstagramMediaContainer(params: {
