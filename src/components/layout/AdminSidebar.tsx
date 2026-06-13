@@ -168,6 +168,7 @@ const navGroups: NavGroup[] = [
       { href: "/admin/social-connect", label: "Social Accounts", icon: Share2 },
       { href: "/admin/emails", label: "Email Campaigns", icon: Mail },
       { href: "/admin/seo", label: "Intent SEO", icon: Map },
+      { href: "/admin/ai-visibility", label: "AI Visibility", icon: Sparkles },
     ],
   },
   {
