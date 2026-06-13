@@ -6,6 +6,10 @@
   "regions": ["lhr1"],
   "crons": [
     {
+      "path": "/api/cron/ai-visibility-check",
+      "schedule": "0 7 * * 1"
+    },
+    {
       "path": "/api/cron/vendor-audit-daily",
       "schedule": "30 0 * * *"
     },

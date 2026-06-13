@@ -4317,3 +4317,26 @@ model VendorDailyStats {
   @@index([date])
   @@index([vendor])
 }
+
+/// AI-visibility tracking: one row per prompt × engine per run. Records
+/// whether ChatGPT / Gemini / Perplexity cited LockSafe for the questions
+/// customers ask. Powers /admin/ai-visibility.
+model AiVisibilitySnapshot {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  runAt         DateTime @default(now())
+  engine        String   // "chatgpt" | "gemini" | "perplexity"
+  promptId      String   // stable id from the prompt seed
+  promptText    String
+  category      String   // "brand" | "category" | "local" | "competitor"
+  status        String   // "ok" | "skipped" | "error"
+  citedLockSafe Boolean  @default(false)
+  position      Int?     // rank of first LockSafe citation among sources (1-based)
+  citedUrls     String[]
+  competitors   String[]
+  answerExcerpt String?
+  error         String?
+  createdAt     DateTime @default(now())
+
+  @@index([engine, promptId, runAt])
+  @@index([runAt])
+}
