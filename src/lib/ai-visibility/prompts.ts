@@ -7,7 +7,7 @@
  * history charts line up.
  */
 
-export type PromptCategory = "brand" | "category" | "local" | "competitor";
+export type PromptCategory = "brand" | "category" | "local" | "service" | "competitor";
 
 export interface TrackedPrompt {
   id: string;
@@ -39,12 +39,27 @@ const BRAND_AND_CATEGORY: TrackedPrompt[] = [
   { id: "cat-247",            text: "Best 24/7 emergency locksmith in the UK that won't overcharge?", category: "category" },
 ];
 
-/** Build the full prompt set: brand/category + one local prompt per town. */
+// The highest-value / most-expensive locksmith search intents (emergency
+// lockout + "near me" are the priciest, ~£15–25/click; then the core
+// services). Phrased as the questions a real person asks an AI assistant.
+// id → target keyword in the comment.
+const SERVICE_HEAD_TERMS: TrackedPrompt[] = [
+  { id: "svc-emergency-near-me", category: "service", text: "I need an emergency locksmith near me right now in the UK — who should I call?" },              // "emergency locksmith near me"
+  { id: "svc-locksmith-near-me",  category: "service", text: "Can you recommend a good, trustworthy locksmith near me in the UK?" },                          // "locksmith near me"
+  { id: "svc-24h",                category: "service", text: "Is there a 24 hour locksmith near me I can call in the middle of the night in the UK?" },        // "24 hour locksmith near me"
+  { id: "svc-car-key",            category: "service", text: "I've lost my car keys — who can replace a car key near me in the UK and how much does it cost?" }, // "car key replacement"
+  { id: "svc-lock-change",        category: "service", text: "I need to change the locks on my house in the UK — who should I use and what should it cost?" },  // "lock change / change locks"
+  { id: "svc-upvc",               category: "service", text: "My uPVC front door won't lock properly — who can repair or replace the lock in the UK?" },        // "uPVC door lock repair"
+  { id: "svc-burglary",           category: "service", text: "Someone broke into my home and damaged the door lock — who can repair it urgently in the UK?" },  // "burglary repair / break-in"
+  { id: "svc-commercial",         category: "service", text: "I need a commercial locksmith for my business premises in the UK — who's recommended?" },         // "commercial locksmith"
+];
+
+/** Build the full prompt set: brand/category + service head terms + per-town local. */
 export function buildTrackedPrompts(): TrackedPrompt[] {
   const local: TrackedPrompt[] = TRACKED_TOWNS.map((town) => ({
     id: `local-${town.toLowerCase().replace(/\s+/g, "-")}`,
     text: `Who should I call for an emergency locksmith near me in ${town}, UK?`,
     category: "local" as const,
   }));
-  return [...BRAND_AND_CATEGORY, ...local];
+  return [...BRAND_AND_CATEGORY, ...SERVICE_HEAD_TERMS, ...local];
 }
