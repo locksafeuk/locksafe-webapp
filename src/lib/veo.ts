@@ -107,7 +107,10 @@ export async function generateBrollClip(params: {
   const { model, costPerSecondUsd } = veoModel();
   const aspectRatio = params.aspectRatio ?? "9:16";
   const durationSeconds = params.durationSeconds ?? Number(process.env.LOCKSAFE_VEO_CLIP_SECONDS || "6");
-  const personGeneration = process.env.LOCKSAFE_VEO_PEOPLE || "dont_allow";
+  // Veo 3.1 Lite (text-to-video) rejects the personGeneration values that other
+  // Veo models accept, so we OMIT it by default and let the model decide. Only
+  // sent if explicitly configured. Faces are discouraged via the prompt anyway.
+  const personGeneration = process.env.LOCKSAFE_VEO_PEOPLE || "";
   const pollIntervalMs = params.pollIntervalMs ?? 15_000;
   const timeoutMs = params.timeoutMs ?? 300_000;
 
@@ -120,9 +123,11 @@ export async function generateBrollClip(params: {
       parameters: {
         aspectRatio,
         durationSeconds,
-        personGeneration,
         sampleCount: 1,
-        generateAudio: false, // our TTS provides the voiceover; Lite-no-audio is cheapest
+        // personGeneration only sent if explicitly configured (see above).
+        ...(personGeneration ? { personGeneration } : {}),
+        // NB: Veo 3.1 Lite has no audio track (and rejects `generateAudio`), which
+        // is exactly what we want — our OpenAI TTS provides the voiceover.
       },
     }),
     signal: AbortSignal.timeout(30_000),
