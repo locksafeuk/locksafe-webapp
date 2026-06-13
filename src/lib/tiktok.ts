@@ -19,7 +19,7 @@ export interface TikTokScript {
   body: string;          // Main content (20–45 seconds spoken)
   cta: string;           // Call to action (last 5 seconds)
   caption: string;       // Post caption (150 chars max for TikTok)
-  hashtags: string[];    // 3–5 relevant hashtags
+  hashtags: string[];    // exactly 3 relevant hashtags
   b_roll: string[];      // Suggested visuals / B-roll shots
   durationEstimate: number; // Estimated video length in seconds
 }
@@ -42,7 +42,7 @@ Respond with valid JSON matching this schema:
   "body": "string — main script content, conversational, 80-150 words",
   "cta": "string — closing call to action, max 20 words",
   "caption": "string — TikTok caption, max 150 chars",
-  "hashtags": ["array", "of", "3-5", "hashtags", "no #"],
+  "hashtags": ["exactly", "3", "hashtags-no-#"],
   "b_roll": ["array", "of", "3-5", "visual", "suggestions"],
   "durationEstimate": number
 }`;
@@ -66,7 +66,7 @@ Brand: LockSafe UK — vetted locksmiths, fast response, fair prices across the 
       body: response.content.slice(0, 300),
       cta: "Search LockSafe for a trusted locksmith near you",
       caption: `${topic} | LockSafe UK`,
-      hashtags: ["locksmith", "locksafe", "homesecurity", "uk"],
+      hashtags: ["locksmith", "locksafe", "homesecurity"],
       b_roll: ["Locksmith at front door", "Close-up of lock mechanism", "Happy customer"],
       durationEstimate: 45,
     };

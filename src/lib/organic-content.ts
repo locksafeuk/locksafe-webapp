@@ -843,19 +843,18 @@ export function optimizeHashtags(
     '#ConsumerAdvice',
   ];
 
-  // Combine and dedupe
-  const allHashtags = [...new Set([
-    ...branded,
-    ...baseHashtags,
-    ...additionalHashtags,
-    ...discovery.slice(0, 3),
-  ])];
-
-  // Platform limits
-  const maxHashtags = platform === 'instagram' ? 25 : 5;
-
-  return allHashtags.slice(0, maxHashtags);
+  // Reach-optimal mix for exactly 3 tags: 1 BRANDED + 2 TOPICAL/discovery.
+  // Brand tags don't bring new traffic (nobody searches them), so we spend only
+  // one slot on brand and the other two on niche/topical tags that surface us in
+  // search. Topical = the pillar's own tags first (most relevant), then post
+  // extras, then broader discovery tags.
+  const topical = [...new Set([...baseHashtags, ...additionalHashtags, ...discovery])];
+  const mixed = [...new Set([branded[0], ...topical])];
+  return mixed.slice(0, HASHTAGS_PER_POST);
 }
+
+/** Number of hashtags appended per platform per post. */
+export const HASHTAGS_PER_POST = 3;
 
 // ==========================================
 // POST FORMATTING FOR PLATFORMS
@@ -865,16 +864,15 @@ export function formatPostForPlatform(
   post: OrganicPost,
   platform: 'facebook' | 'instagram'
 ): string {
-  const hashtags = optimizeHashtags(post.pillar, post.hashtags, platform);
+  // Exactly 3 hashtags, both platforms.
+  const hashtags = optimizeHashtags(post.pillar, post.hashtags, platform).slice(0, HASHTAGS_PER_POST);
 
   if (platform === 'instagram') {
-    // Instagram: shorter, hashtags at end or in first comment
+    // Instagram: hashtags after a few spacer dots.
     return `${post.content}\n\n.\n.\n.\n${hashtags.join(' ')}`;
-  } else {
-    // Facebook: longer allowed, fewer hashtags
-    const shortHashtags = hashtags.slice(0, 5).join(' ');
-    return `${post.content}\n\n${shortHashtags}`;
   }
+  // Facebook: hashtags on a new line.
+  return `${post.content}\n\n${hashtags.join(' ')}`;
 }
 
 const organicContent = {
