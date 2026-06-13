@@ -408,6 +408,28 @@ export async function PATCH(
         });
       }
 
+      // 2026-06-13 fix: mirror the conversion-upload trigger added to
+      // /api/jobs/[id]/status. This admin PATCH path also completes jobs, so
+      // without this a job completed from the admin modal would also stay at
+      // conversionUploadStatus="never_attempted". Idempotent + gclid-gated.
+      if (
+        existingJob.status !== normalizedStatus &&
+        (normalizedStatus === "COMPLETED" || normalizedStatus === "SIGNED")
+      ) {
+        import("@/lib/google-ads-conversions")
+          .then(({ uploadJobConversionIfEligible }) =>
+            uploadJobConversionIfEligible(id),
+          )
+          .then((r) =>
+            console.log(
+              `[Job PATCH] Google Ads conversion upload for ${id}: ${r.status}`,
+            ),
+          )
+          .catch((err) =>
+            console.error("[Job PATCH] conversion upload trigger failed:", err),
+          );
+      }
+
       return NextResponse.json({
         success: true,
         job: updatedJob,

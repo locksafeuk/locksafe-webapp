@@ -153,6 +153,37 @@ export async function PATCH(
       });
     }
 
+    // ── Server-side Google Ads conversion upload ──────────────────────────
+    // 2026-06-13 fix: the two Stripe payment webhooks were the ONLY callers
+    // of uploadJobConversionIfEligible(). A job completed via THIS status
+    // route (locksmith marks work done) therefore never attempted an upload —
+    // the attribution diagnostic showed completed jobs stuck at
+    // conversionUploadStatus="never_attempted", so the macro "Job Completed"
+    // conversion never reached Google and Maximize-Conversions had no signal.
+    //
+    // Fire-and-forget on a real completion transition. The uploader is
+    // idempotent: it self-skips when already uploaded (skipped_already_uploaded)
+    // and when there is no gclid on the job or its CallIntent (skipped_no_gclid),
+    // so calling it on every COMPLETED/SIGNED transition is safe and cannot
+    // double-count or upload non-Google traffic.
+    if (
+      existingJob.status !== normalizedStatus &&
+      (normalizedStatus === "COMPLETED" || normalizedStatus === "SIGNED")
+    ) {
+      import("@/lib/google-ads-conversions")
+        .then(({ uploadJobConversionIfEligible }) =>
+          uploadJobConversionIfEligible(job.id),
+        )
+        .then((r) =>
+          console.log(
+            `[Job Status] Google Ads conversion upload for ${job.jobNumber}: ${r.status}`,
+          ),
+        )
+        .catch((err) =>
+          console.error("[Job Status] conversion upload trigger failed:", err),
+        );
+    }
+
     // Build SMS context for notifications
     const smsContext: JobSMSContext = {
       jobId: job.id,
