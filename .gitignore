@@ -73,3 +73,6 @@ reports/reliability/
 
 # sandbox scratch
 _lvtest.mjs
+
+# Veo b-roll candidate clips (review-only; keepers go in assets/video/broll-library.json)
+broll-candidates/

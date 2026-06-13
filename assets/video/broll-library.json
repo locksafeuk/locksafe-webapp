@@ -1,0 +1,4 @@
+{
+  "_comment": "Approved Veo b-roll clips, rotated as short-video backgrounds. Populate from scripts/veo-broll-library.ts candidates (keep only the good ones). Each clip: a public Blob URL + a short label. Empty = engine uses the free gradient/poster background.",
+  "clips": []
+}

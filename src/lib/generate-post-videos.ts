@@ -11,9 +11,6 @@
  * serverless (no ffmpeg) it returns `{ skipped: true }` instead of throwing.
  */
 
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import path from "node:path";
 import { prisma } from "@/lib/db";
 import {
   generateShortVideo,
@@ -21,8 +18,7 @@ import {
   isShortVideoSupported,
 } from "@/lib/short-video";
 import { generateTikTokScript, type TikTokScript } from "@/lib/tiktok";
-import { isVeoConfigured, brollPrompt, generateBrollClip, veoModel } from "@/lib/veo";
-import { canSpend as canVeoSpend, recordSpend as recordVeoSpend, veoSpendStatus } from "@/lib/veo-budget";
+import { pickBrollUrl } from "@/lib/broll-library";
 import { sendAdminAlert } from "@/lib/telegram";
 
 export interface VideoGenSummary {
@@ -81,8 +77,6 @@ export async function generatePendingPostVideos(
   let veoClips = 0;
 
   for (const post of posts) {
-    // Each post gets its own temp dir for an optional Veo clip.
-    const tmpDir = await mkdtemp(path.join(tmpdir(), "veo-"));
     try {
       // 1. Script: reuse stored, else generate (and persist for reuse).
       let script = parseScript(post.tiktokScript);
@@ -106,40 +100,18 @@ export async function generatePendingPostVideos(
         .replace(/\s+/g, " ")
         .trim();
 
-      // 3. Optional Veo-Lite b-roll background (budget-gated). Any failure →
-      //    fall back to the free Flux poster / branded gradient. Veo is a
-      //    best-effort enhancement; it never blocks a short from rendering.
-      let backgroundVideoPath: string | undefined;
-      if (isVeoConfigured()) {
-        const { costPerSecondUsd } = veoModel();
-        const clipSeconds = Number(process.env.LOCKSAFE_VEO_CLIP_SECONDS || "6");
-        const estCost = clipSeconds * costPerSecondUsd;
-        if (await canVeoSpend(estCost)) {
-          try {
-            const theme = post.headline || post.imagePrompt || post.content.slice(0, 120);
-            const clip = await generateBrollClip({
-              prompt: brollPrompt(theme),
-              outPath: path.join(tmpDir, "broll.mp4"),
-              aspectRatio: "9:16",
-              durationSeconds: clipSeconds,
-            });
-            backgroundVideoPath = clip.outPath;
-            await recordVeoSpend(clip.estCostUsd);
-            veoClips++;
-          } catch (veoErr) {
-            console.warn(`[generate-post-videos] Veo b-roll failed (${post.id}), using free bg: ${veoErr instanceof Error ? veoErr.message : String(veoErr)}`);
-          }
-        } else {
-          console.log(`[generate-post-videos] Veo monthly cap reached — using free background for ${post.id}`);
-        }
-      }
+      // 3. Background: rotate through the CURATED b-roll library (pre-approved
+      //    Veo clips, ~zero per-post cost). Empty library → free Flux poster /
+      //    branded gradient. The clip is looped under the dark scrim + captions.
+      const brollUrl = await pickBrollUrl();
+      if (brollUrl) veoClips++;
 
-      // 4. Render: Veo b-roll → Flux poster → branded gradient (in that order).
+      // 4. Render: library b-roll → Flux poster → branded gradient (in order).
       const result = await generateShortVideo({
         cards,
         voiceover,
-        backgroundVideoPath,
-        backgroundImageUrl: backgroundVideoPath ? undefined : post.imageUrl ?? undefined,
+        backgroundVideoUrl: brollUrl ?? undefined,
+        backgroundImageUrl: brollUrl ? undefined : post.imageUrl ?? undefined,
         blobPrefix: `social/video/${post.contentPillar ?? "general"}`,
       });
 
@@ -155,22 +127,18 @@ export async function generatePendingPostVideos(
         success: false,
         error: err instanceof Error ? err.message : String(err),
       });
-    } finally {
-      await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
     }
   }
 
   const failed = results.filter((r) => !r.success).length;
 
   if (alert && generated > 0) {
-    let veoLine = "";
-    if (veoClips > 0) {
-      const s = await veoSpendStatus();
-      veoLine = `\n🎥 ${veoClips} Veo b-roll clip(s). Month spend: $${s.spentUsd.toFixed(2)}/$${s.capUsd.toFixed(0)}.`;
-    }
+    const brollLine = veoClips > 0
+      ? `\n🎥 ${veoClips}/${generated} used a curated b-roll background.`
+      : "";
     await sendAdminAlert({
       title: "🎬 Shorts Generated",
-      message: `Rendered ${generated}/${posts.length} TikTok short(s) with voiceover + captions.${veoLine}`,
+      message: `Rendered ${generated}/${posts.length} TikTok short(s) with voiceover + captions.${brollLine}`,
       severity: "info",
     }).catch(() => {});
   }
