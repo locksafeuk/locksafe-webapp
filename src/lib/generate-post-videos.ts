@@ -11,6 +11,9 @@
  * serverless (no ffmpeg) it returns `{ skipped: true }` instead of throwing.
  */
 
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { prisma } from "@/lib/db";
 import {
   generateShortVideo,
@@ -18,6 +21,8 @@ import {
   isShortVideoSupported,
 } from "@/lib/short-video";
 import { generateTikTokScript, type TikTokScript } from "@/lib/tiktok";
+import { isVeoConfigured, brollPrompt, generateBrollClip, veoModel } from "@/lib/veo";
+import { canSpend as canVeoSpend, recordSpend as recordVeoSpend, veoSpendStatus } from "@/lib/veo-budget";
 import { sendAdminAlert } from "@/lib/telegram";
 
 export interface VideoGenSummary {
@@ -26,7 +31,8 @@ export interface VideoGenSummary {
   processed: number;
   generated: number;
   failed: number;
-  results: Array<{ postId: string; success: boolean; url?: string; error?: string }>;
+  veoClips: number;
+  results: Array<{ postId: string; success: boolean; url?: string; background?: string; error?: string }>;
 }
 
 /** Parse a stored tiktokScript JSON string into a TikTokScript, or null. */
@@ -46,7 +52,7 @@ export async function generatePendingPostVideos(
 ): Promise<VideoGenSummary> {
   const limit = opts?.limit ?? 3;
   const alert = opts?.alert ?? true;
-  const empty: VideoGenSummary = { processed: 0, generated: 0, failed: 0, results: [] };
+  const empty: VideoGenSummary = { processed: 0, generated: 0, failed: 0, veoClips: 0, results: [] };
 
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
     return { ...empty, skipped: true, reason: "BLOB_READ_WRITE_TOKEN not configured" };
@@ -72,8 +78,11 @@ export async function generatePendingPostVideos(
 
   const results: VideoGenSummary["results"] = [];
   let generated = 0;
+  let veoClips = 0;
 
   for (const post of posts) {
+    // Each post gets its own temp dir for an optional Veo clip.
+    const tmpDir = await mkdtemp(path.join(tmpdir(), "veo-"));
     try {
       // 1. Script: reuse stored, else generate (and persist for reuse).
       let script = parseScript(post.tiktokScript);
@@ -97,11 +106,40 @@ export async function generatePendingPostVideos(
         .replace(/\s+/g, " ")
         .trim();
 
-      // 3. Render: Flux poster background if we have one, else branded gradient.
+      // 3. Optional Veo-Lite b-roll background (budget-gated). Any failure →
+      //    fall back to the free Flux poster / branded gradient. Veo is a
+      //    best-effort enhancement; it never blocks a short from rendering.
+      let backgroundVideoPath: string | undefined;
+      if (isVeoConfigured()) {
+        const { costPerSecondUsd } = veoModel();
+        const clipSeconds = Number(process.env.LOCKSAFE_VEO_CLIP_SECONDS || "6");
+        const estCost = clipSeconds * costPerSecondUsd;
+        if (await canVeoSpend(estCost)) {
+          try {
+            const theme = post.headline || post.imagePrompt || post.content.slice(0, 120);
+            const clip = await generateBrollClip({
+              prompt: brollPrompt(theme),
+              outPath: path.join(tmpDir, "broll.mp4"),
+              aspectRatio: "9:16",
+              durationSeconds: clipSeconds,
+            });
+            backgroundVideoPath = clip.outPath;
+            await recordVeoSpend(clip.estCostUsd);
+            veoClips++;
+          } catch (veoErr) {
+            console.warn(`[generate-post-videos] Veo b-roll failed (${post.id}), using free bg: ${veoErr instanceof Error ? veoErr.message : String(veoErr)}`);
+          }
+        } else {
+          console.log(`[generate-post-videos] Veo monthly cap reached — using free background for ${post.id}`);
+        }
+      }
+
+      // 4. Render: Veo b-roll → Flux poster → branded gradient (in that order).
       const result = await generateShortVideo({
         cards,
         voiceover,
-        backgroundImageUrl: post.imageUrl ?? undefined,
+        backgroundVideoPath,
+        backgroundImageUrl: backgroundVideoPath ? undefined : post.imageUrl ?? undefined,
         blobPrefix: `social/video/${post.contentPillar ?? "general"}`,
       });
 
@@ -110,22 +148,29 @@ export async function generatePendingPostVideos(
         data: { videoUrl: result.url, tiktokScript: JSON.stringify(script) },
       });
       generated++;
-      results.push({ postId: post.id, success: true, url: result.url });
+      results.push({ postId: post.id, success: true, url: result.url, background: result.background });
     } catch (err) {
       results.push({
         postId: post.id,
         success: false,
         error: err instanceof Error ? err.message : String(err),
       });
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
     }
   }
 
   const failed = results.filter((r) => !r.success).length;
 
   if (alert && generated > 0) {
+    let veoLine = "";
+    if (veoClips > 0) {
+      const s = await veoSpendStatus();
+      veoLine = `\n🎥 ${veoClips} Veo b-roll clip(s). Month spend: $${s.spentUsd.toFixed(2)}/$${s.capUsd.toFixed(0)}.`;
+    }
     await sendAdminAlert({
       title: "🎬 Shorts Generated",
-      message: `Rendered ${generated}/${posts.length} TikTok short(s) with voiceover + captions.`,
+      message: `Rendered ${generated}/${posts.length} TikTok short(s) with voiceover + captions.${veoLine}`,
       severity: "info",
     }).catch(() => {});
   }
@@ -137,5 +182,5 @@ export async function generatePendingPostVideos(
     }).catch(() => {});
   }
 
-  return { processed: posts.length, generated, failed, results };
+  return { processed: posts.length, generated, failed, veoClips, results };
 }
