@@ -74,7 +74,7 @@ async function queryGemini(prompt: string): Promise<EngineResult> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new SkippedEngineError("gemini", "GEMINI_API_KEY not set");
 
-  const model = process.env.AI_VIS_GEMINI_MODEL || "gemini-2.0-flash";
+  const model = process.env.AI_VIS_GEMINI_MODEL || "gemini-2.5-flash";
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
     {
