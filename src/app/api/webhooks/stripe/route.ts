@@ -326,6 +326,22 @@ async function stripeWebhookHandler(request: NextRequest) {
                   err instanceof Error ? err.message : err,
                 );
               }
+              // Multi-vendor fan-out (2026-06-12): same job, fire Microsoft
+              // Ads offline conversion if msclkid is present + MS Ads is
+              // configured. Bing/Yahoo/DuckDuckGo traffic surfaces here.
+              // No-op for Google-sourced jobs (no msclkid).
+              try {
+                const { uploadJobConversionToMicrosoftIfEligible } = await import("@/lib/microsoft-ads");
+                const r = await uploadJobConversionToMicrosoftIfEligible(job.id);
+                if (!r.skipped) {
+                  console.log(`[Webhook] Microsoft Ads conversion upload for job ${job.jobNumber}: ${r.ok ? "ok" : `failed (${r.reason ?? "unknown"})`}`);
+                }
+              } catch (err) {
+                console.error(
+                  `[Webhook] Microsoft Ads conversion upload threw for job ${job.jobNumber}:`,
+                  err instanceof Error ? err.message : err,
+                );
+              }
             }
           }
         }

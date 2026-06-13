@@ -47,6 +47,7 @@ export interface TouchSnapshot {
   term:        string | null;
   gclid:       string | null;
   fbclid:      string | null;
+  msclkid:     string | null;
   landingPage: string | null;
   referrer:    string | null;
 }
@@ -62,6 +63,7 @@ interface SessionRowShape {
   utmTerm?:       string | null;
   gclid?:         string | null;
   fbclid?:        string | null;
+  msclkid?:       string | null;
   landingPage?:   string | null;
   referrer?:      string | null;
 }
@@ -84,6 +86,7 @@ function toSnapshot(
     term:        session.utmTerm     ?? null,
     gclid:       session.gclid       ?? null,
     fbclid:      session.fbclid      ?? null,
+    msclkid:     session.msclkid     ?? null,
     landingPage: session.landingPage ?? null,
     referrer:    session.referrer    ?? null,
   };
@@ -138,6 +141,7 @@ export function spreadFirstTouchOnto<T extends Record<string, unknown>>(
   firstTouchTerm:        string | null;
   firstTouchGclid:       string | null;
   firstTouchFbclid:      string | null;
+  firstTouchMsclkid:     string | null;
   firstTouchLandingPage: string | null;
   firstTouchReferrer:    string | null;
 } {
@@ -152,6 +156,7 @@ export function spreadFirstTouchOnto<T extends Record<string, unknown>>(
     firstTouchTerm:        snap.term,
     firstTouchGclid:       snap.gclid,
     firstTouchFbclid:      snap.fbclid,
+    firstTouchMsclkid:     snap.msclkid,
     firstTouchLandingPage: snap.landingPage,
     firstTouchReferrer:    snap.referrer,
   };
@@ -174,6 +179,7 @@ export function spreadLastTouchOnto<T extends Record<string, unknown>>(
   lastTouchTerm:        string | null;
   lastTouchGclid:       string | null;
   lastTouchFbclid:      string | null;
+  lastTouchMsclkid:     string | null;
   lastTouchLandingPage: string | null;
   lastTouchReferrer:    string | null;
 } {
@@ -188,6 +194,7 @@ export function spreadLastTouchOnto<T extends Record<string, unknown>>(
     lastTouchTerm:        snap.term,
     lastTouchGclid:       snap.gclid,
     lastTouchFbclid:      snap.fbclid,
+    lastTouchMsclkid:     snap.msclkid,
     lastTouchLandingPage: snap.landingPage,
     lastTouchReferrer:    snap.referrer,
   };
@@ -307,6 +314,7 @@ export async function stampJobAttribution<T extends Record<string, unknown>>(
       utmTerm:     last.term,
       gclid:       last.gclid,
       fbclid:      last.fbclid,
+      msclkid:     last.msclkid,
       landingPage: last.landingPage,
     };
   }

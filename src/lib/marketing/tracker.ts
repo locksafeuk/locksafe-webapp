@@ -34,6 +34,7 @@ export async function getOrCreateSession(
     utmTerm?: string;
     gclid?: string;
     fbclid?: string;
+    msclkid?: string; // Microsoft Click ID — Bing/Yahoo/DuckDuckGo
     landingPage: string;
   }
 ) {
@@ -70,6 +71,8 @@ export async function getOrCreateSession(
     if (data.utmTerm     && !session.utmTerm)     updateData.utmTerm     = data.utmTerm;
     if (data.gclid       && !session.gclid)       updateData.gclid       = data.gclid;
     if (data.fbclid      && !session.fbclid)      updateData.fbclid      = data.fbclid;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (data.msclkid     && !(session as any).msclkid) updateData.msclkid = data.msclkid;
     session = await prisma.userSession.update({
       where: { id: session.id },
       data: updateData,
@@ -91,6 +94,7 @@ export async function getOrCreateSession(
       utmTerm: data.utmTerm || null,
       gclid: data.gclid || null,
       fbclid: data.fbclid || null,
+      msclkid: data.msclkid || null,
       landingPage: data.landingPage,
       segment: [],
       modalsShown: [],
@@ -120,6 +124,7 @@ export async function getAttributionForVisitor(
   utmTerm?:     string | null;
   gclid?:       string | null;
   fbclid?:      string | null;
+  msclkid?:     string | null;
   landingPage?: string | null;
 } | null> {
   if (!visitorId) return null;
@@ -138,6 +143,7 @@ export async function getAttributionForVisitor(
     utmTerm:     s.utmTerm,
     gclid:       s.gclid,
     fbclid:      s.fbclid,
+    msclkid:     s.msclkid,
     landingPage: s.landingPage,
   };
 }

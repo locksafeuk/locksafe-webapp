@@ -78,6 +78,7 @@ export async function refreshUserSession(): Promise<void> {
         utmTerm:     params.get("utm_term"),
         gclid:       params.get("gclid"),
         fbclid:      params.get("fbclid"),
+        msclkid:     params.get("msclkid"),
         landingPage: window.location.pathname,
         force:       true,
       }),
@@ -160,6 +161,7 @@ export function useUserTracking(options: UseUserTrackingOptions = {}) {
             utmTerm: params.get("utm_term"),
             gclid: params.get("gclid"),
             fbclid: params.get("fbclid"),
+            msclkid: params.get("msclkid"),
             landingPage: pathname,
           }),
         });

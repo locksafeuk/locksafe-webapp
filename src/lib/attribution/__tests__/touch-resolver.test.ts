@@ -123,6 +123,7 @@ describe("spreadFirstTouchOnto / spreadLastTouchOnto", () => {
     term:        null,
     gclid:       "G_ABC",
     fbclid:      null,
+    msclkid:     null,
     landingPage: "/locksmith-in/bs1",
     referrer:    null,
   };

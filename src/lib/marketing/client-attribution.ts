@@ -42,6 +42,7 @@ export interface ClientAttribution {
   utmTerm?:     string;
   gclid?:       string;
   fbclid?:      string;
+  msclkid?:     string; // Microsoft Click ID — Bing/Yahoo/DuckDuckGo
   landingPage?: string;
 }
 
@@ -76,6 +77,7 @@ export function getClientAttribution(): ClientAttribution {
     utmTerm:     pick("utm_term"),
     gclid:       pick("gclid"),
     fbclid:      pick("fbclid"),
+    msclkid:     pick("msclkid"),
     landingPage: window.location.pathname,
   };
 }

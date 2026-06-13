@@ -60,6 +60,10 @@ const GENERIC_FIELDS: Record<string, FieldCategory> = {
   fbclid:          "identifier",
   fbp:             "identifier",
   fbc:             "identifier",
+  msclkid:         "identifier",
+  muid:            "identifier",
+  _uetsid:         "identifier",
+  _uetvid:         "identifier",
   ga_client_id:    "identifier",
   client_id:       "identifier",
   user_id:         "identifier",
@@ -189,6 +193,14 @@ const VENDOR_OVERRIDES: Partial<Record<VendorId, Record<string, FieldCategory>>>
     user_identifiers: "PII",
     hashed_email:    "PII",
     hashed_phone_number: "PII",
+  },
+  "microsoft-ads": {
+    // Microsoft Offline Conversions API + UET tag — hashed PII matchers.
+    HashedEmail:          "PII",
+    HashedPhone:          "PII",
+    MicrosoftClickId:     "identifier",
+    ConversionValue:      "monetary",
+    ConversionCurrencyCode: "monetary",
   },
 };
 

@@ -14,6 +14,10 @@ const ID_KEYS = [
   "fbclid",
   "fbp",
   "fbc",
+  "msclkid",        // Microsoft Click ID — Bing/Yahoo/DuckDuckGo offline conversions
+  "muid",           // Microsoft Universal ID (UET cookie)
+  "_uetsid",
+  "_uetvid",
   "ga_client_id",
   "client_id",
   "user_id",

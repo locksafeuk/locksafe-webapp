@@ -485,6 +485,30 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // ── 10. MICROSOFT ADVERTISING (informational; passes when intentionally OFF)
+  // Either fully wired or fully off. Half-wired = fail.
+  const msVars = [
+    "MICROSOFT_ADS_CUSTOMER_ID",
+    "MICROSOFT_ADS_ACCOUNT_ID",
+    "MICROSOFT_ADS_DEVELOPER_TOKEN",
+    "MICROSOFT_ADS_CLIENT_ID",
+    "MICROSOFT_ADS_CLIENT_SECRET",
+    "MICROSOFT_ADS_REFRESH_TOKEN",
+  ];
+  const msSet     = msVars.filter((k) => Boolean(process.env[k])).length;
+  const msPresent = msSet === msVars.length;
+  const msAbsent  = msSet === 0;
+  checks.push({
+    name:    "10. Microsoft Advertising (Bing/Yahoo/DuckDuckGo)",
+    pass:    msPresent || msAbsent,
+    message: msPresent
+      ? "Microsoft Ads fully configured — Stripe webhook will upload offline conversions on Bing-sourced jobs."
+      : msAbsent
+        ? "Microsoft Ads OFF (not configured) — system runs Google-only. Set the 6 MICROSOFT_ADS_* env vars to enable."
+        : `Microsoft Ads HALF-CONFIGURED (${msSet}/${msVars.length} env vars set). Either complete the config or unset them all.`,
+    details: { setCount: msSet, total: msVars.length, vars: msVars.map((k) => ({ key: k, set: Boolean(process.env[k]) })) },
+  });
+
   const ok = checks.every((c) => c.pass);
   return NextResponse.json({
     ok,

@@ -150,6 +150,7 @@ async function runBackfill(request: NextRequest) {
                 term:        linked.utmTerm,
                 gclid:       linked.gclid,
                 fbclid:      linked.fbclid,
+                msclkid:     linked.msclkid ?? null,
                 landingPage: linked.landingPage,
                 referrer:    linked.referrer,
               };
@@ -166,6 +167,7 @@ async function runBackfill(request: NextRequest) {
                 term:        linkedLast.utmTerm,
                 gclid:       linkedLast.gclid,
                 fbclid:      linkedLast.fbclid,
+                msclkid:     linkedLast.msclkid ?? null,
                 landingPage: linkedLast.landingPage,
                 referrer:    linkedLast.referrer,
               };
@@ -184,7 +186,7 @@ async function runBackfill(request: NextRequest) {
               select: {
                 id: true, createdAt: true, utmSource: true, utmMedium: true,
                 utmCampaign: true, utmContent: true, utmTerm: true,
-                gclid: true, fbclid: true, landingPage: true,
+                gclid: true, fbclid: true, msclkid: true, landingPage: true,
               },
             });
             const newestJob = await p.job.findFirst({
@@ -193,7 +195,7 @@ async function runBackfill(request: NextRequest) {
               select: {
                 id: true, createdAt: true, utmSource: true, utmMedium: true,
                 utmCampaign: true, utmContent: true, utmTerm: true,
-                gclid: true, fbclid: true, landingPage: true,
+                gclid: true, fbclid: true, msclkid: true, landingPage: true,
               },
             });
             if (!first && oldestJob) {
@@ -208,6 +210,7 @@ async function runBackfill(request: NextRequest) {
                 term:        oldestJob.utmTerm ?? null,
                 gclid:       oldestJob.gclid ?? null,
                 fbclid:      oldestJob.fbclid ?? null,
+                msclkid:     (oldestJob as { msclkid?: string | null }).msclkid ?? null,
                 landingPage: oldestJob.landingPage ?? null,
                 referrer:    null,
               };
@@ -224,6 +227,7 @@ async function runBackfill(request: NextRequest) {
                 term:        newestJob.utmTerm ?? null,
                 gclid:       newestJob.gclid ?? null,
                 fbclid:      newestJob.fbclid ?? null,
+                msclkid:     (newestJob as { msclkid?: string | null }).msclkid ?? null,
                 landingPage: newestJob.landingPage ?? null,
                 referrer:    null,
               };

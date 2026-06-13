@@ -338,6 +338,7 @@ model Customer {
   firstTouchTerm        String?
   firstTouchGclid       String?
   firstTouchFbclid      String?
+  firstTouchMsclkid     String? // Microsoft Click ID — Bing/Yahoo/DuckDuckGo
   firstTouchLandingPage String?
   firstTouchReferrer    String?
   lastTouchAt           DateTime?
@@ -348,6 +349,7 @@ model Customer {
   lastTouchTerm         String?
   lastTouchGclid        String?
   lastTouchFbclid       String?
+  lastTouchMsclkid      String? // Microsoft Click ID
   lastTouchLandingPage  String?
   lastTouchReferrer     String?
 
@@ -596,6 +598,7 @@ model Locksmith {
   firstTouchTerm        String?
   firstTouchGclid       String?
   firstTouchFbclid      String?
+  firstTouchMsclkid     String? // Microsoft Click ID — Bing/Yahoo/DuckDuckGo
   firstTouchLandingPage String?
   firstTouchReferrer    String?
 
@@ -805,6 +808,7 @@ model Job {
   utmTerm                String? // Keyword (if exposed by the platform)
   gclid                  String? // Google Click ID — required by Google's Conversions API
   fbclid                 String? // Facebook Click ID — for Meta Conversions API
+  msclkid                String? // Microsoft Click ID — Bing/Yahoo/DuckDuckGo Offline Conversions
   landingPage            String? // First page the visitor landed on
   // Conversion upload bookkeeping — when COMPLETED+paid, the upload-cron
   // sends the conversion event back to Google. These columns mark whether
@@ -937,6 +941,7 @@ model Job {
   firstTouchTerm        String?
   firstTouchGclid       String?
   firstTouchFbclid      String?
+  firstTouchMsclkid     String? // Microsoft Click ID — Bing/Yahoo/DuckDuckGo
   firstTouchLandingPage String?
   firstTouchReferrer    String?
 
@@ -1306,6 +1311,7 @@ model UserSession {
   utmTerm      String?
   gclid        String?
   fbclid       String?
+  msclkid      String? // Microsoft Click ID — Bing/Yahoo/DuckDuckGo
   landingPage  String
 
   // Tracking
@@ -4091,6 +4097,7 @@ model CallIntent {
   // ── Attribution captured at click time ──────────────────────────────
   gclid       String?
   fbclid      String?
+  msclkid     String? // Microsoft Click ID — Bing/Yahoo/DuckDuckGo
   utmSource   String?
   utmMedium   String?
   utmCampaign String?
