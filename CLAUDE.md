@@ -1,5 +1,13 @@
 # LockSafe webapp — working notes for Claude
 
+## ⚠️ Reporting discipline — verify before you claim "done"
+
+Piky's standing instruction (2026-06-15): **no "done" without a verification
+step that proves the system actually works.** Status codes are not status.
+Typecheck passing ≠ feature working. Deploy live ≠ behavior correct. If you
+can't verify, say so plainly. Full rule in `~/Projects/locksafe/CLAUDE.md` →
+"Reporting discipline" — read it.
+
 ## 🚀 Deployment — ONE path only (important)
 
 There is a **single, agreed deploy path**:

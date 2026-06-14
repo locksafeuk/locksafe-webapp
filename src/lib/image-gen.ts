@@ -197,6 +197,8 @@ export interface GenerateImageOptions {
    * background should be generated text-free (see the no-text prompt clause).
    */
   overlayHeadline?: string;
+  /** Optional small kicker label above the headline (e.g. the content pillar). */
+  overlayKicker?: string;
 }
 
 export interface GenerateImageResult {
@@ -281,47 +283,88 @@ async function openaiBackground(prompt: string, width: number, height: number): 
   return sharp(raw).resize(width, height, { fit: "cover" }).png().toBuffer();
 }
 
+/** Greedy word-wrap to ~maxChars per line, capped at maxLines. */
+function wrapPosterHeadline(text: string, maxChars: number, maxLines: number): string[] {
+  const words = (text || "").replace(/\s+/g, " ").trim().split(" ");
+  const lines: string[] = [];
+  let line = "";
+  for (const w of words) {
+    const cand = line ? `${line} ${w}` : w;
+    if (cand.length <= maxChars) line = cand;
+    else {
+      if (line) lines.push(line);
+      line = w;
+    }
+    if (lines.length >= maxLines) break;
+  }
+  if (line && lines.length < maxLines) lines.push(line);
+  return lines.length ? lines : [text.trim()];
+}
+
+function xmlEsc(s: string): string {
+  return s.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c] as string));
+}
+
 /**
- * FREE branded-graphic background (sharp/SVG) — the default poster generator.
- * No ComfyUI, no OpenAI: a deep-navy→slate gradient with soft orange brand
- * glows, a vignette, and a small LOCKSAFE UK wordmark. The proofread headline is
- * overlaid separately. Reliable everywhere (Vercel + Mac), zero cost. Matches
- * the short-video graphic style. A per-post seed nudges the glow positions so
- * posts aren't pixel-identical.
+ * FREE branded-graphic poster (sharp/SVG) — the default poster generator.
+ * No ComfyUI, no OpenAI. A designed "quote card": deep navy→slate gradient with
+ * a soft orange brand glow + vignette, a framed border, the on-brand LockSafe UK
+ * wordmark, an optional pillar kicker, an orange accent rule, the CENTRED
+ * headline (real Poppins text, zero typos), and a locksafe.uk footer. Reliable
+ * everywhere (Vercel + Mac) via the bundled font (see @/lib/fonts), zero cost.
  */
-async function graphicBackground(width: number, height: number, seed: number): Promise<Buffer> {
+async function graphicBackground(
+  width: number,
+  height: number,
+  seed: number,
+  headline?: string,
+  kicker?: string
+): Promise<Buffer> {
   const orange = "#F97316";
-  // Seed-based subtle variation in glow placement.
-  const aX = 22 + (seed % 18);
-  const aY = 16 + ((seed >> 3) % 16);
-  const bX = 70 + ((seed >> 6) % 18);
-  const bY = 64 + ((seed >> 9) % 16);
-  const wmY = Math.round(height * 0.07);
+  const cx = width / 2;
+  // Seed nudges the glow so posts aren't pixel-identical.
+  const glowX = 70 + (seed % 18);
+  const glowY = 12 + ((seed >> 4) % 14);
+
+  const lines = headline ? wrapPosterHeadline(headline, 18, 4) : [];
+  const fs = lines.length >= 3 ? width * 0.085 : width * 0.097;
+  const lh = fs * 1.06;
+  const blockH = lines.length * lh;
+  const startY = height / 2 - blockH / 2 + fs * 0.78;
+  const accentY = startY - fs * 0.78 - height * 0.045;
+  const headEls = lines
+    .map(
+      (l, i) =>
+        `<text x="${cx}" y="${startY + i * lh}" text-anchor="middle" font-family="${POSTER_FONT}" ` +
+        `font-size="${fs.toFixed(0)}" font-weight="700" letter-spacing="-2" fill="#FFFFFF">${xmlEsc(l)}</text>`
+    )
+    .join("");
+
+  const kickerEl = kicker
+    ? `<text x="${cx}" y="${(accentY - 26).toFixed(0)}" text-anchor="middle" font-family="${POSTER_FONT}" font-size="26" font-weight="600" letter-spacing="6" fill="${orange}">${xmlEsc(kicker.toUpperCase())}</text>`
+    : "";
 
   const svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
     <defs>
-      <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="rgb(13,20,38)"/>
-        <stop offset="100%" stop-color="rgb(24,37,64)"/>
+      <linearGradient id="bg" x1="0" y1="0" x2="0.3" y2="1">
+        <stop offset="0%" stop-color="#0b1426"/><stop offset="55%" stop-color="#101c33"/><stop offset="100%" stop-color="#0a1322"/>
       </linearGradient>
-      <radialGradient id="gA" cx="${aX}%" cy="${aY}%" r="46%">
-        <stop offset="0%" stop-color="${orange}" stop-opacity="0.42"/>
-        <stop offset="100%" stop-color="${orange}" stop-opacity="0"/>
+      <radialGradient id="gl" cx="${glowX}%" cy="${glowY}%" r="55%">
+        <stop offset="0%" stop-color="${orange}" stop-opacity="0.30"/><stop offset="100%" stop-color="${orange}" stop-opacity="0"/>
       </radialGradient>
-      <radialGradient id="gB" cx="${bX}%" cy="${bY}%" r="40%">
-        <stop offset="0%" stop-color="${orange}" stop-opacity="0.26"/>
-        <stop offset="100%" stop-color="${orange}" stop-opacity="0"/>
-      </radialGradient>
-      <radialGradient id="vig" cx="50%" cy="50%" r="75%">
-        <stop offset="55%" stop-color="#000000" stop-opacity="0"/>
-        <stop offset="100%" stop-color="#000000" stop-opacity="0.5"/>
+      <radialGradient id="vig" cx="50%" cy="48%" r="72%">
+        <stop offset="60%" stop-color="#000" stop-opacity="0"/><stop offset="100%" stop-color="#000" stop-opacity="0.45"/>
       </radialGradient>
     </defs>
     <rect width="${width}" height="${height}" fill="url(#bg)"/>
-    <rect width="${width}" height="${height}" fill="url(#gA)"/>
-    <rect width="${width}" height="${height}" fill="url(#gB)"/>
+    <rect width="${width}" height="${height}" fill="url(#gl)"/>
     <rect width="${width}" height="${height}" fill="url(#vig)"/>
-    <text x="${width / 2}" y="${wmY}" text-anchor="middle" font-family="${POSTER_FONT}" font-size="30" font-weight="700" letter-spacing="2" fill="#FFFFFF" fill-opacity="0.9">LOCKSAFE UK</text>
+    <rect x="40" y="40" width="${width - 80}" height="${height - 80}" rx="26" fill="none" stroke="#ffffff" stroke-opacity="0.10" stroke-width="2"/>
+    <text x="${cx}" y="${(height * 0.102).toFixed(0)}" text-anchor="middle" font-family="${POSTER_FONT}" font-size="40" font-weight="700" letter-spacing="1"><tspan fill="#ffffff">Lock</tspan><tspan fill="${orange}">Safe</tspan><tspan fill="#ffffff" letter-spacing="3"> UK</tspan></text>
+    ${kickerEl}
+    <rect x="${cx - 44}" y="${accentY.toFixed(0)}" width="88" height="7" rx="3.5" fill="${orange}"/>
+    ${headEls}
+    <text x="${cx}" y="${(height - height * 0.067).toFixed(0)}" text-anchor="middle" font-family="${POSTER_FONT}" font-size="30" font-weight="600" letter-spacing="3" fill="#ffffff" fill-opacity="0.55">locksafe.uk</text>
   </svg>`;
 
   return sharp(Buffer.from(svg)).png().toBuffer();
@@ -363,15 +406,15 @@ export async function generateImage(opts: GenerateImageOptions): Promise<Generat
       imageBuffer = await openaiBackground(prompt, width, height);
       backend = "openai";
     }
+    // AI background is text-free → overlay the proofread headline as real text.
+    if (opts.overlayHeadline) {
+      imageBuffer = await overlayHeadline(imageBuffer, opts.overlayHeadline);
+    }
   } else {
     console.log(`[ImageGen] Generating FREE graphic poster (${width}×${height}, seed=${seed})...`);
-    imageBuffer = await graphicBackground(width, height, seed);
+    // The designed card renders the headline (+ kicker) itself — no separate overlay.
+    imageBuffer = await graphicBackground(width, height, seed, opts.overlayHeadline, opts.overlayKicker);
     backend = "graphic";
-  }
-
-  // Overlay the proofread headline as real text (clean, typo-free, on-brand).
-  if (opts.overlayHeadline) {
-    imageBuffer = await overlayHeadline(imageBuffer, opts.overlayHeadline);
   }
 
   // Upload to Vercel Blob

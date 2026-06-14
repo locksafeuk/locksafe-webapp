@@ -105,11 +105,18 @@ export async function generatePendingPostImages(
           `Produce only photographic/illustrative imagery with clean, uncluttered ` +
           `space in the lower third where a headline will be placed separately.`;
       }
+      // Kicker label = the content pillar, prettified (e.g. "anti-fraud" → "Anti Fraud").
+      const kicker = (post.contentPillar || "")
+        .replace(/[-_]+/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase())
+        .trim();
+
       const result = await generateImage({
         prompt,
         format: "poster",
         blobPrefix: `social/${post.contentPillar ?? "general"}`,
         overlayHeadline,
+        overlayKicker: kicker || undefined,
       });
       await prisma.socialPost.update({ where: { id: post.id }, data: { imageUrl: result.url } });
       generated++;
