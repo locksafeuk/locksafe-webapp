@@ -3,8 +3,8 @@
  * Generates and validates CSRF tokens for form submissions.
  */
 import crypto from "crypto";
+import { getJwtSecret } from "@/lib/auth";
 
-const CSRF_SECRET = process.env.JWT_SECRET || "locksafe-csrf-fallback-secret";
 const TOKEN_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
 
 /**
@@ -14,7 +14,7 @@ const TOKEN_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
 export function generateCsrfToken(): string {
   const timestamp = Date.now().toString();
   const signature = crypto
-    .createHmac("sha256", CSRF_SECRET)
+    .createHmac("sha256", getJwtSecret())
     .update(timestamp)
     .digest("hex");
   return `${timestamp}.${signature}`;
@@ -37,7 +37,7 @@ export function validateCsrfToken(token: string): boolean {
 
   // Verify signature
   const expectedSignature = crypto
-    .createHmac("sha256", CSRF_SECRET)
+    .createHmac("sha256", getJwtSecret())
     .update(timestamp)
     .digest("hex");
 

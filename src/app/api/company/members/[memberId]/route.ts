@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
 import jwt from "jsonwebtoken";
+import { getJwtSecret } from "@/lib/auth";
 
-const JWT_SECRET = process.env.JWT_SECRET || "locksafe-secret-key-change-in-production";
 
 async function resolveCompanyId(request: NextRequest): Promise<string | null> {
   const cookieStore = await cookies();
@@ -12,7 +12,7 @@ async function resolveCompanyId(request: NextRequest): Promise<string | null> {
 
   let decoded: { id: string; type: string };
   try {
-    decoded = jwt.verify(token, JWT_SECRET) as { id: string; type: string };
+    decoded = jwt.verify(token, getJwtSecret(), { algorithms: ["HS256"] }) as { id: string; type: string };
   } catch {
     return null;
   }

@@ -4,8 +4,21 @@ import { cookies } from "next/headers";
 import prisma from "@/lib/db";
 import crypto from "crypto";
 
-const JWT_SECRET = process.env.JWT_SECRET || "locksafe-secret-key-change-in-production";
 const JWT_EXPIRES_IN = "7d";
+const JWT_ALGORITHM = "HS256" as const;
+
+// Read the signing secret at call time (never at import) so a missing secret
+// fails loudly on the first auth operation instead of silently falling back to a
+// public, committed default. No fallback: an unset JWT_SECRET must be a hard error.
+export function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error(
+      "JWT_SECRET environment variable is not set. Refusing to sign/verify tokens with an insecure default.",
+    );
+  }
+  return secret;
+}
 
 export interface AdminTokenPayload {
   id: string;
@@ -35,22 +48,12 @@ export type TokenPayload = AdminTokenPayload | LocksmithTokenPayload | CustomerT
 
 // Hash password
 export function hashPassword(password: string): string {
-  return bcrypt.hashSync(password, 10);
+  return bcrypt.hashSync(password, 12);
 }
 
-// Verify password
+// Verify password (bcrypt only — the legacy base64 "hashed:" format was a
+// trivially-reversible backdoor and is no longer accepted; no live accounts use it).
 export function verifyPassword(password: string, hash: string): boolean {
-  // Check if it's the old demo format first
-  try {
-    const decoded = Buffer.from(hash, "base64").toString();
-    if (decoded === `hashed:${password}`) {
-      return true;
-    }
-  } catch {
-    // Not base64 encoded, try bcrypt
-  }
-
-  // Try bcrypt
   try {
     return bcrypt.compareSync(password, hash);
   } catch {
@@ -60,7 +63,10 @@ export function verifyPassword(password: string, hash: string): boolean {
 
 // Generate JWT token
 export function generateToken(payload: TokenPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  return jwt.sign(payload, getJwtSecret(), {
+    expiresIn: JWT_EXPIRES_IN,
+    algorithm: JWT_ALGORITHM,
+  });
 }
 
 // Hash token for storage (to prevent token leakage if DB is compromised)
@@ -138,8 +144,8 @@ export async function verifyToken(token: string): Promise<TokenPayload | null> {
       return null;
     }
 
-    // Then verify JWT signature and expiry
-    return jwt.verify(token, JWT_SECRET) as TokenPayload;
+    // Then verify JWT signature and expiry (algorithm pinned to prevent confusion)
+    return jwt.verify(token, getJwtSecret(), { algorithms: [JWT_ALGORITHM] }) as TokenPayload;
   } catch {
     return null;
   }
@@ -148,7 +154,7 @@ export async function verifyToken(token: string): Promise<TokenPayload | null> {
 // Synchronous token verification (without blacklist check) - use for initial parsing only
 export function verifyTokenSync(token: string): TokenPayload | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as TokenPayload;
+    return jwt.verify(token, getJwtSecret(), { algorithms: [JWT_ALGORITHM] }) as TokenPayload;
   } catch {
     return null;
   }

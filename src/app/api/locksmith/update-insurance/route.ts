@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { cookies } from "next/headers";
 import jwt from "jsonwebtoken";
+import { getJwtSecret } from "@/lib/auth";
 import {
   verifyInsuranceDocument,
   isFullyCredentialed,
 } from "@/lib/credential-verifier";
 
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     // Verify token
     let decoded: { id: string; type: string };
     try {
-      decoded = jwt.verify(token, JWT_SECRET) as { id: string; type: string };
+      decoded = jwt.verify(token, getJwtSecret(), { algorithms: ["HS256"] }) as { id: string; type: string };
     } catch {
       return NextResponse.json(
         { success: false, error: "Invalid token" },

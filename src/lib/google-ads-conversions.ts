@@ -210,7 +210,11 @@ export async function uploadClickConversion(
     // conversion is bad. Returns per-conversion errors in the response.
     partialFailure:        true,
     validateOnly:          false,
-    debugEnabled:          false,
+    // NOTE: do NOT send `debugEnabled` — the Google Ads REST endpoint rejects
+    // it with 400 "Unknown name debugEnabled: Cannot find field", which was
+    // silently failing every real conversion upload (caught by the
+    // validateOnly test-upload diagnostic, 2026-06-14). The field is optional
+    // and defaults to false, so omitting it is correct.
   };
 
   try {

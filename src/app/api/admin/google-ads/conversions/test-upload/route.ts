@@ -84,7 +84,6 @@ export async function GET() {
     ],
     partialFailure: true,
     validateOnly: true,
-    debugEnabled: false,
   };
 
   try {

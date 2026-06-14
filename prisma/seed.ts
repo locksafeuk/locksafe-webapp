@@ -23,12 +23,7 @@ const prisma = new PrismaClient();
 
 // Secure password hashing using bcrypt
 function hashPassword(password: string): string {
-  return bcrypt.hashSync(password, 10);
-}
-
-// Legacy simple hash - kept for reference only, DO NOT USE
-function simpleHash(password: string): string {
-  return Buffer.from(`hashed:${password}`).toString("base64");
+  return bcrypt.hashSync(password, 12);
 }
 
 // Helper to generate job numbers in the format <PREFIX>-JOB<NNN>.
