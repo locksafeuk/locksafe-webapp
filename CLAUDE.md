@@ -21,14 +21,21 @@ Build command (in `vercel.json`): `npx prisma generate && next build`.
 
 ## Sandbox constraints (how Claude works here)
 
-- Claude **edits files only**; the user runs `./ship.sh` to commit + push
-  (Claude's sandbox can't push — no SSH key).
-- **MongoDB Atlas SRV is blocked** from the sandbox — can't query the DB
-  directly; use admin API endpoints (logged-in browser) or scripts run on the Mac.
-- **Prisma engine can't download** in the sandbox. After a `schema.prisma`
-  change, run `npx prisma generate` on the Mac **before** `./ship.sh` (the
-  pre-push typecheck needs the regenerated client). Mongo needs no migration —
-  generate is enough.
+- **Webapp ships via `./ship.sh`.** It gates on (1) Prisma client regeneration,
+  (2) the pre-push typecheck hook, and (3) the piky-boy ↔ Vercel deploy
+  contract. Claude invokes it via the Mac (osascript), so there is no
+  authentication problem — but the typecheck + Prisma gate must pass before the
+  push lands.
+- **Every other repo: Claude pushes directly.** Parent workspace
+  (`piky-boy/locksafe-workspace`), `locksafe-social-automation`, daily-review
+  edits — Claude runs `git commit && git push` via osascript on the Mac with
+  the user's SSH keys. No `ship.sh`, no 2-second abort window, no ritual.
+- **MongoDB Atlas SRV is blocked** from the Claude Linux sandbox — can't query
+  the DB from there. Use admin API endpoints (via the logged-in browser) or
+  scripts run on the Mac.
+- **Prisma engine can't download** in the Linux sandbox. After a
+  `schema.prisma` change, regenerate on the Mac (`npx prisma generate`) before
+  `./ship.sh` runs the typecheck. Mongo needs no migration — generate is enough.
 
 ## Stack
 
