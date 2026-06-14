@@ -103,17 +103,24 @@ export async function GET(request: NextRequest) {
       data: { status: "SCHEDULED", publishError: null },
     });
 
-    // Find posts that are scheduled and ready to publish
+    // Find posts that are scheduled and ready to publish.
+    // Must have SOME media (a poster image OR a video) — never publish media-less.
+    // NB: `imageUrl: { not: null }` alone (a) can miss never-set rows on MongoDB and
+    // (b) wrongly excludes video-only posts; the OR here + the per-branch media
+    // guards below fix both.
     const postsToPublish = await prisma.socialPost.findMany({
       where: {
         status: "SCHEDULED",
-        imageUrl: { not: null },
         scheduledFor: {
           lte: now,
         },
         platforms: {
           hasSome: publishablePlatforms,
         },
+        OR: [
+          { imageUrl: { not: null } },
+          { videoUrl: { not: null } },
+        ],
       },
       include: {
         pillar: true,
@@ -153,8 +160,11 @@ export async function GET(request: NextRequest) {
         tiktok?:    { success: boolean; postId?: string; script?: string; error?: string };
       } = {};
 
-      // Publish to Facebook if platform is selected
-      if (post.platforms.includes("FACEBOOK") && facebookAccount) {
+      // Publish to Facebook if platform is selected AND we have media (poster or
+      // video). The hard media guard (matching the Instagram branch) guarantees we
+      // NEVER publish a text-only Facebook post, even if a media-less row slips the
+      // query filter.
+      if (post.platforms.includes("FACEBOOK") && facebookAccount && (post.imageUrl || post.videoUrl)) {
         const fbContent = formatPostForPlatform(
           {
             content: post.content,

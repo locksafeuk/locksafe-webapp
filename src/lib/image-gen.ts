@@ -227,11 +227,11 @@ async function comfyBackground(prompt: string, width: number, height: number, se
  * Model is configurable via OPENAI_IMAGE_MODEL (default gpt-image-1; set to
  * "dall-e-3" if the org isn't verified for gpt-image-1).
  */
-async function openaiBackground(prompt: string, width: number, height: number): Promise<Buffer> {
+/** Single OpenAI Images call for a given model. Returns the raw image bytes. */
+async function callOpenAiImage(model: string, prompt: string): Promise<Buffer> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY not set — no image fallback available");
 
-  const model = process.env.OPENAI_IMAGE_MODEL ?? "gpt-image-1";
   const size = model === "dall-e-3" ? "1024x1792" : "1024x1536"; // portrait
   const body: Record<string, unknown> = { model, prompt, n: 1, size };
   if (model === "gpt-image-1") body.quality = "medium";
@@ -244,21 +244,36 @@ async function openaiBackground(prompt: string, width: number, height: number): 
     signal: AbortSignal.timeout(120_000),
   });
   if (!resp.ok) {
-    throw new Error(`OpenAI images ${resp.status}: ${(await resp.text()).slice(0, 200)}`);
+    throw new Error(`OpenAI images ${model} ${resp.status}: ${(await resp.text()).slice(0, 200)}`);
   }
   const json = (await resp.json()) as { data?: Array<{ b64_json?: string; url?: string }> };
   const item = json.data?.[0];
+  if (item?.b64_json) return Buffer.from(item.b64_json, "base64");
+  if (item?.url) return Buffer.from(await (await fetch(item.url)).arrayBuffer());
+  throw new Error("OpenAI returned no image data");
+}
 
+/**
+ * Cloud fallback via OpenAI Images. Tries the configured model (default
+ * gpt-image-1) and AUTO-FALLS-BACK to dall-e-3 if it fails — because gpt-image-1
+ * requires org verification and silently breaks the whole poster pipeline when
+ * the org isn't verified. dall-e-3 needs no verification, so posters keep
+ * generating. Output is normalised to the exact poster dimensions.
+ */
+async function openaiBackground(prompt: string, width: number, height: number): Promise<Buffer> {
+  const primary = process.env.OPENAI_IMAGE_MODEL ?? "gpt-image-1";
   let raw: Buffer;
-  if (item?.b64_json) {
-    raw = Buffer.from(item.b64_json, "base64");
-  } else if (item?.url) {
-    raw = Buffer.from(await (await fetch(item.url)).arrayBuffer());
-  } else {
-    throw new Error("OpenAI returned no image data");
+  try {
+    raw = await callOpenAiImage(primary, prompt);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (primary !== "dall-e-3") {
+      console.warn(`[ImageGen] OpenAI ${primary} failed (${msg}) — retrying with dall-e-3`);
+      raw = await callOpenAiImage("dall-e-3", prompt);
+    } else {
+      throw err;
+    }
   }
-
-  // Normalise to the requested poster dimensions.
   return sharp(raw).resize(width, height, { fit: "cover" }).png().toBuffer();
 }
 

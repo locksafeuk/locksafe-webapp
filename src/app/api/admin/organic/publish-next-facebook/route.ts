@@ -79,6 +79,15 @@ export async function POST() {
       );
     }
 
+    // Hard guard: never publish a text-only Facebook post. (The query filter can
+    // miss never-set imageUrl rows on MongoDB, so check again in JS.)
+    if (!nextPost.imageUrl && !nextPost.videoUrl) {
+      return NextResponse.json(
+        { success: false, error: "Next post has no poster image yet — waiting for generate-images." },
+        { status: 409 },
+      );
+    }
+
     await prisma.socialPost.update({
       where: { id: nextPost.id },
       data: { status: "PUBLISHING" },
