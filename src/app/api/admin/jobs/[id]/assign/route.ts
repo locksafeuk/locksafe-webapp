@@ -1,3 +1,4 @@
+import { DEFAULT_CALLOUT_FEE } from "@/lib/config";
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import prisma from "@/lib/db";
@@ -120,7 +121,7 @@ export async function POST(
     }
 
     // Create the LocksmithApplication with admin_assigned status
-    const defaultFee = locksmith.defaultAssessmentFee || 29.00;
+    const defaultFee = locksmith.defaultAssessmentFee || DEFAULT_CALLOUT_FEE;
 
     const application = await prisma.locksmithApplication.create({
       data: {

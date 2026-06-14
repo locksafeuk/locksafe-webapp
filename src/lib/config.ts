@@ -66,6 +66,11 @@ export const LOCKSMITH_ADMIN_PHONE = configuredLocksmithAdminPhone;
 export const LOCKSMITH_ADMIN_PHONE_TEL = configuredLocksmithAdminPhoneTel;
 export const LOCKSMITH_ADMIN_WHATSAPP = configuredLocksmithAdminWhatsapp;
 
+// Default call-out (assessment) fee, in GBP. Every locksmith gets this on
+// signup so the field is never blank — which means they're never blocked from
+// going "Available" by a missing fee. They can edit it any time in Settings.
+export const DEFAULT_CALLOUT_FEE = 29;
+
 // Helper to get full URL for a path
 export function getFullUrl(path: string = ""): string {
   const baseUrl = siteConfig.url.replace(/\/$/, ""); // Remove trailing slash

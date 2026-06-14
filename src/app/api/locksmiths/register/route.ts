@@ -1,3 +1,4 @@
+import { DEFAULT_CALLOUT_FEE } from "@/lib/config";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { hashPassword, generateToken, AUTH_COOKIE_OPTIONS } from "@/lib/auth";
@@ -134,6 +135,9 @@ export async function POST(request: NextRequest) {
         baseLng: baseLng,
         baseAddress: persistedBaseAddress,
         coverageRadius: coverageRadius || 10,
+        // Sensible default so the call-out fee is never blank (never blocks
+        // going Available). Editable in Settings.
+        defaultAssessmentFee: DEFAULT_CALLOUT_FEE,
       },
     });
 

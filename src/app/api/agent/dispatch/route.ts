@@ -1,3 +1,4 @@
+import { DEFAULT_CALLOUT_FEE } from "@/lib/config";
 /**
  * Agent API: Dispatch Endpoint
  *
@@ -142,7 +143,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Use locksmith's default assessment fee (this is the key change - use locksmith's fee, not job default)
-    const fee = assessmentFee || locksmith.defaultAssessmentFee || 29.0;
+    const fee = assessmentFee || locksmith.defaultAssessmentFee || DEFAULT_CALLOUT_FEE;
     const eta = etaMinutes || 20;
 
     // Auto-dispatch the job
