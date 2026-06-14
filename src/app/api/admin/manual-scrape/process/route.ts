@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "@/lib/admin-guard";
 import prisma from "@/lib/db";
 import { serperPlaces, buildPlacesQuery, placeToLead } from "@/lib/serper-places";
+import { toUkMobile, extractEmailFromWebsite } from "@/lib/web-email-scrape";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 export async function POST(req: NextRequest) {
   if (!(await getAdmin())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -27,6 +28,9 @@ export async function POST(req: NextRequest) {
   let done = false;
   let lastError: string | null = null;
 
+  // Leads created this chunk that have a website — we harvest their email after.
+  const emailTargets: { id: string; website: string }[] = [];
+
   try {
     const places = await serperPlaces(query, { gl: batch.country, page: nextPage });
     if (places.length === 0) {
@@ -39,41 +43,47 @@ export async function POST(req: NextRequest) {
         discovered++;
         const existing = await prisma.locksmithLead.findUnique({ where: { googlePlaceId: lead.placeId }, select: { id: true } });
         if (existing) { skipped++; continue; }
-        await prisma.locksmithLead.create({
-          data: {
-            googlePlaceId: lead.placeId,
-            name: lead.name,
-            city: batch.city || batch.area || "",
-            address: lead.address,
-            phone: lead.phone || null,
-            website: lead.website || null,
-            rating: lead.rating,
-            reviewCount: lead.reviewCount,
-            category: lead.category || null,
-            googleMapsUrl: lead.googleMapsUrl,
-            status: "new",
-            source: "manual",
-            scrapeBatchId: batch.id,
-          },
-        }).then(() => { extracted++; }).catch(() => { skipped++; });
+        try {
+          const created = await prisma.locksmithLead.create({
+            data: {
+              googlePlaceId: lead.placeId,
+              name: lead.name,
+              city: batch.city || batch.area || "",
+              address: lead.address,
+              phone: toUkMobile(lead.phone), // UK mobiles ONLY (landlines → null)
+              website: lead.website || null,
+              rating: lead.rating,
+              reviewCount: lead.reviewCount,
+              category: lead.category || null,
+              googleMapsUrl: lead.googleMapsUrl,
+              status: "new",
+              source: "manual",
+              scrapeBatchId: batch.id,
+            },
+            select: { id: true, website: true },
+          });
+          extracted++;
+          if (created.website && emailTargets.length < 25) emailTargets.push({ id: created.id, website: created.website });
+        } catch { skipped++; }
       }
     }
   } catch (e) {
     lastError = e instanceof Error ? e.message : String(e);
   }
 
+  // Harvest emails from the new leads' websites (parallel, bounded).
+  if (emailTargets.length) {
+    await Promise.all(emailTargets.map(async (t) => {
+      const email = await extractEmailFromWebsite(t.website).catch(() => "");
+      if (email) await prisma.locksmithLead.update({ where: { id: t.id }, data: { email } }).catch(() => {});
+    }));
+  }
+
   if (extracted >= batch.maxResults) done = true;
 
   const updated = await prisma.scrapeBatch.update({
     where: { id: batch.id },
-    data: {
-      page: nextPage,
-      discovered,
-      extracted,
-      skipped,
-      lastError,
-      status: done ? "completed" : "running",
-    },
+    data: { page: nextPage, discovered, extracted, skipped, lastError, status: done ? "completed" : "running" },
   });
 
   return NextResponse.json({ status: updated.status, done, discovered, extracted, skipped, page: nextPage, lastError });
