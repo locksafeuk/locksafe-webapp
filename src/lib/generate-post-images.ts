@@ -30,6 +30,25 @@ export interface ImageGenSummary {
   results: Array<{ postId: string; success: boolean; url?: string; backend?: string; error?: string }>;
 }
 
+/**
+ * Derive a short poster headline from a post's body when it has no `headline`.
+ * Strips hashtags/links/leading emoji and takes the first clause/sentence.
+ */
+function deriveHeadline(content: string): string {
+  let t = (content || "")
+    .replace(/#[^\s#]+/g, "") // hashtags
+    .replace(/https?:\/\/\S+/g, "") // links
+    .replace(/\s+/g, " ")
+    .trim();
+  // drop leading emoji / non-letter symbols
+  t = t.replace(/^[^\p{L}\p{N}£]+/u, "").trim();
+  // first sentence (up to . ! ?), else the whole thing
+  const m = t.match(/^.*?[.!?]/u);
+  let h = (m ? m[0] : t).replace(/[.!?]+$/, "").trim();
+  if (h.length > 80) h = h.slice(0, 78).replace(/\s\S*$/, "").trim() + "…";
+  return h || "LockSafe UK";
+}
+
 export async function generatePendingPostImages(
   opts?: { limit?: number; alert?: boolean }
 ): Promise<ImageGenSummary> {
@@ -50,11 +69,14 @@ export async function generatePendingPostImages(
   // Prioritise posts due within 24h that still lack a poster.
   // NB: MongoDB treats `imageUrl: null` as literal-null, so brand-new rows whose
   // imageUrl was never set need `{ isSet: false }` to be caught.
+  // Any image-less post due within 24h needs a poster. We DON'T require an
+  // imagePrompt any more: the default graphic poster only needs a headline (which
+  // we derive from the content when missing), and an imagePrompt is only useful
+  // for the optional AI mode.
   const in24h = new Date(Date.now() + 24 * 60 * 60 * 1000);
   const posts = await prisma.socialPost.findMany({
     where: {
       status: { in: ["SCHEDULED", "PENDING_APPROVAL"] },
-      imagePrompt: { not: null },
       imageUrl: { isSet: false },
       scheduledFor: { lte: in24h },
     },
@@ -69,22 +91,25 @@ export async function generatePendingPostImages(
   let usedFallback = 0;
 
   for (const post of posts) {
-    if (!post.imagePrompt) continue;
     try {
-      const enhancedPrompt = await enhanceImagePrompt(post.imagePrompt);
-      // Force a TEXT-FREE background — the headline is overlaid as real font
-      // text afterwards (AI-rendered text is always misspelled).
-      const cleanPrompt =
-        `${enhancedPrompt}\n\nIMPORTANT: Do NOT render any text, letters, words, ` +
-        `numbers, captions, logos, signs, or watermarks anywhere in the image. ` +
-        `Produce only photographic/illustrative imagery with clean, uncluttered ` +
-        `space in the lower third where a headline will be placed separately.`;
+      // Headline for the poster: the post's headline, else derived from content.
+      const overlayHeadline = (post.headline?.trim() || deriveHeadline(post.content));
+
+      // Prompt only matters for the optional AI mode; graphic mode ignores it.
+      let prompt = "Branded LockSafe UK locksmith poster background, deep navy and warm gold.";
+      if (post.imagePrompt) {
+        const enhancedPrompt = await enhanceImagePrompt(post.imagePrompt);
+        prompt =
+          `${enhancedPrompt}\n\nIMPORTANT: Do NOT render any text, letters, words, ` +
+          `numbers, captions, logos, signs, or watermarks anywhere in the image. ` +
+          `Produce only photographic/illustrative imagery with clean, uncluttered ` +
+          `space in the lower third where a headline will be placed separately.`;
+      }
       const result = await generateImage({
-        prompt: cleanPrompt,
+        prompt,
         format: "poster",
         blobPrefix: `social/${post.contentPillar ?? "general"}`,
-        // Exact, proofread headline → rendered as real text (zero typos).
-        overlayHeadline: post.headline ?? undefined,
+        overlayHeadline,
       });
       await prisma.socialPost.update({ where: { id: post.id }, data: { imageUrl: result.url } });
       generated++;

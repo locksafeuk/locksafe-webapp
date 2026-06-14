@@ -108,6 +108,7 @@ const navGroups: NavGroup[] = [
       { href: "/admin/organisations", label: "Organisations", icon: Building2 },
       { href: "/admin/customers", label: "Customers", icon: UserCircle },
       { href: "/admin/leads", label: "Leads", icon: Users2 },
+      { href: "/admin/manual_scrape", label: "Manual Scraper", icon: Users2 },
       { href: "/admin/whatsapp", label: "WhatsApp Inbox", icon: MessageCircle },
     ],
   },
