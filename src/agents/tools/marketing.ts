@@ -382,6 +382,27 @@ export const scheduleSocialPostTool: AgentTool = {
       };
     }
 
+    // ── Anti-runaway guards ────────────────────────────────────────────────
+    // This tool historically let the agent flood the queue with thousands of
+    // bare, duplicate, header-less posts. Cap it and dedupe.
+    const DAILY_CAP = Number(process.env.LOCKSAFE_AGENT_POST_CAP ?? "2");
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const createdToday = await prisma.socialPost.count({
+      where: { source: "cmo-marketing-tool", createdAt: { gte: todayStart } },
+    });
+    if (createdToday >= DAILY_CAP) {
+      return { success: false, error: `Daily social-post cap reached (${DAILY_CAP}/day). Not scheduling more.` };
+    }
+    // Dedup: don't queue identical content that's already pending/scheduled.
+    const dupe = await prisma.socialPost.findFirst({
+      where: { content, status: { in: ["SCHEDULED", "PENDING_APPROVAL", "PUBLISHING"] } },
+      select: { id: true },
+    });
+    if (dupe) {
+      return { success: false, error: "Identical content is already scheduled — skipped to avoid a duplicate." };
+    }
+
     const post = await prisma.socialPost.create({
       data: {
         content,
@@ -389,6 +410,7 @@ export const scheduleSocialPostTool: AgentTool = {
         status: PostStatus.SCHEDULED,
         scheduledFor,
         platforms: [targetPlatform],
+        source: "cmo-marketing-tool",
       },
     });
 
