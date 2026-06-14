@@ -235,7 +235,9 @@ async function callOpenAiImage(model: string, prompt: string): Promise<Buffer> {
   const size = model === "dall-e-3" ? "1024x1792" : "1024x1536"; // portrait
   const body: Record<string, unknown> = { model, prompt, n: 1, size };
   if (model === "gpt-image-1") body.quality = "medium";
-  if (model === "dall-e-3") body.response_format = "b64_json";
+  // NB: do NOT send `response_format` — the current OpenAI images API rejects it
+  // ("Unknown parameter"). gpt-image-1 returns b64 by default; dall-e-3 returns a
+  // URL, which callOpenAiImage handles below.
 
   const resp = await fetch("https://api.openai.com/v1/images/generations", {
     method: "POST",
