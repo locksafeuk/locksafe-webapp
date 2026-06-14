@@ -193,6 +193,33 @@ const LOCKSMITH_ADMIN_WHATSAPP_URL =
     "Hi LockSafe admin team, I need support with my locksmith account.",
   ) || "#";
 
+// WhatsApp click-to-chat for emails. Email clients won't open `whatsapp://`
+// deep links, so we use an https `wa.me` web link (opens the app on mobile /
+// WhatsApp Web on desktop). Points at the LockSafe Lockie WhatsApp sender, so a
+// tap lands the locksmith straight in the agentic recruitment conversation.
+const LOCKSAFE_WA_NUMBER = (process.env.TWILIO_WHATSAPP_NUMBER || "+447446588587").replace(/\D/g, "");
+function whatsappEmailUrl(message: string): string {
+  return `https://wa.me/${LOCKSAFE_WA_NUMBER}?text=${encodeURIComponent(message)}`;
+}
+/** Prominent green WhatsApp button for email bodies. */
+function whatsappCtaBlock(
+  message = "Hi LockSafe, I'd like to find out more about joining your locksmith network.",
+): string {
+  return `
+          <div style="text-align:center;margin:0 0 28px;">
+            <a href="${whatsappEmailUrl(message)}" style="display:inline-block;background:#25D366;color:#ffffff !important;text-decoration:none;font-size:15px;font-weight:700;padding:13px 30px;border-radius:10px;">
+              💬 Chat with us on WhatsApp
+            </a>
+            <p style="font-size:12px;color:#94a3b8;margin-top:10px;">Fastest way to reach us — tap to start a conversation, no forms.</p>
+          </div>`;
+}
+/** One-line WhatsApp prompt for email footers. */
+function whatsappFooterLine(
+  message = "Hi LockSafe, I'd like to find out more.",
+): string {
+  return `Prefer to chat? <a href="${whatsappEmailUrl(message)}" style="color:#25D366;font-weight:600;">Message us on WhatsApp</a>`;
+}
+
 interface EmailData {
   to: string;
   subject: string;
@@ -3636,11 +3663,12 @@ export async function sendLocksmithInviteEmail(
             <p class="cta-sub">Or simply reply to this email with any questions — I read every reply personally.</p>
           </div>
 
+${whatsappCtaBlock()}
+
           <p class="closing">
             Looking forward to hopefully working together, ${data.locksmithName}.<br /><br />
             Best regards,<br />
-            <strong>Alex Piky</strong><br />
-            Co-founder, LockSafe UK<br />
+            <strong>Alex from LockSafe</strong><br />
             <a href="tel:+442045771989" style="color:#f97316;">+44 20 4577 1989</a> | <a href="https://locksafe.uk" style="color:#f97316;">locksafe.uk</a>
           </p>
 
@@ -3787,11 +3815,12 @@ export async function sendLocksmithFollowUpEmail(
             <p class="cta-sub">If something in the setup would need to be different for your business, reply and tell us what would make it work.</p>
           </div>
 
+${whatsappCtaBlock("Hi LockSafe, I had another look at your email \u2014 can you tell me more about joining?")}
+
           <p class="closing">
             Thanks for taking a look, ${data.locksmithName}. If the structure is close but not quite right, reply with the part that matters most to you and we’ll work from there.<br /><br />
             Best regards,<br />
-            <strong>Alex Pido</strong><br />
-            Co-founder, LockSafe UK
+            <strong>Alex from LockSafe</strong>
           </p>
         </div>
         <div class="footer">

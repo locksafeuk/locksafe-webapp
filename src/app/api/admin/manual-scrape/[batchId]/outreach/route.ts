@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "@/lib/admin-guard";
 import prisma from "@/lib/db";
 import { sendSMS } from "@/lib/sms";
-import { sendEmail } from "@/lib/email";
+import { sendLocksmithInviteEmail } from "@/lib/email";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -72,11 +72,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
     let sent = 0, failed = 0, noEmail = 0;
     for (const l of leads) {
       if (!l.email) { noEmail++; continue; }
-      const r = await sendEmail({
-        to: l.email,
-        subject: "Paid locksmith jobs near you — join LockSafe UK (free)",
-        html: `<p>Hi ${l.name.split(/\\s+/)[0] || "there"},</p><p>It's Alex from LockSafe UK. We send local emergency/planned locksmith jobs straight to vetted locksmiths — free to join, no monthly fees, you set your own rates and keep the lion's share.</p><p><a href="https://locksafe.uk/join">Join free (about 5 minutes)</a></p><p>— Alex, LockSafe UK</p>`,
-      }).catch(() => ({ success: false }));
+      // Use the same branded recruitment template as the main scraping outreach
+      // (/admin/leads/send-invite) — full LockSafe partner invite, not plain text.
+      const contactName = (l.contactPerson || l.name || "there").split(/\s+/)[0] || "there";
+      const r = await sendLocksmithInviteEmail(
+        l.email,
+        { locksmithName: contactName, city: l.city || "your area" },
+        {
+          signupUrl: "https://locksafe.uk/for-locksmiths?utm_source=invite&utm_medium=email&utm_campaign=manual-scraper",
+        },
+      ).catch(() => ({ success: false }));
       if ((r as { success?: boolean }).success) {
         sent++;
         await prisma.locksmithLead.update({ where: { id: l.id }, data: { status: "contacted", contactedAt: new Date(), contactedBy: "manual-wizard-email" } }).catch(() => {});
