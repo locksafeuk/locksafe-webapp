@@ -107,7 +107,7 @@ function buildLiveConfirmation(name: string | null): string {
 }
 
 /** Try WhatsApp template → SMS → email. Returns the channel used, or null. */
-async function sendNudge(l: Row, detailed: string): Promise<string | null> {
+async function sendNudge(l: Row, detailed: string, gaps: string[]): Promise<string | null> {
   const firstName = (l.name ?? "there").split(/\s+/)[0];
   // 1. WhatsApp (approved Twilio Content template; the bot delivers the specific
   //    missing-steps breakdown when they reply). sendTemplateMessage returns
@@ -115,7 +115,12 @@ async function sendNudge(l: Row, detailed: string): Promise<string | null> {
   //    through to SMS cleanly — no need to pre-check provider config here.
   if (isUKMobile(l.phone)) {
     try {
-      const r = await sendTemplateMessage(l.phone!, WA_TEMPLATE, [firstName]);
+      // profile_incomplete_v1 has THREE variables: {{1}} first name,
+      // {{2}} number of steps left, {{3}} the next step to do. Sending the
+      // wrong number of variables is Twilio Error 63024 (invalid template
+      // parameters), which is exactly what the messaging watchdog caught.
+      const waVars = [firstName, String(gaps.length), GAP[gaps[0]]?.label ?? "finishing your setup"];
+      const r = await sendTemplateMessage(l.phone!, WA_TEMPLATE, waVars);
       if (r.success) return "whatsapp";
     } catch { /* fall through */ }
   }
@@ -202,7 +207,7 @@ export async function GET(request: NextRequest) {
 
   for (const { l, gaps } of batch) {
     const detailed = buildDetailedMessage(l.name, gaps);
-    const channel = await sendNudge(l, detailed);
+    const channel = await sendNudge(l, detailed, gaps);
     if (!channel) { unreachable++; continue; }
 
     byChannel[channel] = (byChannel[channel] ?? 0) + 1;
