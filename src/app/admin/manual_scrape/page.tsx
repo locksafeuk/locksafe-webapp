@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Search, Play, Pause, Download, MessageSquare, Mail, Tag, CheckCircle2 } from "lucide-react";
+import { lookupUkCity, UK_CITY_NAMES, UK_COUNTY_NAMES } from "@/lib/uk-locations";
 
 type Criteria = { keyword: string; city: string; area: string; postcode: string; radiusMiles: string; country: string };
 type Config = { maxResults: number; fields: Record<string, boolean> };
@@ -26,6 +27,21 @@ const STEPS = ["Search", "Configure", "Scrape", "Review", "Outreach", "Report"];
 export default function ManualScrapePage() {
   const [step, setStep] = useState(0);
   const [criteria, setCriteria] = useState<Criteria>({ keyword: "", city: "", area: "", postcode: "", radiusMiles: "", country: "uk" });
+  // Tracks values we auto-filled from the city lookup, so we update them when
+  // the city changes but never clobber a value the user typed themselves.
+  const autoFilled = useRef<{ area: string; postcode: string }>({ area: "", postcode: "" });
+  const onCityChange = (value: string) => {
+    setCriteria((prev) => {
+      const next = { ...prev, city: value };
+      const hit = lookupUkCity(value);
+      if (hit) {
+        if (!prev.area || prev.area === autoFilled.current.area) next.area = hit.county;
+        if (!prev.postcode || prev.postcode === autoFilled.current.postcode) next.postcode = hit.pc;
+        autoFilled.current = { area: next.area, postcode: next.postcode };
+      }
+      return next;
+    });
+  };
   const [config, setConfig] = useState<Config>({ maxResults: 100, fields: Object.fromEntries(FIELD_OPTS.map(([k]) => [k, true])) as Record<string, boolean> });
   const [estimate, setEstimate] = useState<string | null>(null);
   const [estimating, setEstimating] = useState(false);
@@ -134,11 +150,13 @@ export default function ManualScrapePage() {
           <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <Field label="Business keyword *"><Input value={criteria.keyword} placeholder="locksmith, emergency locksmith…" onChange={(e) => setCriteria({ ...criteria, keyword: e.target.value })} /></Field>
-              <Field label="City"><Input value={criteria.city} placeholder="Birmingham" onChange={(e) => setCriteria({ ...criteria, city: e.target.value })} /></Field>
-              <Field label="Area / County"><Input value={criteria.area} placeholder="West Midlands" onChange={(e) => setCriteria({ ...criteria, area: e.target.value })} /></Field>
+              <Field label="City"><Input list="uk-cities" value={criteria.city} placeholder="Birmingham" onChange={(e) => onCityChange(e.target.value)} /></Field>
+              <Field label="Area / County"><Input list="uk-counties" value={criteria.area} placeholder="West Midlands" onChange={(e) => setCriteria({ ...criteria, area: e.target.value })} /></Field>
               <Field label="Postcode (optional)"><Input value={criteria.postcode} placeholder="B1" onChange={(e) => setCriteria({ ...criteria, postcode: e.target.value })} /></Field>
               <Field label="Radius (miles, optional)"><Input value={criteria.radiusMiles} placeholder="10" onChange={(e) => setCriteria({ ...criteria, radiusMiles: e.target.value })} /></Field>
               <Field label="Country"><Input value={criteria.country} onChange={(e) => setCriteria({ ...criteria, country: e.target.value })} /></Field>
+              <datalist id="uk-cities">{UK_CITY_NAMES.map((c) => <option key={c} value={c} />)}</datalist>
+              <datalist id="uk-counties">{UK_COUNTY_NAMES.map((c) => <option key={c} value={c} />)}</datalist>
             </div>
             <div className="flex items-center gap-3">
               <Button variant="outline" onClick={doEstimate} disabled={!criteria.keyword || estimating} className="gap-2">{estimating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}Estimate</Button>
