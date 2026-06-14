@@ -24,7 +24,7 @@ import { useAuth } from "@/components/auth/AuthContext";
 import { LocksmithOnboardingModal } from "@/components/onboarding/LocksmithOnboardingModal";
 import { AvailabilityToggle } from "@/components/locksmith/AvailabilityToggle";
 import { OnboardingTour } from "@/components/locksmith/OnboardingTour";
-import { SetupChecklist } from "@/components/locksmith/SetupChecklist";
+import { SetupChecklist, type ChecklistItem } from "@/components/locksmith/SetupChecklist";
 import { useToast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 
@@ -118,7 +118,7 @@ export default function LocksmithDashboard() {
   const [stripeStatus, setStripeStatus] = useState<StripeStatus | null>(null);
   const [locationStatus, setLocationStatus] = useState<LocationStatus | null>(null);
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
-  const [feeSet, setFeeSet] = useState<boolean | null>(null);
+  const [checklistItems, setChecklistItems] = useState<ChecklistItem[] | null>(null);
   const [insuranceStatus, setInsuranceStatus] = useState<InsuranceStatus | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
@@ -164,6 +164,12 @@ export default function LocksmithDashboard() {
       const profileResponse = await fetch(`/api/locksmith/profile?locksmithId=${user.id}`);
       const profileData = await profileResponse.json();
 
+      // Full required-setup checklist (terms, location, fee, Stripe, photo, insurance)
+      fetch(`/api/locksmith/completeness`)
+        .then((r) => r.json())
+        .then((d) => { if (d.success) setChecklistItems(d.items as ChecklistItem[]); })
+        .catch(() => {});
+
       // Get rating and review count from profile
       let profileRating = 0;
       let profileReviewCount = 0;
@@ -184,7 +190,6 @@ export default function LocksmithDashboard() {
           coverageRadius: profileData.profile.coverageRadius || 10,
         });
         setScheduleEnabled(!!profileData.profile.scheduleEnabled);
-        setFeeSet(profileData.profile.defaultAssessmentFee != null);
         profileRating = profileData.profile.rating || 0;
         profileReviewCount = profileData.profile.reviewCount || 0;
 
@@ -426,8 +431,8 @@ export default function LocksmithDashboard() {
       {!showOnboarding && user?.id && <OnboardingTour page="dashboard" locksmithId={user.id} />}
 
       {/* Setup checklist — call-out fee + base location (data-critical) */}
-      {!showOnboarding && feeSet !== null && locationStatus && (
-        <SetupChecklist feeSet={!!feeSet} locationSet={locationStatus.hasLocation} />
+      {!showOnboarding && checklistItems && (
+        <SetupChecklist items={checklistItems} />
       )}
 
       {/* Availability Toggle - Prominent placement */}
