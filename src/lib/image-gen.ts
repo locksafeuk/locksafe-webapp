@@ -204,8 +204,8 @@ export interface GenerateImageResult {
   filename: string;
   /** Generation seed used */
   seed: number;
-  /** Which backend produced the background: local ComfyUI, or the OpenAI fallback */
-  backend: "comfyui" | "openai";
+  /** Which backend produced the background: free SVG graphic, local ComfyUI, or OpenAI. */
+  backend: "graphic" | "comfyui" | "openai";
 }
 
 /** Generate a raw background buffer via local ComfyUI (fast-fails if unreachable). */
@@ -280,8 +280,59 @@ async function openaiBackground(prompt: string, width: number, height: number): 
 }
 
 /**
- * Generate an image using Flux Schnell (ComfyUI) and upload to Vercel Blob.
- * Returns the permanent public URL.
+ * FREE branded-graphic background (sharp/SVG) — the default poster generator.
+ * No ComfyUI, no OpenAI: a deep-navy→slate gradient with soft orange brand
+ * glows, a vignette, and a small LOCKSAFE UK wordmark. The proofread headline is
+ * overlaid separately. Reliable everywhere (Vercel + Mac), zero cost. Matches
+ * the short-video graphic style. A per-post seed nudges the glow positions so
+ * posts aren't pixel-identical.
+ */
+async function graphicBackground(width: number, height: number, seed: number): Promise<Buffer> {
+  const orange = "#F97316";
+  // Seed-based subtle variation in glow placement.
+  const aX = 22 + (seed % 18);
+  const aY = 16 + ((seed >> 3) % 16);
+  const bX = 70 + ((seed >> 6) % 18);
+  const bY = 64 + ((seed >> 9) % 16);
+  const wmY = Math.round(height * 0.07);
+
+  const svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="rgb(13,20,38)"/>
+        <stop offset="100%" stop-color="rgb(24,37,64)"/>
+      </linearGradient>
+      <radialGradient id="gA" cx="${aX}%" cy="${aY}%" r="46%">
+        <stop offset="0%" stop-color="${orange}" stop-opacity="0.42"/>
+        <stop offset="100%" stop-color="${orange}" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="gB" cx="${bX}%" cy="${bY}%" r="40%">
+        <stop offset="0%" stop-color="${orange}" stop-opacity="0.26"/>
+        <stop offset="100%" stop-color="${orange}" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="vig" cx="50%" cy="50%" r="75%">
+        <stop offset="55%" stop-color="#000000" stop-opacity="0"/>
+        <stop offset="100%" stop-color="#000000" stop-opacity="0.5"/>
+      </radialGradient>
+    </defs>
+    <rect width="${width}" height="${height}" fill="url(#bg)"/>
+    <rect width="${width}" height="${height}" fill="url(#gA)"/>
+    <rect width="${width}" height="${height}" fill="url(#gB)"/>
+    <rect width="${width}" height="${height}" fill="url(#vig)"/>
+    <rect x="${width / 2 - 96}" y="${wmY - 13}" width="16" height="16" rx="3" fill="${orange}"/>
+    <text x="${width / 2 + 12}" y="${wmY}" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-size="30" font-weight="700" letter-spacing="1" fill="#FFFFFF" fill-opacity="0.9">LOCKSAFE UK</text>
+  </svg>`;
+
+  return sharp(Buffer.from(svg)).png().toBuffer();
+}
+
+/**
+ * Generate a branded poster image and upload to Vercel Blob. Returns the
+ * permanent public URL.
+ *
+ * Default = FREE graphic backgrounds (sharp/SVG). Set LOCKSAFE_POSTER_MODE=ai to
+ * use the AI path (ComfyUI → OpenAI) instead — only worth it once ComfyUI is
+ * reliably up or the OpenAI org is verified for gpt-image-1.
  */
 export async function generateImage(opts: GenerateImageOptions): Promise<GenerateImageResult> {
   const { prompt, format = "square", blobPrefix = "social" } = opts;
@@ -296,19 +347,25 @@ export async function generateImage(opts: GenerateImageOptions): Promise<Generat
 
   const [width, height] = dimensions[format];
 
-  // Primary: local ComfyUI (free). Fallback: OpenAI (cloud, works when the Mac
-  // is off). Both produce a text-free background; the headline is overlaid below.
+  // Default: FREE branded-graphic background (sharp/SVG) — reliable, zero cost,
+  // no ComfyUI/OpenAI dependency. Opt into AI backgrounds with LOCKSAFE_POSTER_MODE=ai.
   let imageBuffer: Buffer;
-  let backend: "comfyui" | "openai";
-  try {
-    console.log(`[ImageGen] Generating via ComfyUI (${width}×${height}, seed=${seed})...`);
-    imageBuffer = await comfyBackground(prompt, width, height, seed);
-    backend = "comfyui";
-  } catch (comfyErr) {
-    const msg = comfyErr instanceof Error ? comfyErr.message : String(comfyErr);
-    console.warn(`[ImageGen] ComfyUI unavailable (${msg}) — falling back to OpenAI`);
-    imageBuffer = await openaiBackground(prompt, width, height);
-    backend = "openai";
+  let backend: "graphic" | "comfyui" | "openai";
+  if ((process.env.LOCKSAFE_POSTER_MODE ?? "graphic") === "ai") {
+    try {
+      console.log(`[ImageGen] Generating via ComfyUI (${width}×${height}, seed=${seed})...`);
+      imageBuffer = await comfyBackground(prompt, width, height, seed);
+      backend = "comfyui";
+    } catch (comfyErr) {
+      const msg = comfyErr instanceof Error ? comfyErr.message : String(comfyErr);
+      console.warn(`[ImageGen] ComfyUI unavailable (${msg}) — falling back to OpenAI`);
+      imageBuffer = await openaiBackground(prompt, width, height);
+      backend = "openai";
+    }
+  } else {
+    console.log(`[ImageGen] Generating FREE graphic poster (${width}×${height}, seed=${seed})...`);
+    imageBuffer = await graphicBackground(width, height, seed);
+    backend = "graphic";
   }
 
   // Overlay the proofread headline as real text (clean, typo-free, on-brand).
