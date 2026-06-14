@@ -45,6 +45,7 @@ export async function POST(
     .json()
     .catch(() => ({}));
 
+  try {
   const opp = await prisma.googleAdsOpportunity.findUnique({ where: { id } });
   if (!opp) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (opp.kind !== "COVERAGE") {
@@ -198,6 +199,42 @@ export async function POST(
     cityLabel: opp.geoLabel,
     district: enforcedLanding.district,
   });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    // The Google Ads API quota (keyword-idea generation / search) is the most
+    // common failure here. Surface it as a clear 429 with the retry window
+    // instead of a blank 500, so the admin knows to wait rather than retry-spam.
+    if (/RESOURCE_EXHAUSTED|429|Too many requests/i.test(message)) {
+      const m = message.match(/Retry in (\d+) seconds/);
+      const retrySeconds = m ? Number(m[1]) : null;
+      return NextResponse.json(
+        {
+          error: "google_ads_quota_exhausted",
+          message:
+            "Google Ads API quota is exhausted (developer-token rate limit). " +
+            "Draft generation needs the keyword-ideas API, so it can't run until quota resets" +
+            (retrySeconds
+              ? ` — retry in ~${Math.ceil(retrySeconds / 3600)}h (${retrySeconds}s).`
+              : ". Try again later.") +
+            " It clears on its own; the durable fix is Google Ads Standard API access.",
+          retryAfterSeconds: retrySeconds,
+        },
+        { status: 429 },
+      );
+    }
+    console.error("[opportunities/draft] unhandled error:", message);
+    return NextResponse.json(
+      {
+        error: "draft_generation_failed",
+        message,
+        stack:
+          err instanceof Error
+            ? err.stack?.split("\n").slice(0, 6).join("\n")
+            : undefined,
+      },
+      { status: 500 },
+    );
+  }
 }
 
 export async function DELETE(
