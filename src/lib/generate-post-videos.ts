@@ -50,6 +50,12 @@ export async function generatePendingPostVideos(
   const alert = opts?.alert ?? true;
   const empty: VideoGenSummary = { processed: 0, generated: 0, failed: 0, veoClips: 0, results: [] };
 
+  // Short videos are PAUSED for now (off by default). The graphic/font/audio
+  // quality isn't good enough yet — FB/IG stay on posters. Re-enable with
+  // LOCKSAFE_VIDEO_ENABLED=true once TikTok is live + the engine is polished.
+  if (process.env.LOCKSAFE_VIDEO_ENABLED !== "true") {
+    return { ...empty, skipped: true, reason: "video generation disabled (LOCKSAFE_VIDEO_ENABLED!=true)" };
+  }
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
     return { ...empty, skipped: true, reason: "BLOB_READ_WRITE_TOKEN not configured" };
   }
@@ -115,11 +121,10 @@ export async function generatePendingPostVideos(
         blobPrefix: `social/video/${post.contentPillar ?? "general"}`,
       });
 
-      // Reuse the short across other platforms: ensure the post also targets the
-      // fan-out platforms (default FB + Instagram) so publish-organic posts the
-      // same video there (as a Reel / page video). Publish branches still gate on
-      // a connected account, so adding a platform is harmless if it's not set up.
-      const fanout = (process.env.LOCKSAFE_VIDEO_FANOUT_PLATFORMS ?? "FACEBOOK,INSTAGRAM")
+      // Optional fan-out of the short to other platforms. DEFAULT NONE — FB/IG
+      // stay on posters; videos go only to where the post already targets (TikTok).
+      // Re-enable later per platform via LOCKSAFE_VIDEO_FANOUT_PLATFORMS.
+      const fanout = (process.env.LOCKSAFE_VIDEO_FANOUT_PLATFORMS ?? "")
         .split(",")
         .map((p) => p.trim().toUpperCase())
         .filter(Boolean) as typeof post.platforms;

@@ -15,7 +15,7 @@ import {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const prisma = _prisma as any;
 
-const DEFAULT_ENGINES: VisibilityEngine[] = ["chatgpt", "gemini", "perplexity"];
+const DEFAULT_ENGINES: VisibilityEngine[] = ["chatgpt", "gemini", "copilot"];
 
 // Competitors + directories an AI might recommend instead of LockSafe.
 const COMPETITOR_NAMES = [

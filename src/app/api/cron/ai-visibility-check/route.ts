@@ -1,5 +1,5 @@
 /**
- * AI Visibility cron — asks ChatGPT / Gemini / Perplexity the tracked
+ * AI Visibility cron — asks ChatGPT / Gemini / Copilot (Bing) the tracked
  * prompts and records whether LockSafe is cited. Weekly.
  *
  * Schedule (vercel.json): 0 7 * * 1  (Mon 07:00 UTC)

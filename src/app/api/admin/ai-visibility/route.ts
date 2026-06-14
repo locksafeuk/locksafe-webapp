@@ -29,7 +29,7 @@ async function verifyAdmin() {
   return p?.type === "admin" ? p : null;
 }
 
-const ENGINES = ["chatgpt", "gemini", "perplexity"] as const;
+const ENGINES = ["chatgpt", "gemini", "copilot"] as const;
 
 export async function GET() {
   if (!(await verifyAdmin())) {

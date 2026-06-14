@@ -9,12 +9,21 @@
  *   • lets real network/API errors throw (recorded as "error").
  *
  * Keys (set on Vercel):
- *   OPENAI_API_KEY      — ChatGPT (already configured in prod)
- *   GEMINI_API_KEY      — Gemini
- *   PERPLEXITY_API_KEY  — Perplexity (optional canary)
+ *   OPENAI_API_KEY            — ChatGPT (already configured in prod)
+ *   GEMINI_API_KEY            — Gemini
+ *   AZURE_AI_FOUNDRY_ENDPOINT — Copilot / Microsoft Bing-grounded answers
+ *   AZURE_AI_FOUNDRY_API_KEY  —   "
+ *   AI_VIS_COPILOT_AGENT_ID   —   "  (pre-created agent with the Bing tool)
+ *
+ * "Copilot" here = Azure AI Foundry's "Grounding with Bing Search" — the same
+ * GPT-grounded-on-Bing stack Microsoft Copilot uses. There is no consumer
+ * Copilot API; this is Microsoft's supported path since the standalone Bing
+ * Search API was retired (Aug 2025). It needs a paid Azure subscription, a
+ * provisioned Grounding-with-Bing resource, and an agent — so it stays
+ * "skipped" until those env vars are set.
  */
 
-export type VisibilityEngine = "chatgpt" | "gemini" | "perplexity";
+export type VisibilityEngine = "chatgpt" | "gemini" | "copilot";
 
 export interface EngineResult {
   answer: string;
@@ -101,33 +110,94 @@ async function queryGemini(prompt: string): Promise<EngineResult> {
   return { answer, citedUrls: dedupeUrls(urls) };
 }
 
-// ── Perplexity (chat completions, returns citations) ─────────────────────────
-async function queryPerplexity(prompt: string): Promise<EngineResult> {
-  const key = process.env.PERPLEXITY_API_KEY;
-  if (!key) throw new SkippedEngineError("perplexity", "PERPLEXITY_API_KEY not set");
+// ── Copilot (Azure AI Foundry — Grounding with Bing Search) ──────────────────
+// Microsoft's supported path for Bing-grounded answers with citations. It uses
+// the Agents (Assistants-compatible) API: open a thread+run on a pre-created
+// agent that has the Bing tool, poll until the run completes, then read the
+// assistant message + its url_citation annotations. Env-gated; api-version is
+// configurable so it tracks whatever the Foundry portal issues.
+async function queryCopilot(prompt: string): Promise<EngineResult> {
+  const endpoint = process.env.AZURE_AI_FOUNDRY_ENDPOINT?.replace(/\/+$/, "");
+  const key = process.env.AZURE_AI_FOUNDRY_API_KEY;
+  const agentId = process.env.AI_VIS_COPILOT_AGENT_ID;
+  if (!endpoint || !key || !agentId) {
+    throw new SkippedEngineError(
+      "copilot",
+      "AZURE_AI_FOUNDRY_ENDPOINT / AZURE_AI_FOUNDRY_API_KEY / AI_VIS_COPILOT_AGENT_ID not set",
+    );
+  }
+  const apiVersion = process.env.AI_VIS_AZURE_API_VERSION || "2025-05-01";
+  const headers = { "api-key": key, "Content-Type": "application/json" };
+  const qs = `api-version=${encodeURIComponent(apiVersion)}`;
 
-  const model = process.env.AI_VIS_PERPLEXITY_MODEL || "sonar";
-  const res = await fetch("https://api.perplexity.ai/chat/completions", {
+  // 1) Create a thread and start a run on the Bing-grounded agent.
+  const startRes = await fetch(`${endpoint}/threads/runs?${qs}`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }] }),
+    headers,
+    body: JSON.stringify({
+      assistant_id: agentId,
+      thread: { messages: [{ role: "user", content: prompt }] },
+    }),
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
-  if (!res.ok) throw new Error(`Perplexity ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  if (!startRes.ok) {
+    throw new Error(`Copilot(start) ${startRes.status}: ${(await startRes.text()).slice(0, 200)}`);
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const data: any = await res.json();
+  const run: any = await startRes.json();
+  const threadId: string = run.thread_id;
+  const runId: string = run.id;
+  if (!threadId || !runId) throw new Error("Copilot: missing thread_id/run id in run response");
 
-  const answer = data.choices?.[0]?.message?.content ?? "";
-  const urls: string[] = Array.isArray(data.citations)
-    ? data.citations
-    : (data.search_results ?? []).map((s: { url?: string }) => s.url);
-  return { answer, citedUrls: dedupeUrls(urls) };
+  // 2) Poll the run to completion (overall budget bounded by TIMEOUT_MS).
+  const deadline = Date.now() + TIMEOUT_MS;
+  let status: string = run.status;
+  while (status === "queued" || status === "in_progress" || status === "requires_action") {
+    if (Date.now() > deadline) throw new Error("Copilot: run timed out");
+    await new Promise((r) => setTimeout(r, 1500));
+    const pollRes = await fetch(`${endpoint}/threads/${threadId}/runs/${runId}?${qs}`, {
+      headers,
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (!pollRes.ok) {
+      throw new Error(`Copilot(poll) ${pollRes.status}: ${(await pollRes.text()).slice(0, 200)}`);
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const polled: any = await pollRes.json();
+    status = polled.status;
+  }
+  if (status !== "completed") throw new Error(`Copilot: run ended as "${status}"`);
+
+  // 3) Read the assistant message + its url_citation annotations.
+  const msgRes = await fetch(`${endpoint}/threads/${threadId}/messages?${qs}`, {
+    headers,
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  if (!msgRes.ok) {
+    throw new Error(`Copilot(messages) ${msgRes.status}: ${(await msgRes.text()).slice(0, 200)}`);
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const msgs: any = await msgRes.json();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const assistantMsg = (msgs.data ?? []).find((m: any) => m.role === "assistant");
+
+  let answer = "";
+  const urls: string[] = [];
+  for (const part of assistantMsg?.content ?? []) {
+    const t = part?.text;
+    if (typeof t?.value === "string") answer += (answer ? " " : "") + t.value;
+    for (const a of t?.annotations ?? []) {
+      const u = a?.url_citation?.url ?? a?.url ?? a?.uri;
+      if (typeof u === "string") urls.push(u);
+    }
+  }
+  return { answer: answer.trim(), citedUrls: dedupeUrls(urls) };
 }
 
 export function queryEngine(engine: VisibilityEngine, prompt: string): Promise<EngineResult> {
   switch (engine) {
-    case "chatgpt":    return queryChatGPT(prompt);
-    case "gemini":     return queryGemini(prompt);
-    case "perplexity": return queryPerplexity(prompt);
+    case "chatgpt": return queryChatGPT(prompt);
+    case "gemini":  return queryGemini(prompt);
+    case "copilot": return queryCopilot(prompt);
   }
 }

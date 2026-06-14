@@ -1,5 +1,5 @@
 /**
- * /admin/ai-visibility — are ChatGPT / Gemini / Perplexity citing LockSafe?
+ * /admin/ai-visibility — are ChatGPT / Gemini / Copilot citing LockSafe?
  *
  * Share-of-voice per engine + a prompt×engine matrix + which competitors get
  * cited instead. The weekly cron populates it; "Run now" triggers on demand.
@@ -33,9 +33,9 @@ interface Data {
   promptCount: number;
 }
 
-const ENGINES = ["chatgpt", "gemini", "perplexity"] as const;
+const ENGINES = ["chatgpt", "gemini", "copilot"] as const;
 const ENGINE_LABEL: Record<string, string> = {
-  chatgpt: "ChatGPT", gemini: "Gemini", perplexity: "Perplexity",
+  chatgpt: "ChatGPT", gemini: "Gemini", copilot: "Copilot",
 };
 
 function Cell({ c }: { c: EngineCell }) {
@@ -89,8 +89,8 @@ export default function AiVisibilityPage() {
         </button>
       </div>
       <p className="text-sm text-gray-600 mb-6">
-        Weekly check of whether ChatGPT &amp; Gemini (and Perplexity) recommend LockSafe for the
-        questions customers actually ask. This is the &quot;replace ad clicks&quot; KPI: share of voice.
+        Weekly check of whether ChatGPT, Gemini &amp; Copilot (Microsoft / Bing) recommend LockSafe for
+        the questions customers actually ask. This is the &quot;replace ad clicks&quot; KPI: share of voice.
       </p>
 
       {loading && <p>Loading…</p>}
@@ -100,7 +100,7 @@ export default function AiVisibilityPage() {
         <div className="mb-6 p-4 border border-amber-300 bg-amber-50 rounded text-sm text-amber-900">
           No checks have run yet. Click <strong>Run now</strong>. Engines without an API key are
           recorded as &quot;key?&quot; and skipped: <code>OPENAI_API_KEY</code> (ChatGPT, already set),
-          <code> GEMINI_API_KEY</code> (Gemini), <code> PERPLEXITY_API_KEY</code> (Perplexity).
+          <code> GEMINI_API_KEY</code> (Gemini), <code> AZURE_AI_FOUNDRY_ENDPOINT</code> (Copilot / Bing).
         </div>
       )}
 

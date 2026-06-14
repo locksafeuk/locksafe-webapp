@@ -9,7 +9,9 @@
  * image itself.
  */
 
+import "@/lib/fonts"; // MUST be first: makes bundled Poppins resolvable before sharp loads
 import sharp from "sharp";
+import { POSTER_FONT } from "@/lib/fonts";
 
 const BRAND = {
   orange: "#F97316",
@@ -78,7 +80,7 @@ export async function overlayHeadline(imageBuffer: Buffer, rawHeadline: string):
       .map(
         (ln, i) =>
           `<text x="${pad}" y="${firstLineY + i * lineHeight}" ` +
-          `font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" ` +
+          `font-family="${POSTER_FONT}" ` +
           `font-size="${fontSize}" font-weight="800" fill="${BRAND.white}" letter-spacing="-1">` +
           `${escapeXml(ln)}</text>`
       )

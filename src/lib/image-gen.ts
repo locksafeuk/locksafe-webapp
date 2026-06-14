@@ -11,9 +11,11 @@
  * Image storage uses BLOB_READ_WRITE_TOKEN → @vercel/blob
  */
 
+import "@/lib/fonts"; // MUST be first: makes bundled Poppins resolvable before sharp loads
 import { put } from "@vercel/blob";
 import sharp from "sharp";
 import { overlayHeadline } from "@/lib/poster-overlay";
+import { POSTER_FONT } from "@/lib/fonts";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -319,8 +321,7 @@ async function graphicBackground(width: number, height: number, seed: number): P
     <rect width="${width}" height="${height}" fill="url(#gA)"/>
     <rect width="${width}" height="${height}" fill="url(#gB)"/>
     <rect width="${width}" height="${height}" fill="url(#vig)"/>
-    <rect x="${width / 2 - 96}" y="${wmY - 13}" width="16" height="16" rx="3" fill="${orange}"/>
-    <text x="${width / 2 + 12}" y="${wmY}" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-size="30" font-weight="700" letter-spacing="1" fill="#FFFFFF" fill-opacity="0.9">LOCKSAFE UK</text>
+    <text x="${width / 2}" y="${wmY}" text-anchor="middle" font-family="${POSTER_FONT}" font-size="30" font-weight="700" letter-spacing="2" fill="#FFFFFF" fill-opacity="0.9">LOCKSAFE UK</text>
   </svg>`;
 
   return sharp(Buffer.from(svg)).png().toBuffer();

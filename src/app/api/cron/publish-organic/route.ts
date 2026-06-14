@@ -184,8 +184,7 @@ export async function GET(request: NextRequest) {
           pageId: facebookAccount.pageId || facebookAccount.accountId,
           pageAccessToken: facebookAccount.pageAccessToken || facebookAccount.accessToken,
           message: fbContent,
-          // Reuse the short as a page video when we have one; else the poster image.
-          videoUrl: post.videoUrl || undefined,
+          // Posters only on Facebook for now (videos paused — see generate-post-videos).
           imageUrl: post.imageUrl || undefined,
         });
 
