@@ -237,6 +237,13 @@ model LocksmithLead {
   notes         String?
   contactedAt   DateTime?
   contactedBy   String? // Admin name/id who contacted
+  source        String?   @default("auto") // "auto" (cron) | "manual" (wizard)
+  scrapeBatchId String?   // links to ScrapeBatch when source = manual
+  category      String?
+  googleMapsUrl String?
+  contactPerson String?
+  tags          String[]  @default([])
+  assignedTo    String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
@@ -4339,4 +4346,36 @@ model AiVisibilitySnapshot {
 
   @@index([engine, promptId, runAt])
   @@index([runAt])
+}
+
+
+model ScrapeBatch {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  createdBy     String?
+  // Search criteria
+  keyword       String
+  city          String?
+  area          String?
+  postcode      String?
+  radiusMiles   Int?
+  country       String   @default("uk")
+  // Scrape config
+  maxResults    Int      @default(100)
+  fields        String[] @default([])
+  // Progress
+  status        String   @default("running") // running | paused | completed | error
+  page          Int      @default(0)
+  discovered    Int      @default(0)
+  extracted     Int      @default(0)
+  skipped       Int      @default(0)
+  lastError     String?
+  // Campaign tracking
+  emailsSent    Int      @default(0)
+  smsSent       Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
 }
