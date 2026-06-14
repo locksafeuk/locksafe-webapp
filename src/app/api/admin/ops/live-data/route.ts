@@ -137,6 +137,7 @@ export async function GET(request: NextRequest) {
           coverageRadius: true,
           isActive: true,
           isAvailable: true,
+          onboardingCompleted: true,
         },
         orderBy: { name: "asc" },
       }),
@@ -311,14 +312,28 @@ export async function GET(request: NextRequest) {
       coverageRadius: locksmith.coverageRadius ?? 10,
       isActive: locksmith.isActive,
       isAvailable: locksmith.isAvailable,
+      // Onboarding completeness drives CAMPAIGN eligibility. The Google Ads
+      // coverage gate (enforceCoverageGate → computeCoverageMap) only counts
+      // locksmiths with onboardingCompleted=true. Surfacing it here keeps the
+      // live map honest — otherwise it shows "available" locksmiths the ad
+      // engine can't actually dispatch ad-driven jobs to (2026-06-14: 23 of 53
+      // active locksmiths were available-on-map but not onboarding-complete).
+      onboardingCompleted: locksmith.onboardingCompleted,
+      eligibleForAds: locksmith.isActive && locksmith.onboardingCompleted,
     }));
+
+    // Count of locksmiths that look available on the map but are NOT
+    // campaign-eligible because onboarding isn't complete.
+    const availableNotOnboarded = mappedLocksmiths.filter(
+      (l) => l.isActive && l.isAvailable && !l.onboardingCompleted,
+    ).length;
 
     return NextResponse.json({
       success: true,
       jobs: enriched,
       recentCancelled,
       locksmiths: mappedLocksmiths,
-      stats,
+      stats: { ...stats, availableNotOnboarded },
       updatedAt: new Date().toISOString(),
     });
   } catch (error) {

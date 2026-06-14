@@ -51,6 +51,10 @@ interface Stats {
   enRoute: number;
   onSite: number;
   accepted: number;
+  // Active + available on the map but onboarding incomplete → NOT Google Ads
+  // campaign-eligible. Surfaced so the gap between "available" and "dispatchable
+  // for ad-driven jobs" is visible at a glance.
+  availableNotOnboarded?: number;
 }
 
 interface LocksmithEntry {
@@ -61,6 +65,11 @@ interface LocksmithEntry {
   coverageRadius: number;
   isActive: boolean;
   isAvailable: boolean;
+  // Campaign eligibility — a locksmith only counts for Google Ads coverage
+  // when onboarding is complete. Surfaced so the map distinguishes "available"
+  // from "available AND able to take ad-driven jobs".
+  onboardingCompleted?: boolean;
+  eligibleForAds?: boolean;
 }
 
 // ── Status colour helpers ──────────────────────────────────────────────────
@@ -100,6 +109,11 @@ function getLocksmithStatus(locksmith: LocksmithEntry): {
 } {
   if (!locksmith.isActive) return { label: "Offline", color: "#ef4444" };
   if (!locksmith.isAvailable) return { label: "Unavailable", color: "#f59e0b" };
+  // Available but onboarding incomplete → CANNOT receive ad-driven jobs (the
+  // Google Ads coverage gate excludes them). Shown distinctly so the map isn't
+  // misleading about real, dispatchable, campaign-eligible capacity.
+  if (locksmith.onboardingCompleted === false)
+    return { label: "Available · onboarding incomplete", color: "#a855f7" };
   return { label: "Available", color: "#22c55e" };
 }
 
@@ -164,6 +178,7 @@ export default function AdminOpsPage() {
     enRoute: 0,
     onSite: 0,
     accepted: 0,
+    availableNotOnboarded: 0,
   });
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -529,6 +544,11 @@ export default function AdminOpsPage() {
             <StatChip label="Pending" value={stats.pending} color="red" />
             <StatChip label="En Route" value={stats.enRoute} color="amber" />
             <StatChip label="On Site" value={stats.onSite} color="green" />
+            <StatChip
+              label="Not ad-eligible"
+              value={stats.availableNotOnboarded ?? 0}
+              color="purple"
+            />
           </div>
 
           {lastUpdated && (
@@ -719,6 +739,12 @@ export default function AdminOpsPage() {
               </span>
             </div>
             <div className="flex items-center gap-1.5">
+              <span className="inline-block w-2.5 h-2.5 rounded-full bg-purple-500" />
+              <span className="text-xs text-gray-500">
+                Available · onboarding incomplete (not ad-eligible)
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500" />
               <span className="text-xs text-gray-500">Locksmith offline</span>
             </div>
@@ -774,6 +800,7 @@ function StatChip({
     red: "bg-red-900/40 text-red-300",
     amber: "bg-amber-900/40 text-amber-300",
     green: "bg-green-900/40 text-green-300",
+    purple: "bg-purple-900/40 text-purple-300",
   };
   return (
     <div className={`rounded-lg px-3 py-2 ${colors[color]}`}>
