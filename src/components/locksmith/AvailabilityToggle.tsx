@@ -20,6 +20,8 @@ export function AvailabilityToggle({
   const [isLoading, setIsLoading] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [blockMessage, setBlockMessage] = useState<string | null>(null);
+  const [blockLink, setBlockLink] = useState<string | null>(null);
 
   // Fetch current availability on mount
   useEffect(() => {
@@ -60,6 +62,8 @@ export function AvailabilityToggle({
 
       if (data.success) {
         setIsAvailable(newAvailability);
+        setBlockMessage(null);
+        setBlockLink(null);
         setFeedbackMessage(data.message);
         setShowFeedback(true);
         onToggle?.(newAvailability);
@@ -69,7 +73,15 @@ export function AvailabilityToggle({
           setShowFeedback(false);
         }, 3000);
       } else {
-        console.error("Failed to toggle availability:", data.error);
+        // Blocked (usually required setup incomplete). Tell the locksmith
+        // exactly what's missing and link them to fix it, instead of the
+        // toggle just silently refusing to move.
+        setBlockMessage(
+          data.message ||
+            "You can't go Available yet — please finish your required setup first.",
+        );
+        setBlockLink(data.deepLink || "/locksmith/settings");
+        console.warn("Availability blocked:", data.error, data.alsoMissing);
       }
     } catch (error) {
       console.error("Error toggling availability:", error);
@@ -250,6 +262,22 @@ export function AvailabilityToggle({
           <span className="truncate">{feedbackMessage}</span>
         </div>
       </div>
+
+      {/* Blocked notice — surfaces the server's reason + a link to fix it */}
+      {blockMessage && (
+        <div className="mt-3 flex items-start gap-3 px-4 py-3 rounded-xl text-sm bg-amber-50 text-amber-800 border border-amber-200">
+          <BellOff className="h-4 w-4 flex-shrink-0 mt-0.5" />
+          <span className="flex-1">{blockMessage}</span>
+          {blockLink && (
+            <a
+              href={blockLink}
+              className="font-semibold underline whitespace-nowrap hover:text-amber-900"
+            >
+              Fix now →
+            </a>
+          )}
+        </div>
+      )}
     </div>
   );
 }
