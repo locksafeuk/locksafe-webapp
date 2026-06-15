@@ -316,7 +316,8 @@ export async function drawThingsBackground(prompt: string, width: number, height
   const stylePrompt =
     `${prompt}. Cinematic premium photograph, deep navy and warm amber tones, dramatic ` +
     `lighting, shallow depth of field, generous dark empty space for a headline, ` +
-    `absolutely no text, no words, no letters, no numbers, no logos, no watermark.`;
+    `absolutely no text, no words, no letters, no numbers, no logos, no watermark, ` +
+    `no badges, no uniform writing, no signage, no shop fronts, no vehicle livery, no brand names.`;
 
   const resp = await fetch(`${DRAWTHINGS_API_URL}/sdapi/v1/txt2img`, {
     method: "POST",

@@ -24,7 +24,7 @@ export const POSTER_PROMPTS: Array<{ theme: string; prompt: string; model?: stri
   { theme: "tools_flatlay", prompt: "Top-down flat lay of professional locksmith tools, lock picks and brass keys arranged on a dark slate surface, dramatic side lighting, warm amber highlights, organised" },
   { theme: "home_glow", prompt: "A modern UK home exterior at twilight with warm glowing windows, a feeling of safety and security, deep blue sky, premium real estate photography" },
   { theme: "padlock_macro", prompt: "Macro shot of a heavy brushed-steel padlock and chain with fine water droplets, dramatic moody lighting, deep blue background with a warm amber glow, high detail" },
-  { theme: "locksmith_human", prompt: "A friendly professional UK locksmith in a branded uniform repairing a front door lock for a relieved homeowner on a doorstep, warm natural daylight, candid realistic documentary photography" },
+  { theme: "locksmith_human", prompt: "A friendly professional UK locksmith in plain dark workwear (no badges, no logos, no writing) repairing a front door lock for a relieved homeowner on a doorstep, warm natural daylight, candid realistic documentary photography" },
   { theme: "lockedout_night", prompt: "A worried person standing outside their front door at night, locked out, lit by a warm porch light, realistic, cinematic, moody" },
   { theme: "keys_closeup", prompt: "Close-up of a set of brass and silver house keys resting on a dark wooden surface, warm directional light, shallow depth of field, premium" },
 ];
