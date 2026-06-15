@@ -60,6 +60,12 @@ const GAP: Record<string, { label: string; link: string }> = {
   not_available: { label: "Switch yourself to Available", link: SETTINGS },
   not_active: { label: "Reactivate your account", link: SETTINGS },
   insurance_expired: { label: "Renew your insurance", link: SETTINGS },
+  // These keys come straight from computeCompleteness() and were missing here,
+  // so a locksmith whose last blocking item was their photo/insurance/DBS got
+  // the generic "finishing your setup" fallback in {{3}} instead of the real step.
+  photo: { label: "Add a profile photo", link: SETTINGS },
+  insurance: { label: "Upload your insurance", link: SETTINGS },
+  dbs: { label: "Upload your DBS certificate", link: SETTINGS },
 };
 
 type Row = {
