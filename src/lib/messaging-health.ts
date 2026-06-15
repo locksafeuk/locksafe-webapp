@@ -57,6 +57,12 @@ const hintFor = (code: string) => ERROR_HINTS[code] ?? "See Twilio error code re
 // meaningful volume of them should page us even below the generic threshold.
 const SYSTEMIC_CODES = new Set(["63016", "63003", "63051", "30034", "63024"]);
 
+// Codes that mean a *bad recipient / data-quality* problem (not our system):
+// invalid number, no geo permission, handset off/unreachable, landline/0800,
+// recipient unsubscribed or blocked us. A pile of these means the LEAD LIST has
+// junk numbers — it is NOT a messaging outage, so it must not page "BROKEN".
+const RECIPIENT_CODES = new Set(["21211", "21408", "21610", "63021", "30003", "30005", "30006"]);
+
 const GRAPH = "https://graph.facebook.com/v18.0";
 
 function requiredTemplates(): string[] {
@@ -151,16 +157,32 @@ async function checkTwilio(windowHours: number): Promise<MessagingHealthResult["
   const systemicHits = byErrorCode
     .filter((e) => SYSTEMIC_CODES.has(e.code))
     .reduce((s, e) => s + e.count, 0);
+  const recipientFailed = byErrorCode
+    .filter((e) => RECIPIENT_CODES.has(e.code))
+    .reduce((s, e) => s + e.count, 0);
+  // Failures that point at OUR system (systemic + ambiguous), excluding clear
+  // bad-recipient/data-quality ones. Only these should escalate to a page.
+  const realFailed = failed - recipientFailed;
+  const attempts = delivered + failed;
+  const failRate = attempts > 0 ? failed / attempts : 0;
 
-  // fail = a systemic delivery break or a lot of failures; warn = some failures.
+  // PAGE ("fail") only on a genuine delivery break: a cluster of systemic codes,
+  // or a high failure RATE driven by non-recipient errors. A batch of texts to
+  // landlines/invalid numbers (data quality) is a WARN, never a BROKEN page.
   let state: CheckState = "ok";
-  if (systemicHits >= 3 || failed >= failThreshold) state = "fail";
-  else if (failed > 0) state = "warn";
+  if (systemicHits >= 3 || (realFailed >= failThreshold && failRate >= 0.3)) {
+    state = "fail";
+  } else if (failed > 0) {
+    state = "warn";
+  }
 
+  const dataQualityHeavy = recipientFailed > 0 && recipientFailed >= realFailed;
   const message =
     state === "ok"
       ? `No delivery failures in the last ${windowHours}h (${delivered} delivered).`
-      : `${failed} failed/undelivered of ${inWindow.length} in the last ${windowHours}h.`;
+      : dataQualityHeavy
+        ? `${failed} of ${attempts} sends failed in ${windowHours}h, mostly invalid/landline/blocked numbers (lead-list data quality, not an outage).`
+        : `${failed} failed/undelivered of ${attempts} in the last ${windowHours}h (${realFailed} system-side).`;
 
   return { state, windowHours, failed, delivered, total: inWindow.length, byErrorCode, message };
 }

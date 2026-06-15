@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "@/lib/admin-guard";
 import prisma from "@/lib/db";
 import { sendSMS } from "@/lib/sms";
+import { isUkMobileNumber } from "@/lib/phone";
 import { sendLocksmithInviteEmail } from "@/lib/email";
 
 export const dynamic = "force-dynamic";
@@ -54,9 +55,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
   }
 
   if (action === "sms") {
-    let sent = 0, failed = 0, noPhone = 0;
+    let sent = 0, failed = 0, noPhone = 0, notMobile = 0;
     for (const l of leads) {
       if (!l.phone) { noPhone++; continue; }
+      // SMS only sends to UK mobiles. Scraped Google Maps listings are mostly
+      // business landlines / 0800 numbers / mis-parsed internationals — texting
+      // those just burns spend and trips the messaging-health watchdog.
+      if (!isUkMobileNumber(l.phone)) { notMobile++; continue; }
       const r = await sendSMS(l.phone, SMS_TEXT(l.name.split(/\s+/)[0] || "there"), { channel: "transactional", logContext: `manual-scrape-sms:${l.id}` }).catch(() => ({ success: false }));
       if (r.success) {
         sent++;
@@ -65,7 +70,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
       await new Promise((res) => setTimeout(res, 300));
     }
     await prisma.scrapeBatch.update({ where: { id: batchId }, data: { smsSent: { increment: sent } } }).catch(() => {});
-    return NextResponse.json({ sent, failed, noPhone });
+    return NextResponse.json({ sent, failed, noPhone, notMobile });
   }
 
   if (action === "email") {

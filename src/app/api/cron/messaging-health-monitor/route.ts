@@ -42,8 +42,8 @@ export async function GET(request: NextRequest) {
           : "") +
         `\n${
           unhealthy
-            ? "Locksmiths are not receiving messages. Fix the template/provider or top up the sender, then re-check."
-            : "Some sends are failing — keep an eye on it."
+            ? "A real delivery break (systemic errors or high failure rate). Check the template/provider/sender, then re-check."
+            : "Some sends are failing. If these are invalid/landline numbers it's lead-list data quality, not an outage — clean the list."
         }`,
       severity: unhealthy ? "error" : "warning",
       dedupeKey: `messaging-health:${health.status}`,
