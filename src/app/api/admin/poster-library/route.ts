@@ -53,9 +53,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Provide id and action ('approve'|'reject')" }, { status: 400 });
   }
   const status: PosterAssetStatus = body.action === "approve" ? "APPROVED" : "REJECTED";
+  const existing = await prisma.posterAsset.findUnique({ where: { id: body.id }, select: { qaVerdict: true } });
+  const humanAccepted = body.action === "approve";
+  // Self-learning signal: did the human's decision match the agent's verdict?
+  const qaHumanAgreed =
+    existing?.qaVerdict === "ACCEPT" ? humanAccepted
+    : existing?.qaVerdict === "REJECT" ? !humanAccepted
+    : null;
   await prisma.posterAsset.update({
     where: { id: body.id },
-    data: { status, reviewedAt: new Date(), reviewedBy: String((admin as { email?: string }).email ?? "admin") },
+    data: {
+      status,
+      reviewedAt: new Date(),
+      reviewedBy: String((admin as { email?: string }).email ?? "admin"),
+      qaHumanAgreed,
+    },
   });
-  return NextResponse.json({ success: true, id: body.id, status });
+  return NextResponse.json({ success: true, id: body.id, status, qaHumanAgreed });
 }

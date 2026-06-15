@@ -4428,6 +4428,10 @@ model PosterAsset {
   qaVerdict     String? // "ACCEPT" | "REJECT" | "SKIPPED"
   qaReport      String? // full 20-item breakdown from Gate 2
   qaModel       String? // Gate 2 model used
+  // Self-learning signal: did the human's approve/reject MATCH the agent's
+  // verdict? null = not yet reviewed or agent skipped. Drives the calibration
+  // note fed back into Gate 2 so it converges on Piky's taste over time.
+  qaHumanAgreed Boolean?
 
   // Lifecycle
   reviewedBy String? // admin who approved/rejected

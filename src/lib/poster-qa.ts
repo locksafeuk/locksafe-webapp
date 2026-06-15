@@ -98,8 +98,12 @@ export interface QaResult {
   model: string;
 }
 
-/** Run the two-gate QA on an image buffer. Never throws. */
-export async function runPosterQa(image: Buffer): Promise<QaResult> {
+/**
+ * Run the two-gate QA on an image buffer. Never throws.
+ * `calibrationNote` (built from past human overrides) is prepended to the Gate 2
+ * rubric so the agent's verdict converges on Piky's taste over time.
+ */
+export async function runPosterQa(image: Buffer, calibrationNote?: string): Promise<QaResult> {
   const b64 = image.toString("base64");
 
   // Gate 1 — fast filter. On error, fail OPEN (pass) so QA never blocks.
@@ -118,7 +122,8 @@ export async function runPosterQa(image: Buffer): Promise<QaResult> {
 
   // Gate 2 — full rubric. On error (e.g. model not installed), SKIPPED → human review.
   try {
-    const g2 = await askVision(GATE2_MODEL, GATE2_PROMPT, b64, 180_000);
+    const g2Prompt = calibrationNote ? `${calibrationNote}\n\n${GATE2_PROMPT}` : GATE2_PROMPT;
+    const g2 = await askVision(GATE2_MODEL, g2Prompt, b64, 180_000);
     const verdict: "ACCEPT" | "REJECT" = /VERDICT:\s*ACCEPT/i.test(g2) ? "ACCEPT" : "REJECT";
     return { gate1Pass: true, gate1Reason, verdict, report: g2.slice(0, 4000), model: GATE2_MODEL };
   } catch (err) {

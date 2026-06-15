@@ -30,6 +30,30 @@ export const POSTER_PROMPTS: Array<{ theme: string; prompt: string; model?: stri
   { theme: "keys_closeup", prompt: "Close-up of a set of brass and silver house keys (no stamped text, no brand names, no logos) resting on a dark wooden surface, warm directional light, shallow depth of field, premium" },
 ];
 
+/**
+ * Self-learning: turn recent human OVERRIDES (where Piky disagreed with the QA
+ * agent) into a short calibration note prepended to Gate 2, so the agent adapts
+ * to his taste over time. Returns undefined until any overrides exist.
+ */
+async function buildCalibrationNote(): Promise<string | undefined> {
+  const overrides = await prisma.posterAsset.findMany({
+    where: { qaHumanAgreed: false, qaVerdict: { in: ["ACCEPT", "REJECT"] } },
+    orderBy: { reviewedAt: "desc" },
+    take: 12,
+    select: { theme: true, qaVerdict: true, status: true },
+  });
+  if (overrides.length === 0) return undefined;
+  const lines = overrides.map((o) => {
+    const human = o.status === "APPROVED" ? "ACCEPT" : "REJECT";
+    return `- "${o.theme}" image: you verdicted ${o.qaVerdict}, the human reviewer overruled to ${human}.`;
+  });
+  return (
+    "CALIBRATION FROM PAST HUMAN REVIEWS — you have been corrected before. Adjust your " +
+    "judgement so it matches the human reviewer's taste, shown by these recent overrides:\n" +
+    lines.join("\n")
+  );
+}
+
 export interface LibraryGenSummary {
   skipped?: boolean;
   reason?: string;
@@ -64,11 +88,14 @@ export async function generateLibraryAssets(opts?: { count?: number }): Promise<
   const width = 1080;
   const height = 1350;
 
+  // Self-learning: load Piky's past overrides as a calibration note for Gate 2.
+  const calibration = await buildCalibrationNote();
+
   for (const p of picks) {
     const seed = Math.floor(Math.random() * 2 ** 31);
     try {
       const bg = await drawThingsBackground(p.prompt, width, height, seed);
-      const qa = await runPosterQa(bg);
+      const qa = await runPosterQa(bg, calibration);
       if (!qa.gate1Pass) {
         // Gross defect caught at Gate 1 — discard, don't clutter the library.
         base.gatedOut++;
