@@ -14,7 +14,7 @@
 import "@/lib/fonts"; // MUST be first: makes bundled Poppins resolvable before sharp loads
 import { put } from "@vercel/blob";
 import sharp from "sharp";
-import { overlayHeadline } from "@/lib/poster-overlay";
+import { overlayHeadline, overlayBrandedPoster } from "@/lib/poster-overlay";
 import { POSTER_FONT } from "@/lib/fonts";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
@@ -22,6 +22,15 @@ import { POSTER_FONT } from "@/lib/fonts";
 const COMFYUI_BASE_URL = process.env.COMFYUI_BASE_URL ?? "http://localhost:8188";
 const POLL_INTERVAL_MS = 2_000;
 const MAX_WAIT_MS = 120_000; // 2 minutes max
+
+// Draw Things local HTTP API (A1111-compatible txt2img, FLUX schnell). Set this
+// ONLY on the Mac agent-runner (e.g. http://127.0.0.1:7860). Leave it unset on
+// Vercel so cloud generation falls back to the free graphic card.
+const DRAWTHINGS_API_URL = process.env.DRAWTHINGS_API_URL ?? "";
+// Local Ollama vision model used to QA-gate generated backgrounds before they
+// can be used (rejects text/artifacts). Lives on the Mac alongside Draw Things.
+const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
+const VISION_GATE_MODEL = process.env.LOCKSAFE_VISION_MODEL ?? "qwen2.5vl:7b";
 
 // ─── Flux Schnell ComfyUI workflow ────────────────────────────────────────────
 
@@ -208,8 +217,8 @@ export interface GenerateImageResult {
   filename: string;
   /** Generation seed used */
   seed: number;
-  /** Which backend produced the background: free SVG graphic, local ComfyUI, or OpenAI. */
-  backend: "graphic" | "comfyui" | "openai";
+  /** Which backend produced the background. */
+  backend: "graphic" | "comfyui" | "openai" | "drawthings";
 }
 
 /** Generate a raw background buffer via local ComfyUI (fast-fails if unreachable). */
@@ -281,6 +290,81 @@ async function openaiBackground(prompt: string, width: number, height: number): 
     }
   }
   return sharp(raw).resize(width, height, { fit: "cover" }).png().toBuffer();
+}
+
+/**
+ * Draw Things (local, FLUX schnell) background via its A1111-compatible HTTP API
+ * (POST /sdapi/v1/txt2img). Produces a TEXT-FREE photographic background; the
+ * proofread headline is overlaid separately so there are never typos in the art.
+ * Generates at a capped size (long side ≤ 1024) for speed, then upscales to the
+ * exact poster dimensions. Only used when DRAWTHINGS_API_URL is set (Mac runner).
+ */
+export async function drawThingsBackground(prompt: string, width: number, height: number, seed: number): Promise<Buffer> {
+  if (!DRAWTHINGS_API_URL) throw new Error("DRAWTHINGS_API_URL not set");
+
+  // Fast health check so we fall back quickly instead of hanging on a dead server.
+  const health = await fetch(`${DRAWTHINGS_API_URL}/sdapi/v1/options`, { signal: AbortSignal.timeout(3_000) });
+  if (!health.ok) throw new Error(`Draw Things status ${health.status}`);
+
+  // Cap the generated long side at 1024 (multiple of 64) for speed; upscale after.
+  const longSide = Math.max(width, height);
+  const scale = Math.min(1, 1024 / longSide);
+  const round64 = (n: number) => Math.max(512, Math.round((n * scale) / 64) * 64);
+  const gw = round64(width);
+  const gh = round64(height);
+
+  const stylePrompt =
+    `${prompt}. Cinematic premium photograph, deep navy and warm amber tones, dramatic ` +
+    `lighting, shallow depth of field, generous dark empty space for a headline, ` +
+    `absolutely no text, no words, no letters, no numbers, no logos, no watermark.`;
+
+  const resp = await fetch(`${DRAWTHINGS_API_URL}/sdapi/v1/txt2img`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt: stylePrompt, steps: 4, width: gw, height: gh, seed }),
+    signal: AbortSignal.timeout(180_000),
+  });
+  if (!resp.ok) throw new Error(`Draw Things txt2img ${resp.status}: ${(await resp.text()).slice(0, 200)}`);
+
+  const json = (await resp.json()) as { images?: string[] };
+  const b64 = json.images?.[0]?.replace(/^data:image\/[^;]+;base64,/, "");
+  if (!b64) throw new Error("Draw Things returned no image");
+  const raw = Buffer.from(b64, "base64");
+  return sharp(raw).resize(width, height, { fit: "cover" }).png().toBuffer();
+}
+
+/**
+ * Quality gate: ask the local Ollama vision model whether a generated background
+ * is clean enough to ship (no text, no mangled artifacts/hands/faces). Returns
+ * pass=true to use it. Fails OPEN (pass=true) if the gate itself is unreachable —
+ * a missing Ollama must never block generation — but a clear FAIL is respected.
+ */
+export async function visionGatePass(image: Buffer): Promise<{ pass: boolean; reason: string }> {
+  try {
+    const resp = await fetch(`${OLLAMA_BASE_URL}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: VISION_GATE_MODEL,
+        prompt:
+          "You are a strict QA checker for marketing POSTER BACKGROUNDS. Look at the image. " +
+          "Reply on the FIRST line with exactly PASS or FAIL. FAIL if it shows ANY readable " +
+          "text/letters/words/numbers/watermark/logo, OR mangled/distorted objects, deformed " +
+          "hands or faces, or extra fingers. Otherwise PASS. SECOND line: a short reason.",
+        images: [image.toString("base64")],
+        stream: false,
+        options: { temperature: 0 },
+      }),
+      signal: AbortSignal.timeout(60_000),
+    });
+    if (!resp.ok) return { pass: true, reason: `gate unreachable (${resp.status})` };
+    const data = (await resp.json()) as { response?: string };
+    const text = (data.response ?? "").trim();
+    const pass = /^\s*pass/i.test(text);
+    return { pass, reason: text.replace(/\s+/g, " ").slice(0, 120) || "no reason given" };
+  } catch (err) {
+    return { pass: true, reason: `gate error: ${err instanceof Error ? err.message : String(err)}` };
+  }
 }
 
 /** Greedy word-wrap to ~maxChars per line, capped at maxLines. */
@@ -395,8 +479,32 @@ export async function generateImage(opts: GenerateImageOptions): Promise<Generat
   // Default: FREE branded-graphic background (sharp/SVG) — reliable, zero cost,
   // no ComfyUI/OpenAI dependency. Opt into AI backgrounds with LOCKSAFE_POSTER_MODE=ai.
   let imageBuffer: Buffer;
-  let backend: "graphic" | "comfyui" | "openai";
-  if ((process.env.LOCKSAFE_POSTER_MODE ?? "graphic") === "ai") {
+  let backend: "graphic" | "comfyui" | "openai" | "drawthings";
+  const mode = process.env.LOCKSAFE_POSTER_MODE ?? "graphic";
+
+  if (mode === "drawthings" && DRAWTHINGS_API_URL) {
+    // Real-image posters via local Draw Things, QA-gated, with graphic fallback.
+    try {
+      let bg: Buffer | null = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        console.log(`[ImageGen] Draw Things background (${width}×${height}, seed=${seed + attempt}, try ${attempt + 1})...`);
+        const candidate = await drawThingsBackground(prompt, width, height, seed + attempt);
+        const gate = await visionGatePass(candidate);
+        console.log(`[ImageGen] Vision gate: ${gate.pass ? "PASS" : "FAIL"} — ${gate.reason}`);
+        if (gate.pass) { bg = candidate; break; }
+      }
+      if (!bg) throw new Error("all Draw Things candidates failed the vision gate");
+      // Text-free background → overlay full brand furniture (wordmark + headline +
+      // footer) as real text, matching the graphic cards over the photo.
+      imageBuffer = opts.overlayHeadline ? await overlayBrandedPoster(bg, opts.overlayHeadline) : bg;
+      backend = "drawthings";
+    } catch (dtErr) {
+      const msg = dtErr instanceof Error ? dtErr.message : String(dtErr);
+      console.warn(`[ImageGen] Draw Things unavailable (${msg}) — falling back to graphic card`);
+      imageBuffer = await graphicBackground(width, height, seed, opts.overlayHeadline, opts.overlayKicker);
+      backend = "graphic";
+    }
+  } else if (mode === "ai") {
     try {
       console.log(`[ImageGen] Generating via ComfyUI (${width}×${height}, seed=${seed})...`);
       imageBuffer = await comfyBackground(prompt, width, height, seed);

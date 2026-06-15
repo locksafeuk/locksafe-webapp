@@ -17,6 +17,7 @@
 
 import { prisma } from "@/lib/db";
 import { generateImage, enhanceImagePrompt } from "@/lib/image-gen";
+import { buildPosterFromLibrary } from "@/lib/poster-library";
 import { sendAdminAlert } from "@/lib/telegram";
 
 export interface ImageGenSummary {
@@ -99,6 +100,23 @@ export async function generatePendingPostImages(
     try {
       // Headline for the poster: the post's headline, else derived from content.
       const overlayHeadline = (post.headline?.trim() || deriveHeadline(post.content));
+
+      // LIBRARY mode: use a pre-approved Draw Things background + overlay the
+      // proofread headline. Fast (no model at post time) and quality-checked
+      // upfront. Falls through to the graphic card if the approved pool is empty.
+      if ((process.env.LOCKSAFE_POSTER_MODE ?? "graphic") === "library") {
+        const libUrl = await buildPosterFromLibrary(
+          post.id,
+          overlayHeadline,
+          `social/${post.contentPillar ?? "general"}`
+        );
+        if (libUrl) {
+          await prisma.socialPost.update({ where: { id: post.id }, data: { imageUrl: libUrl } });
+          generated++;
+          results.push({ postId: post.id, success: true, url: libUrl, backend: "library" });
+          continue;
+        }
+      }
 
       // Prompt only matters for the optional AI mode; graphic mode ignores it.
       let prompt = "Branded LockSafe UK locksmith poster background, deep navy and warm gold.";

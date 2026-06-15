@@ -4392,3 +4392,44 @@ model EmailSuppression {
 
   @@index([createdAt])
 }
+
+// ─── Poster image library ──────────────────────────────────────────────────
+// Pre-generated, TEXT-FREE background images (Draw Things, rotating models +
+// prompts). Each is vision-gated on creation, then a human approves the keepers.
+// The posting pipeline picks an APPROVED asset and overlays the post's exact
+// proofread headline/brand — so the art is varied + on-brand, and quality is
+// inspected BEFORE anything goes live.
+enum PosterAssetStatus {
+  PENDING_REVIEW // generated + passed the vision gate, awaiting human approval
+  APPROVED       // human-approved, available for posting
+  REJECTED       // human-rejected, never used
+  USED           // already attached to a published/scheduled post
+}
+
+model PosterAsset {
+  id     String            @id @default(auto()) @map("_id") @db.ObjectId
+  url    String // Vercel Blob URL of the text-free background
+  status PosterAssetStatus @default(PENDING_REVIEW)
+
+  // Provenance
+  prompt   String // the full prompt used
+  theme    String? // library theme key (e.g. "deadbolt", "locksmith_human")
+  model    String? // generation model (e.g. "flux-schnell", "qwen-image")
+  width    Int?
+  height   Int?
+
+  // Vision QA
+  visionPass   Boolean?
+  visionReason String?
+
+  // Lifecycle
+  reviewedBy String? // admin who approved/rejected
+  reviewedAt DateTime?
+  usedByPostId String?  @db.ObjectId
+  usedAt       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+}

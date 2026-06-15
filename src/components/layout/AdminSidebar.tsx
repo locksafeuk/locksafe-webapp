@@ -166,6 +166,7 @@ const navGroups: NavGroup[] = [
       { href: "/admin/marketing", label: "Marketing", icon: Megaphone },
       { href: "/admin/marketing/meta-catalog", label: "Meta Catalog", icon: Megaphone },
       { href: "/admin/organic", label: "Organic Posts", icon: Share2 },
+      { href: "/admin/poster-library", label: "Poster Library", icon: Sparkles },
       { href: "/admin/social-connect", label: "Social Accounts", icon: Share2 },
       { href: "/admin/emails", label: "Email Campaigns", icon: Mail },
       { href: "/admin/seo", label: "Intent SEO", icon: Map },
