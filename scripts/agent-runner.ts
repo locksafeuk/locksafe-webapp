@@ -38,6 +38,7 @@ if (process.env.AGENTS_ENABLED !== "true") {
 import { initializeAgentSystem, runAgentHeartbeats } from "@/agents/index";
 import { sendAdminAlert } from "@/lib/telegram";
 import { generatePendingPostImages } from "@/lib/generate-post-images";
+import { generateLibraryAssets } from "@/lib/poster-library";
 import { generatePendingPostVideos } from "@/lib/generate-post-videos";
 
 // ─── Config ─────────────────────────────────────────────────────────────────
@@ -210,6 +211,23 @@ async function main() {
   // Initialize the full agent system (syncs DB state, registers tools, sets dependencies)
   log("Initializing agent system...");
   await initializeAgentSystem();
+
+  // Keep the poster image library stocked: generate a small batch shortly after
+  // boot and every 6h. No-ops unless Draw Things is reachable (DRAWTHINGS_API_URL).
+  // Passers land as PENDING_REVIEW for admin approval; the posting tick then uses
+  // APPROVED ones (LOCKSAFE_POSTER_MODE=library), falling back to graphic cards.
+  const LIBRARY_INTERVAL_MS = 6 * 60 * 60 * 1000;
+  const libraryTopUp = async () => {
+    try {
+      const r = await generateLibraryAssets({ count: 3 });
+      if (r.generated > 0) log(`🖼  Poster library +${r.generated} pending (gatedOut ${r.gatedOut}, failed ${r.failed}).`);
+      else if (r.skipped) log(`🖼  Poster library skipped — ${r.reason}`);
+    } catch (err) {
+      log(`⚠️  Poster library top-up error: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
+  setTimeout(libraryTopUp, 60_000);
+  setInterval(libraryTopUp, LIBRARY_INTERVAL_MS);
 
   // Small delay, then fire immediately on startup
   setTimeout(async () => {

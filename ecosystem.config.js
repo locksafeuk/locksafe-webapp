@@ -57,6 +57,12 @@ module.exports = {
         OLLAMA_RUNTIME_ENABLED: "true",
         OLLAMA_BASE_URL: "http://localhost:11434",
 
+        // Real-image posters from the approved Draw Things library (overlay our
+        // proofread text). Falls back to the graphic card when the approved pool
+        // is empty. Local-only — Vercel leaves these unset and stays on graphic.
+        LOCKSAFE_POSTER_MODE: "library",
+        DRAWTHINGS_API_URL: "http://127.0.0.1:7860",
+
         // Keep Vercel-specific flag explicitly off so the runtime detector
         // doesn't think we're serverless
         VERCEL: "",
