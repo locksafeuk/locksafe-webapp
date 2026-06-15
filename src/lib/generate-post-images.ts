@@ -77,11 +77,16 @@ export async function generatePendingPostImages(
   const posts = await prisma.socialPost.findMany({
     where: {
       status: { in: ["SCHEDULED", "PENDING_APPROVAL"] },
-      imageUrl: { isSet: false },
+      // Catch both never-set AND empty-string imageUrl. The CMO marketing tool
+      // creates posts with imageUrl:"" (not unset), which `isSet:false` misses —
+      // those would otherwise never get a poster and never publish (the FB media
+      // guard skips empty-string images), leaving them stalled forever.
+      OR: [{ imageUrl: { isSet: false } }, { imageUrl: "" }],
       scheduledFor: { lte: in24h },
     },
     orderBy: { scheduledFor: "asc" },
     take: limit,
+    include: { pillar: true },
   });
 
   if (posts.length === 0) return empty;
@@ -106,7 +111,8 @@ export async function generatePendingPostImages(
           `space in the lower third where a headline will be placed separately.`;
       }
       // Kicker label = the content pillar, prettified (e.g. "anti-fraud" → "Anti Fraud").
-      const kicker = (post.contentPillar || "")
+      // Posts set the pillar via the DB relation OR the contentPillar string — try both.
+      const kicker = ((post.pillar?.name || post.contentPillar || "") as string)
         .replace(/[-_]+/g, " ")
         .replace(/\b\w/g, (c) => c.toUpperCase())
         .trim();

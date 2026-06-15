@@ -322,6 +322,7 @@ async function graphicBackground(
 ): Promise<Buffer> {
   const orange = "#F97316";
   const cx = width / 2;
+  const wmSize = Math.round(width * 0.0667); // ~72 @ 1080 — prominent brand mark
   // Seed nudges the glow so posts aren't pixel-identical.
   const glowX = 70 + (seed % 18);
   const glowY = 12 + ((seed >> 4) % 14);
@@ -360,7 +361,7 @@ async function graphicBackground(
     <rect width="${width}" height="${height}" fill="url(#gl)"/>
     <rect width="${width}" height="${height}" fill="url(#vig)"/>
     <rect x="40" y="40" width="${width - 80}" height="${height - 80}" rx="26" fill="none" stroke="#ffffff" stroke-opacity="0.10" stroke-width="2"/>
-    <text x="${cx}" y="${(height * 0.102).toFixed(0)}" text-anchor="middle" font-family="${POSTER_FONT}" font-size="40" font-weight="700" letter-spacing="1"><tspan fill="#ffffff">Lock</tspan><tspan fill="${orange}">Safe</tspan><tspan fill="#ffffff" letter-spacing="3"> UK</tspan></text>
+    <text x="${cx}" y="${(height * 0.115).toFixed(0)}" text-anchor="middle" font-family="${POSTER_FONT}" font-size="${wmSize}" font-weight="800" letter-spacing="0.5"><tspan fill="#ffffff">Lock</tspan><tspan fill="${orange}">Safe</tspan><tspan fill="#ffffff" letter-spacing="2"> UK</tspan></text>
     ${kickerEl}
     <rect x="${cx - 44}" y="${accentY.toFixed(0)}" width="88" height="7" rx="3.5" fill="${orange}"/>
     ${headEls}
