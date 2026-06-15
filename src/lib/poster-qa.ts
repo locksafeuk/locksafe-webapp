@@ -79,7 +79,10 @@ async function askVision(model: string, prompt: string, imageB64: string, timeou
   const r = await fetch(`${OLLAMA}/api/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model, prompt, images: [imageB64], stream: false, options: { temperature: 0 } }),
+    // Cap the context window: qwen3-vl defaults to a 256K window that balloons
+    // KV-cache memory past this Mac's RAM. One image + the rubric needs only a
+    // few thousand tokens, so 8192 keeps it fast and within memory.
+    body: JSON.stringify({ model, prompt, images: [imageB64], stream: false, options: { temperature: 0, num_ctx: 8192 } }),
     signal: AbortSignal.timeout(timeoutMs),
   });
   if (!r.ok) throw new Error(`${model} HTTP ${r.status}: ${(await r.text()).slice(0, 120)}`);
