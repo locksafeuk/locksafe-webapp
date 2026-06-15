@@ -1,7 +1,7 @@
 /**
  * ai-source.ts — classify AI-assistant / answer-engine traffic.
  *
- * AI assistants (ChatGPT, Gemini, Perplexity, …) almost never append UTM
+ * AI assistants (ChatGPT, Gemini, Copilot, …) almost never append UTM
  * params when a user clicks through to your site. They arrive with no
  * utm_source and just a `referrer` of e.g. `chatgpt.com`. Our attribution
  * keys on utm_source, so without this helper those leads collapse into
@@ -23,7 +23,6 @@
 export type AiEngine =
   | "chatgpt"
   | "gemini"
-  | "perplexity"
   | "copilot"
   | "claude"
   | "other-ai";
@@ -37,7 +36,6 @@ interface Rule {
 const RULES: Rule[] = [
   { engine: "chatgpt",    label: "ChatGPT",    hosts: ["chatgpt.com", "chat.openai.com", "openai.com"] },
   { engine: "gemini",     label: "Gemini",     hosts: ["gemini.google.com", "bard.google.com"] },
-  { engine: "perplexity", label: "Perplexity", hosts: ["perplexity.ai"] },
   { engine: "copilot",    label: "Copilot",    hosts: ["copilot.microsoft.com"] },
   { engine: "claude",     label: "Claude",     hosts: ["claude.ai"] },
 ];
@@ -45,7 +43,6 @@ const RULES: Rule[] = [
 const ENGINE_LABEL: Record<string, string> = {
   chatgpt: "ChatGPT",
   gemini: "Gemini",
-  perplexity: "Perplexity",
   copilot: "Copilot",
   claude: "Claude",
   "other-ai": "Other AI",
@@ -55,7 +52,6 @@ const ENGINE_LABEL: Record<string, string> = {
 export const AI_ENGINE_SLUGS: readonly string[] = [
   "chatgpt",
   "gemini",
-  "perplexity",
   "copilot",
   "claude",
   "other-ai",

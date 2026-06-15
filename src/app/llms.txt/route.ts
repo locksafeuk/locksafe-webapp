@@ -1,6 +1,6 @@
 /**
  * /llms.txt — explicit GEO surface for generative engines (ChatGPT,
- * Perplexity, Claude, Gemini, Google AI Mode). Gives crawlers a clean,
+ * Copilot, Claude, Gemini, Google AI Mode). Gives crawlers a clean,
  * citation-friendly map of the site: positioning, key pages, the full
  * service catalog, and the question-answering guides.
  *

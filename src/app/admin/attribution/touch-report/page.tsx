@@ -213,7 +213,7 @@ export default function TouchReportPage() {
 
               <p className="text-[11px] text-amber-700 mt-3 leading-relaxed">
                 Counts <strong>clicks</strong> from AI assistants (referrer = chatgpt.com,
-                gemini.google.com, perplexity.ai, …). AI search is mostly <strong>zero-click</strong>,
+                gemini.google.com, copilot.microsoft.com, …). AI search is mostly <strong>zero-click</strong>,
                 so this is a <strong>floor</strong>, not the full influence — many who read an AI
                 answer call you directly (shows as &quot;direct&quot;). Gemini answers inside Google
                 Search (AI Overviews) look like organic Google and can&apos;t be split out here.

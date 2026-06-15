@@ -50,7 +50,7 @@ export interface IntentSegment {
   ctaLabel?: string;                   // override "See locksmiths" button text
 }
 
-/** Conversational Q&A for AI Overview / Perplexity / voice search. */
+/** Conversational Q&A for AI Overview / Copilot / voice search. */
 export interface IntentAiSearchItem {
   question: string;
   answer: string;

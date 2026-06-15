@@ -8,7 +8,7 @@
  * Copy applies Neil Patel SEO + Ryan Deiss direct-response principles:
  *   - H1-ready hooks, semantic-related keywords, named entities (BS3621, DBS).
  *   - First-sentence direct answers in FAQs (AEO).
- *   - Self-contained `aiSummary` for GEO snippets (ChatGPT / Perplexity).
+ *   - Self-contained `aiSummary` for GEO snippets (ChatGPT / Copilot).
  *   - Differentiators foregrounded: anti-fraud (price-before-work), 24/7
  *     speed, claim-ready paper trail, DBS-verified locksmiths, urgency.
  */

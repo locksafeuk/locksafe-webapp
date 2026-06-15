@@ -4326,12 +4326,12 @@ model VendorDailyStats {
 }
 
 /// AI-visibility tracking: one row per prompt × engine per run. Records
-/// whether ChatGPT / Gemini / Perplexity cited LockSafe for the questions
+/// whether ChatGPT / Gemini / Copilot cited LockSafe for the questions
 /// customers ask. Powers /admin/ai-visibility.
 model AiVisibilitySnapshot {
   id            String   @id @default(auto()) @map("_id") @db.ObjectId
   runAt         DateTime @default(now())
-  engine        String   // "chatgpt" | "gemini" | "perplexity"
+  engine        String   // "chatgpt" | "gemini" | "copilot"
   promptId      String   // stable id from the prompt seed
   promptText    String
   category      String   // "brand" | "category" | "local" | "competitor"

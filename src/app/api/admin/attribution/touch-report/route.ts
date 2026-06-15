@@ -222,7 +222,7 @@ export async function GET(request: NextRequest) {
     };
   }).sort((a, b) => b.n - a.n);
 
-  // ── AI Assistant rollup (ChatGPT / Gemini / Perplexity / …) ─────────
+  // ── AI Assistant rollup (ChatGPT / Gemini / Copilot / …) ─────────
   // Groups every AI-engine source into one headline channel + per-engine
   // breakdown. This is the outcome metric for the "lean off Google Ads"
   // thesis: real leads + revenue that AI search drove.
