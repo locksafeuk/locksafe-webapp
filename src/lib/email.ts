@@ -182,6 +182,7 @@ import {
   SUPPORT_EMAIL,
 } from "./config";
 import { buildWhatsAppUrl } from "./whatsapp-link";
+import { isEmailSuppressed, buildUnsubscribePageUrl, unsubscribeHeaders } from "./email-unsubscribe";
 import { publicReviewEmailBlock } from "./reviews/public-review-links";
 
 const getResend = () => new Resend(process.env.RESEND_API_KEY);
@@ -225,6 +226,7 @@ interface EmailData {
   subject: string;
   html: string;
   replyTo?: string;
+  headers?: Record<string, string>;
 }
 
 export async function sendEmail(data: EmailData) {
@@ -242,6 +244,7 @@ export async function sendEmail(data: EmailData) {
       subject: data.subject,
       html: data.html,
       ...(data.replyTo ? { reply_to: data.replyTo } : {}),
+      ...(data.headers ? { headers: data.headers } : {}),
     });
 
     // Data Ownership Layer: log every email send via Resend.
@@ -3528,6 +3531,8 @@ export async function sendLocksmithInviteEmail(
     trackPixelUrl?: string;
   },
 ) {
+  if (await isEmailSuppressed(locksmithEmail)) return { success: false, suppressed: true };
+  const unsubUrl = buildUnsubscribePageUrl(locksmithEmail);
   const signupUrl = options?.signupUrl || `${SITE_URL}/for-locksmiths?utm_source=invite&utm_medium=email&utm_campaign=partner-outreach`;
   const subject = options?.subject || `${data.locksmithName} — join LockSafe UK's verified locksmith network (free)`;
   const ctaText = options?.ctaText || "Apply to Join — It's Free";
@@ -3682,7 +3687,7 @@ ${whatsappCtaBlock()}
           </p>
           <p style="margin-top:10px;">
             You're receiving this because your business appeared in our search for independent locksmiths in ${data.city}.<br />
-            <a href="https://locksafe.uk/unsubscribe">Unsubscribe</a>
+            <a href="${unsubUrl}">Unsubscribe</a>
           </p>
         </div>
 
@@ -3697,6 +3702,7 @@ ${whatsappCtaBlock()}
     subject,
     replyTo: "contact@locksafe.uk",
     html,
+    headers: unsubscribeHeaders(locksmithEmail),
   });
 }
 
@@ -3714,6 +3720,8 @@ export async function sendLocksmithFollowUpEmail(
     track: "independent" | "manager";
   },
 ) {
+  if (await isEmailSuppressed(locksmithEmail)) return { success: false, suppressed: true };
+  const unsubUrl = buildUnsubscribePageUrl(locksmithEmail);
   const signupUrl = options?.signupUrl || `${SITE_URL}/for-locksmiths?utm_source=lead_email&utm_medium=outreach&utm_campaign=lead-sequence_followup`;
   const subject = options?.subject || "It seems like the numbers matter";
   const ctaText = options?.ctaText || (options?.track === "manager" ? "Review Team Setup" : "Review the Breakdown");
@@ -3830,7 +3838,7 @@ ${whatsappCtaBlock("Hi LockSafe, I had another look at your email \u2014 can you
           </p>
           <p style="margin-top:10px;">
             You're receiving this because your business appeared in our search for trusted locksmiths in ${data.city}.<br />
-            <a href="https://locksafe.uk/unsubscribe">Unsubscribe</a>
+            <a href="${unsubUrl}">Unsubscribe</a>
           </p>
         </div>
       </div>
@@ -3844,6 +3852,7 @@ ${whatsappCtaBlock("Hi LockSafe, I had another look at your email \u2014 can you
     subject,
     replyTo: "contact@locksafe.uk",
     html,
+    headers: unsubscribeHeaders(locksmithEmail),
   });
 }
 

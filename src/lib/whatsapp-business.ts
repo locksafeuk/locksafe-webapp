@@ -142,6 +142,29 @@ type ConversationState =
 const META_WHATSAPP_API_URL = "https://graph.facebook.com/v18.0";
 const TWILIO_API_URL = "https://api.twilio.com/2010-04-01";
 
+// Human-readable previews of the WhatsApp templates we send, so the ADMIN INBOX
+// logs the actual message (variables filled in) instead of a bare
+// "[template:name]" label. Recipients always get the WhatsApp-rendered template;
+// this is purely for our own conversation log. Bodies mirror the approved Twilio
+// Content templates; {{n}} maps to parameters[n-1]. Unknown templates fall back
+// to the name (plus any params) so nothing is silently lost.
+const TEMPLATE_PREVIEWS: Record<string, string> = {
+  profile_incomplete_v1:
+    "Hi {{1}}, your LockSafe profile has {{2}} item(s) left to complete \u2014 next up: {{3}}. Finish your setup to start receiving jobs: https://www.locksafe.uk/locksmith/settings \u2014 reply here if you need a hand.",
+  locksmith_recruit_invite:
+    "Hi {{1}}, we're inviting trusted locksmiths in {{2}} to join LockSafe UK \u2014 free to join, you set your own rates, and emergency jobs in your area go straight to your phone. Interested? Reply YES and we'll get you set up. Reply STOP to opt out.",
+};
+
+function renderTemplatePreview(templateName: string, parameters: string[] = []): string {
+  const body = TEMPLATE_PREVIEWS[templateName];
+  if (!body) {
+    return parameters.length > 0
+      ? `[template:${templateName}] ${parameters.join(" | ")}`
+      : `[template:${templateName}]`;
+  }
+  return body.replace(/\{\{(\d+)\}\}/g, (_m, n) => parameters[Number(n) - 1] ?? `{{${n}}}`);
+}
+
 type WhatsAppProvider = "meta" | "twilio";
 
 interface WhatsAppProviderConfig {
@@ -279,7 +302,9 @@ function flattenMessageToText(
   }
 
   if (message.type === "template" && message.template) {
-    return `[template:${message.template.name}]`;
+    const bodyComp = (message.template.components ?? []).find((c) => c.type === "body");
+    const bodyParams = (bodyComp?.parameters ?? []).map((pp) => (pp as { text?: string }).text ?? "");
+    return renderTemplatePreview(message.template.name, bodyParams);
   }
 
   return "";
@@ -613,7 +638,7 @@ export async function sendTemplateMessage(
       await recordOutgoingWhatsAppMessage({
         phone: to,
         messageType: "template",
-        content: `[template:${templateName}]`,
+        content: renderTemplatePreview(templateName, parameters),
         providerMessageId: data.sid ?? null,
         rawPayload: { provider: "twilio", contentSid, contentVariables, response: data },
       });

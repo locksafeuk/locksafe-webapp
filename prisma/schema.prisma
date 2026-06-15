@@ -4379,3 +4379,16 @@ model ScrapeBatch {
   @@index([status])
   @@index([createdAt])
 }
+
+/// Email suppression list — addresses that must never receive outreach again
+/// (unsubscribed, spam-reported, or hard-bounced). Checked before every send.
+model EmailSuppression {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  email     String   @unique
+  reason    String?  // "unsubscribe" | "complaint" | "bounce" | "manual"
+  source    String?  // where it came from (e.g. "email_link", "one_click", "abuse_report")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdAt])
+}
