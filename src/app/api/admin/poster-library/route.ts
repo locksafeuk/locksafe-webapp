@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     where: { status: STATUSES.includes(status) ? status : "PENDING_REVIEW" },
     orderBy: { createdAt: "desc" },
     take: 60,
-    select: { id: true, url: true, theme: true, model: true, visionReason: true, createdAt: true, status: true },
+    select: { id: true, url: true, theme: true, model: true, visionReason: true, createdAt: true, status: true, qaVerdict: true, qaReport: true, qaGate1Reason: true },
   });
 
   return NextResponse.json({ success: true, counts, assets });

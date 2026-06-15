@@ -13,6 +13,9 @@ interface Asset {
   visionReason: string | null;
   createdAt: string;
   status: string;
+  qaVerdict?: string | null;
+  qaReport?: string | null;
+  qaGate1Reason?: string | null;
 }
 
 const TABS = ["PENDING_REVIEW", "APPROVED", "REJECTED", "USED"] as const;
@@ -114,8 +117,24 @@ export default function PosterLibraryPage() {
                     <span className="text-xs font-semibold text-slate-700">{a.theme || "—"}</span>
                     <span className="text-[10px] text-slate-400">{a.model}</span>
                   </div>
-                  {a.visionReason && (
-                    <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">{a.visionReason}</p>
+                  {a.qaVerdict && (
+                    <span
+                      className={`inline-block mt-1.5 text-[10px] font-bold px-2 py-0.5 rounded ${
+                        a.qaVerdict === "ACCEPT"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : a.qaVerdict === "REJECT"
+                          ? "bg-red-100 text-red-700"
+                          : "bg-slate-100 text-slate-500"
+                      }`}
+                    >
+                      QA agent: {a.qaVerdict}
+                    </span>
+                  )}
+                  {a.qaReport && (
+                    <details className="mt-1.5">
+                      <summary className="text-[11px] text-slate-500 cursor-pointer">QA report</summary>
+                      <pre className="text-[10px] text-slate-500 whitespace-pre-wrap mt-1 max-h-40 overflow-auto">{a.qaReport}</pre>
+                    </details>
                   )}
                   {tab === "PENDING_REVIEW" && (
                     <div className="flex gap-2 mt-3">

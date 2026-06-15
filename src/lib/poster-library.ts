@@ -14,7 +14,8 @@
 
 import { put } from "@vercel/blob";
 import { prisma } from "@/lib/db";
-import { drawThingsBackground, visionGatePass } from "@/lib/image-gen";
+import { drawThingsBackground } from "@/lib/image-gen";
+import { runPosterQa } from "@/lib/poster-qa";
 import { overlayBrandedPoster } from "@/lib/poster-overlay";
 
 /** Subject prompts (brand style + "no text" suffix are added by drawThingsBackground). */
@@ -67,29 +68,43 @@ export async function generateLibraryAssets(opts?: { count?: number }): Promise<
     const seed = Math.floor(Math.random() * 2 ** 31);
     try {
       const bg = await drawThingsBackground(p.prompt, width, height, seed);
-      const gate = await visionGatePass(bg);
-      if (!gate.pass) {
+      const qa = await runPosterQa(bg);
+      if (!qa.gate1Pass) {
+        // Gross defect caught at Gate 1 — discard, don't clutter the library.
         base.gatedOut++;
-        base.results.push({ theme: p.theme, ok: true, status: "GATED_OUT", reason: gate.reason });
+        base.results.push({ theme: p.theme, ok: true, status: "GATE1_REJECT", reason: qa.gate1Reason });
         continue;
       }
+      // Shadow mode by default: store PENDING_REVIEW with the QA verdict recorded
+      // so you can compare the agent's call to your own. Set
+      // LOCKSAFE_QA_AUTOAPPROVE=true to let Gate 2 decide automatically.
+      const autoApprove = process.env.LOCKSAFE_QA_AUTOAPPROVE === "true";
+      let status: "PENDING_REVIEW" | "APPROVED" | "REJECTED" = "PENDING_REVIEW";
+      if (autoApprove && qa.verdict === "ACCEPT") status = "APPROVED";
+      else if (autoApprove && qa.verdict === "REJECT") status = "REJECTED";
+
       const blobPath = `poster-library/${p.theme}-${Date.now()}-${seed}.png`;
       const { url } = await put(blobPath, bg, { access: "public", contentType: "image/png" });
       await prisma.posterAsset.create({
         data: {
           url,
-          status: "PENDING_REVIEW",
+          status,
           prompt: p.prompt,
           theme: p.theme,
           model: p.model ?? "flux-schnell",
           width,
           height,
-          visionPass: true,
-          visionReason: gate.reason,
+          visionPass: qa.gate1Pass,
+          visionReason: qa.gate1Reason,
+          qaGate1Pass: qa.gate1Pass,
+          qaGate1Reason: qa.gate1Reason,
+          qaVerdict: qa.verdict,
+          qaReport: qa.report,
+          qaModel: qa.model,
         },
       });
       base.generated++;
-      base.results.push({ theme: p.theme, ok: true, status: "PENDING_REVIEW", url, reason: gate.reason });
+      base.results.push({ theme: p.theme, ok: true, status, reason: `QA ${qa.verdict}`, url });
     } catch (err) {
       base.failed++;
       base.results.push({ theme: p.theme, ok: false, reason: err instanceof Error ? err.message : String(err) });

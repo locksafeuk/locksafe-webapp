@@ -4418,9 +4418,16 @@ model PosterAsset {
   width    Int?
   height   Int?
 
-  // Vision QA
+  // Vision QA (first-pass gate)
   visionPass   Boolean?
   visionReason String?
+
+  // Two-gate QA approval agent (Gate 1 fast filter → Gate 2 full 20-item rubric)
+  qaGate1Pass   Boolean?
+  qaGate1Reason String?
+  qaVerdict     String? // "ACCEPT" | "REJECT" | "SKIPPED"
+  qaReport      String? // full 20-item breakdown from Gate 2
+  qaModel       String? // Gate 2 model used
 
   // Lifecycle
   reviewedBy String? // admin who approved/rejected
