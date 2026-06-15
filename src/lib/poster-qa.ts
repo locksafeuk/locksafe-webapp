@@ -62,8 +62,8 @@ REALISM & AI-FAILURE CHECKS
 14. No duplicated, melted, or floating objects; shadows and perspective are consistent; surfaces are not plasticky or over-smoothed.
 
 TEXT & MARKS
-15. No text, logos, or watermarks anywhere — including garbled micro-text on badges, keypads, vans, or signage. Inspect small details closely.
-16. No real trademarked hardware brands (Yale, Chubb, Banham, ADT) and no recognisable real individuals.
+15. No READABLE text, words, letters, numbers, or watermarks anywhere, and no garbled/fake lettering on badges, keypads, vans, or signage — inspect small details closely. (Incidental NON-TEXT physical marks — key cuts, minor engravings, scratches, wear — are ACCEPTABLE; only FAIL for actual readable text or lettering.)
+16. No recognisable real trademarked brand logo or wordmark (Yale, Chubb, Banham, ADT) and no recognisable real individuals. (Tiny ambiguous emblems with no readable brand name are acceptable.)
 
 COMPOSITION & TECHNICAL
 17. Correct aspect ratio for a web hero, and the subject + headline space survive a mobile centre-crop.
