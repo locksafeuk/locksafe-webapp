@@ -509,6 +509,41 @@ export async function GET(request: NextRequest) {
     details: { setCount: msSet, total: msVars.length, vars: msVars.map((k) => ({ key: k, set: Boolean(process.env[k]) })) },
   });
 
+
+  // ── 11. NEVER PERFORMANCE MAX (§27) — Google-pushed PMax violates §10/§16/§22
+  // Any campaign whose advertising_channel_type is not SEARCH is a footgun:
+  // PMax / Display / YouTube / Discovery cannot respect the locksmith-token
+  // ban (§10), the coverage gate (§16), or the master negatives discipline
+  // (§22) because none of those features are per-keyword. They optimise on
+  // Google's terms, not ours, and historically bankrupt locksmith accounts.
+  try {
+    type ChannelRow = { campaign?: { id?: string; name?: string; status?: string; advertisingChannelType?: string } };
+    const nonSearch = (await client.query(`
+      SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type
+        FROM campaign
+       WHERE campaign.status IN (ENABLED, PAUSED)
+         AND campaign.advertising_channel_type != SEARCH
+    `)) as ChannelRow[];
+    const offenders = nonSearch
+      .map((r) => r.campaign)
+      .filter((c) => c !== undefined)
+      .map((c) => ({ id: c!.id, name: c!.name, status: c!.status, channel: c!.advertisingChannelType }));
+    checks.push({
+      name:    "11. Never Performance Max / non-Search (§27)",
+      pass:    offenders.length === 0,
+      message: offenders.length === 0
+        ? "All campaigns are SEARCH only. No PMax, Display, YouTube or Discovery."
+        : `${offenders.length} non-Search campaign(s) found — discard or remove them. PMax cannot respect §10/§16/§22 and bankrupts locksmith accounts.`,
+      details: { offenders },
+    });
+  } catch (err) {
+    checks.push({
+      name:    "11. Never Performance Max / non-Search (§27)",
+      pass:    false,
+      message: `Failed to query: ${err instanceof Error ? err.message : String(err)}`,
+    });
+  }
+
   const ok = checks.every((c) => c.pass);
   return NextResponse.json({
     ok,
