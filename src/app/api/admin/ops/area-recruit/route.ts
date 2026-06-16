@@ -45,6 +45,27 @@ function normUkMobile(raw: string | null): string | null {
 }
 const isJunk = (e164: string) => e164.startsWith("+447451");
 
+// Business listings rarely have a real person's name — the "name" is usually the
+// company ("The Key Co", "ACL Locks", "Mr Locksmith"). Greeting those with the
+// first word reads like a bot ("Hi The,", "Hi Mr,"). So only use the first word
+// when it's plausibly a personal name; otherwise fall back to a clean "there".
+const NON_NAME_FIRST_WORDS = new Set([
+  "the", "a", "mr", "mrs", "ms", "miss", "dr", "sir", "ltd", "limited", "co",
+  "company", "uk", "local", "fast", "auto", "emergency", "services", "service",
+  "solutions", "security", "secure", "247", "24",
+]);
+function friendlyFirstName(name?: string | null): string {
+  const raw = (name || "").trim();
+  if (!raw) return "there";
+  const first = raw.split(/\s+/)[0].replace(/[^a-zA-Z]/g, "");
+  if (first.length < 3) return "there";
+  const lower = first.toLowerCase();
+  if (NON_NAME_FIRST_WORDS.has(lower)) return "there";
+  if (/lock|key|secur|smith/i.test(first)) return "there"; // business token
+  if (first.length <= 3 && first === first.toUpperCase()) return "there"; // acronym (JIR, CSM, BW, ACL)
+  return first;
+}
+
 function buildMsg(firstName: string, city: string): string {
   return (
     `Hi ${firstName}, Alex from LockSafe UK. We've got paid locksmith work in ${city} ` +
@@ -83,7 +104,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     city,
     count: targets.length,
-    sampleMessage: buildMsg(targets[0]?.name.split(" ")[0] || "there", city),
+    sampleMessage: buildMsg(friendlyFirstName(targets[0]?.name), city),
     targets: targets.map((t) => ({ name: t.name, phone: t.phone })),
   });
 }
@@ -103,7 +124,7 @@ export async function POST(request: NextRequest) {
   let sent = 0;
   let failed = 0;
   for (const t of targets) {
-    const firstName = t.name.split(/\s+/)[0] || "there";
+    const firstName = friendlyFirstName(t.name);
     const text = body.message ? body.message : buildMsg(firstName, city);
     try {
       const r = await sendSMS(t.phone, text, { channel: "transactional", logContext: `area-recruit:${t.id}` });
