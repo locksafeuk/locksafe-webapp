@@ -68,8 +68,9 @@ export async function GET(request: NextRequest) {
           pillar: true,
           imageTemplate: true,
         },
+        // Newest first: most recent posts on top, older ones drop to the bottom.
         orderBy: [
-          { scheduledFor: "asc" },
+          { scheduledFor: "desc" },
           { createdAt: "desc" },
         ],
         skip,
