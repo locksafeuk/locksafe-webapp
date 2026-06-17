@@ -51,6 +51,60 @@ export async function POST(
     );
   }
 
+  // §34 (2026-06-17, GODMODE) — test-upload-required-before-relaunch gate.
+  // Read the most recent ConversionTestUpload row. If it's older than 24h
+  // OR its status != 200, refuse the publish. The fix is to re-run
+  // GET /api/admin/google-ads/conversions/test-upload from the admin UI
+  // and have it return ok=true within the last day. This prevents another
+  // Liverpool-style £648/0 conv burn where the uploader was silently
+  // broken and nobody noticed because no conversion ever needed it.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const _p = prisma as any;
+  const lastTest = await _p.conversionTestUpload.findFirst({
+    orderBy: { createdAt: "desc" },
+  });
+  const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const gateBypass = process.env["DISABLE_TEST_UPLOAD_GATE"] === "true";
+  if (!gateBypass) {
+    if (!lastTest) {
+      return NextResponse.json(
+        {
+          error: "test-upload gate failed — run /api/admin/google-ads/conversions/test-upload first",
+          reasonCode: "test_upload_never_run",
+          rule: "§34",
+        },
+        { status: 412 },
+      );
+    }
+    const ageMs = now - new Date(lastTest.createdAt).getTime();
+    if (ageMs > TWENTY_FOUR_HOURS_MS) {
+      return NextResponse.json(
+        {
+          error: "test-upload gate failed — run /api/admin/google-ads/conversions/test-upload first",
+          reasonCode: "test_upload_stale",
+          rule: "§34",
+          ageHours: Math.round(ageMs / 3_600_000),
+          lastRunAt: lastTest.createdAt,
+        },
+        { status: 412 },
+      );
+    }
+    if (lastTest.status !== 200) {
+      return NextResponse.json(
+        {
+          error: "test-upload gate failed — run /api/admin/google-ads/conversions/test-upload first",
+          reasonCode: "test_upload_last_failed",
+          rule: "§34",
+          lastStatus: lastTest.status,
+          lastOutcome: lastTest.outcome,
+          lastRunAt: lastTest.createdAt,
+        },
+        { status: 412 },
+      );
+    }
+  }
+
   // Spend-guard: even an admin-driven publish must pass the hard caps so a
   // misclick can't blow through the monthly budget. Admin initiator bypasses
   // the autonomyEnabled flag but still respects per-campaign / daily / monthly caps.

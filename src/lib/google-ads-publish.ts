@@ -22,6 +22,7 @@ import { captureAndStoreSnapshot } from "./google-ads-snapshot";
 import { assertLandingPageReady } from "./google-ads-landing-preflight";
 import { assertAdCopyClean } from "./google-ads-copy-guard";
 import { normalizeLocationMatchType } from "@/lib/google-ads-location-match-type";
+import { resolveCpcCeilingFromLabel } from "@/lib/google-ads-cpc-matrix";
 
 interface PublishResult {
   draftId: string;
@@ -257,9 +258,21 @@ export async function publishGoogleAdsDraft(draftId: string): Promise<PublishRes
   await assertLandingPageReady(draft.finalUrl);
 
   // Ad-copy compliance: never hand Google (or customers) a false "no call-out
-  // fee" / "no fees" claim or an unprovable price superlative. Throws
+  // fee" / "no fees" claim, an unprovable price superlative, or a numeric
+  // review-count claim not backed by the substantiated count. Throws
   // AdCopyPreflightError (publish route → 422) before any Google mutation.
-  assertAdCopyClean(draft.headlines ?? [], draft.descriptions ?? []);
+  // The substantiated count lives in env (TRUSTPILOT_REVIEW_COUNT) — defaults
+  // to 0, which means ANY "N Trustpilot reviews" copy is rejected. Set the
+  // env once the account passes 50 verified reviews to unlock the §30 #4
+  // primary headline.
+  const trustpilotReviewCount = Number(
+    process.env["TRUSTPILOT_REVIEW_COUNT"] ?? "0",
+  );
+  assertAdCopyClean(draft.headlines ?? [], draft.descriptions ?? [], {
+    trustpilotReviewCount: Number.isFinite(trustpilotReviewCount)
+      ? trustpilotReviewCount
+      : 0,
+  });
 
   const client = await getGoogleAdsClientForAccount(draft.accountId);
   if (!client) {
@@ -304,7 +317,14 @@ export async function publishGoogleAdsDraft(draftId: string): Promise<PublishRes
     //     The `maximize_clicks` field only exists on PORTFOLIO BiddingStrategy
     //     resources, not Campaign — separate concept.
     //   • MAXIMIZE_CONVERSIONS — fallback for legacy drafts.
-    const { PLAYBOOK_GUARDRAILS: PG } = await import("./google-ads-draft-enforcement");
+    // §28 — Per-region CPC cap matrix (2026-06-17). The flat £6 ceiling that
+    // shipped from 2026-06-09 was buying the bottom of every UK locksmith
+    // auction (research: SwiftLead, CPS Media, Heavyweight Digital). We
+    // now resolve the cap by region tier: town £6 / regional £14 / metro
+    // £20. The draft.name is the only label currently available at publish
+    // time (no per-draft regionTier column yet); citySlugFromLabel strips
+    // postcode suffixes ("Liverpool L1 v2" → "liverpool" → regional → £14).
+    const cpcCeilingGbp = resolveCpcCeilingFromLabel(draft.name);
     const biddingPayload =
       draft.biddingStrategy === "TARGET_CPA" && draft.targetCpa
         ? { targetCpa: { targetCpaMicros: gbpToMicros(draft.targetCpa) } }
@@ -313,7 +333,7 @@ export async function publishGoogleAdsDraft(draftId: string): Promise<PublishRes
           : draft.biddingStrategy === "MAXIMIZE_CLICKS"
             ? {
                 targetSpend: {
-                  cpcBidCeilingMicros: gbpToMicros(PG.CPC_BID_CEILING_GBP),
+                  cpcBidCeilingMicros: gbpToMicros(cpcCeilingGbp),
                 },
               }
             : { maximizeConversions: {} };

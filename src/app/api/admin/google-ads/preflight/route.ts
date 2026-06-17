@@ -544,6 +544,61 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  // ── 12. §31 PRESENCE-only geo targeting (ENABLED + PAUSED) ──────────
+  // §31 (2026-06-17, GODMODE) hardens what check #5 verifies for ENABLED
+  // campaigns: ANY ENABLED *or* PAUSED campaign whose
+  // geo_target_type_setting.positive_geo_target_type is not exactly
+  // "PRESENCE" is a footgun. The previous "DONT_CARE" default behaviour
+  // (presence-AND-interest) leaks spend on people searching about the city
+  // from somewhere else (Milton-Keynes traveller pattern, GODMODE plan
+  // Cause 1). A PAUSED campaign that's resumed without anyone noticing
+  // would burn money on the same leak — hence we cover PAUSED too.
+  //
+  // The fix when this fails: edit the campaign's Locations setting to
+  // "People in or regularly in your targeted locations" — that is the UI
+  // label for the PRESENCE enum on the API side.
+  try {
+    type PresenceRow = {
+      campaign?: {
+        id?: string;
+        name?: string;
+        status?: string;
+        geoTargetTypeSetting?: { positiveGeoTargetType?: string };
+      };
+    };
+    const presenceRows = (await client.query(`
+      SELECT campaign.id, campaign.name, campaign.status,
+             campaign.geo_target_type_setting.positive_geo_target_type
+        FROM campaign
+       WHERE campaign.status IN (ENABLED, PAUSED)
+    `)) as PresenceRow[];
+    const presence12Offenders = presenceRows
+      .map((r) => r.campaign)
+      .filter((c) => c !== undefined)
+      .filter((c) => c!.geoTargetTypeSetting?.positiveGeoTargetType !== "PRESENCE")
+      .map((c) => ({
+        id:        c!.id,
+        name:      c!.name,
+        status:    c!.status,
+        positive:  c!.geoTargetTypeSetting?.positiveGeoTargetType
+                     ?? "DONT_CARE (default = presence_and_interest)",
+      }));
+    checks.push({
+      name:    "12. §31 PRESENCE-only on every ENABLED + PAUSED campaign (2026-06-17)",
+      pass:    presence12Offenders.length === 0,
+      message: presence12Offenders.length === 0
+        ? "Every ENABLED + PAUSED campaign targets PRESENCE only. No Milton-Keynes-style traveller leak even if a paused campaign is resumed."
+        : `${presence12Offenders.length} campaign(s) on something other than PRESENCE — fix in UI: Settings → Locations → People → "Presence: People in or regularly in your targeted locations".`,
+      details: { offenders: presence12Offenders },
+    });
+  } catch (err) {
+    checks.push({
+      name:    "12. §31 PRESENCE-only on every ENABLED + PAUSED campaign (2026-06-17)",
+      pass:    false,
+      message: `Failed to query: ${err instanceof Error ? err.message : String(err)}`,
+    });
+  }
+
   const ok = checks.every((c) => c.pass);
   return NextResponse.json({
     ok,

@@ -1699,6 +1699,42 @@ model GoogleAdsGeoAuditEntry {
   @@index([action, detectedAt])
 }
 
+/// §34 (2026-06-17, GODMODE plan) — test-upload-before-relaunch gate.
+///
+/// Every successful or failed call to
+/// GET /api/admin/google-ads/conversions/test-upload writes a row here.
+/// The draft publish endpoint queries the most recent row before flipping
+/// a draft to ENABLED in Google Ads: if it's older than 24h OR
+/// status != 200, the publish is blocked with a clear error so admins
+/// re-run the test-upload first.
+///
+/// Why this matters: the £648 / 0 conv Liverpool L1 v2 burn was the
+/// uploader silently failing for weeks (debugEnabled 400 bug, fixed
+/// 2026-06-14 commit 0001c2b). Without a recency gate we have no
+/// guarantee the next campaign won't repeat the same silent loss.
+model ConversionTestUpload {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  /// HTTP status code we returned to the caller. 200 = pass, anything
+  /// else = fail.
+  status Int
+  /// "ok" | "auth_error" | "missing_env" | "google_throw" | "google_partial_failure"
+  outcome String
+  /// The conversion action resource we validated against. Null if the
+  /// env var was missing.
+  conversionAction String?
+  /// Raw partialFailureError JSON when present, otherwise null.
+  partialFailureError Json?
+  /// Free-text error / note from the handler. Truncated to 2000 chars.
+  notes String?
+  /// Admin who triggered the call (from JWT). "cron" if a scheduled
+  /// task ever runs it.
+  triggeredBy String?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([status, createdAt])
+}
+
 model GoogleAdsSharedNegativeList {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId
   name         String

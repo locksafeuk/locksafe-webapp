@@ -657,11 +657,28 @@ export function enforceDraftGuardrails(
     }
   }
 
-  // 9. Location match type — HARD OVERRIDE to PRESENCE. ─────────────────
+  // 9. Location match type — §31 HARD REJECT on PRESENCE_OR_INTEREST. ──
   // PRESENCE = only people physically in the target area.
   // PRESENCE_OR_INTEREST = also people searching about the area from
-  // anywhere — dilutes attribution, banned per playbook §15.
-  if (out.locationMatchType !== PLAYBOOK_GUARDRAILS.LOCATION_MATCH_TYPE) {
+  // anywhere — dilutes attribution AND has been observed leaking spend to
+  // Milton-Keynes-style traveller searches (playbook §15 + 2026-06-17
+  // GODMODE). §31 hardens the rule: any draft that explicitly carries
+  // PRESENCE_OR_INTEREST is now REJECTED (no silent auto-fix), because a
+  // silent fix masks an upstream bug in the generator. Undefined /
+  // missing values still auto-correct to PRESENCE — that's the safe
+  // default for legacy callers.
+  if (out.locationMatchType === "PRESENCE_OR_INTEREST") {
+    if (opts.allowOverride) {
+      // explicit admin override — caller is responsible for prominent logging.
+    } else {
+      violations.push({
+        field: "locationMatchType",
+        expected: "PRESENCE (§31 — PRESENCE_OR_INTEREST is HARD REJECTED, not silently auto-fixed)",
+        actual: "PRESENCE_OR_INTEREST",
+        severity: "error",
+      });
+    }
+  } else if (out.locationMatchType !== PLAYBOOK_GUARDRAILS.LOCATION_MATCH_TYPE) {
     if (opts.allowOverride) {
       // explicit admin override
     } else {

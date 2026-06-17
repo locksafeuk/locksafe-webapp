@@ -86,6 +86,14 @@
       "schedule": "0 7 * * *"
     },
     {
+      "path": "/api/cron/google-ads-cost-per-conv-killswitch",
+      "schedule": "15 7 * * *"
+    },
+    {
+      "path": "/api/cron/attribution-chain-monitor",
+      "schedule": "30 */6 * * *"
+    },
+    {
       "path": "/api/cron/lead-outreach-sequence",
       "schedule": "0 8 * * 1-5"
     },

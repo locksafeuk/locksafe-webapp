@@ -327,17 +327,41 @@ describe("google-ads-draft-enforcement", () => {
     });
   });
 
-  describe("locationMatchType — HARD OVERRIDE to PRESENCE", () => {
-    it("auto-overrides PRESENCE_OR_INTEREST to PRESENCE", () => {
+  describe("locationMatchType — §31 HARD REJECT (2026-06-17, GODMODE)", () => {
+    it("REJECTS an explicit PRESENCE_OR_INTEREST instead of silently fixing it", () => {
       const r = enforceDraftGuardrails({
         ...conforming(),
         locationMatchType: "PRESENCE_OR_INTEREST",
+      });
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        const v = r.violations.find((x) => x.field === "locationMatchType");
+        expect(v).toBeDefined();
+        expect(v?.expected).toMatch(/§31/);
+      }
+    });
+
+    it("still auto-corrects an UNDEFINED locationMatchType to PRESENCE", () => {
+      // We only want to reject the explicit dangerous value. Missing /
+      // undefined remains a backwards-compatible auto-fix for legacy
+      // callers that never set the field.
+      const r = enforceDraftGuardrails({
+        ...conforming(),
+        locationMatchType: undefined,
       });
       expect(r.ok).toBe(true);
       if (r.ok) {
         expect(r.data.locationMatchType).toBe("PRESENCE");
         expect(r.appliedFixes.some((f) => f.field === "locationMatchType")).toBe(true);
       }
+    });
+
+    it("allowOverride bypasses §31 (admin-flagged experiment)", () => {
+      const r = enforceDraftGuardrails(
+        { ...conforming(), locationMatchType: "PRESENCE_OR_INTEREST" },
+        { allowOverride: true },
+      );
+      expect(r.ok).toBe(true);
     });
   });
 
