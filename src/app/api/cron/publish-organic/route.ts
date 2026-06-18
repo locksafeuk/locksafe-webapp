@@ -103,6 +103,27 @@ export async function GET(request: NextRequest) {
       data: { status: "SCHEDULED", publishError: null },
     });
 
+    // ── Daily posting cap ──────────────────────────────────────────────
+    // Hard limit on how many posts publish per day, so a big batch of approved
+    // backgrounds (or a few skipped days) can never flood the feed. Default 1;
+    // override with LOCKSAFE_DAILY_POST_CAP.
+    const DAILY_POST_CAP = Number(process.env.LOCKSAFE_DAILY_POST_CAP) > 0
+      ? Number(process.env.LOCKSAFE_DAILY_POST_CAP)
+      : 1;
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const publishedToday = await prisma.socialPost.count({
+      where: { status: "PUBLISHED", publishedAt: { gte: startOfDay } },
+    });
+    const remaining = DAILY_POST_CAP - publishedToday;
+    if (remaining <= 0) {
+      return NextResponse.json({
+        success: true,
+        message: `Daily posting cap reached (${publishedToday}/${DAILY_POST_CAP}) — skipping`,
+        processed: 0,
+      });
+    }
+
     // Find posts that are scheduled and ready to publish.
     // Must have SOME media (a poster image OR a video) — never publish media-less.
     // NB: `imageUrl: { not: null }` alone (a) can miss never-set rows on MongoDB and
@@ -125,7 +146,7 @@ export async function GET(request: NextRequest) {
       include: {
         pillar: true,
       },
-      take: 10, // Process up to 10 posts per run
+      take: remaining, // Daily cap: only publish up to the remaining daily allowance
     });
 
     if (postsToPublish.length === 0) {
