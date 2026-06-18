@@ -22,6 +22,10 @@ export function normalizePhoneNumber(phone: string): string {
     normalized = `+${normalized}`;
   } else if (normalized.startsWith("0044")) {
     normalized = `+${normalized.slice(2)}`;
+  } else if (normalized.length === 10 && normalized.startsWith("7")) {
+    // Bare UK mobile stored without 0/44 (e.g. "7377555299"). Must become
+    // +447..., NOT +7... (which Twilio reads as Russia/Kazakhstan → 21211).
+    normalized = `+44${normalized}`;
   } else if (normalized.length >= 10 && !normalized.startsWith("0")) {
     normalized = `+${normalized}`;
   }

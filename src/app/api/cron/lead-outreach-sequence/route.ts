@@ -108,7 +108,15 @@ async function runSmsOutreach(): Promise<SmsOutreachSummary> {
         channel: "transactional",
         logContext: `lead-outreach-sms-seq:${lead.id}`,
       });
-      if (!result.success) { failed++; continue; }
+      if (!result.success) {
+        failed++;
+        // Don't leave it as "new" — that re-queues the same undeliverable
+        // number every run (perpetual failures + recurring health alerts).
+        await (prisma as unknown as { locksmithLead: { update: (a: unknown) => Promise<unknown> } })
+          .locksmithLead.update({ where: { id: lead.id }, data: { status: "contacted", contactedAt: new Date(), contactedBy: "sms-seq-failed" } })
+          .catch(() => {});
+        continue;
+      }
       await (prisma as unknown as {
         locksmithLead: { update: (a: unknown) => Promise<unknown> };
       }).locksmithLead.update({
@@ -199,7 +207,15 @@ async function runWhatsAppOutreach(): Promise<WhatsAppOutreachSummary> {
       const firstName = lead.name.split(/\s+/)[0];
       // Template variables: {{1}} = first name, {{2}} = town.
       const result = await sendTemplateMessage(lead.phone!, WHATSAPP_RECRUIT_TEMPLATE, [firstName, lead.city]);
-      if (!result.success) { failed++; continue; }
+      if (!result.success) {
+        failed++;
+        // Cold scraped numbers that aren't on WhatsApp fail with 63024. Mark
+        // them so we don't retry (and re-page) the same numbers every run.
+        await (prisma as unknown as { locksmithLead: { update: (a: unknown) => Promise<unknown> } })
+          .locksmithLead.update({ where: { id: lead.id }, data: { status: "contacted", contactedAt: new Date(), contactedBy: "whatsapp-seq-failed" } })
+          .catch(() => {});
+        continue;
+      }
       await (prisma as unknown as {
         locksmithLead: { update: (a: unknown) => Promise<unknown> };
       }).locksmithLead.update({

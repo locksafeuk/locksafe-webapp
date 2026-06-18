@@ -55,13 +55,27 @@ const hintFor = (code: string) => ERROR_HINTS[code] ?? "See Twilio error code re
 
 // Codes that mean a *systemic* delivery break (not just one bad number), so any
 // meaningful volume of them should page us even below the generic threshold.
-const SYSTEMIC_CODES = new Set(["63016", "63003", "63051", "30034", "63024"]);
+const SYSTEMIC_CODES = new Set(["63016", "63003", "63051", "30034"]);
 
 // Codes that mean a *bad recipient / data-quality* problem (not our system):
 // invalid number, no geo permission, handset off/unreachable, landline/0800,
 // recipient unsubscribed or blocked us. A pile of these means the LEAD LIST has
 // junk numbers — it is NOT a messaging outage, so it must not page "BROKEN".
-const RECIPIENT_CODES = new Set(["21211", "21408", "21610", "63021", "30003", "30005", "30006"]);
+// 63024 = WhatsApp template/params rejected. For cold recruitment outreach this
+// is almost always a per-recipient issue (number not on WhatsApp), NOT a broken
+// template — so it is data quality, not a systemic outage.
+const RECIPIENT_CODES = new Set(["21211", "21408", "21610", "63021", "63024", "30003", "30005", "30006"]);
+
+// Ofcom/Twilio reserved TEST number ranges — end-to-end test flows hit these.
+// They are not real recipients, so they must not skew the production health %.
+function isTestRecipient(to: string): boolean {
+  const d = String(to).replace(/\D/g, "");
+  // UK drama/test mobile block 07700 900000-900999 → 447700900xxx
+  if (d.includes("447700900")) return true;
+  // Twilio magic test numbers (+1 500 555 000x)
+  if (d.includes("150055500")) return true;
+  return false;
+}
 
 const GRAPH = "https://graph.facebook.com/v18.0";
 
@@ -140,6 +154,7 @@ async function checkTwilio(windowHours: number): Promise<MessagingHealthResult["
   let delivered = 0;
   const codeCounts = new Map<string, number>();
   for (const m of inWindow) {
+    if (isTestRecipient(String((m as { to?: string }).to ?? ""))) continue;
     const status = String(m.status ?? "");
     if (status === "failed" || status === "undelivered") {
       failed++;
