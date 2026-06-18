@@ -13,12 +13,10 @@
  */
 
 const LINKEDIN_API = "https://api.linkedin.com/v2";
-const LINKEDIN_ASSETS_API = "https://api.linkedin.com/rest/assets";
-
-function getLinkedInVersion(): string {
-  // LinkedIn REST APIs require an explicit version header in YYYYMM format.
-  return process.env.LINKEDIN_VERSION || "202506";
-}
+// Use the v2 assets endpoint (works with the current token/scopes). The newer
+// /rest/assets endpoint returns 403 ACCESS_DENIED unless the app has the
+// Community Management / partner API product, which this app doesn't.
+const LINKEDIN_ASSETS_API = "https://api.linkedin.com/v2/assets";
 
 export interface LinkedInPostResult {
   id: string;
@@ -59,7 +57,7 @@ export async function postToLinkedIn(content: {
     try {
       const assetUrn = await uploadLinkedInImageAsset({
         token,
-        orgId,
+        owner: author, // person OR org URN — match the post's actual author
         imageUrl: content.imageUrl,
       });
 
@@ -130,7 +128,7 @@ export async function postToLinkedIn(content: {
 
 async function uploadLinkedInImageAsset(params: {
   token: string;
-  orgId: string;
+  owner: string; // urn:li:person:xxx or urn:li:organization:xxx
   imageUrl: string;
 }): Promise<string> {
   const imageResponse = await fetch(params.imageUrl);
@@ -145,11 +143,10 @@ async function uploadLinkedInImageAsset(params: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${params.token}`,
       "X-Restli-Protocol-Version": "2.0.0",
-      "LinkedIn-Version": getLinkedInVersion(),
     },
     body: JSON.stringify({
       registerUploadRequest: {
-        owner: `urn:li:organization:${params.orgId}`,
+        owner: params.owner,
         recipes: ["urn:li:digitalmediaRecipe:feedshare-image"],
         serviceRelationships: [
           {
@@ -191,7 +188,6 @@ async function uploadLinkedInImageAsset(params: {
     method: "PUT",
     headers: {
       Authorization: `Bearer ${params.token}`,
-      "LinkedIn-Version": getLinkedInVersion(),
       ...uploadHeaders,
     },
     body: imageBuffer,
