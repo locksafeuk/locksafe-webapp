@@ -3,6 +3,7 @@ import { verifyCronAuth } from "@/lib/cron-auth";
 import { sendAdminAlert } from "@/lib/telegram";
 import { prisma } from "@/lib/prisma";
 import { getActiveSmsProvider, isSmsProviderConfigured, sendSMS } from "@/lib/sms";
+import { normalizePhoneNumber } from "@/lib/phone";
 import { sendTemplateMessage } from "@/lib/whatsapp-business";
 
 type Track = "independent" | "manager";
@@ -187,18 +188,40 @@ async function runWhatsAppOutreach(): Promise<WhatsAppOutreachSummary> {
     // Filter UK mobiles in JS (below), not via Prisma startsWith — a "+447"
     // prefix becomes an invalid Mongo regex (leading + is a quantifier).
     where: {
-      status: "new",
+      status: { in: ["new", "replied"] },
       email: null,
       phone: { not: null },
     },
     select: { id: true, name: true, city: true, phone: true },
     orderBy: { createdAt: "desc" },
-    take: WHATSAPP_OUTREACH_MAX_PER_RUN * 2,
+    take: WHATSAPP_OUTREACH_MAX_PER_RUN * 4,
   }));
 
-  const leads = candidates
-    .filter((l) => l.phone && isUKMobile(l.phone))
+  const mobileLeads = candidates.filter((l) => l.phone && isUKMobile(l.phone));
+
+  // GATE: only WhatsApp numbers we KNOW are on WhatsApp — i.e. they have already
+  // messaged our WhatsApp number (a whatsapp-channel conversation exists). There
+  // is no cheap reliable "is this number on WhatsApp" pre-check, and cold
+  // marketing templates to scraped numbers that AREN'T on WhatsApp (a) fail with
+  // 63024 and (b) erode the Meta sender quality rating. Cold first-touch is SMS.
+  const phoneToDigits = (p: string) => normalizePhoneNumber(p).replace(/^\+/, "");
+  const digitsToLead = new Map<string, typeof mobileLeads[number]>();
+  for (const l of mobileLeads) digitsToLead.set(phoneToDigits(l.phone!), l);
+  const convos = (await (prisma as unknown as {
+    whatsAppConversation: { findMany: (a: unknown) => Promise<Array<{ phone: string }>> };
+  }).whatsAppConversation.findMany({
+    where: { channel: "whatsapp", phone: { in: [...digitsToLead.keys()] } },
+    select: { phone: true },
+  }));
+  const onWhatsApp = new Set(convos.map((c) => c.phone));
+  const leads = [...digitsToLead.entries()]
+    .filter(([digits]) => onWhatsApp.has(digits))
+    .map(([, l]) => l)
     .slice(0, WHATSAPP_OUTREACH_MAX_PER_RUN);
+
+  if (leads.length === 0) {
+    return { enabled: true, attempted: 0, sent: 0, failed: 0, template: WHATSAPP_RECRUIT_TEMPLATE, message: "No leads with a known WhatsApp presence — cold numbers handled by SMS." };
+  }
 
   let sent = 0;
   let failed = 0;
