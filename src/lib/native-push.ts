@@ -30,10 +30,8 @@ const APNS_BUNDLE_ID = process.env.APNS_BUNDLE_ID || "uk.locksafe.app";
 const APNS_PRIVATE_KEY = process.env.APNS_PRIVATE_KEY || "";
 const FCM_PROJECT_ID = process.env.FCM_PROJECT_ID || "";
 const FCM_SERVICE_ACCOUNT_JSON = process.env.FCM_SERVICE_ACCOUNT_JSON || "";
-const IOS_ALERT_SOUND = process.env.IOS_ALERT_SOUND || "locksafe_alert.wav";
-const ANDROID_ALERT_SOUND = process.env.ANDROID_ALERT_SOUND || "locksafe_alert";
 const ANDROID_CHANNEL_ID =
-  process.env.ANDROID_CHANNEL_ID || "locksafe_jobs_critical";
+  process.env.ANDROID_CHANNEL_ID || "locksafe_jobs_critical_v2";
 
 export interface NativePushPayload {
   title: string;
@@ -109,11 +107,7 @@ async function sendApns(
         body: payload.body,
       },
       badge: payload.badge ?? 1,
-      sound: {
-        name: IOS_ALERT_SOUND,
-        volume: 1.0,      // max volume (0.0–1.0)
-        critical: 0,      // 0 = regular alert sound (critical=1 needs Apple entitlement)
-      },
+      sound: "default",  // use the device's own notification sound
       "interruption-level": "time-sensitive", // bypasses Focus mode, stays on screen
       "relevance-score": 1,
       // Category links to the "View Job" / "Dismiss" actions registered on the client
@@ -254,14 +248,13 @@ async function sendFcm(
           : "21600s",
         direct_boot_ok: true,
         notification: {
-          channel_id: ANDROID_CHANNEL_ID,     // locksafe_jobs_critical (MAX importance)
-          sound: ANDROID_ALERT_SOUND,          // locksafe_alert (no .wav extension for Android)
+          channel_id: ANDROID_CHANNEL_ID,     // locksafe_jobs_critical_v2 (MAX importance)
           notification_priority: "PRIORITY_MAX",
           visibility: "PUBLIC",               // show content on lock screen
           // sticky: keep in notification shade until the locksmith taps it
           sticky: true,
-          // Let the channel handle sound/vibration — don't override with defaults
-          default_sound: false,
+          // Use device's own notification sound
+          default_sound: true,
           default_vibrate_timings: false,
           default_light_settings: false,
           // Match the vibration pattern set on the channel (0, 700, 250, 700, 250, 700 ms)
