@@ -16,6 +16,14 @@ interface CookiePreferences {
 const COOKIE_CONSENT_KEY = "locksafe_cookie_consent";
 const CONSENT_VERSION = "1.0"; // Increment when cookie policy changes significantly
 
+// Conversion fix (2026-06-15): don't surface the banner the instant the page
+// loads — give ad/organic visitors a clear shot at the hero + "Call Now" CTA
+// first. It appears once they scroll into the page, or after this delay,
+// whichever comes first. Safe because Consent Mode defaults to "denied" in
+// <head> before any tag fires, so nothing non-essential runs during the wait.
+const BANNER_DELAY_MS = 8000;
+const BANNER_SCROLL_TRIGGER_PX = 300;
+
 export function CookieConsent() {
   const [showBanner, setShowBanner] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
@@ -45,12 +53,24 @@ export function CookieConsent() {
       }
     }
 
-    // Show banner after a short delay for better UX
-    const timer = setTimeout(() => {
+    // Reveal on first meaningful scroll OR after the delay, whichever is first.
+    let fired = false;
+    const reveal = () => {
+      if (fired) return;
+      fired = true;
+      window.removeEventListener("scroll", onScroll);
       setShowBanner(true);
-    }, 1000);
+    };
+    const onScroll = () => {
+      if (window.scrollY > BANNER_SCROLL_TRIGGER_PX) reveal();
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    const timer = setTimeout(reveal, BANNER_DELAY_MS);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("scroll", onScroll);
+    };
   }, []);
 
   const applyPreferences = (prefs: CookiePreferences) => {
