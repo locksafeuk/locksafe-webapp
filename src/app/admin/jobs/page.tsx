@@ -64,6 +64,20 @@ interface Job {
   noLocksmithNotifiedChannels?: string[];
 }
 
+interface JobApplication {
+  id: string;
+  status: string;
+  eta?: number | null;
+  assessmentFee?: number | null;
+  locksmith: {
+    id: string;
+    name: string;
+    company?: string | null;
+    rating?: number | null;
+    verified?: boolean;
+  } | null;
+}
+
 interface JobSummary {
   statusCounts: Record<string, number>;
   awaitingSignature: number;
@@ -220,6 +234,9 @@ function AdminJobsContent() {
 
   // Notify-no-locksmith modal state
   const [notifyJob, setNotifyJob] = useState<Job | null>(null);
+  // Applicants for the job currently open in the assign modal.
+  const [modalApplications, setModalApplications] = useState<JobApplication[]>([]);
+  const [modalAppsLoading, setModalAppsLoading] = useState(false);
 
   const fetchJobs = async () => {
     try {
@@ -561,6 +578,14 @@ function AdminJobsContent() {
     setAssignModalJob(job);
     setSelectedLocksmithId(job.locksmith?.id || "");
     fetchLocksmiths(job);
+    // Load who has applied to this job so the admin can see + pick an applicant.
+    setModalApplications([]);
+    setModalAppsLoading(true);
+    fetch(`/api/jobs/${job.id}/applications`)
+      .then((r) => r.json())
+      .then((data) => setModalApplications(data.applications || []))
+      .catch(() => setModalApplications([]))
+      .finally(() => setModalAppsLoading(false));
   };
 
   const handleAssignLocksmith = async () => {
@@ -1458,6 +1483,63 @@ function AdminJobsContent() {
                         {assignModalJob.customer.name}
                       </span>
                     </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Applicants — who has applied to this job (read-only list + "Use" to pre-select) */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Applicants{modalApplications.length > 0 ? ` (${modalApplications.length})` : ""}
+                </label>
+                {modalAppsLoading ? (
+                  <div className="text-sm text-slate-500 py-2">Loading applicants…</div>
+                ) : modalApplications.length === 0 ? (
+                  <div className="text-sm text-slate-500 py-2">No applications yet.</div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {modalApplications.map((app) => (
+                      <div
+                        key={app.id}
+                        className="rounded-lg border border-slate-200 p-2.5 flex items-center justify-between gap-2"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-slate-900 truncate">
+                            {app.locksmith?.name || "Unknown"}
+                            {app.locksmith?.verified && (
+                              <span className="ml-1 text-xs text-green-600">✓</span>
+                            )}
+                          </div>
+                          <div className="text-xs text-slate-500 truncate">
+                            {app.locksmith?.company || ""}
+                            {app.eta != null ? ` · ETA ${app.eta}m` : ""}
+                            {app.assessmentFee != null ? ` · £${app.assessmentFee}` : ""}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                              app.status === "accepted"
+                                ? "bg-green-100 text-green-700"
+                                : app.status === "admin_assigned"
+                                  ? "bg-blue-100 text-blue-700"
+                                  : "bg-slate-100 text-slate-600"
+                            }`}
+                          >
+                            {app.status}
+                          </span>
+                          {app.locksmith?.id && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedLocksmithId(app.locksmith!.id)}
+                              className="text-xs font-medium text-blue-600 hover:underline"
+                            >
+                              Use
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
