@@ -20,9 +20,12 @@ import { SUPPORT_PHONE, SUPPORT_PHONE_TEL } from "@/lib/config";
 
 const HIDDEN_PREFIXES = [
   "/admin",
-  "/locksmith/dashboard",
-  "/locksmith/settings",
-  "/customer/dashboard",
+  // Whole authenticated locksmith + customer apps — the FAB is a public
+  // acquisition CTA and must never appear inside the app (locksmiths don't
+  // call us; customers mid-job/checkout have their own actions).
+  "/locksmith",
+  "/customer",
+  "/continue-request",
   "/login",
   "/register",
   "/request",

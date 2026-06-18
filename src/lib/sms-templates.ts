@@ -99,13 +99,17 @@ export const EMERGENCY_SMS_TEMPLATES = {
    * Sent to customer when job is first created (emergency acknowledgment)
    */
   CUSTOMER_EMERGENCY_CREATED: (ctx: EmergencyContext) =>
-    `LockSafe UK: Your emergency request ${ctx.jobNumber} is live!\n\nWe're notifying nearby verified locksmiths now. You'll receive an SMS with locksmith details and next steps shortly.\n\nStay by your phone.`,
+    // Confident, single-segment, no in-body brand (sender ID already shows it),
+    // no scarcity language. The continue link is appended (short link) by the caller.
+    `Job ${ctx.jobNumber} registered. We're finding your nearest locksmith near ${ctx.postcode}.`,
 
   /**
-   * Sent to customer if no locksmiths available
+   * Sent to customer if no locksmiths available — SAME confident tone (the
+   * customer must never see scarcity; "we'll keep trying" undermines trust).
+   * Wrong hardcoded 0333 number removed (use SUPPORT_PHONE on pages that need it).
    */
   CUSTOMER_NO_LOCKSMITHS: (ctx: EmergencyContext) =>
-    `LockSafe UK: We're still looking for a locksmith near ${ctx.postcode} for your job ${ctx.jobNumber}.\n\nWe'll keep trying and notify you as soon as one is available. You can also call us: 0333 999 3127`,
+    `Job ${ctx.jobNumber} registered. We're finding your nearest locksmith near ${ctx.postcode}.`,
 };
 
 /**

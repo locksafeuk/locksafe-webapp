@@ -13,6 +13,12 @@ const BLOCKED_PATHS = [
   "/signup",
   "/admin",
   "/locksmith",
+  // Customer transactional flows — never interrupt a customer who is mid
+  // booking/payment with a "Get a Free Quote" offer over their Confirm & Pay.
+  "/customer",
+  "/continue-request",
+  "/payment",
+  "/onboard",
   "/api",
   "/dashboard",
   "/jobs",

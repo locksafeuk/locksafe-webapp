@@ -13,6 +13,7 @@ import prisma from "@/lib/db";
 import crypto from "crypto";
 import { generateJobNumber } from "@/lib/job-number";
 import { sendSMS } from "@/lib/sms";
+import { createShortLink } from "@/lib/short-link";
 import {
   findNearbyLocksmiths,
   findNearbyLocksmithsByPostcode,
@@ -545,20 +546,27 @@ export async function createEmergencyJob(
       }
     }
 
-    // 6. SMS customer confirmation
+    // 6. SMS customer confirmation. Shorten the continue link to a branded
+    // short link (locksafe.uk/r/xxxxxx) so the whole message stays in one
+    // GSM-7 segment instead of carrying a 48-char raw token.
+    const manageUrl = await createShortLink({
+      targetUrl: continueUrl,
+      purpose: "continue-request",
+      jobId: job.id,
+    });
     const customerSms = notificationResult.notifiedCount > 0
       ? `${EMERGENCY_SMS_TEMPLATES.CUSTOMER_EMERGENCY_CREATED({
           jobId: job.id,
           jobNumber: job.jobNumber,
           customerName: customer.name,
           postcode: normalizedPostcode,
-        })}\n\nManage your request: ${continueUrl}`
+        })}\n\nManage your request: ${manageUrl}`
       : `${EMERGENCY_SMS_TEMPLATES.CUSTOMER_NO_LOCKSMITHS({
           jobId: job.id,
           jobNumber: job.jobNumber,
           customerName: customer.name,
           postcode: normalizedPostcode,
-        })}\n\nManage your request: ${continueUrl}`;
+        })}\n\nManage your request: ${manageUrl}`;
 
     sendSMS(customer.phone, customerSms, {
       logContext: `Emergency job created: ${job.jobNumber}`,

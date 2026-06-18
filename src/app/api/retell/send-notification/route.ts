@@ -8,6 +8,7 @@ import prisma from "@/lib/db";
 import { sendPhoneRequestContinuationEmail } from "@/lib/email";
 import { verifyRetellSignature } from "@/lib/retell-auth";
 import { sendSMS } from "@/lib/sms";
+import { createShortLink } from "@/lib/short-link";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -230,7 +231,12 @@ export async function POST(request: NextRequest) {
     // Send SMS based on notification type
     if (isValidPhone) {
       try {
-        const smsMessage = `LockSafe UK: Your emergency request ${jobDetails.jobNumber || "has been"} registered. ${jobDetails.continueUrl ? `Complete your request: ${jobDetails.continueUrl}` : `Visit ${baseUrl} to manage your request.`}`;
+        // Confident, single-segment, no in-body brand (sender ID shows it),
+        // branded short link instead of the raw 48-char continue token.
+        const manageUrl = jobDetails.continueUrl
+          ? await createShortLink({ targetUrl: jobDetails.continueUrl, purpose: "continue-request" })
+          : null;
+        const smsMessage = `Job ${jobDetails.jobNumber || ""} registered. We're finding your nearest locksmith.${manageUrl ? ` Manage your request: ${manageUrl}` : ` Manage at ${baseUrl}.`}`;
 
         const smsResult = await withTimeout(
           sendSMS(phoneForSms!, smsMessage, {
