@@ -5,6 +5,7 @@ import { appendJobActivity } from "@/lib/job-activity";
 import { geocodePostcode } from "@/lib/locksmith-matcher";
 import { notifyNearbyLocksmiths } from "@/lib/job-notifications";
 import { isCoordinatePair, normalizeUkPostcode } from "@/lib/location-display";
+import { validateStatusTransition, statusRequiresLocksmith } from "@/lib/job-status-machine";
 
 // GET - Get a single job by ID
 export async function GET(
@@ -173,6 +174,7 @@ export async function PATCH(
       propertyType,
       postcode,
       address,
+      override,
     } = body;
 
     // Accept admin UI synthetic status and normalize it server-side.
@@ -334,6 +336,24 @@ export async function PATCH(
             details: { receivedStatus: normalizedStatus },
           },
           { status: 400 }
+        );
+      }
+
+      // Enforce the locksmith invariant (see lib/job-status-machine). Prevents
+      // jumping a job to ACCEPTED/COMPLETED/SIGNED etc. with no locksmith.
+      const transition = validateStatusTransition(normalizedStatus, {
+        hasLocksmith: !!existingJob.locksmithId,
+        override: override === true,
+      });
+      if (!transition.ok) {
+        return NextResponse.json(
+          { success: false, error: transition.error },
+          { status: 409 }
+        );
+      }
+      if (override === true && statusRequiresLocksmith(normalizedStatus) && !existingJob.locksmithId) {
+        console.warn(
+          `[Job PATCH] OVERRIDE: ${existingJob.jobNumber} forced to ${normalizedStatus} with no locksmith assigned.`,
         );
       }
 

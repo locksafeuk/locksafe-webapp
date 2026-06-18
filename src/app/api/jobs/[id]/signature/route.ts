@@ -48,6 +48,15 @@ export async function POST(
       );
     }
 
+    // A job can't be signed off if no locksmith was ever assigned — that would
+    // record a completed, signed job with no one responsible for the work.
+    if (!job.locksmithId && job.status !== "SIGNED") {
+      return NextResponse.json(
+        { success: false, error: "Cannot sign off a job with no assigned locksmith." },
+        { status: 409 }
+      );
+    }
+
     // If already signed, return the existing signature
     if (job.status === "SIGNED" && job.signature) {
       return NextResponse.json({

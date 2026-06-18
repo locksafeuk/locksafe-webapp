@@ -76,7 +76,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (job.status !== "PENDING" && job.status !== "PHONE_INITIATED") {
+    // Only PENDING jobs accept applications. Previously PHONE_INITIATED was also
+    // allowed here, but accept-application only accepts PENDING — so a locksmith
+    // could apply to a PHONE_INITIATED job that the customer could never accept,
+    // stranding the application. PHONE_INITIATED means the web booking isn't
+    // finished yet, so it isn't biddable.
+    if (job.status !== "PENDING") {
       return NextResponse.json(
         {
           success: false,

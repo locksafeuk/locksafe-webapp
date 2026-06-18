@@ -10,6 +10,7 @@ import {
   type JobSMSContext,
 } from "@/lib/sms";
 import { appendJobActivity } from "@/lib/job-activity";
+import { validateStatusTransition, statusRequiresLocksmith } from "@/lib/job-status-machine";
 
 // PATCH - Update job status
 export async function PATCH(
@@ -19,7 +20,7 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { status, gpsData, eta } = body;
+    const { status, gpsData, eta, override } = body;
     const normalizedStatus =
       status === "NO_LOCKSMITH_AVAILABLE" ? "CANCELLED" : status;
 
@@ -68,6 +69,25 @@ export async function PATCH(
       return NextResponse.json(
         { success: false, error: "Job not found" },
         { status: 404 }
+      );
+    }
+
+    // Enforce the locksmith invariant: a job cannot advance to ACCEPTED or any
+    // later state without an assigned locksmith. Prevents the COMPLETED/SIGNED-
+    // with-no-locksmith corruption. Admins may pass override:true to force.
+    const transition = validateStatusTransition(normalizedStatus, {
+      hasLocksmith: !!existingJob.locksmithId,
+      override: override === true,
+    });
+    if (!transition.ok) {
+      return NextResponse.json(
+        { success: false, error: transition.error },
+        { status: 409 }
+      );
+    }
+    if (override === true && statusRequiresLocksmith(normalizedStatus) && !existingJob.locksmithId) {
+      console.warn(
+        `[Job Status] OVERRIDE: ${existingJob.jobNumber ?? id} forced to ${normalizedStatus} with no locksmith assigned.`,
       );
     }
 

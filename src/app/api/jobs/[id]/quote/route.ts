@@ -61,6 +61,15 @@ export async function POST(
       );
     }
 
+    // Don't drag a finished job backwards to QUOTED. Submitting a quote forces
+    // status:"QUOTED" below, so block it once the job is terminal.
+    if (["COMPLETED", "SIGNED", "CANCELLED"].includes(job.status)) {
+      return NextResponse.json(
+        { success: false, error: `Cannot quote a job in status ${job.status}.` },
+        { status: 409 }
+      );
+    }
+
     // Create or update the quote
     const quote = await prisma.quote.upsert({
       where: { jobId: id },

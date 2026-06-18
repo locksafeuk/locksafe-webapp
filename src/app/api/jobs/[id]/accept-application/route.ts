@@ -66,9 +66,11 @@ export async function POST(
       );
     }
 
-    // Update the job with accepted locksmith
-    const updatedJob = await prisma.job.update({
-      where: { id },
+    // Atomically claim the job: the where-clause gates on status PENDING so two
+    // concurrent accepts can't both win (the plain status read above is only a
+    // fast pre-check — this updateMany is the authoritative compare-and-swap).
+    const claim = await prisma.job.updateMany({
+      where: { id, status: JobStatus.PENDING },
       data: {
         status: JobStatus.ACCEPTED,
         locksmithId: application.locksmithId,
@@ -77,11 +79,29 @@ export async function POST(
         acceptedAt: new Date(),
         acceptedEta: application.eta, // Save ETA for cancellation/refund tracking
       },
+    });
+
+    if (claim.count === 0) {
+      return NextResponse.json(
+        { success: false, error: "Job is no longer available" },
+        { status: 409 }
+      );
+    }
+
+    const updatedJob = await prisma.job.findUnique({
+      where: { id },
       include: {
         locksmith: true,
         customer: true,
       },
     });
+
+    if (!updatedJob) {
+      return NextResponse.json(
+        { success: false, error: "Job not found after assignment" },
+        { status: 404 }
+      );
+    }
 
     // Update application status
     await prisma.locksmithApplication.update({

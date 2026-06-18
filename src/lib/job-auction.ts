@@ -354,11 +354,29 @@ export async function acceptAuction(
     }),
   ]);
 
-  // Update job to be assigned to locksmith
-  await prisma.job.update({
-    where: { id: jobId },
-    data: { locksmithId },
+  // Assign the locksmith AND move the job into the ACCEPTED state. Previously
+  // this only set { locksmithId }, leaving the job PENDING — so it kept showing
+  // in other locksmiths' feeds, still accepted new applications, showed the
+  // customer the wrong status, and recorded no fee. Mirror the accept-application
+  // path: ACCEPTED + acceptedAt + committed fee + assessmentPaid. Guard the write
+  // on status:PENDING so a job already taken via the normal path isn't clobbered.
+  const assigned = await prisma.job.updateMany({
+    where: { id: jobId, status: "PENDING", locksmithId: null },
+    data: {
+      status: "ACCEPTED",
+      locksmithId,
+      acceptedAt: new Date(),
+      assessmentPaid: true,
+    },
   });
+
+  if (assigned.count === 0) {
+    return {
+      success: false,
+      message: "Job is no longer available (already assigned or not pending).",
+      rate: auction.currentRate,
+    };
+  }
 
   return { success: true, message: "Auction accepted", rate: auction.currentRate };
 }
@@ -402,10 +420,26 @@ export async function advanceAuction(jobId: string): Promise<void> {
   const nextWaveRecipients = getWaveRecipients(nextStep, auction.notifiedLocksmithIds);
 
   if (nextWaveRecipients.length === 0) {
+    // No further cohort to notify — expire AND alert admin so the job isn't
+    // silently stranded (the final-step branch above alerts; this one used to
+    // return without any notification, leaving a stuck job nobody knew about).
     await prisma.jobAuction.update({
       where: { jobId },
       data: { state: "EXPIRED" },
     });
+
+    const job = await prisma.job.findUnique({
+      where: { id: jobId },
+      select: { jobNumber: true, postcode: true, address: true },
+    });
+
+    await sendAdminAlert({
+      title: "Job Auction Expired — No Locksmiths Left to Notify",
+      message:
+        `Job #${job?.jobNumber ?? jobId} (${job?.address ?? ""}, ${job?.postcode ?? ""}) exhausted its locksmith cohort with no acceptance.\n\n` +
+        `Action required: assign manually from /admin/commission-tiers`,
+      severity: "warning",
+    }).catch(() => {});
     return;
   }
 
