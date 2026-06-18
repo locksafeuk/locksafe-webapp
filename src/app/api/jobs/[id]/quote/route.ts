@@ -30,6 +30,19 @@ export async function POST(
       quoteGps,
     } = body;
 
+    // Normalize parts to the QuotePart composite shape (name, quantity,
+    // unitPrice, total). `total` is REQUIRED by the schema — if a caller omits
+    // it the whole quote create throws a 500. Default it to unitPrice*quantity
+    // so a missing per-part total can never break quote submission.
+    const normalizedParts = (Array.isArray(parts) ? parts : []).map(
+      (p: { name?: unknown; quantity?: unknown; unitPrice?: unknown; total?: unknown }) => {
+        const quantity = Number(p?.quantity ?? 1) || 1;
+        const unitPrice = Number(p?.unitPrice ?? 0) || 0;
+        const lineTotal = Number(p?.total ?? unitPrice * quantity) || unitPrice * quantity;
+        return { name: String(p?.name ?? ""), quantity, unitPrice, total: lineTotal };
+      },
+    );
+
     // Validate required fields
     if (!lockType || !total) {
       return NextResponse.json(
@@ -77,7 +90,7 @@ export async function POST(
         lockType,
         defect: defect || "",
         difficulty: difficulty || "medium",
-        parts: parts || [],
+        parts: normalizedParts,
         labourCost: labourCost || 0,
         labourTime: labourTime || 0,
         partsTotal: partsTotal || 0,
@@ -94,7 +107,7 @@ export async function POST(
         lockType,
         defect: defect || "",
         difficulty: difficulty || "medium",
-        parts: parts || [],
+        parts: normalizedParts,
         labourCost: labourCost || 0,
         labourTime: labourTime || 0,
         partsTotal: partsTotal || 0,
