@@ -361,7 +361,10 @@ export async function acceptAuction(
   // path: ACCEPTED + acceptedAt + committed fee + assessmentPaid. Guard the write
   // on status:PENDING so a job already taken via the normal path isn't clobbered.
   const assigned = await prisma.job.updateMany({
-    where: { id: jobId, status: "PENDING", locksmithId: null },
+    // CAS on status only — `locksmithId: null` would hit the MongoDB Prisma
+    // null-filter pitfall (matches literal null, not an unset field) and miss
+    // fresh jobs. status:PENDING alone safely prevents a double-assign.
+    where: { id: jobId, status: "PENDING" },
     data: {
       status: "ACCEPTED",
       locksmithId,

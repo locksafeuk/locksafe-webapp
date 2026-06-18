@@ -76,8 +76,12 @@ export async function POST(
     const claim = await prisma.job.updateMany({
       where: {
         id: application.job.id,
+        // CAS on status only. Do NOT add `locksmithId: null` — the MongoDB
+        // Prisma connector matches that literally and misses jobs whose
+        // locksmithId field is simply unset (every fresh job), so the claim
+        // would match 0 rows and wrongly 409. status:PENDING is enough to
+        // prevent a double-accept (the first accept flips it out of PENDING).
         status: { in: ["PENDING", "PHONE_INITIATED"] },
-        locksmithId: null,
       },
       data: {
         status: "ACCEPTED",
