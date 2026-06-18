@@ -15,7 +15,12 @@ import {
   enforceDraftGuardrails,
   isAutoPerLocksmithGenerationEnabled,
   PLAYBOOK_GUARDRAILS,
+  stripGeoTokens,
 } from "../google-ads-draft-enforcement";
+import {
+  isCalloutAsset,
+  isSitelinkAsset,
+} from "../google-ads-copy-guard";
 
 // A fully-conforming draft. Each test starts from a fresh copy and mutates
 // one field to verify isolation.
@@ -41,7 +46,23 @@ const conforming = () => ({
   // Playbook §20 (Rule §20, 2026-06-10): every draft must ship with
   // a CALL asset carrying a UK phone number. Required for AD_CALL
   // conversion to fire (30s+ duration → counts as conversion).
-  assets: [{ type: "CALL", phoneNumber: "+44 20 4577 1989", countryCode: "GB" }],
+  //
+  // Playbook §36 (2026-06-18): every draft must ALSO ship with ≥4
+  // sitelinks + ≥4 callouts. Auto-injects from
+  // GODMODE_RECOMMENDED_SITELINKS / GODMODE_RECOMMENDED_CALLOUTS when
+  // missing, but the conforming fixture supplies them explicitly so the
+  // "no fixes applied" baseline stays valid.
+  assets: [
+    { type: "CALL", phoneNumber: "+44 20 4577 1989", countryCode: "GB" },
+    { type: "SITELINK", linkText: "24/7 Emergency Help", finalUrl: "/" },
+    { type: "SITELINK", linkText: "How It Works",        finalUrl: "/how-it-works" },
+    { type: "SITELINK", linkText: "Our Services",        finalUrl: "/services" },
+    { type: "SITELINK", linkText: "Fixed Pricing",       finalUrl: "/pricing" },
+    { type: "CALLOUT",  text: "MLA-Approved Engineers" },
+    { type: "CALLOUT",  text: "DBS-Checked & Uniformed" },
+    { type: "CALLOUT",  text: "Fixed Price Before Work" },
+    { type: "CALLOUT",  text: "Anti-Fraud Platform" },
+  ],
 });
 
 describe("google-ads-draft-enforcement", () => {
@@ -593,6 +614,257 @@ describe("google-ads-draft-enforcement", () => {
         expect(
           r.violations.some((x) => x.field.includes("ad group 1")),
         ).toBe(true);
+      }
+    });
+  });
+
+  // ─── §35 — No hyperlocal city/postcode in keyword text (2026-06-18) ───
+  describe("§35 — no hyperlocal city/postcode in keyword text", () => {
+    const ORIG_OVERRIDE = process.env.LOCKSAFE_ALLOW_HYPERLOCAL_KEYWORDS;
+    afterEach(() => {
+      process.env.LOCKSAFE_ALLOW_HYPERLOCAL_KEYWORDS = ORIG_OVERRIDE;
+    });
+
+    it("REGRESSION: rejects TW20 Pipeline Test's hyperlocal exact strings", () => {
+      // Real keywords from TW20 Pipeline Test (2026-06-18) that ALL came
+      // back "Not eligible — Low search volume" from Google.
+      const r = enforceDraftGuardrails({
+        ...conforming(),
+        keywords: [
+          ...Array.from({ length: 40 }, (_, i) => ({
+            text: `kw${i}`,
+            matchType: "PHRASE" as const,
+          })),
+          { text: "locked out tw20", matchType: "EXACT" as const },
+          { text: "emergency lockout egham", matchType: "EXACT" as const },
+        ],
+      });
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        const tw20 = r.violations.find(
+          (x) => x.field === "keywords" && x.actual.includes("locked out tw20"),
+        );
+        const egham = r.violations.find(
+          (x) => x.field === "keywords" && x.actual.includes("emergency lockout egham"),
+        );
+        expect(tw20).toBeDefined();
+        expect(egham).toBeDefined();
+        expect(tw20?.expected).toMatch(/§35/);
+      }
+    });
+
+    it("rejects keywords containing a UK postcode like NE1, SW1A, M1", () => {
+      const r = enforceDraftGuardrails({
+        ...conforming(),
+        keywords: [
+          ...Array.from({ length: 40 }, (_, i) => ({
+            text: `kw${i}`,
+            matchType: "PHRASE" as const,
+          })),
+          { text: "locked out ne1", matchType: "EXACT" as const },
+          { text: "lock change sw1a", matchType: "EXACT" as const },
+          { text: "lockout m1", matchType: "EXACT" as const },
+        ],
+      });
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.violations.filter((x) => x.field === "keywords").length).toBeGreaterThanOrEqual(3);
+      }
+    });
+
+    it("rejects per-ad-group keywords that contain a city/postcode", () => {
+      const r = enforceDraftGuardrails({
+        ...conforming(),
+        adGroups: [
+          {
+            name: "Emergency",
+            keywords: [
+              ...Array.from({ length: 10 }, (_, i) => ({
+                text: `safe-kw${i}`,
+                matchType: "PHRASE" as const,
+              })),
+              { text: "emergency locksmith liverpool", matchType: "EXACT" as const },
+            ],
+            ads: [{ headlines: ["H1"], descriptions: ["D1"] }],
+          },
+        ],
+      });
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        // Note: 'locksmith' is ALSO banned (§10), so we expect TWO different
+        // violations on the same line. We assert the §35 hyperlocal one fires.
+        const hyperlocal = r.violations.find(
+          (x) =>
+            x.field === "adGroups[Emergency].keywords" &&
+            x.expected.includes("§35"),
+        );
+        expect(hyperlocal).toBeDefined();
+      }
+    });
+
+    it("allows the Newcastle NE1 proven pattern — generic phrase-match intents", () => {
+      const r = enforceDraftGuardrails({
+        ...conforming(),
+        keywords: [
+          { text: "lock change", matchType: "PHRASE" as const },
+          { text: "locked out", matchType: "PHRASE" as const },
+          { text: "emergency lockout", matchType: "PHRASE" as const },
+          ...Array.from({ length: 50 }, (_, i) => ({
+            text: `generic-${i}`,
+            matchType: "PHRASE" as const,
+          })),
+        ],
+      });
+      expect(r.ok).toBe(true);
+    });
+
+    it("override LOCKSAFE_ALLOW_HYPERLOCAL_KEYWORDS=true bypasses §35", () => {
+      process.env.LOCKSAFE_ALLOW_HYPERLOCAL_KEYWORDS = "true";
+      const r = enforceDraftGuardrails({
+        ...conforming(),
+        keywords: [
+          ...Array.from({ length: 40 }, (_, i) => ({
+            text: `kw${i}`,
+            matchType: "PHRASE" as const,
+          })),
+          { text: "locked out tw20", matchType: "EXACT" as const },
+        ],
+      });
+      expect(r.ok).toBe(true);
+    });
+
+    it("stripGeoTokens returns a suggestion the operator can use as-is", () => {
+      expect(stripGeoTokens("locked out tw20")).toBe("locked out");
+      expect(stripGeoTokens("emergency lockout egham")).toBe("emergency lockout");
+      expect(stripGeoTokens("liverpool lock change")).toBe("lock change");
+    });
+  });
+
+  // ─── §36 — Mandatory sitelinks + callouts (2026-06-18) ───────────────
+  describe("§36 — mandatory sitelinks (≥4) + callouts (≥4)", () => {
+    it("auto-injects GODMODE_RECOMMENDED_SITELINKS when draft has zero sitelinks", () => {
+      const r = enforceDraftGuardrails({
+        ...conforming(),
+        assets: [
+          { type: "CALL", phoneNumber: "+44 20 4577 1989", countryCode: "GB" },
+          // 4 callouts so §36 callouts pass, but ZERO sitelinks
+          { type: "CALLOUT", text: "MLA-Approved Engineers" },
+          { type: "CALLOUT", text: "DBS-Checked & Uniformed" },
+          { type: "CALLOUT", text: "Fixed Price Before Work" },
+          { type: "CALLOUT", text: "Anti-Fraud Platform" },
+        ],
+      });
+      expect(r.ok).toBe(true);
+      if (r.ok) {
+        const assets = (r.data.assets as unknown[]) ?? [];
+        const sitelinks = assets.filter(isSitelinkAsset);
+        expect(sitelinks.length).toBeGreaterThanOrEqual(4);
+        const sitelinkFix = r.appliedFixes.find(
+          (f) => f.field === "assets" && /sitelinks/.test(f.expected),
+        );
+        expect(sitelinkFix).toBeDefined();
+      }
+    });
+
+    it("auto-injects GODMODE_RECOMMENDED_CALLOUTS when draft has zero callouts", () => {
+      const r = enforceDraftGuardrails({
+        ...conforming(),
+        assets: [
+          { type: "CALL", phoneNumber: "+44 20 4577 1989", countryCode: "GB" },
+          // 4 sitelinks so §36 sitelinks pass, but ZERO callouts
+          { type: "SITELINK", linkText: "24/7 Emergency Help", finalUrl: "/" },
+          { type: "SITELINK", linkText: "How It Works",        finalUrl: "/how-it-works" },
+          { type: "SITELINK", linkText: "Our Services",        finalUrl: "/services" },
+          { type: "SITELINK", linkText: "Fixed Pricing",       finalUrl: "/pricing" },
+        ],
+      });
+      expect(r.ok).toBe(true);
+      if (r.ok) {
+        const assets = (r.data.assets as unknown[]) ?? [];
+        const callouts = assets.filter(isCalloutAsset);
+        expect(callouts.length).toBeGreaterThanOrEqual(4);
+        const calloutFix = r.appliedFixes.find(
+          (f) => f.field === "assets" && /callouts/.test(f.expected),
+        );
+        expect(calloutFix).toBeDefined();
+      }
+    });
+
+    it("auto-injects BOTH when the draft has only a CALL asset (TW20 + Newcastle pattern)", () => {
+      const r = enforceDraftGuardrails({
+        ...conforming(),
+        assets: [{ type: "CALL", phoneNumber: "+44 20 4577 1989", countryCode: "GB" }],
+      });
+      expect(r.ok).toBe(true);
+      if (r.ok) {
+        const assets = (r.data.assets as unknown[]) ?? [];
+        expect(assets.filter(isSitelinkAsset).length).toBeGreaterThanOrEqual(4);
+        expect(assets.filter(isCalloutAsset).length).toBeGreaterThanOrEqual(4);
+      }
+    });
+
+    it("REJECTS a sitelink with banned 'no call-out fee' text in linkText", () => {
+      const r = enforceDraftGuardrails({
+        ...conforming(),
+        assets: [
+          { type: "CALL", phoneNumber: "+44 20 4577 1989", countryCode: "GB" },
+          { type: "SITELINK", linkText: "No Call-Out Fee", finalUrl: "/x" },
+          { type: "SITELINK", linkText: "How It Works",   finalUrl: "/how-it-works" },
+          { type: "SITELINK", linkText: "Our Services",   finalUrl: "/services" },
+          { type: "SITELINK", linkText: "Fixed Pricing",  finalUrl: "/pricing" },
+          { type: "CALLOUT", text: "MLA-Approved Engineers" },
+          { type: "CALLOUT", text: "DBS-Checked & Uniformed" },
+          { type: "CALLOUT", text: "Fixed Price Before Work" },
+          { type: "CALLOUT", text: "Anti-Fraud Platform" },
+        ],
+      });
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(
+          r.violations.some(
+            (v) => v.field === "assets.sitelink" && /no call-out fee/i.test(v.actual),
+          ),
+        ).toBe(true);
+      }
+    });
+
+    it("REJECTS a callout with banned 'no surprise fees' text", () => {
+      const r = enforceDraftGuardrails({
+        ...conforming(),
+        assets: [
+          { type: "CALL", phoneNumber: "+44 20 4577 1989", countryCode: "GB" },
+          { type: "SITELINK", linkText: "24/7 Emergency Help", finalUrl: "/" },
+          { type: "SITELINK", linkText: "How It Works",       finalUrl: "/how-it-works" },
+          { type: "SITELINK", linkText: "Our Services",       finalUrl: "/services" },
+          { type: "SITELINK", linkText: "Fixed Pricing",      finalUrl: "/pricing" },
+          { type: "CALLOUT", text: "No Surprise Fees" },
+          { type: "CALLOUT", text: "DBS-Checked & Uniformed" },
+          { type: "CALLOUT", text: "Fixed Price Before Work" },
+          { type: "CALLOUT", text: "Anti-Fraud Platform" },
+        ],
+      });
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(
+          r.violations.some(
+            (v) => v.field === "assets.callout" && /no surprise fees/i.test(v.actual),
+          ),
+        ).toBe(true);
+      }
+    });
+
+    it("conforming draft passes with no §36 fixes applied", () => {
+      const r = enforceDraftGuardrails(conforming());
+      expect(r.ok).toBe(true);
+      if (r.ok) {
+        const sitelinkFixes = r.appliedFixes.filter(
+          (f) => f.field === "assets" && /sitelinks/.test(f.expected),
+        );
+        const calloutFixes = r.appliedFixes.filter(
+          (f) => f.field === "assets" && /callouts/.test(f.expected),
+        );
+        expect(sitelinkFixes).toHaveLength(0);
+        expect(calloutFixes).toHaveLength(0);
       }
     });
   });

@@ -268,10 +268,24 @@ export async function publishGoogleAdsDraft(draftId: string): Promise<PublishRes
   const trustpilotReviewCount = Number(
     process.env["TRUSTPILOT_REVIEW_COUNT"] ?? "0",
   );
+  // §36 (2026-06-18): also feed sitelinks / callouts through the
+  // forbidden-claims guard. The persist-time enforcer already does this,
+  // but a hand-edited draft can sneak banned text into a sitelink past
+  // the dashboard. Defence in depth — same rationale as the headline /
+  // description check above.
+  const assetsForCheck = Array.isArray(draft.assets) ? (draft.assets as AssetDraft[]) : [];
+  const sitelinksForCheck = assetsForCheck
+    .filter((a) => a.type === "SITELINK")
+    .map((a) => ({ linkText: a.linkText, description1: a.description1, description2: a.description2 }));
+  const calloutsForCheck = assetsForCheck
+    .filter((a) => a.type === "CALLOUT")
+    .map((a) => ({ text: a.text }));
   assertAdCopyClean(draft.headlines ?? [], draft.descriptions ?? [], {
     trustpilotReviewCount: Number.isFinite(trustpilotReviewCount)
       ? trustpilotReviewCount
       : 0,
+    sitelinks: sitelinksForCheck,
+    callouts: calloutsForCheck,
   });
 
   const client = await getGoogleAdsClientForAccount(draft.accountId);

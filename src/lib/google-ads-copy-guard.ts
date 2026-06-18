@@ -215,11 +215,22 @@ export function scrubForbiddenAdCopy(
  *
  * `context.trustpilotReviewCount` is the substantiated number stored on the
  * campaign config (when absent, treated as 0 — the safe default).
+ *
+ * §36 (2026-06-18): also runs the same forbidden-claims check against
+ * sitelink linkText/description1/description2 strings and callout texts,
+ * when supplied. Competitor LBS SECURITY LTD's TW20 ad showed 4 sitelinks
+ * occupying 5× our vertical space — but every sitelink/callout we ship has
+ * to pass the §30 ad-copy ban (no "no call-out fee", no fabricated review
+ * counts, etc.) or it's a regression of the rule we already shipped.
  */
 export function assertAdCopyClean(
   headlines: string[],
   descriptions: string[],
-  context: { trustpilotReviewCount?: number } = {},
+  context: {
+    trustpilotReviewCount?: number;
+    sitelinks?: Array<{ linkText?: string; description1?: string; description2?: string }>;
+    callouts?: Array<{ text?: string }> | string[];
+  } = {},
 ): void {
   const offending: AdCopyPreflightError["offending"] = [];
   for (const text of headlines) {
@@ -230,7 +241,153 @@ export function assertAdCopyClean(
     const label = findForbiddenClaim(text, context);
     if (label) offending.push({ field: "description", text, label });
   }
+  // §36 — sitelink fields
+  for (const s of context.sitelinks ?? []) {
+    for (const text of [s.linkText, s.description1, s.description2]) {
+      if (!text) continue;
+      const label = findForbiddenClaim(text, context);
+      if (label) offending.push({ field: "headline", text, label: `sitelink: ${label}` });
+    }
+  }
+  // §36 — callout text(s); accept either { text } objects or plain strings
+  for (const c of context.callouts ?? []) {
+    const text = typeof c === "string" ? c : c?.text;
+    if (!text) continue;
+    const label = findForbiddenClaim(text, context);
+    if (label) offending.push({ field: "description", text, label: `callout: ${label}` });
+  }
   if (offending.length > 0) {
     throw new AdCopyPreflightError(offending);
   }
+}
+
+// ─── §36 — Mandatory sitelinks & callouts (2026-06-18) ─────────────────
+/**
+ * Recommended sitelinks for every LockSafe campaign. Competitor analysis on
+ * 2026-06-18 (LBS SECURITY LTD ad on iPhone "locked out tw20") showed 4
+ * sitelinks giving the ad 5× our vertical space in the SERP. Our TW20 +
+ * Newcastle campaigns shipped with zero sitelinks → we get drowned out.
+ *
+ * URLs deliberately point at compliance-safe top-level pages, NOT
+ * `/locksmith-in/...` district pages. Google's Local Services classifier
+ * flags district landing pages on locksmith ads (we already block "locksmith"
+ * in keyword text under §10); a sitelink URL containing that token is the
+ * same trap.
+ *
+ * Link text is ≤25 chars — Google's sitelink limit.
+ */
+export const GODMODE_RECOMMENDED_SITELINKS: ReadonlyArray<{
+  linkText: string;
+  finalUrl: string;
+}> = [
+  { linkText: "24/7 Emergency Help", finalUrl: "/" },
+  { linkText: "How It Works",        finalUrl: "/how-it-works" },
+  { linkText: "Our Services",        finalUrl: "/services" },
+  { linkText: "Fixed Pricing",       finalUrl: "/pricing" },
+];
+
+/**
+ * Recommended callouts — ASA-safe affirmative claims, every one ≤25 chars
+ * (Google's callout limit). Six entries so we exceed the §36 minimum-4 floor
+ * with two spares; if a hand-edited draft drops one, we still pass the gate.
+ *
+ * None contain banned text — they're the §30-compatible counterpart to the
+ * call-out-fee phrasing competitors use. They are pure trust signals.
+ */
+export const GODMODE_RECOMMENDED_CALLOUTS: ReadonlyArray<string> = [
+  "MLA-Approved Engineers",
+  "DBS-Checked & Uniformed",
+  "Fixed Price Before Work",
+  "Anti-Fraud Platform",
+  "Verified Engineers",
+  "24/7 Emergency Response",
+];
+
+/**
+ * Sitelink draft shape (mirrors `AssetDraft` in google-ads-publish.ts but
+ * kept loose here so callers don't need to import the whole publisher).
+ * The persist guard treats these and CALLOUT entries as part of the
+ * campaign's mandatory asset set.
+ */
+export interface SitelinkAssetLike {
+  type: "SITELINK";
+  linkText: string;
+  finalUrl: string;
+  description1?: string;
+  description2?: string;
+}
+export interface CalloutAssetLike {
+  type: "CALLOUT";
+  text: string;
+}
+
+/**
+ * Returns true when the asset entry is a SITELINK with non-empty linkText
+ * AND finalUrl. Used by the §36 enforcer + auto-injector.
+ */
+export function isSitelinkAsset(a: unknown): a is SitelinkAssetLike {
+  if (!a || typeof a !== "object") return false;
+  const obj = a as { type?: unknown; linkText?: unknown; finalUrl?: unknown };
+  return (
+    obj.type === "SITELINK" &&
+    typeof obj.linkText === "string" &&
+    obj.linkText.trim().length > 0 &&
+    typeof obj.finalUrl === "string" &&
+    obj.finalUrl.trim().length > 0
+  );
+}
+
+/**
+ * Returns true when the asset entry is a CALLOUT with non-empty text.
+ */
+export function isCalloutAsset(a: unknown): a is CalloutAssetLike {
+  if (!a || typeof a !== "object") return false;
+  const obj = a as { type?: unknown; text?: unknown };
+  return obj.type === "CALLOUT" && typeof obj.text === "string" && obj.text.trim().length > 0;
+}
+
+/**
+ * Inject the §36 recommended sitelink set into an asset list. Existing
+ * SITELINK entries are kept; recommended entries are appended only if not
+ * already present (linkText match, case-insensitive). Returns the new asset
+ * array — does NOT mutate the input.
+ *
+ * Use at draft-generation / persist time (see google-ads-draft-enforcement.ts
+ * §36 enforcer). The publish endpoint will still run assertAdCopyClean over
+ * the resulting sitelinks to catch any banned text.
+ */
+export function applyGodmodeRecommendedSitelinks(
+  existing: unknown[],
+): unknown[] {
+  const seen = new Set<string>();
+  for (const a of existing) {
+    if (isSitelinkAsset(a)) seen.add(a.linkText.trim().toLowerCase());
+  }
+  const out = [...existing];
+  for (const s of GODMODE_RECOMMENDED_SITELINKS) {
+    if (seen.has(s.linkText.trim().toLowerCase())) continue;
+    out.push({ type: "SITELINK", linkText: s.linkText, finalUrl: s.finalUrl });
+  }
+  return out;
+}
+
+/**
+ * Inject the §36 recommended callout set into an asset list. Existing
+ * CALLOUT entries are kept; recommended entries are appended only if not
+ * already present (text match, case-insensitive). Returns the new asset
+ * array — does NOT mutate the input.
+ */
+export function applyGodmodeRecommendedCallouts(
+  existing: unknown[],
+): unknown[] {
+  const seen = new Set<string>();
+  for (const a of existing) {
+    if (isCalloutAsset(a)) seen.add(a.text.trim().toLowerCase());
+  }
+  const out = [...existing];
+  for (const text of GODMODE_RECOMMENDED_CALLOUTS) {
+    if (seen.has(text.trim().toLowerCase())) continue;
+    out.push({ type: "CALLOUT", text });
+  }
+  return out;
 }

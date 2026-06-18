@@ -599,6 +599,109 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  // ── 13. §36 SITELINKS + CALLOUTS on every ENABLED + PAUSED campaign ──
+  // 2026-06-18: competitor LBS SECURITY LTD's "locked out tw20" ad showed 4
+  // sitelinks giving it 5× our vertical space — our TW20 + Newcastle had
+  // none. Sitelinks + callouts cost nothing and improve Quality Score; not
+  // having them is leaving CTR on the table. Same query shape as check #6
+  // (CALL asset) but filters on field_type IN (SITELINK, CALLOUT). Account-
+  // level assets count too — Google joins them onto every campaign at serve
+  // time, so a campaign with 0 campaign-level sitelinks STILL passes if the
+  // account has ≥4 attached at customer level (queried via customer_asset).
+  try {
+    type AssetCountRow = {
+      campaign?:      { resourceName?: string; name?: string; status?: string };
+      campaignAsset?: { fieldType?: string };
+    };
+    type CustomerAssetRow = {
+      customerAsset?: { fieldType?: string };
+    };
+    const campaignSitelinkCalloutRows = (await client.query(`
+      SELECT campaign.resource_name, campaign.name, campaign.status,
+             campaign_asset.field_type
+        FROM campaign_asset
+       WHERE campaign.status IN (ENABLED, PAUSED)
+         AND campaign_asset.field_type IN (SITELINK, CALLOUT)
+    `)) as AssetCountRow[];
+    const customerSitelinkCalloutRows = (await client.query(`
+      SELECT customer_asset.field_type
+        FROM customer_asset
+       WHERE customer_asset.field_type IN (SITELINK, CALLOUT)
+    `)) as CustomerAssetRow[];
+
+    // Count account-level (customer_asset) sitelinks/callouts — these
+    // implicitly attach to every campaign that doesn't override.
+    let accountSitelinks = 0;
+    let accountCallouts  = 0;
+    for (const r of customerSitelinkCalloutRows) {
+      if (r.customerAsset?.fieldType === "SITELINK") accountSitelinks++;
+      else if (r.customerAsset?.fieldType === "CALLOUT") accountCallouts++;
+    }
+
+    // Build per-campaign count map for campaign-level overrides.
+    const perCampaign = new Map<string, { name: string; status?: string; sitelinks: number; callouts: number }>();
+    for (const c of enabledCampaigns) {
+      if (c.campaign?.resourceName) {
+        perCampaign.set(c.campaign.resourceName, {
+          name: c.campaign.name ?? "(unknown)",
+          status: c.campaign.status,
+          sitelinks: 0,
+          callouts: 0,
+        });
+      }
+    }
+    for (const r of campaignSitelinkCalloutRows) {
+      const rn = r.campaign?.resourceName;
+      if (!rn) continue;
+      let entry = perCampaign.get(rn);
+      if (!entry) {
+        entry = {
+          name: r.campaign?.name ?? "(unknown)",
+          status: r.campaign?.status,
+          sitelinks: 0,
+          callouts: 0,
+        };
+        perCampaign.set(rn, entry);
+      }
+      if (r.campaignAsset?.fieldType === "SITELINK") entry.sitelinks++;
+      else if (r.campaignAsset?.fieldType === "CALLOUT") entry.callouts++;
+    }
+
+    // A campaign passes §36 if (campaign-level sitelinks + account-level
+    // sitelinks) ≥ 4 AND (campaign-level callouts + account-level callouts) ≥ 4.
+    const MIN_SITELINKS = 4;
+    const MIN_CALLOUTS  = 4;
+    const offenders: Array<{ name: string; status?: string; sitelinks: number; callouts: number; effectiveSitelinks: number; effectiveCallouts: number }> = [];
+    for (const entry of perCampaign.values()) {
+      const effSitelinks = entry.sitelinks + accountSitelinks;
+      const effCallouts  = entry.callouts + accountCallouts;
+      if (effSitelinks < MIN_SITELINKS || effCallouts < MIN_CALLOUTS) {
+        offenders.push({
+          name: entry.name,
+          status: entry.status,
+          sitelinks: entry.sitelinks,
+          callouts: entry.callouts,
+          effectiveSitelinks: effSitelinks,
+          effectiveCallouts: effCallouts,
+        });
+      }
+    }
+    checks.push({
+      name:    "13. §36 Mandatory sitelinks (≥4) + callouts (≥4) on every campaign (2026-06-18)",
+      pass:    offenders.length === 0,
+      message: offenders.length === 0
+        ? `Every campaign has ≥${MIN_SITELINKS} sitelinks + ≥${MIN_CALLOUTS} callouts (campaign+account level combined). Account default: ${accountSitelinks} sitelinks / ${accountCallouts} callouts.`
+        : `${offenders.length} campaign(s) below the §36 floor (need ≥${MIN_SITELINKS} sitelinks + ≥${MIN_CALLOUTS} callouts). Fix: attach GODMODE_RECOMMENDED_SITELINKS + GODMODE_RECOMMENDED_CALLOUTS via Google Ads UI (Assets → +Sitelink / +Callout) or republish the draft (auto-injects).`,
+      details: { offenders, accountDefault: { sitelinks: accountSitelinks, callouts: accountCallouts } },
+    });
+  } catch (err) {
+    checks.push({
+      name:    "13. §36 Mandatory sitelinks (≥4) + callouts (≥4) on every campaign (2026-06-18)",
+      pass:    false,
+      message: `Failed to query: ${err instanceof Error ? err.message : String(err)}`,
+    });
+  }
+
   const ok = checks.every((c) => c.pass);
   return NextResponse.json({
     ok,

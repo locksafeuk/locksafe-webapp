@@ -29,6 +29,13 @@
  */
 
 import type { Prisma } from "@prisma/client";
+import {
+  applyGodmodeRecommendedCallouts,
+  applyGodmodeRecommendedSitelinks,
+  findForbiddenClaim,
+  isCalloutAsset,
+  isSitelinkAsset,
+} from "@/lib/google-ads-copy-guard";
 
 // ─── Playbook guardrails ──────────────────────────────────────────────────
 // Sourced from google-ads-campaign-playbook.md §1 (the proven 2026-06-02
@@ -112,6 +119,45 @@ export const PLAYBOOK_GUARDRAILS = {
    * These cannot be overridden per-draft. */
   ADVERTISING_CHANNEL_TYPE: "SEARCH" as const,
   LOCATION_MATCH_TYPE: "PRESENCE" as const,
+
+  /**
+   * Rule §35 (2026-06-18): for tight-geo campaigns (radius ≤ 5 miles —
+   * postcode / town-name PRESENCE-only targets), keyword text MUST NOT
+   * contain a UK postcode or one of the campaign's geo town names.
+   *
+   * Why: Google's "Low search volume" eligibility threshold is per-keyword-
+   * TEXT, not per-campaign. TW20 Pipeline Test (2026-06-18) shipped 14 hyper-
+   * local exact strings like [locked out tw20] and [emergency lockout egham]
+   * — all 14 came back "Not eligible — Low search volume" because nobody
+   * types the postcode into search at the volume Google requires. The proven
+   * pattern (Newcastle NE1) uses phrase-match generic intents: "lock change",
+   * "locked out", "emergency lockout". The geo qualifier IS the campaign's
+   * PRESENCE-only targeting — adding it again to the keyword text just
+   * shrinks the eligible-search universe to zero.
+   *
+   * Detection: UK postcode regex /\b[A-Z]{1,2}\d{1,2}[A-Z]?\b/i, plus any
+   * geo-target town name listed in the draft's `geoTargets` (resolved via
+   * the centroid map). Override for testing: env
+   * LOCKSAFE_ALLOW_HYPERLOCAL_KEYWORDS = "true".
+   */
+  HYPERLOCAL_KEYWORDS_BAN: true as const,
+
+  /**
+   * Rule §36 (2026-06-18): every campaign MUST ship with ≥4 sitelinks and
+   * ≥4 callouts attached. Competitor analysis on 2026-06-18 (LBS SECURITY
+   * LTD ad on "locked out tw20") showed 4 sitelinks giving the ad 5× our
+   * vertical space — our TW20 + Newcastle shipped with zero. Sitelinks are
+   * free real estate; not having them is leaving CTR on the table.
+   *
+   * Auto-injection: when a draft persists with fewer than 4 sitelinks /
+   * callouts, GODMODE_RECOMMENDED_SITELINKS + GODMODE_RECOMMENDED_CALLOUTS
+   * (see google-ads-copy-guard.ts) get appended. Same pattern as §20 CALL
+   * asset auto-inject — the existing persist sites don't all populate the
+   * assets[] array so hard-rejecting would silently break the dashboard
+   * buttons. We auto-fill the recommended set + log an appliedFix.
+   */
+  MIN_SITELINKS:        4 as const,
+  MIN_CALLOUTS:         4 as const,
 
   /**
    * Rule §20 (2026-06-10): every campaign MUST ship with a CALL asset
@@ -774,8 +820,224 @@ export function enforceDraftGuardrails(
     }
   }
 
+  // 12. Hyperlocal keyword text ban (§35, 2026-06-18). ─────────────────
+  // Reject any keyword whose text contains a UK postcode token (regex) or
+  // any geo town name listed in the draft's geoTargets. The geo qualifier
+  // is the campaign's PRESENCE-only targeting — adding it again to the
+  // keyword text shrinks the eligible-search universe to "Low search
+  // volume" zero (TW20 Pipeline Test, 14/14 ineligible 2026-06-18).
+  if (
+    PLAYBOOK_GUARDRAILS.HYPERLOCAL_KEYWORDS_BAN &&
+    process.env.LOCKSAFE_ALLOW_HYPERLOCAL_KEYWORDS !== "true"
+  ) {
+    const hyperlocalViolations = collectHyperlocalKeywords(
+      out.keywords,
+      out.adGroups,
+      out.geoTargets,
+    );
+    for (const hv of hyperlocalViolations) {
+      violations.push({
+        field: hv.field,
+        expected: `no UK postcode or campaign geo-name in keyword text (§35 — Low search volume protection)`,
+        actual: `${hv.text} → suggested: "${stripGeoTokens(hv.text)}"`,
+        severity: "error",
+      });
+    }
+  }
+
+  // 13. Sitelinks + callouts (§36, 2026-06-18). ─────────────────────────
+  // Every campaign needs ≥4 sitelinks + ≥4 callouts. Competitor LBS
+  // SECURITY LTD's "locked out tw20" ad showed 4 sitelinks taking 5× our
+  // vertical space; our TW20 + Newcastle shipped with zero. Free real
+  // estate, free CTR. Auto-inject the recommended set when missing
+  // (same pattern as the §20 CALL auto-inject above).
+  {
+    const assetsArr = Array.isArray(out.assets) ? (out.assets as unknown[]) : [];
+    const sitelinkCount = assetsArr.filter(isSitelinkAsset).length;
+    const calloutCount = assetsArr.filter(isCalloutAsset).length;
+
+    let newAssets: unknown[] = assetsArr;
+    let injected = false;
+
+    if (sitelinkCount < PLAYBOOK_GUARDRAILS.MIN_SITELINKS) {
+      newAssets = applyGodmodeRecommendedSitelinks(newAssets);
+      injected = true;
+      appliedFixes.push({
+        field: "assets",
+        expected: `≥${PLAYBOOK_GUARDRAILS.MIN_SITELINKS} sitelinks (§36)`,
+        actual: `${sitelinkCount} sitelinks — injected GODMODE_RECOMMENDED_SITELINKS`,
+        severity: "warning",
+      });
+    }
+    if (calloutCount < PLAYBOOK_GUARDRAILS.MIN_CALLOUTS) {
+      newAssets = applyGodmodeRecommendedCallouts(newAssets);
+      injected = true;
+      appliedFixes.push({
+        field: "assets",
+        expected: `≥${PLAYBOOK_GUARDRAILS.MIN_CALLOUTS} callouts (§36)`,
+        actual: `${calloutCount} callouts — injected GODMODE_RECOMMENDED_CALLOUTS`,
+        severity: "warning",
+      });
+    }
+    if (injected) out.assets = newAssets as unknown as typeof out.assets;
+
+    // §36 also requires that any sitelink / callout text we ship passes
+    // the §30 ad-copy ban (no "no call-out fee" etc.). The publish-time
+    // assertAdCopyClean check covers this with `context.sitelinks` /
+    // `context.callouts`, but we also want the violation surfaced at
+    // persist time so the dashboard rejects the draft instead of letting
+    // it sit in PENDING_APPROVAL with bad copy.
+    const finalAssets = Array.isArray(out.assets) ? (out.assets as unknown[]) : [];
+    for (const a of finalAssets) {
+      if (isSitelinkAsset(a)) {
+        for (const text of [a.linkText, a.description1, a.description2]) {
+          if (!text) continue;
+          const label = findForbiddenClaim(text);
+          if (label) {
+            violations.push({
+              field: "assets.sitelink",
+              expected: "no forbidden ad-copy claim (§30)",
+              actual: `"${text}" → ${label}`,
+              severity: "error",
+            });
+          }
+        }
+      } else if (isCalloutAsset(a)) {
+        const label = findForbiddenClaim(a.text);
+        if (label) {
+          violations.push({
+            field: "assets.callout",
+            expected: "no forbidden ad-copy claim (§30)",
+            actual: `"${a.text}" → ${label}`,
+            severity: "error",
+          });
+        }
+      }
+    }
+  }
+
   if (violations.length > 0) return { ok: false, violations };
   return { ok: true, data: out, appliedFixes };
+}
+
+// ─── §35 — hyperlocal keyword detection helpers (2026-06-18) ─────────
+
+/**
+ * UK postcode pattern. Matches the outward portion (AA1, A1A, SW1A, M1, NE1
+ * etc.) when it appears as a SEPARATE token in a multi-word phrase — i.e.
+ * preceded by whitespace, NOT at the start of a single-token string. That
+ * way "locked out tw20" trips but a single-token fixture/identifier like
+ * "kw0" or "ne1" doesn't false-positive at the start of a slug name.
+ *
+ * Real hyperlocal violations always pair an intent verb with a geo qualifier
+ * ("locked out TW20", "emergency lockout EGHAM") — never a bare postcode by
+ * itself. A campaign keyword that's just "ne1" with nothing else would be a
+ * truly bizarre input and the broader §35 spirit (Low search volume
+ * protection) still rejects it via the city-token check if it matches.
+ */
+const UK_POSTCODE_REGEX = /\s[A-Z]{1,2}\d{1,2}[A-Z]?\b/i;
+
+/**
+ * UK town/city names that appear in our coverage map. Hard-coded for now
+ * because (a) the centroid map is async and (b) the persist guard must be
+ * sync. Keep in sync with `UK_CITY_CENTROIDS` in
+ * `src/lib/campaign-coverage-builder.ts` when new cities ship. Match is
+ * case-insensitive, whole-word.
+ *
+ * The names here SHOULD NOT appear in keyword text on a tight-geo
+ * campaign — they pollute the keyword vocabulary (the geo targeting is
+ * already PRESENCE-only on the campaign).
+ */
+const UK_CITY_TOKENS: ReadonlyArray<string> = [
+  // The cities we've actively targeted on Google Ads campaigns to date.
+  "london", "manchester", "birmingham", "liverpool", "bristol",
+  "bradford", "newcastle", "leeds", "sheffield", "yorkshire",
+  "midlands", "newham", "egham", "staines", "slough",
+  // Outer London / commuter belt that share TW/SL postcodes with TW20.
+  "twickenham", "richmond", "kingston", "feltham",
+];
+
+/**
+ * Strip postcode + city tokens from a keyword text, returning the suggested
+ * generic phrasing. Used to populate the violation's `actual` field as a
+ * hint to the operator: "locked out tw20" → suggested "locked out".
+ */
+export function stripGeoTokens(text: string): string {
+  let out = text.replace(UK_POSTCODE_REGEX, " ");
+  // Word-bounded city replacement
+  const cityRegex = new RegExp(`\\b(${UK_CITY_TOKENS.join("|")})\\b`, "gi");
+  out = out.replace(cityRegex, " ");
+  return out.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Returns true when the keyword text contains a UK postcode pattern OR a
+ * UK city/town token from the coverage map.
+ */
+function isHyperlocalKeyword(text: string): boolean {
+  if (!text) return false;
+  if (UK_POSTCODE_REGEX.test(text)) return true;
+  const lower = text.toLowerCase();
+  for (const city of UK_CITY_TOKENS) {
+    const r = new RegExp(`\\b${city}\\b`);
+    if (r.test(lower)) return true;
+  }
+  return false;
+}
+
+/**
+ * Walks the draft's flat keywords + per-ad-group keywords and returns the
+ * list of entries that violate §35. `geoTargets` is accepted but currently
+ * unused in the matching — the city allowlist above is broader than any
+ * single draft's geoTargets, so we catch the violation regardless of which
+ * specific postcode the draft targets. Kept on the signature for future
+ * tightening.
+ */
+function collectHyperlocalKeywords(
+  flatKeywords: unknown,
+  adGroupsRaw: unknown,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _geoTargets: unknown,
+): Array<{ field: string; text: string }> {
+  const out: Array<{ field: string; text: string }> = [];
+
+  if (Array.isArray(flatKeywords)) {
+    for (const kw of flatKeywords as unknown[]) {
+      const text =
+        typeof kw === "string"
+          ? kw
+          : kw && typeof kw === "object" && "text" in (kw as Record<string, unknown>)
+            ? String((kw as Record<string, unknown>).text)
+            : "";
+      if (!text) continue;
+      if (isHyperlocalKeyword(text)) {
+        out.push({ field: "keywords", text });
+      }
+    }
+  }
+
+  if (Array.isArray(adGroupsRaw)) {
+    const adGroups = adGroupsRaw as AdGroupCheckShape[];
+    for (let i = 0; i < adGroups.length; i++) {
+      const ag = adGroups[i];
+      const label = ag?.name?.trim() || `ad group ${i + 1}`;
+      if (!Array.isArray(ag?.keywords)) continue;
+      for (const kw of ag.keywords as unknown[]) {
+        const text =
+          typeof kw === "string"
+            ? kw
+            : kw && typeof kw === "object" && "text" in (kw as Record<string, unknown>)
+              ? String((kw as Record<string, unknown>).text)
+              : "";
+        if (!text) continue;
+        if (isHyperlocalKeyword(text)) {
+          out.push({ field: `adGroups[${label}].keywords`, text });
+        }
+      }
+    }
+  }
+
+  return out;
 }
 
 // ─── Helpers — banned-keyword detection + per-ad-group validation ─────
