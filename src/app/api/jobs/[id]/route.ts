@@ -3,6 +3,7 @@ import prisma from "@/lib/db";
 import { sendLocksmithArrivedEmail } from "@/lib/email";
 import { appendJobActivity } from "@/lib/job-activity";
 import { geocodePostcode } from "@/lib/locksmith-matcher";
+import { notifyNearbyLocksmiths } from "@/lib/job-notifications";
 import { isCoordinatePair, normalizeUkPostcode } from "@/lib/location-display";
 
 // GET - Get a single job by ID
@@ -462,6 +463,37 @@ export async function PATCH(
           locksmith: true,
         },
       });
+
+      // If the location changed on a still-unassigned PENDING job, re-dispatch to
+      // locksmiths near the CORRECTED location. Without this, fixing a wrong
+      // postcode silently strands the job — the original dispatch went to the
+      // wrong area and nothing ever re-notifies the right one.
+      if (
+        (postcodeChanged || addressChanged) &&
+        updatedJob.status === "PENDING" &&
+        !updatedJob.locksmithId &&
+        updatedJob.latitude != null &&
+        updatedJob.longitude != null
+      ) {
+        try {
+          const dispatch = await notifyNearbyLocksmiths({
+            id: updatedJob.id,
+            jobNumber: updatedJob.jobNumber,
+            problemType: updatedJob.problemType,
+            propertyType: updatedJob.propertyType ?? undefined,
+            postcode: updatedJob.postcode,
+            address: updatedJob.address,
+            latitude: updatedJob.latitude,
+            longitude: updatedJob.longitude,
+            createdAt: updatedJob.createdAt.toISOString(),
+          });
+          console.log(
+            `[Job PATCH] Re-dispatched ${updatedJob.jobNumber} after location edit → notified ${dispatch.notifiedCount}`,
+          );
+        } catch (err) {
+          console.error("[Job PATCH] Re-dispatch after location edit failed:", err);
+        }
+      }
 
       await appendJobActivity({
         jobId: id,
