@@ -10,7 +10,6 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 const STORAGE_KEY = "pwa-install-prompt-dismissed";
-const SHOW_AGAIN_AFTER_DAYS = 7;
 
 export default function PWAInstallPrompt() {
   const [showPrompt, setShowPrompt] = useState(false);
@@ -46,46 +45,24 @@ export default function PWAInstallPrompt() {
     setIsIOS(isIOSDevice);
     setIsAndroid(isAndroidDevice);
 
-    // Check if mobile device
-    const isMobile = isIOSDevice || isAndroidDevice || window.innerWidth < 768;
+    // Conversion fix (2026-06-15): the install prompt must NEVER auto-interrupt
+    // a visitor. A full-screen modal that pops up ~2.5s after landing was
+    // covering the "Call Now" CTA on paid-traffic pages and bouncing clicks.
+    // It now appears ONLY via the explicit ?install=1 deep link (e.g. a link we
+    // send a locksmith), so organic/ad visitors are never interrupted.
+    if (!isForcedInstall) return;
 
-    if (!isMobile && !isForcedInstall) return;
+    localStorage.removeItem(STORAGE_KEY);
+    setShowPrompt(true);
+    recordPWAPromptShown();
 
-    if (!isForcedInstall) {
-      // Check if dismissed recently
-      const dismissedData = localStorage.getItem(STORAGE_KEY);
-      if (dismissedData) {
-        const { timestamp } = JSON.parse(dismissedData);
-        const daysSinceDismissed = (Date.now() - timestamp) / (1000 * 60 * 60 * 24);
-        if (daysSinceDismissed < SHOW_AGAIN_AFTER_DAYS) {
-          return;
-        }
-      }
-    } else {
-      localStorage.removeItem(STORAGE_KEY);
-      setShowPrompt(true);
-      recordPWAPromptShown();
-    }
-
-    // Listen for beforeinstallprompt (Android Chrome)
+    // Capture the native Android install event so the in-modal "Install Now"
+    // button works inside the forced (?install=1) flow.
     const handleBeforeInstall = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
-      setTimeout(() => {
-        setShowPrompt(true);
-        recordPWAPromptShown();
-      }, isForcedInstall ? 0 : 2500);
     };
-
     window.addEventListener("beforeinstallprompt", handleBeforeInstall);
-
-    // For iOS, show prompt after delay
-    if (isIOSDevice) {
-      setTimeout(() => {
-        setShowPrompt(true);
-        recordPWAPromptShown();
-      }, isForcedInstall ? 0 : 2500);
-    }
 
     return () => {
       window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
