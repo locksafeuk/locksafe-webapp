@@ -523,12 +523,18 @@ export async function GET(request: NextRequest) {
       where.postcode = { startsWith: postcode.substring(0, 3).toUpperCase() };
     }
 
+    // Default to "all" sources. Previously the locksmith-facing feed
+    // (availableForLocksmith) defaulted to "normal", which silently dropped
+    // every phone/Retell-booked job — getJobSourceType() classifies
+    // retell_ai/phone as "auto" — so locksmiths were notified about phone
+    // lockouts but the jobs never appeared in their Available list and sat
+    // unassigned. The auto/normal split is an admin analytics concept and
+    // must not hide real customer jobs from locksmiths. Admin callers can
+    // still pass ?sourceType=auto|normal explicitly to narrow the view.
     const effectiveSourceFilter: JobSourceFilter =
       sourceTypeParam === "auto" || sourceTypeParam === "normal"
         ? sourceTypeParam
-        : availableForLocksmith
-          ? "normal"
-          : "all";
+        : "all";
 
     let jobs = await prisma.job.findMany({
       where,
