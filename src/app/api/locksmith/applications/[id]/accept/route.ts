@@ -61,7 +61,44 @@ export async function POST(
       );
     }
 
-    // Update application status to "accepted" and assessment fee if provided
+    // Use the chosen assessment fee for the job + notifications.
+    const finalAssessmentFee =
+      assessmentFee !== undefined && assessmentFee > 0 ? assessmentFee : application.assessmentFee;
+
+    // CRITICAL: actually ASSIGN the job to this locksmith. Previously this
+    // endpoint only flipped the application to "accepted" and never touched the
+    // Job — so the job stayed PENDING with locksmithId=null. That single
+    // omission is why accepted jobs never appeared in the locksmith's active
+    // list/history, why the work page showed no action buttons (PENDING →
+    // getNextAction → null), and why the customer never got a real assignment.
+    // Claim atomically (CAS on PENDING/PHONE_INITIATED) so two locksmiths can't
+    // both win. assessmentPaid stays false until the customer actually pays.
+    const claim = await prisma.job.updateMany({
+      where: {
+        id: application.job.id,
+        status: { in: ["PENDING", "PHONE_INITIATED"] },
+        locksmithId: null,
+      },
+      data: {
+        status: "ACCEPTED",
+        locksmithId: application.locksmithId,
+        acceptedAt: new Date(),
+        acceptedEta: application.eta,
+        ...(finalAssessmentFee != null ? { assessmentFee: finalAssessmentFee } : {}),
+      },
+    });
+
+    if (claim.count === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Job ${application.job.jobNumber} is no longer available.`,
+        },
+        { status: 409 }
+      );
+    }
+
+    // Now mark the application accepted (job is safely assigned above).
     const updateData: any = { status: "accepted" };
     if (assessmentFee !== undefined && assessmentFee > 0) {
       updateData.assessmentFee = assessmentFee;
@@ -71,9 +108,6 @@ export async function POST(
       where: { id: applicationId },
       data: updateData,
     });
-
-    // Use the updated assessment fee for notifications
-    const finalAssessmentFee = assessmentFee !== undefined && assessmentFee > 0 ? assessmentFee : application.assessmentFee;
 
     // Post-acceptance payment request to customer.
     const paymentRequest = await sendCustomerCalloutPaymentRequest({

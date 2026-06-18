@@ -565,8 +565,22 @@ export async function GET(request: NextRequest) {
       if (locksmith?.baseLat && locksmith?.baseLng) {
         const coverageRadius = locksmith.coverageRadius || 10;
 
-        // Filter jobs to only those within the locksmith's coverage radius
+        // Filter jobs to only those within the locksmith's coverage radius —
+        // OR jobs the system already notified this locksmith about. The dispatch
+        // path notifies on a WIDENED radius (fallback waves + auto-redispatch),
+        // but this list used a strict own-radius, so a locksmith would get a
+        // "New Job Available" push for a job that never appeared here (proven:
+        // 5 of 6 notified locksmiths saw 0 jobs). If we offered it to them, they
+        // must be able to see and accept it.
         jobs = jobs.filter((job) => {
+          // If the system already notified this locksmith, always show it.
+          const notifiedIds = Array.isArray(job.notifiedLocksmithIds)
+            ? (job.notifiedLocksmithIds as string[])
+            : [];
+          if (notifiedIds.includes(availableForLocksmith)) {
+            return true;
+          }
+
           // If job doesn't have coordinates, try to include it (legacy support)
           if (!job.latitude || !job.longitude) {
             return true; // Include jobs without coordinates for now
