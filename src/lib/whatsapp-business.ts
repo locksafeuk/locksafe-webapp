@@ -1085,7 +1085,7 @@ export async function handleIncomingMessage(
     // with full cross-channel memory. This replaces the old menu/booking flow.
     if (process.env.CUSTOMER_WHATSAPP_AGENTIC === "true") {
       const { handleCustomerLockie } = await import("@/lib/customer-lockie");
-      const reply = await handleCustomerLockie(phone, messageText);
+      const reply = await handleCustomerLockie(phone, messageText, { channel: "whatsapp" });
       if (reply) {
         await sendTextMessage(phone, reply);
         return;

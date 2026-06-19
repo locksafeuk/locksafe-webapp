@@ -102,7 +102,7 @@ async function routeToLockie(phone: string, text: string): Promise<string | null
   if (identity.kind === "lead") {
     return handleLeadWhatsApp(identity, text, phone);
   }
-  return handleCustomerLockie(phone, text);
+  return handleCustomerLockie(phone, text, { channel: "sms" });
 }
 
 async function twilioSmsWebhookHandler(request: NextRequest) {

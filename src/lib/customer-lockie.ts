@@ -132,6 +132,7 @@ async function executeCustomerTool(
   toolName: string,
   args: Record<string, unknown>,
   dryRun: boolean,
+  channel: "sms" | "whatsapp",
 ): Promise<string> {
   try {
     switch (toolName) {
@@ -180,7 +181,7 @@ async function executeCustomerTool(
           problemType,
           propertyType: String(args.property_type ?? "house"),
           emergencyDetails: String(args.description ?? ""),
-          createdVia: "whatsapp",
+          createdVia: channel,
         });
         if (!r.success || !r.job) return `Couldn't register the job: ${r.error || "unknown error"}`;
         return `DONE: created job ${r.job.jobNumber}. ${r.notifications?.notifiedCount ?? 0} nearby locksmiths have been alerted. Give them the job reference and let them know a locksmith will be in touch shortly.`;
@@ -215,9 +216,10 @@ async function executeCustomerTool(
 export async function handleCustomerLockie(
   phone: string,
   text: string,
-  opts: { dryRun?: boolean; historyOverride?: LLMMessage[]; traceSink?: string[] } = {},
+  opts: { dryRun?: boolean; historyOverride?: LLMMessage[]; traceSink?: string[]; channel?: "sms" | "whatsapp" } = {},
 ): Promise<string | null> {
   const dryRun = opts.dryRun === true;
+  const channel = opts.channel ?? "whatsapp";
   const customer = await getCustomerByPhone(phone);
   const name = customer?.name?.split(" ")[0] || "there";
 
@@ -253,6 +255,7 @@ export async function handleCustomerLockie(
       "• Cancel / reschedule / refund / complaint / 'this is a scam' / 'I want to speak to someone' / safety worries → you MUST call escalate_to_human in that same turn (with a short reason). Never just say 'I'll pass this on' or 'someone will be in touch' without calling the tool — saying it without calling it means nobody is notified.",
       "• No locksmith assigned yet → reassure them we're matching them with a nearby locksmith now and they'll get a text the moment one accepts. Don't promise a specific time.",
 
+      `CHANNEL: you are on ${channel === "sms" ? "SMS \u2014 keep it tight and plain (no emoji or links unless essential), 1-2 short sentences" : "WhatsApp \u2014 you can be a touch warmer and slightly longer, still concise"}.`,
       "STYLE: sound like a calm, capable real person — not a bot. These customers are often stressed (locked out, late at night), so be warm, reassuring and fast. Keep it short (1-3 sentences), natural British English, no menus, no jargon. Answer the actual question first, then act. Never invent job details, ETAs, names or prices beyond the LIVE DATA and tool results. If you genuinely can't help or aren't sure, escalate rather than guess.",
     ].join("\n\n"),
   };
@@ -294,6 +297,7 @@ export async function handleCustomerLockie(
       "escalate_to_human",
       { reason: "auto safety-net: reply promised a human handoff but the tool wasn't called" },
       dryRun || !customer,
+      channel,
     );
     opts.traceSink?.push(`escalate_to_human(auto-safety-net) → ${out}`);
   };
@@ -315,6 +319,7 @@ export async function handleCustomerLockie(
       tc.name,
       tc.arguments ?? {},
       dryRun || !customer, // no customer record → never mutate, just answer
+      channel,
     );
     results.push(`${tc.name} → ${out}`);
     opts.traceSink?.push(`${tc.name}(${JSON.stringify(tc.arguments ?? {})}) → ${out}`);
