@@ -92,6 +92,32 @@ export async function smsHandoffState(
   return { inboundSms, alreadyOffered };
 }
 
+/**
+ * WhatsApp 24h session window: returns true if there is a real INBOUND WhatsApp
+ * message (i.e. NOT an SMS) from this phone within the last 24 hours. Outside
+ * this window WhatsApp only permits template messages, so free-form sends must
+ * fall back to SMS.
+ */
+export async function isWhatsAppWindowOpen(phone: string): Promise<boolean> {
+  const norm = normalizePhone(phone);
+  const convo = await prisma.whatsAppConversation.findFirst({
+    where: { phone: norm },
+    select: { id: true },
+  });
+  if (!convo) return false;
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const recentInbound = await prisma.whatsAppConversationMessage.findFirst({
+    where: {
+      conversationId: convo.id,
+      direction: "inbound",
+      messageType: { not: "sms" },
+      createdAt: { gte: since },
+    },
+    select: { id: true },
+  });
+  return recentInbound !== null;
+}
+
 export async function recordIncomingWhatsAppMessage(input: {
   phone: string;
   waId?: string | null;

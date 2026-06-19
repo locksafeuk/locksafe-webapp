@@ -39,6 +39,14 @@ import {
 import { PostServiceReviewModal } from "@/components/marketing/modals/PostServiceReviewModal";
 import { captureGPS } from "@/hooks/useGPS";
 
+// Cost-saver: optional "Continue on WhatsApp" CTA shown after the booking is
+// confirmed. Behind NEXT_PUBLIC_CUSTOMER_WHATSAPP_CTA (default OFF). The actual
+// channel switch happens when the customer messages in on WhatsApp.
+const SHOW_WHATSAPP_CTA = process.env.NEXT_PUBLIC_CUSTOMER_WHATSAPP_CTA === "true";
+const WHATSAPP_CTA_LINK = `https://wa.me/447446588587?text=${encodeURIComponent(
+  "Hi, I'd like to continue my LockSafe job updates here.",
+)}`;
+
 // Initialize Stripe (only if key is provided)
 const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 
@@ -1342,6 +1350,19 @@ export default function CustomerJobPage({ params }: { params: Promise<{ id: stri
                     </div>
                   </div>
                 </div>
+
+                {/* Continue on WhatsApp CTA (feature-flagged) */}
+                {SHOW_WHATSAPP_CTA && (
+                  <a
+                    href={WHATSAPP_CTA_LINK}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-4 flex items-center justify-center gap-2 w-full rounded-lg bg-[#25D366] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#1ebe57]"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    Continue on WhatsApp
+                  </a>
+                )}
               </div>
             )}
 

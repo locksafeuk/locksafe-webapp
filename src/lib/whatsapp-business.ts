@@ -1057,6 +1057,29 @@ export async function handleIncomingMessage(
       return;
     }
 
+    // Cost-saver: when a known customer messages in on WhatsApp, flip their
+    // preferred channel to WhatsApp so future job updates route here instead of
+    // SMS. Fire-and-forget — never block the reply. Behind CUSTOMER_WHATSAPP_UPDATES.
+    if (process.env.CUSTOMER_WHATSAPP_UPDATES === "true") {
+      try {
+        const { getCustomerByPhone } = await import("@/lib/customer-service");
+        const customer = await getCustomerByPhone(phone).catch(() => null);
+        if (customer?.id) {
+          const { default: prismaClient } = await import("@/lib/db");
+          await prismaClient.customer
+            .update({
+              where: { id: customer.id },
+              data: { preferredChannel: "whatsapp" },
+            })
+            .catch((err) => {
+              console.error("[WhatsApp] preferredChannel switch failed:", err);
+            });
+        }
+      } catch (err) {
+        console.error("[WhatsApp] preferredChannel switch error:", err);
+      }
+    }
+
     // Customers → agentic customer Lockie (ChatGPT-style): he handles BOTH
     // booking a brand-new job and supporting an existing one, conversationally,
     // with full cross-channel memory. This replaces the old menu/booking flow.

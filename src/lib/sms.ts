@@ -386,6 +386,67 @@ export async function sendSMS(
   return sendViaTwilio(to, message, options);
 }
 
+/**
+ * Channel-aware customer notification delivery (cost saver).
+ *
+ * Behind the CUSTOMER_WHATSAPP_UPDATES feature flag (default OFF). When OFF this
+ * behaves exactly like a transactional sendSMS. When ON, customers who have
+ * opted into WhatsApp (preferredChannel === "whatsapp") and have an open 24h
+ * WhatsApp session window receive the update over WhatsApp (zero SMS cost).
+ *
+ * A notification is NEVER dropped: any WhatsApp failure, a closed window, or a
+ * non-WhatsApp preference falls back to the existing transactional SMS path.
+ *
+ * Dynamic imports are used for the WhatsApp/customer modules to avoid an import
+ * cycle (sms.ts ↔ whatsapp-business.ts / customer-service.ts).
+ */
+export async function deliverCustomerNotification(
+  phone: string,
+  message: string,
+  logContext: string,
+): Promise<SMSResult> {
+  const sms = () =>
+    sendSMS(phone, message, { channel: "transactional", logContext });
+
+  if (process.env.CUSTOMER_WHATSAPP_UPDATES !== "true") {
+    return sms();
+  }
+
+  try {
+    const { getCustomerByPhone } = await import("@/lib/customer-service");
+    const customer = await getCustomerByPhone(phone).catch(() => null);
+
+    if (!customer) return sms();
+
+    const prefersWhatsApp =
+      (customer as { preferredChannel?: string }).preferredChannel === "whatsapp";
+    if (!prefersWhatsApp) return sms();
+
+    const { isWhatsAppWindowOpen } = await import("@/lib/whatsapp-inbox");
+    const windowOpen = await isWhatsAppWindowOpen(phone).catch(() => false);
+    if (!windowOpen) return sms();
+
+    const { sendTextMessage } = await import("@/lib/whatsapp-business");
+    const result = await sendTextMessage(phone, message);
+    if (result.success) {
+      return { success: true, messageId: result.messageId };
+    }
+
+    // WhatsApp send failed → never drop the notification, fall back to SMS.
+    console.warn("[SMS] WhatsApp delivery failed, falling back to SMS", {
+      context: logContext,
+      error: result.error,
+    });
+    return sms();
+  } catch (error) {
+    console.warn("[SMS] deliverCustomerNotification error, falling back to SMS", {
+      context: logContext,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return sms();
+  }
+}
+
 // ============================================
 // JOB NOTIFICATION FUNCTIONS
 // ============================================
@@ -410,10 +471,11 @@ export async function notifyCustomerQuoteReceived(
   ctx: JobSMSContext,
 ): Promise<SMSResult> {
   const message = SMS_TEMPLATES.CUSTOMER_QUOTE_RECEIVED(ctx);
-  return sendSMS(ctx.customerPhone, message, {
-    channel: "transactional",
-    logContext: `quote-received:${ctx.jobNumber}`,
-  });
+  return deliverCustomerNotification(
+    ctx.customerPhone,
+    message,
+    `quote-received:${ctx.jobNumber}`,
+  );
 }
 
 /**
@@ -423,10 +485,11 @@ export async function notifyCustomerLocksmithAccepted(
   ctx: JobSMSContext,
 ): Promise<SMSResult> {
   const message = SMS_TEMPLATES.CUSTOMER_LOCKSMITH_ACCEPTED(ctx);
-  return sendSMS(ctx.customerPhone, message, {
-    channel: "transactional",
-    logContext: `locksmith-accepted:${ctx.jobNumber}`,
-  });
+  return deliverCustomerNotification(
+    ctx.customerPhone,
+    message,
+    `locksmith-accepted:${ctx.jobNumber}`,
+  );
 }
 
 /**
@@ -436,10 +499,51 @@ export async function notifyCustomerLocksmithEnRoute(
   ctx: JobSMSContext,
 ): Promise<SMSResult> {
   const message = SMS_TEMPLATES.CUSTOMER_LOCKSMITH_EN_ROUTE(ctx);
-  return sendSMS(ctx.customerPhone, message, {
-    channel: "transactional",
-    logContext: `en-route:${ctx.jobNumber}`,
-  });
+  const logContext = `en-route:${ctx.jobNumber}`;
+
+  // One-time SMS→WhatsApp hand-off offer: when the cost-saver feature is on and
+  // this update is going out over SMS (customer hasn't yet opted into WhatsApp),
+  // append a single "continue on WhatsApp" link so future updates can route to
+  // WhatsApp and save SMS cost. Deduped via smsHandoffState (offer once).
+  if (process.env.CUSTOMER_WHATSAPP_UPDATES === "true") {
+    try {
+      const { getCustomerByPhone } = await import("@/lib/customer-service");
+      const customer = await getCustomerByPhone(ctx.customerPhone).catch(
+        () => null,
+      );
+      const prefersWhatsApp =
+        (customer as { preferredChannel?: string } | null)?.preferredChannel ===
+        "whatsapp";
+
+      if (!prefersWhatsApp) {
+        const { smsHandoffState } = await import("@/lib/whatsapp-inbox");
+        const { alreadyOffered } = await smsHandoffState(
+          ctx.customerPhone,
+        ).catch(() => ({ alreadyOffered: true, inboundSms: 0 }));
+
+        if (!alreadyOffered) {
+          const waNumber = (
+            process.env.TWILIO_WHATSAPP_NUMBER || "+447446588587"
+          ).replace(/\D/g, "");
+          const waLink = `https://wa.me/${waNumber}?text=${encodeURIComponent(
+            "Hi, I'd like to continue my LockSafe job updates here.",
+          )}`;
+          const withOffer = `${message}\n\nPrefer WhatsApp? Continue here: ${waLink}`;
+          return sendSMS(ctx.customerPhone, withOffer, {
+            channel: "transactional",
+            logContext,
+          });
+        }
+      }
+    } catch (error) {
+      console.warn("[SMS] en-route WhatsApp offer skipped", {
+        context: logContext,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return deliverCustomerNotification(ctx.customerPhone, message, logContext);
 }
 
 /**
@@ -449,10 +553,11 @@ export async function notifyCustomerLocksmithArrived(
   ctx: JobSMSContext,
 ): Promise<SMSResult> {
   const message = SMS_TEMPLATES.CUSTOMER_LOCKSMITH_ARRIVED(ctx);
-  return sendSMS(ctx.customerPhone, message, {
-    channel: "transactional",
-    logContext: `arrived:${ctx.jobNumber}`,
-  });
+  return deliverCustomerNotification(
+    ctx.customerPhone,
+    message,
+    `arrived:${ctx.jobNumber}`,
+  );
 }
 
 /**
@@ -462,10 +567,11 @@ export async function notifyCustomerFullQuote(
   ctx: JobSMSContext,
 ): Promise<SMSResult> {
   const message = SMS_TEMPLATES.CUSTOMER_FULL_QUOTE(ctx);
-  return sendSMS(ctx.customerPhone, message, {
-    channel: "transactional",
-    logContext: `full-quote:${ctx.jobNumber}`,
-  });
+  return deliverCustomerNotification(
+    ctx.customerPhone,
+    message,
+    `full-quote:${ctx.jobNumber}`,
+  );
 }
 
 /**
@@ -475,10 +581,11 @@ export async function notifyCustomerWorkStarted(
   ctx: JobSMSContext,
 ): Promise<SMSResult> {
   const message = SMS_TEMPLATES.CUSTOMER_WORK_STARTED(ctx);
-  return sendSMS(ctx.customerPhone, message, {
-    channel: "transactional",
-    logContext: `work-started:${ctx.jobNumber}`,
-  });
+  return deliverCustomerNotification(
+    ctx.customerPhone,
+    message,
+    `work-started:${ctx.jobNumber}`,
+  );
 }
 
 /**
@@ -488,10 +595,11 @@ export async function notifyCustomerWorkCompleted(
   ctx: JobSMSContext,
 ): Promise<SMSResult> {
   const message = SMS_TEMPLATES.CUSTOMER_WORK_COMPLETED(ctx);
-  return sendSMS(ctx.customerPhone, message, {
-    channel: "transactional",
-    logContext: `work-completed:${ctx.jobNumber}`,
-  });
+  return deliverCustomerNotification(
+    ctx.customerPhone,
+    message,
+    `work-completed:${ctx.jobNumber}`,
+  );
 }
 
 /**

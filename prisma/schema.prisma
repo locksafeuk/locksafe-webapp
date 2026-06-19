@@ -318,6 +318,7 @@ model Customer {
   // WhatsApp support integration
   whatsappChatId   String? // WhatsApp chat ID for support
   whatsappVerified Boolean @default(false)
+  preferredChannel String  @default("sms") // "sms" | "whatsapp" — once a customer opts into WhatsApp post-payment, job updates route there to save SMS cost
 
   // Referral system
   referralCode    String? // Their own shareable code (e.g. SARAH-X4K2) - sparse unique index managed in Atlas
