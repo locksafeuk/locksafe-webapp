@@ -17,6 +17,7 @@ import {
 import { handleDisputeCreated, handleDisputeUpdated, handleDisputeClosed } from "@/lib/disputes";
 import { handleSubscriptionUpsert, handleSubscriptionCanceled } from "@/lib/subscriptions";
 import { verifyProfilePhoto } from "@/lib/credential-verifier";
+import { handlePaymentCompleted } from "@/lib/job-service";
 
 // Disable body parsing - we need the raw body for signature verification
 export const runtime = "nodejs";
@@ -154,6 +155,66 @@ async function stripeWebhookHandler(request: NextRequest) {
       // ===========================================
       // PAYMENT EVENTS
       // ===========================================
+
+      // ── Hosted Checkout (assessment / call-out fee) ─────────────────────
+      // The web customer payment flow redirects to a Stripe Checkout Session.
+      // When it completes, assign the job to the exact locksmith the customer
+      // paid for (applicationId from session metadata). Idempotent downstream.
+      case "checkout.session.completed": {
+        const session = event.data.object;
+        console.log(
+          `[Webhook] Checkout completed: ${session.id} (payment_status=${session.payment_status})`,
+        );
+
+        if (session.payment_status === "paid") {
+          const paymentIntentId =
+            typeof session.payment_intent === "string"
+              ? session.payment_intent
+              : session.payment_intent?.id;
+
+          const result = await handlePaymentCompleted({
+            stripeCheckoutId: session.id,
+            stripePaymentIntentId: paymentIntentId || undefined,
+            applicationId: session.metadata?.applicationId || undefined,
+          });
+          if (!result.success) {
+            console.error(`[Webhook] Checkout completion handler failed:`, result.error);
+          }
+
+          // Server-side Google Ads conversion — only after Stripe confirms payment.
+          const jobId = session.metadata?.jobId;
+          const paymentType = session.metadata?.type as string | undefined;
+          const amountPaid = (session.amount_total ?? 0) / 100; // pence → pounds
+          if (jobId) {
+            try {
+              if (paymentType === "work_quote") {
+                const { uploadJobConversionIfEligible } = await import(
+                  "@/lib/google-ads-conversions"
+                );
+                uploadJobConversionIfEligible(jobId).catch(() => {});
+              } else if (paymentType === "assessment_fee" || paymentType === "callout") {
+                const { uploadAssessmentFeeConversion } = await import(
+                  "@/lib/google-ads-conversions"
+                );
+                uploadAssessmentFeeConversion(jobId, amountPaid, session.id).catch(() => {});
+              }
+            } catch (convErr) {
+              console.error(`[Webhook] Checkout conversion upload error:`, convErr);
+            }
+          }
+        }
+        break;
+      }
+
+      case "checkout.session.expired": {
+        const session = event.data.object;
+        console.log(`[Webhook] Checkout expired: ${session.id}`);
+        await prisma.payment.updateMany({
+          where: { stripeCheckoutId: session.id },
+          data: { status: "failed" },
+        });
+        break;
+      }
 
       case "payment_intent.succeeded": {
         const paymentIntent = event.data.object;

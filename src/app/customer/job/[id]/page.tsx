@@ -527,6 +527,7 @@ export default function CustomerJobPage({ params }: { params: Promise<{ id: stri
   const { id } = use(params);
   const searchParams = useSearchParams();
   const hasAutoOpenedPaymentRef = useRef(false);
+  const hasHandledCheckoutReturnRef = useRef(false);
   const [job, setJob] = useState<Job | null>(null);
   const [applications, setApplications] = useState<Application[]>([]);
   const [quote, setQuote] = useState<Quote | null>(null);
@@ -666,6 +667,50 @@ export default function CustomerJobPage({ params }: { params: Promise<{ id: stri
     }
   }, [applications, loading, searchParams]);
 
+  // Handle return from Stripe hosted Checkout (?payment=success|cancelled)
+  useEffect(() => {
+    if (hasHandledCheckoutReturnRef.current || loading) return;
+    const paymentStatus = searchParams.get("payment");
+    if (paymentStatus !== "success" && paymentStatus !== "cancelled") return;
+    hasHandledCheckoutReturnRef.current = true;
+
+    const sessionId = searchParams.get("session_id");
+
+    if (paymentStatus === "success") {
+      (async () => {
+        // The webhook is the primary path that assigns the job; this finalize
+        // call is an idempotent backup in case the webhook is delayed/missed.
+        if (sessionId) {
+          try {
+            await fetch(
+              `/api/payments/finalize-checkout?session_id=${encodeURIComponent(sessionId)}`,
+            );
+          } catch {
+            /* backup only — webhook still assigns the job */
+          }
+        }
+        await fetchJobData();
+        setNotifications((prev) => [
+          ...prev,
+          "Payment received — your locksmith is on the way!",
+        ]);
+        setShowNotification(true);
+        setTimeout(() => setShowNotification(false), 6000);
+      })();
+    } else {
+      setNotifications((prev) => [...prev, "Payment cancelled — you can try again."]);
+      setShowNotification(true);
+      setTimeout(() => setShowNotification(false), 5000);
+    }
+
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("payment");
+      url.searchParams.delete("session_id");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [loading, searchParams]);
+
   // Poll for updates
   useEffect(() => {
     if (!job) return;
@@ -724,50 +769,72 @@ export default function CustomerJobPage({ params }: { params: Promise<{ id: stri
         .catch(() => {});
     }
 
-    if (!stripePublishableKey) {
-      console.log("[Payment] No Stripe publishable key configured, using demo mode");
-      setIsLoadingPayment(false);
-      return;
-    }
+    // Payment happens via hosted Stripe Checkout when the customer taps "Pay"
+    // (handleHostedCheckout). Demo mode (no Stripe key) still falls through to
+    // the demo button rendered in the modal.
+    setIsLoadingPayment(false);
+  };
 
+  // Redirect to Stripe hosted Checkout for the assessment / call-out fee. This
+  // replaces the embedded Payment Element: Stripe handles cards, Apple Pay,
+  // Google Pay and Revolut on its own already-verified domain and runs SCA/3DS
+  // itself — which removes the off_session friction that was failing UK cards.
+  const handleHostedCheckout = async () => {
+    if (!selectedApplication || !job?.customerId) return;
+    setIsLoadingPayment(true);
+    setPaymentError(null);
     try {
-      console.log("[Payment] Creating payment intent for application:", application.id, "Locksmith Stripe:", application.locksmith.stripeAccountId, "Customer:", job?.customerId);
-      const response = await fetch("/api/payments/create-intent", {
+      const origin = window.location.origin;
+      const successUrl = `${origin}/customer/job/${id}?payment=success&session_id={CHECKOUT_SESSION_ID}`;
+      const cancelUrl = `${origin}/customer/job/${id}?payment=cancelled`;
+
+      const response = await fetch("/api/payments/create-checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          type: "assessment_fee",
-          amount: application.assessmentFee,
           jobId: id,
-          customerId: job?.customerId,
-          customerEmail: job?.customer?.email,
-          customerName: job?.customer?.name,
-          customerPhone: job?.customer?.phone,
-          locksmithId: application.locksmith.id,
-          applicationId: application.id,
-          locksmithStripeAccountId: application.locksmith.stripeAccountId || null,
+          customerId: job.customerId,
+          locksmithId: selectedApplication.locksmith.id,
+          applicationId: selectedApplication.id,
+          amount: selectedApplication.assessmentFee,
+          type: "assessment_fee",
+          successUrl,
+          cancelUrl,
         }),
       });
       const data = await response.json();
-      console.log("[Payment] API response:", data);
 
-      if (data.clientSecret) {
-        setClientSecret(data.clientSecret);
-        if (data.stripeCustomerId) {
-          setStripeCustomerId(data.stripeCustomerId);
+      // Fully discounted (e.g. Cover free callout): no Stripe redirect — accept
+      // the application directly, same as the existing free/demo path.
+      if (data.success && data.zeroCost) {
+        const acceptRes = await fetch(`/api/jobs/${id}/accept-application`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            applicationId: selectedApplication.id,
+            paymentIntentId: `free_${data.paymentId || Date.now()}`,
+          }),
+        });
+        const acceptData = await acceptRes.json();
+        if (acceptData.success) {
+          handlePaymentSuccess();
+        } else {
+          setPaymentError(acceptData.error || "Could not confirm your free booking.");
+          setIsLoadingPayment(false);
         }
-        console.log("[Payment] Client secret received, loading Stripe Elements. Customer:", data.stripeCustomerId);
-      } else if (data.error) {
-        console.error("[Payment] API error:", data.error);
-        setPaymentError(data.error);
-      } else {
-        console.error("[Payment] No client secret in response");
-        setPaymentError("Payment initialization failed. Please try again.");
+        return;
       }
+
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+        return; // leaving the page — keep the loading state visible
+      }
+
+      setPaymentError(data.error || "Could not start secure checkout. Please try again.");
+      setIsLoadingPayment(false);
     } catch (error) {
-      console.error("[Payment] Error creating payment intent:", error);
+      console.error("[Payment] Hosted checkout error:", error);
       setPaymentError("Failed to connect to payment service. Please try again.");
-    } finally {
       setIsLoadingPayment(false);
     }
   };
@@ -1984,6 +2051,21 @@ export default function CustomerJobPage({ params }: { params: Promise<{ id: stri
                         onStripeError={(error) => setPaymentError(error)}
                       />
                     </Elements>
+                  ) : stripePublishableKey ? (
+                    <div className="space-y-3">
+                      <Button
+                        type="button"
+                        onClick={handleHostedCheckout}
+                        disabled={isLoadingPayment}
+                        className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 text-base"
+                      >
+                        <CreditCard className="w-4 h-4 mr-2" />
+                        Pay {paymentPreview ? (paymentPreview.finalAmount === 0 ? "FREE" : `£${paymentPreview.finalAmount.toFixed(2)}`) : `£${selectedApplication.assessmentFee}`} securely
+                      </Button>
+                      <p className="text-center text-xs text-slate-500">
+                        You&apos;ll be sent to Stripe&apos;s secure page to pay by card, Apple&nbsp;Pay, Google&nbsp;Pay or Revolut.
+                      </p>
+                    </div>
                   ) : (
                     <div className="space-y-4">
                       <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">

@@ -27,7 +27,11 @@ import { applyReferralCredit, revertReferralCredit } from "@/lib/referrals";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { jobId, customerId, locksmithId, applicationId, amount } = body;
+    const { jobId, customerId, locksmithId, applicationId, amount, type, successUrl, cancelUrl } = body;
+
+    // Payment type drives commission rate + product label. Default to call-out.
+    const paymentType: "assessment_fee" | "callout" | "work_quote" =
+      type === "assessment_fee" || type === "work_quote" ? type : "callout";
 
     // Validate required fields
     if (!jobId || !customerId || !locksmithId || !applicationId) {
@@ -151,7 +155,9 @@ export async function POST(request: NextRequest) {
         locksmithStripeAccountId: locksmith.stripeConnectVerified
           ? locksmith.stripeConnectId
           : null,
-        paymentType: "callout",
+        paymentType,
+        ...(typeof successUrl === "string" && successUrl ? { successUrl } : {}),
+        ...(typeof cancelUrl === "string" && cancelUrl ? { cancelUrl } : {}),
       });
     } catch (stripeError) {
       // Rollback discounts applied

@@ -755,9 +755,15 @@ export async function handleLocksmithApplication(params: {
 export async function handlePaymentCompleted(params: {
   stripeCheckoutId: string;
   stripePaymentIntentId?: string;
+  /**
+   * The application the customer actually paid for, taken from the Checkout
+   * session metadata. Preferred over the "most recent pending" heuristic so
+   * the correct locksmith is assigned when a job has multiple applicants.
+   */
+  applicationId?: string;
 }): Promise<{ success: boolean; error?: string }> {
   try {
-    const { stripeCheckoutId, stripePaymentIntentId } = params;
+    const { stripeCheckoutId, stripePaymentIntentId, applicationId } = params;
 
     // Find the payment
     const payment = await prisma.payment.findFirst({
@@ -811,8 +817,12 @@ export async function handlePaymentCompleted(params: {
       orderBy: { createdAt: "desc" },
     });
 
-    // The most recent application is the one the customer paid for
-    const acceptedApp = applications[0];
+    // Prefer the exact application the customer paid for (from Checkout session
+    // metadata). Fall back to the most recent pending application for legacy
+    // flows that don't pass an applicationId.
+    const acceptedApp =
+      (applicationId && applications.find((a) => a.id === applicationId)) ||
+      applications[0];
 
     if (acceptedApp) {
       // Accept this application
