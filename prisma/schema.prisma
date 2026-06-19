@@ -470,6 +470,11 @@ model Locksmith {
   defaultAssessmentFee Float? // Locksmith's default assessment fee (e.g., 29.00)
   // Must be set for auto-dispatch eligibility
 
+  // Per-locksmith price list for quotes. JSON shape:
+  //   { "parts": [{ "name": "Euro Cylinder (Anti-Snap)", "price": 85 }], "labour": [{ "name": "Lock Drilling", "price": 80 }] }
+  // The quote screen loads this and falls back to the standard list when unset.
+  priceList Json?
+
   // Stripe Connect
   stripeConnectId        String? // Stripe Connect account ID
   stripeConnectOnboarded Boolean @default(false)

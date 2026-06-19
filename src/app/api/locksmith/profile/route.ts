@@ -224,6 +224,7 @@ export async function GET(request: NextRequest) {
         coverageRadius: locksmith.coverageRadius,
         // Pricing
         defaultAssessmentFee: locksmith.defaultAssessmentFee,
+        priceList: locksmith.priceList,
         // Insurance & Documentation
         insuranceDocumentUrl: locksmith.insuranceDocumentUrl,
         insuranceExpiryDate: locksmith.insuranceExpiryDate,
@@ -308,7 +309,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Only allow certain fields to be updated
-    const allowedFields = ["name", "companyName", "phone", "coverageAreas", "services", "yearsExperience", "profileImage", "baseLat", "baseLng", "baseAddress", "coverageRadius", "certificationDocumentUrl", "defaultAssessmentFee"];
+    const allowedFields = ["name", "companyName", "phone", "coverageAreas", "services", "yearsExperience", "profileImage", "baseLat", "baseLng", "baseAddress", "coverageRadius", "certificationDocumentUrl", "defaultAssessmentFee", "priceList"];
     const filteredUpdates: Record<string, unknown> = {};
 
     // Fields that should be trimmed (string fields)
