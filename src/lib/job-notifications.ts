@@ -63,8 +63,16 @@ export async function notifyNearbyLocksmiths(job: JobForNotification): Promise<{
         nativeTokenType: true,
         nativeTokenPlatform: true,
         webPushSubscription: true, // For PWA web push (browser-installed app)
+        emailNotifications: true, // Respect per-locksmith email opt-out (email loop only)
       },
     });
+
+    // Locksmiths who turned OFF email notifications. Applied in the EMAIL loop
+    // only — push/SMS preferences are handled on their own channels. Previously
+    // the email loop ignored this and emailed everyone in range.
+    const emailOptOutIds = new Set(
+      locksmiths.filter((l) => l.emailNotifications === false).map((l) => l.id),
+    );
 
     const nearbyLocksmiths: Array<{
       id: string;
@@ -227,8 +235,9 @@ export async function notifyNearbyLocksmiths(job: JobForNotification): Promise<{
       );
     }
 
-    // Send email notifications to all nearby locksmiths (async, don't await)
+    // Send email notifications to nearby locksmiths (async, don't await)
     for (const locksmith of nearbyLocksmiths) {
+      if (emailOptOutIds.has(locksmith.id)) continue; // respect email opt-out
       sendNewJobInAreaEmail(locksmith.email, {
         locksmithName: locksmith.name,
         jobNumber: job.jobNumber,
