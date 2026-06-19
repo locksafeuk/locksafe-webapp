@@ -11,7 +11,7 @@
 
 import prisma from "@/lib/db";
 import crypto from "crypto";
-import { generateJobNumber } from "@/lib/job-number";
+import { generateJobNumber, jobLinkCode } from "@/lib/job-number";
 import { sendSMS } from "@/lib/sms";
 import { createShortLink } from "@/lib/short-link";
 import {
@@ -691,7 +691,13 @@ export async function handleLocksmithApplication(params: {
       ? `${estimatedETA} mins`
       : `${Math.round(estimatedETA / 60)} hours`;
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_BASE_URL || "https://locksafe.uk";
-    const detailsUrl = `${siteUrl}/customer/job/${job.id}`;
+    // Branded short link (e.g. locksafe.uk/r/TW2-481C) — falls back to the raw URL internally.
+    const detailsUrl = await createShortLink({
+      targetUrl: `${siteUrl}/customer/job/${job.id}`,
+      jobId: job.id,
+      purpose: "customer-job",
+      preferredCode: jobLinkCode(job.jobNumber, "C"),
+    }).catch(() => `${siteUrl}/customer/job/${job.id}`);
 
     const smsMessage = EMERGENCY_SMS_TEMPLATES.CUSTOMER_LOCKSMITH_APPLIED({
       jobId: job.id,
@@ -857,12 +863,21 @@ export async function handlePaymentCompleted(params: {
       });
 
       // Notify locksmith - job confirmed
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://locksafe.uk";
+      const jobUrl = await createShortLink({
+        targetUrl: `${siteUrl}/locksmith/job/${payment.jobId}`,
+        jobId: payment.jobId,
+        purpose: "locksmith-job",
+        preferredCode: jobLinkCode(payment.job.jobNumber, "L"),
+      }).catch(() => `${siteUrl}/locksmith/job/${payment.jobId}`);
+
       const locksmithSms = EMERGENCY_SMS_TEMPLATES.LOCKSMITH_JOB_CONFIRMED({
         jobId: payment.job.id,
         jobNumber: payment.job.jobNumber,
         customerName: payment.job.customer.name,
         address: payment.job.address,
         postcode: payment.job.postcode,
+        jobUrl,
       });
 
       sendSMS(acceptedApp.locksmith.phone, locksmithSms, {

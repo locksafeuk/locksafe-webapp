@@ -1,6 +1,8 @@
 import { SITE_URL } from "@/lib/config";
 import { sendCustomerPaymentLinkEmail } from "@/lib/email";
+import { jobLinkCode } from "@/lib/job-number";
 import { createNotification } from "@/lib/notifications";
+import { createShortLink } from "@/lib/short-link";
 import { sendSMS } from "@/lib/sms";
 
 type SendCustomerCalloutPaymentRequestInput = {
@@ -53,7 +55,14 @@ function buildPaymentUrl(jobId: string, applicationId: string): string {
 export async function sendCustomerCalloutPaymentRequest(
   input: SendCustomerCalloutPaymentRequestInput,
 ): Promise<SendCustomerCalloutPaymentRequestResult> {
-  const paymentUrl = buildPaymentUrl(input.jobId, input.applicationId);
+  const rawPaymentUrl = buildPaymentUrl(input.jobId, input.applicationId);
+  // Branded short link (e.g. locksafe.uk/r/TW2-481P) — falls back to the raw URL internally.
+  const paymentUrl = await createShortLink({
+    targetUrl: rawPaymentUrl,
+    jobId: input.jobId,
+    purpose: "customer-payment",
+    preferredCode: jobLinkCode(input.jobNumber, "P"),
+  }).catch(() => rawPaymentUrl);
 
   let smsQueued = false;
   let emailQueued = false;

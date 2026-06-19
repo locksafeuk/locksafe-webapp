@@ -25,6 +25,7 @@ export interface EmergencyContext {
   callOutFee?: number;
   paymentUrl?: string;
   detailsUrl?: string;
+  jobUrl?: string;
   onboardingUrl?: string;
   distance?: number;
   rating?: number;
@@ -53,14 +54,14 @@ export const EMERGENCY_SMS_TEMPLATES = {
    */
   LOCKSMITH_EMERGENCY_JOB: (ctx: EmergencyContext) => {
     const problem = problemLabels[ctx.problemType || ""] || ctx.problemType || "Emergency";
-    return `🚨 LockSafe EMERGENCY: Job ${ctx.jobNumber}\n\n${problem} at ${ctx.postcode}${ctx.distance ? ` (${ctx.distance} mi)` : ""}\nCustomer: ${ctx.customerName}\n\nApply now: ${getBaseUrl()}/locksmith/jobs/${ctx.jobId}`;
+    return `🚨 LockSafe EMERGENCY: Job ${ctx.jobNumber}\n\n${problem} at ${ctx.postcode}${ctx.distance ? ` (${ctx.distance} mi)` : ""}\nCustomer: ${ctx.customerName}\n\nApply now: ${ctx.jobUrl || `${getBaseUrl()}/locksmith/jobs/${ctx.jobId}`}`;
   },
 
   /**
    * Sent to locksmith when their application is accepted and customer pays
    */
   LOCKSMITH_JOB_CONFIRMED: (ctx: EmergencyContext) =>
-    `✅ LockSafe: Job ${ctx.jobNumber} CONFIRMED!\n\nCustomer ${ctx.customerName} has paid the call-out fee.\nAddress: ${ctx.address || ctx.postcode}\n\nHead there now: ${getBaseUrl()}/locksmith/job/${ctx.jobId}`,
+    `✅ LockSafe: Job ${ctx.jobNumber} CONFIRMED!\n\nCustomer ${ctx.customerName} has paid the call-out fee.\nAddress: ${ctx.address || ctx.postcode}\n\nHead there now: ${ctx.jobUrl || `${getBaseUrl()}/locksmith/job/${ctx.jobId}`}`,
 
   /**
    * Sent to locksmith when their application is accepted (before payment)

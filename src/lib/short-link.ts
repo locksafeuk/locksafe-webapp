@@ -27,6 +27,8 @@ export interface ShortLinkInput {
   locksmithId?: string;
   leadId?: string;
   jobId?: string;
+  /** Preferred human-readable code (e.g. "TW2-481L"). Falls back to a random code on collision. */
+  preferredCode?: string;
 }
 
 /** Create (or reuse) a short link. Returns the full short URL, e.g. https://locksafe.uk/r/Ab3xYz */
@@ -43,6 +45,33 @@ export async function createShortLink(input: ShortLinkInput): Promise<string> {
     select: { code: true },
   });
   if (existing) return `${SHORT_LINK_BASE}/r/${existing.code}`;
+
+  // Prefer a human-readable, postcode-based code when supplied.
+  if (input.preferredCode) {
+    try {
+      await prisma.shortLink.create({
+        data: {
+          code: input.preferredCode,
+          targetUrl: input.targetUrl,
+          purpose: input.purpose,
+          locksmithId: input.locksmithId,
+          leadId: input.leadId,
+          jobId: input.jobId,
+        },
+      });
+      return `${SHORT_LINK_BASE}/r/${input.preferredCode}`;
+    } catch {
+      // Code already taken — reuse it only if it points at the same target.
+      const taken = await prisma.shortLink.findUnique({
+        where: { code: input.preferredCode },
+        select: { targetUrl: true },
+      });
+      if (taken && taken.targetUrl === input.targetUrl) {
+        return `${SHORT_LINK_BASE}/r/${input.preferredCode}`;
+      }
+      // Otherwise fall through to random-code generation below.
+    }
+  }
 
   for (let attempt = 0; attempt < 3; attempt++) {
     const code = generateCode();

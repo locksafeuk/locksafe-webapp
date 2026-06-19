@@ -42,6 +42,22 @@ export function formatJobNumber(prefix: string, suffix: string | number): string
 }
 
 /**
+ * Build a short-link code for a job link, derived from the job number.
+ *
+ * Replaces "-JOB" with "-" and appends a role letter so a job's multiple
+ * links stay unique:
+ *   - "A" = locksmith apply-broadcast
+ *   - "L" = locksmith job link
+ *   - "C" = customer view link
+ *   - "P" = customer payment link
+ *
+ * Example: jobLinkCode("TW2-JOB481", "L") -> "TW2-481L"
+ */
+export function jobLinkCode(jobNumber: string, role: "A" | "L" | "C" | "P"): string {
+  return `${jobNumber.replace(/-JOB/i, "-")}${role}`;
+}
+
+/**
  * Generate a unique job number, retrying on collisions.
  *
  * Uses a DB lookup against `Job.jobNumber` (which is `@unique`) to ensure
