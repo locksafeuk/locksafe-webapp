@@ -8,6 +8,7 @@ import {
   ASSESSMENT_FEE_COMMISSION
 } from "@/lib/stripe";
 import { sendEarningsReversalEmail } from "@/lib/email";
+import { sendAdminAlert } from "@/lib/telegram";
 
 // POST - Customer cancels job and requests refund when locksmith doesn't arrive
 export async function POST(
@@ -262,6 +263,20 @@ export async function POST(
           error: "Failed to process refund. Please contact support.",
         }, { status: 500 });
       }
+    }
+
+    // Edge case: a succeeded assessment payment with no stripePaymentId can't be
+    // auto-refunded (the refund block above is gated on stripePaymentId). Don't
+    // silently cancel as if refunded — alert admin to refund manually.
+    if (assessmentPayment && !assessmentPayment.stripePaymentId && !refundResult) {
+      await sendAdminAlert({
+        title: `⚠️ Manual refund needed — ${job.jobNumber}`,
+        message:
+          `Job ${job.jobNumber} is being cancelled, but its succeeded assessment payment ` +
+          `(£${assessmentPayment.amount}) has no Stripe payment ID, so NO automatic refund ` +
+          `was issued. Refund the customer (${job.customer?.name || "customer"}) manually.`,
+        severity: "warning",
+      }).catch(() => {});
     }
 
     // Update job status to CANCELLED

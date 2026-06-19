@@ -118,6 +118,9 @@ export async function shouldTriggerAuction(
   const locksmiths = await prisma.locksmith.findMany({
     where: {
       isActive: true,
+      isAvailable: true, // Consistency: every other dispatch path requires this.
+      // Without it the auction pooled OFFLINE locksmiths, triggered on them, and
+      // burned auction waves offering jobs to people who couldn't accept.
       onboardingCompleted: true,
       isVerified: true,
       baseLat: { not: null },

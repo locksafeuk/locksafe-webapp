@@ -55,11 +55,18 @@ export async function GET(request: NextRequest) {
     const ageMin = ageMs / 60_000;
     const attempts = job.dispatchAttempts;
 
-    // Determine which wave we're on
+    // Advance exactly ONE wave per run, driven by attempts (not age alone).
+    // Previously this was age-first: a job the cron first saw when already
+    // >=30 min old (cron lag / downtime / created during an outage) with the
+    // default dispatchAttempts=1 jumped straight to wave 4 (critical alert) and
+    // SKIPPED the wave-2 (1.5x) and wave-3 (2x) expanded-radius re-dispatches.
+    // Stepping by attempts guarantees each radius wave actually fires in order.
     let targetWave: number | null = null;
-    if (ageMin >= 30 && attempts < 4) targetWave = 4;
-    else if (ageMin >= 20 && attempts < 3) targetWave = 3;
-    else if (ageMin >= 10 && attempts < 2) targetWave = 2;
+    if (ageMin >= 10) {
+      if (attempts <= 1) targetWave = 2;
+      else if (attempts === 2) targetWave = 3;
+      else if (attempts === 3) targetWave = 4;
+    }
 
     if (!targetWave) continue;
 
