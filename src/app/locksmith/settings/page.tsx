@@ -120,6 +120,10 @@ export default function LocksmithSettingsPage() {
 
   // Pricing state
   const [defaultAssessmentFee, setDefaultAssessmentFee] = useState<string>("");
+  // Per-locksmith price list shown on the quote screen (falls back to the standard list).
+  const [priceListParts, setPriceListParts] = useState<{ name: string; price: number }[]>([]);
+  const [priceListLabour, setPriceListLabour] = useState<{ name: string; price: number }[]>([]);
+  const [savingPrices, setSavingPrices] = useState(false);
 
   // Insurance state
   const [insuranceDocumentUrl, setInsuranceDocumentUrl] = useState<string | null>(null);
@@ -174,6 +178,8 @@ export default function LocksmithSettingsPage() {
           setCoverageRadius(data.profile.coverageRadius || 10);
           // Pricing
           setDefaultAssessmentFee(data.profile.defaultAssessmentFee ? data.profile.defaultAssessmentFee.toString() : "");
+          setPriceListParts(data.profile.priceList?.parts || []);
+          setPriceListLabour(data.profile.priceList?.labour || []);
           // Insurance
           setInsuranceDocumentUrl(data.profile.insuranceDocumentUrl || null);
           setInsuranceExpiryDate(data.profile.insuranceExpiryDate ? data.profile.insuranceExpiryDate.split("T")[0] : "");
@@ -322,6 +328,36 @@ export default function LocksmithSettingsPage() {
       setError("Failed to save base location. Please try again.");
     } finally {
       setSavingLocation(false);
+    }
+  };
+
+  const handleSavePrices = async () => {
+    if (!user?.id) return;
+    setSavingPrices(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/locksmith/profile`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          locksmithId: user.id,
+          priceList: {
+            parts: priceListParts.filter((p) => p.name.trim()),
+            labour: priceListLabour.filter((p) => p.name.trim()),
+          },
+        }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setSuccessMessage("Price list saved");
+        setTimeout(() => setSuccessMessage(null), 3000);
+      } else {
+        setError(data.error || "Failed to save price list");
+      }
+    } catch {
+      setError("Failed to save price list");
+    } finally {
+      setSavingPrices(false);
     }
   };
 
@@ -854,6 +890,77 @@ export default function LocksmithSettingsPage() {
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* My Price List — per-locksmith parts & labour prices for the quote screen */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 mb-6">
+        <div className="p-4 sm:p-6 border-b border-slate-100">
+          <h2 className="text-lg font-semibold text-slate-900">My Price List</h2>
+          <p className="text-sm text-slate-500 mt-1">
+            Your own parts &amp; labour prices, shown on the quote screen. Leave a section empty to use the standard list.
+          </p>
+        </div>
+        <div className="p-4 sm:p-6 space-y-6">
+          {([
+            { label: "Parts", items: priceListParts, setItems: setPriceListParts },
+            { label: "Labour", items: priceListLabour, setItems: setPriceListLabour },
+          ] as const).map(({ label, items, setItems }) => (
+            <div key={label}>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium text-slate-700">{label}</label>
+                <button
+                  type="button"
+                  onClick={() => setItems([...items, { name: "", price: 0 }])}
+                  className="text-sm font-medium text-orange-600 hover:underline"
+                >
+                  + Add
+                </button>
+              </div>
+              <div className="space-y-2">
+                {items.length === 0 && (
+                  <p className="text-xs text-slate-400">No custom {label.toLowerCase()} — the standard list is used.</p>
+                )}
+                {items.map((item, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <input
+                      value={item.name}
+                      onChange={(e) => setItems(items.map((it, i) => (i === idx ? { ...it, name: e.target.value } : it)))}
+                      placeholder={`${label} name`}
+                      className="flex-1 px-3 py-2 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-orange-500"
+                    />
+                    <div className="relative w-28">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">£</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={item.price}
+                        onChange={(e) => setItems(items.map((it, i) => (i === idx ? { ...it, price: Number.parseFloat(e.target.value) || 0 } : it)))}
+                        className="w-full pl-7 pr-2 py-2 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-orange-500"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setItems(items.filter((_, i) => i !== idx))}
+                      aria-label="Remove"
+                      className="p-2 text-slate-400 hover:text-red-500"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={handleSavePrices}
+            disabled={savingPrices}
+            className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-semibold disabled:opacity-60"
+          >
+            {savingPrices ? "Saving…" : "Save Price List"}
+          </button>
         </div>
       </div>
 

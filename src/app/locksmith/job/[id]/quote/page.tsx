@@ -93,6 +93,11 @@ export default function CreateQuotePage({ params }: { params: Promise<{ id: stri
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // The locksmith's own price list (falls back to the standard list below).
+  const [priceList, setPriceList] = useState<{
+    parts?: { name: string; price: number }[];
+    labour?: { name: string; price: number }[];
+  } | null>(null);
 
   const [diagnosis, setDiagnosis] = useState({
     lockType: "",
@@ -169,6 +174,21 @@ export default function CreateQuotePage({ params }: { params: Promise<{ id: stri
             assessmentFee: jobData.job.assessmentFee,
             customer: jobData.job.customer,
           });
+
+          // Load this locksmith's own price list (if set) for the quote picker.
+          if (jobData.job.locksmithId) {
+            try {
+              const profileRes = await fetch(
+                `/api/locksmith/profile?locksmithId=${jobData.job.locksmithId}`,
+              );
+              const profileData = await profileRes.json();
+              if (profileData?.profile?.priceList) {
+                setPriceList(profileData.profile.priceList);
+              }
+            } catch {
+              // Non-fatal — fall back to the standard price list.
+            }
+          }
         } else {
           setError(jobData.error || "Failed to load job");
         }
@@ -899,7 +919,10 @@ export default function CreateQuotePage({ params }: { params: Promise<{ id: stri
                   Common {addItemType === "part" ? "Parts" : "Labour"}
                 </h3>
                 <div className="space-y-2">
-                  {(addItemType === "part" ? commonParts : commonLabour).map((item) => (
+                  {(addItemType === "part"
+                    ? (priceList?.parts && priceList.parts.length > 0 ? priceList.parts : commonParts)
+                    : (priceList?.labour && priceList.labour.length > 0 ? priceList.labour : commonLabour)
+                  ).map((item) => (
                     <button
                       key={item.name}
                       type="button"
