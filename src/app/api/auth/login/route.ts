@@ -122,6 +122,11 @@ export async function POST(request: NextRequest) {
         type: "locksmith",
       });
 
+      // Native mobile apps cannot read the httpOnly auth cookie, so they need
+      // the JWT in the response body to send as a Bearer token. Gate this to
+      // mobile requests (x-mobile-app header) so the web stays cookie-only.
+      const isMobileApp = request.headers.get("x-mobile-app") === "true";
+
       const response = NextResponse.json({
         success: true,
         user: {
@@ -133,6 +138,7 @@ export async function POST(request: NextRequest) {
           isVerified: locksmith.isVerified,
         },
         redirectTo: getRedirectPath("locksmith"),
+        ...(isMobileApp ? { token } : {}),
       });
 
       response.cookies.set("auth_token", token, AUTH_COOKIE_OPTIONS);

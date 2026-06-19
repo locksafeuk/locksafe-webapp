@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
-import { isLocksmithAuthenticated } from "@/lib/auth";
+import { getLocksmithFromRequest } from "@/lib/auth";
 import { getAvailabilityBlock } from "@/lib/locksmith-completeness";
 
 // GET - Get locksmith availability status
 export async function GET(request: NextRequest) {
   try {
     // SECURITY: Verify locksmith is authenticated
-    const session = await isLocksmithAuthenticated();
+    const session = await getLocksmithFromRequest(request);
     if (!session) {
       return NextResponse.json(
         { success: false, error: "Unauthorized - Authentication required" },
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // SECURITY: Verify locksmith is authenticated
-    const session = await isLocksmithAuthenticated();
+    const session = await getLocksmithFromRequest(request);
     if (!session) {
       return NextResponse.json(
         { success: false, error: "Unauthorized - Authentication required" },

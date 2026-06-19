@@ -194,6 +194,27 @@ export async function isLocksmithAuthenticated(): Promise<LocksmithTokenPayload 
   return null;
 }
 
+// Locksmith auth that accepts BOTH the mobile Bearer token (Authorization
+// header) and the web httpOnly cookie. Use for endpoints the mobile app writes
+// to (availability, profile, price list) — the native app sends a Bearer token
+// because it cannot read the httpOnly cookie.
+export async function getLocksmithFromRequest(
+  request: Request,
+): Promise<LocksmithTokenPayload | null> {
+  const authHeader = request.headers.get("authorization");
+  if (authHeader?.startsWith("Bearer ")) {
+    const payload = await verifyToken(authHeader.slice(7));
+    if (payload && payload.type === "locksmith") {
+      return payload as LocksmithTokenPayload;
+    }
+  }
+  const session = await getServerSession();
+  if (session && session.type === "locksmith") {
+    return session as LocksmithTokenPayload;
+  }
+  return null;
+}
+
 // Check if customer is authenticated
 export async function isCustomerAuthenticated(): Promise<CustomerTokenPayload | null> {
   const session = await getServerSession();
