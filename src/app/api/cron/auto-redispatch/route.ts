@@ -3,6 +3,7 @@ import { verifyCronAuth } from "@/lib/cron-auth";
 import prisma from "@/lib/db";
 import { notifyNearbyLocksmiths } from "@/lib/job-notifications";
 import { notifyNewJob, sendAdminAlert } from "@/lib/telegram";
+import { recruitArea, postcodeToTown } from "@/lib/area-recruit-engine";
 import { JobStatus } from "@prisma/client";
 
 
@@ -117,6 +118,39 @@ export async function GET(request: NextRequest) {
         data: { dispatchAttempts: 4, lastDispatchAt: now },
       });
       results.push({ jobId: job.id, jobNumber: job.jobNumber, wave: 4, action: "critical_alert" });
+
+      // Demand-triggered recruitment: no LockSafe locksmith covered this job, so
+      // turn the coverage gap into a local recruitment push — SMS the locksmith
+      // leads we've already scraped for that town. Gated, hours-guarded, and a
+      // 7-day per-lead cooldown so a repeatedly-uncovered area is never spammed.
+      if (process.env.AUTO_AREA_RECRUIT_ENABLED !== "false") {
+        try {
+          const town = await postcodeToTown(job.postcode);
+          if (town) {
+            const rec = await recruitArea(town, {
+              cooldownDays: 7,
+              cap: 30,
+              contactedBy: "auto-area-recruit",
+              enforceHours: true,
+            });
+            results.push({
+              jobId: job.id,
+              jobNumber: job.jobNumber,
+              wave: 4,
+              action: `auto_recruit:${town}:sent_${rec.sent}${rec.skippedHours ? "_outofhours" : ""}`,
+            });
+            if (rec.sent > 0) {
+              await sendAdminAlert({
+                title: `📣 Auto-recruited ${town} for ${job.jobNumber}`,
+                message: `No coverage for ${job.jobNumber} (${job.postcode}). Fired ${rec.sent} recruitment SMS to local locksmith leads in ${town}. ${rec.skippedCooldown} skipped (recently contacted).`,
+                severity: "info",
+              });
+            }
+          }
+        } catch (err) {
+          console.error("[auto-redispatch] area recruit failed:", err);
+        }
+      }
     }
   }
 
