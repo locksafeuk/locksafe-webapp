@@ -59,8 +59,12 @@ export async function POST(request: NextRequest) {
     const baseUrl = getBaseUrl(request);
     console.log("[Stripe Connect] Using base URL:", baseUrl);
 
-    const returnUrl = `${baseUrl}/locksmith/earnings?stripe_connect=success`;
-    const refreshUrl = `${baseUrl}/locksmith/earnings?stripe_connect=refresh`;
+    // Use /stripe-success (outside /locksmith/*) so iOS universal-link rules
+    // don't intercept the redirect and open an un-routable deep link in the app.
+    // /stripe-success auto-redirects to locksafe:/// (custom scheme) to return
+    // the user to the app cleanly.
+    const returnUrl = `${baseUrl}/stripe-success`;
+    const refreshUrl = `${baseUrl}/stripe-success`;
 
     // Check if already has a Stripe account
     if (locksmith.stripeConnectId) {
