@@ -22,31 +22,23 @@ interface UseJobNotificationsOptions {
   onNewJob?: (notification: JobNotification) => void;
 }
 
+// Poll the durable jobs endpoint on an interval. We deliberately do NOT use an
+// SSE/EventSource stream: Vercel serverless can't hold a long-lived connection
+// open, so the stream dropped and the browser reconnected in a tight loop —
+// generating tens of thousands of edge requests from a single open dashboard
+// and starving other functions (it even knocked out Stripe webhook deliveries).
+// Interval polling is serverless-native and reliable.
 const POLL_INTERVAL_MS = 30_000;
-const SSE_BASE_RETRY_MS = 5_000;
-const SSE_MAX_RETRY_MS = 60_000;
-const SSE_MAX_RETRIES = 5;
 
 export function useJobNotifications({
   locksmithId,
   enabled = true,
   onNewJob,
 }: UseJobNotificationsOptions) {
-  const eventSourceRef = useRef<EventSource | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const knownJobIdsRef = useRef<Set<string>>(new Set());
-  const sseFailCountRef = useRef(0);
-  const reconnectAttemptsRef = useRef(0);
   const [isConnected, setIsConnected] = useState(false);
   const [lastNotification, setLastNotification] = useState<JobNotification | null>(null);
-
-  const clearReconnectTimer = useCallback(() => {
-    if (reconnectTimerRef.current) {
-      clearTimeout(reconnectTimerRef.current);
-      reconnectTimerRef.current = null;
-    }
-  }, []);
 
   const handleNewJobNotification = useCallback(
     (notification: JobNotification) => {
@@ -61,16 +53,24 @@ export function useJobNotifications({
     [onNewJob]
   );
 
-  // Polling fallback: fetch pending jobs and fire callback for new ones
+  // Fetch pending jobs available to this locksmith and fire the callback for
+  // any we haven't seen yet.
   const pollForNewJobs = useCallback(async () => {
     if (!locksmithId) return;
     try {
       const res = await fetch(`/api/jobs?status=PENDING&availableForLocksmith=${locksmithId}`);
       if (!res.ok) return;
       const data = await res.json();
-      const jobs: any[] = data.jobs || [];
+      const jobs: Array<{
+        id: string;
+        jobNumber: string;
+        problemType: string;
+        postcode: string;
+        address: string;
+        createdAt: string;
+      }> = data.jobs || [];
 
-      // First call — seed known IDs without firing callback
+      // First call — seed known IDs without firing callbacks.
       if (knownJobIdsRef.current.size === 0 && jobs.length > 0) {
         for (const job of jobs) knownJobIdsRef.current.add(job.id);
         return;
@@ -94,7 +94,7 @@ export function useJobNotifications({
         }
       }
     } catch {
-      // Silently ignore poll errors
+      // Silently ignore poll errors — next interval retries.
     }
   }, [locksmithId, handleNewJobNotification]);
 
@@ -113,104 +113,18 @@ export function useJobNotifications({
     setIsConnected(false);
   }, []);
 
-  const connect = useCallback(() => {
-    if (!locksmithId || !enabled) return;
-
-    clearReconnectTimer();
-
-    // Close existing SSE connection
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
-    }
-
-    // If SSE has failed twice already, go straight to polling
-    if (sseFailCountRef.current >= 2) {
-      startPolling();
-      return;
-    }
-
-    const url = `/api/notifications/broadcast?locksmithId=${locksmithId}&stream=true`;
-    const eventSource = new EventSource(url);
-
-    eventSource.onopen = () => {
-      console.log(`[JobNotifications] SSE connected for locksmith ${locksmithId}`);
-      sseFailCountRef.current = 0;
-      reconnectAttemptsRef.current = 0;
-      setIsConnected(true);
-    };
-
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === "connected") return;
-
-        if (data.type === "NEW_JOB_IN_AREA") {
-          const notification: JobNotification = {
-            id: data.id,
-            type: data.type,
-            data: data.data,
-            timestamp: data.timestamp,
-          };
-          knownJobIdsRef.current.add(data.data.jobId);
-          handleNewJobNotification(notification);
-        }
-      } catch (err) {
-        console.error("[JobNotifications] Error parsing SSE message:", err);
-      }
-    };
-
-    eventSource.onerror = () => {
-      setIsConnected(false);
-      eventSource.close();
-      eventSourceRef.current = null;
-      sseFailCountRef.current += 1;
-      reconnectAttemptsRef.current += 1;
-
-      if (sseFailCountRef.current >= 2) {
-        console.log("[JobNotifications] SSE unavailable, switching to polling");
-        startPolling();
-        return;
-      }
-
-      if (reconnectAttemptsRef.current > SSE_MAX_RETRIES) {
-        console.log("[JobNotifications] SSE retries exhausted, switching to polling");
-        startPolling();
-        return;
-      }
-
-      const retryDelay = Math.min(
-        SSE_BASE_RETRY_MS * Math.pow(2, reconnectAttemptsRef.current - 1),
-        SSE_MAX_RETRY_MS
-      );
-
-      reconnectTimerRef.current = setTimeout(() => {
-        reconnectTimerRef.current = null;
-        if (enabled && locksmithId) connect();
-      }, retryDelay);
-    };
-
-    eventSourceRef.current = eventSource;
-  }, [locksmithId, enabled, handleNewJobNotification, startPolling, clearReconnectTimer]);
-
   useEffect(() => {
     if (enabled && locksmithId) {
-      connect();
+      startPolling();
     }
-
     return () => {
-      clearReconnectTimer();
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
       stopPolling();
     };
-  }, [connect, enabled, locksmithId, stopPolling, clearReconnectTimer]);
+  }, [enabled, locksmithId, startPolling, stopPolling]);
 
   return {
     isConnected,
     lastNotification,
-    reconnect: connect,
+    reconnect: startPolling,
   };
 }

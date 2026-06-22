@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { getRequestIdentifier } from "@/lib/auth-rate-limit";
 
 // In-memory store for notifications (in production, use Redis or similar)
 const notificationStore = new Map<string, Array<{
@@ -135,10 +137,34 @@ export async function POST(request: NextRequest) {
 
 // GET endpoint to retrieve notifications for a job or locksmith
 export async function GET(request: NextRequest) {
+  // Rate limit: a single client must never be able to flood this endpoint.
+  // Historically the SSE stream below dropped on serverless and browsers
+  // reconnected in a tight loop (~69k requests/hour from one device, which
+  // also starved Stripe webhook deliveries). Clients now POLL /api/jobs
+  // instead of streaming, so this cap only ever bites a runaway/abusive caller.
+  const ip = getRequestIdentifier(request);
+  const rl = checkRateLimit(`notif_broadcast_get:${ip}`, { maxRequests: 30, windowSeconds: 60 });
+  if (!rl.success) {
+    return NextResponse.json(
+      { error: "Too many requests" },
+      { status: 429, headers: rateLimitHeaders(rl) },
+    );
+  }
+
   const { searchParams } = new URL(request.url);
   const jobId = searchParams.get("jobId");
   const locksmithId = searchParams.get("locksmithId");
   const stream = searchParams.get("stream") === "true";
+
+  // SSE retired: long-lived event-streams don't survive on serverless. Answer
+  // any stream request with a cheap JSON payload so legacy EventSource clients
+  // error out and fall back to polling instead of hammering a dropped stream.
+  if (stream) {
+    return NextResponse.json({
+      deprecated: "sse_retired_poll_instead",
+      notifications: locksmithId ? locksmithNotificationStore.get(locksmithId) || [] : [],
+    });
+  }
 
   // Handle locksmith subscription for new job notifications
   if (locksmithId && stream) {
