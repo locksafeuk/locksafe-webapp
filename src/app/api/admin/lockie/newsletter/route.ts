@@ -190,7 +190,7 @@ export async function POST(req: NextRequest) {
     typeof body.templateName === "string" && body.templateName.trim().length > 0
       ? body.templateName.trim()
       : undefined;
-  const rawTemplateVariables = Array.isArray(body.templateVariables)
+  const rawTemplateVariables: string[] = Array.isArray(body.templateVariables)
     ? body.templateVariables.filter((v: unknown): v is string => typeof v === "string")
     : [];
   const isTemplateSend = Boolean(templateName);
