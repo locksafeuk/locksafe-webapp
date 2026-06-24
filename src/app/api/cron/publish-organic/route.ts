@@ -22,7 +22,7 @@ import {
 import { formatPostForPlatform } from "@/lib/organic-content";
 import { isTwitterConfigured, postTweet, postThread, postTweetWithImage } from "@/lib/twitter";
 import { isLinkedInConfigured, postToLinkedIn } from "@/lib/linkedin";
-import { isTikTokApiConfigured, generateTikTokScript, postPhotoToTikTok, postVideoToTikTok } from "@/lib/tiktok";
+import { isTikTokApiConfigured, generateTikTokScript, postPhotoToTikTok, postVideoToTikTok, refreshTikTokToken } from "@/lib/tiktok";
 import { sendAdminAlert } from "@/lib/telegram";
 import { isPlatformEnabled } from "@/lib/social-platforms";
 
@@ -356,6 +356,31 @@ export async function GET(request: NextRequest) {
       // TikTok: real PHOTO post when a connected account + image exist; else
       // fall back to generating a script for manual/AI video production.
       if (post.platforms.includes("TIKTOK")) {
+        // Pre-publish token refresh — TikTok access tokens expire in 24h, so
+        // without this the token dies a day after each manual reconnect (it
+        // expired 2026-06-12 and every TikTok post since failed silently).
+        if (
+          tiktokDbAccount?.refreshToken &&
+          tiktokDbAccount.tokenExpiresAt &&
+          new Date(tiktokDbAccount.tokenExpiresAt).getTime() < Date.now() + 5 * 60_000
+        ) {
+          const refreshed = await refreshTikTokToken(tiktokDbAccount.refreshToken);
+          if (refreshed.success) {
+            tiktokDbAccount.accessToken = refreshed.accessToken;
+            await prisma.socialAccount.update({
+              where: { id: tiktokDbAccount.id },
+              data: {
+                accessToken: refreshed.accessToken,
+                refreshToken: refreshed.refreshToken ?? tiktokDbAccount.refreshToken,
+                tokenExpiresAt: refreshed.expiresAt,
+              },
+            });
+            console.log("[publish-organic] TikTok token refreshed");
+          } else {
+            console.warn(`[publish-organic] TikTok token refresh failed: ${refreshed.error}`);
+          }
+        }
+
         const caption = (post as Record<string, unknown>).tiktokContent as string | undefined || post.content;
         const base = process.env.NEXT_PUBLIC_APP_URL || "https://www.locksafe.uk";
         if (tiktokDbAccount?.accessToken && post.videoUrl) {

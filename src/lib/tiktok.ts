@@ -93,6 +93,55 @@ export function isTikTokApiConfigured(): boolean {
 
 const TIKTOK_API = "https://open.tiktokapis.com/v2";
 
+/**
+ * Refresh a TikTok user access token using the stored refresh token.
+ *
+ * TikTok ACCESS tokens expire in ~24h; REFRESH tokens last ~365 days. Without a
+ * pre-publish refresh, auto-posting dies ~1 day after each manual reconnect
+ * (which is exactly what happened — the stored token expired 2026-06-12 and was
+ * never refreshed, so every TikTok post since silently failed).
+ */
+export async function refreshTikTokToken(refreshToken: string): Promise<
+  | { success: true; accessToken: string; refreshToken: string | null; expiresAt: Date }
+  | { success: false; error: string }
+> {
+  const clientKey = process.env.TIKTOK_CLIENT_KEY?.trim();
+  const clientSecret = process.env.TIKTOK_CLIENT_SECRET?.trim();
+  if (!clientKey || !clientSecret) {
+    return { success: false, error: "TIKTOK_CLIENT_KEY/SECRET not configured" };
+  }
+  try {
+    const res = await fetch(`${TIKTOK_API}/oauth/token/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_key: clientKey,
+        client_secret: clientSecret,
+        grant_type: "refresh_token",
+        refresh_token: refreshToken,
+      }),
+    });
+    const data = (await res.json()) as {
+      access_token?: string;
+      refresh_token?: string;
+      expires_in?: number;
+      error?: string;
+      error_description?: string;
+    };
+    if (!res.ok || !data.access_token) {
+      return { success: false, error: data.error_description || data.error || `refresh failed (${res.status})` };
+    }
+    return {
+      success: true,
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token ?? null,
+      expiresAt: new Date(Date.now() + (data.expires_in ?? 86400) * 1000),
+    };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 export interface TikTokPhotoResult {
   success: boolean;
   publishId?: string;
