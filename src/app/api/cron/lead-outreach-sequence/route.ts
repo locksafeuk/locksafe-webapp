@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyCronAuth } from "@/lib/cron-auth";
 import { sendAdminAlert } from "@/lib/telegram";
 import { prisma } from "@/lib/prisma";
+import { nullOrUnset } from "@/lib/db";
 import { getActiveSmsProvider, isSmsProviderConfigured, sendSMS } from "@/lib/sms";
 import { normalizePhoneNumber } from "@/lib/phone";
 import { sendTemplateMessage } from "@/lib/whatsapp-business";
@@ -86,7 +87,9 @@ async function runSmsOutreach(): Promise<SmsOutreachSummary> {
     // prefix becomes an invalid Mongo regex (leading + is a quantifier).
     where: {
       status: "new",
-      email: null,
+      // Mongo: `email: null` misses leads whose email field is UNSET (most
+      // scraped leads). Match null OR missing so SMS outreach reaches them all.
+      ...nullOrUnset("email"),
       phone: { not: null },
     },
     select: { id: true, name: true, city: true, phone: true },

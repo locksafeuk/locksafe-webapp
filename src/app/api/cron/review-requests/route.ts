@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyCronAuth } from "@/lib/cron-auth";
-import prisma from "@/lib/db";
+import prisma, { nullOrUnset } from "@/lib/db";
 import { notifyCustomerReviewRequest } from "@/lib/sms";
 import { sendReviewRequestEmail } from "@/lib/email";
 import { JobStatus } from "@prisma/client";
@@ -35,7 +35,10 @@ export async function GET(request: NextRequest) {
     where: {
       status: JobStatus.SIGNED,
       signedAt: { lte: wave1After },
-      reviewRequestedAt: null,   // not yet sent
+      // Mongo: `reviewRequestedAt: null` misses jobs where the field was never
+      // set (not yet asked) — match null OR missing. (`review: null` is a
+      // relation filter, correct as-is.)
+      ...nullOrUnset("reviewRequestedAt"),
       review: null,              // no review yet
     },
     include: {

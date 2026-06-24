@@ -13,7 +13,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { verifyCronAuth } from "@/lib/cron-auth";
-import prisma from "@/lib/db";
+import prisma, { nullOrUnset } from "@/lib/db";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -138,7 +138,9 @@ export async function GET(request: NextRequest) {
   ).locksmithLead.findMany({
     where: {
       website: { not: null },
-      email: null,
+      // Mongo: `email: null` misses leads whose email field is UNSET — exactly
+      // the leads needing enrichment. Match null OR missing.
+      ...nullOrUnset("email"),
       status: { not: "not_interested" },
       NOT: { notes: { contains: "[enrich] no-email-found" } },
     },

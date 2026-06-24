@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyCronAuth } from "@/lib/cron-auth";
-import prisma from "@/lib/db";
+import prisma, { nullOrUnset } from "@/lib/db";
 import { sendWinBackEmail } from "@/lib/email";
 import { JobStatus } from "@prisma/client";
 
@@ -32,7 +32,9 @@ export async function GET(request: NextRequest) {
     where: {
       status: JobStatus.SIGNED,
       signedAt: { gte: windowStart, lte: windowEnd },
-      winBackSentAt: null,
+      // Mongo: `winBackSentAt: null` misses jobs where the field was never set
+      // (no win-back sent yet) — match null OR missing.
+      ...nullOrUnset("winBackSentAt"),
     },
     include: {
       customer: {
