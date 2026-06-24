@@ -133,14 +133,89 @@ export async function storeMemory(
 }
 
 /**
- * Get relevant memories with improved scoring
+ * Load an agent's persisted memories from the AgentMemory table.
+ *
+ * storeMemory writes to BOTH the in-process Map and the DB, but the read paths
+ * used to consult only the Map — so on a cold start / fresh process (Vercel
+ * serverless, or a Mac-runner restart) every read returned empty and persisted
+ * memories were effectively write-only. This reads them back. Expiry is
+ * filtered in JS to dodge the Prisma+Mongo null-vs-missing bug (most rows have
+ * `expiresAt` unset, which a `{ expiresAt: null }` filter would silently drop).
+ */
+async function loadAgentMemoriesFromDb(agentId: string): Promise<SharedMemoryEntry[]> {
+  try {
+    const { prisma } = await import('@/lib/prisma');
+    const isObjectId = /^[a-f0-9]{24}$/i.test(agentId);
+    const dbAgent = isObjectId
+      ? await prisma.agent.findUnique({ where: { id: agentId } })
+      : await prisma.agent.findUnique({ where: { name: agentId } });
+    if (!dbAgent) return [];
+
+    const rows = await prisma.agentMemory.findMany({
+      where: { agentId: dbAgent.id },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    });
+    const now = Date.now();
+    return rows
+      .filter((r) => !r.expiresAt || r.expiresAt.getTime() > now)
+      .map((r): SharedMemoryEntry => {
+        let meta: Record<string, unknown> = {};
+        try {
+          meta = r.metadata ? (JSON.parse(r.metadata) as Record<string, unknown>) : {};
+        } catch {
+          /* tolerate legacy/non-JSON metadata */
+        }
+        return {
+          id: r.id,
+          agentId,
+          content: r.content,
+          category: r.category as MemoryCategory,
+          importance: r.importance,
+          createdAt: r.createdAt,
+          expiresAt: r.expiresAt ?? undefined,
+          scope: (meta.scope as MemoryScope) ?? 'private',
+          strategicCategory: (meta.strategicCategory as StrategicCategory) ?? 'operational',
+          sharedWith: Array.isArray(meta.sharedWith) ? (meta.sharedWith as string[]) : [],
+          tags: Array.isArray(meta.tags) ? (meta.tags as string[]) : [],
+          source: agentId,
+          accessCount: r.accessCount ?? 0,
+          lastAccessedAt: r.lastAccessedAt ?? r.createdAt,
+        };
+      });
+  } catch (err) {
+    console.warn(
+      `[memory] DB read failed for "${agentId}", falling back to in-process only:`,
+      err instanceof Error ? err.message : err,
+    );
+    return [];
+  }
+}
+
+/**
+ * Merge persisted (DB) and in-process (RAM) memories, de-duplicating by content
+ * (a memory just written this process exists in both stores). DB is the durable
+ * source of truth; RAM adds anything not yet observed in the DB result.
+ */
+function mergeMemories(db: SharedMemoryEntry[], ram: SharedMemoryEntry[]): SharedMemoryEntry[] {
+  const seen = new Set(db.map((m) => m.content));
+  return [...db, ...ram.filter((m) => !seen.has(m.content))];
+}
+
+/**
+ * Get relevant memories with improved scoring. Reads from the DB (durable)
+ * merged with any in-process memories, so persisted memories actually inform
+ * the agent across restarts and serverless invocations.
  */
 export async function getRelevantMemories(
   agentId: string,
   query: string,
   limit: number
 ): Promise<RelevantMemory[]> {
-  const memories = getAgentMemories(agentId);
+  const memories = mergeMemories(
+    await loadAgentMemoriesFromDb(agentId),
+    getAgentMemories(agentId),
+  );
   const queryLower = query.toLowerCase();
   const queryWords = queryLower.split(/\s+/).filter(w => w.length > 2);
 

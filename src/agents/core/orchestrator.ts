@@ -17,8 +17,8 @@ import {
   sendMessage,
   sendStatusUpdate,
   broadcastMessage,
-  getMessages,
 } from './message-bus';
+import { buildCollaborationContext } from './collaboration-context';
 import { chat, Models } from '@/lib/llm-router';
 import type { LLMMessage } from '@/lib/llm-router';
 import { sendAdminAlert } from '@/lib/telegram';
@@ -542,6 +542,19 @@ export async function executeHeartbeat(agentId: string): Promise<HeartbeatResult
           `Pending tasks (${pendingTasks.length}): ${pendingTasks.map(t => t.title).join(' | ')}`
         );
       }
+    } catch {
+      // non-critical
+    }
+
+    // Inject cross-run memory + cross-agent inbox so each heartbeat is informed
+    // by prior runs and by messages from sibling agents (previously written but
+    // never read back into the reasoning loop).
+    try {
+      const collab = await buildCollaborationContext(
+        agentId,
+        `${dbAgent.displayName} ${dbAgent.role}`,
+      );
+      contextParts.push(...collab);
     } catch {
       // non-critical
     }
