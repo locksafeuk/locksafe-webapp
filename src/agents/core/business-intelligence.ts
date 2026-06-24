@@ -7,8 +7,26 @@
  */
 
 import { getAllMessages, getMessageBusStats } from './message-bus';
-import { getAllDecisions, getDecisionStats } from './decision-engine';
 import { getAgentStatusSummary } from './orchestrator';
+
+// The in-memory decision-engine was retired 2026-06-24 — it gated no real
+// action (the live governance/safety boundary is the control-plane). These
+// local shims keep the legacy BI "decisions" panel rendering as no-activity
+// until it is rewired to control-plane proposal/approval data.
+async function getDecisionStats(): Promise<{
+  total: number;
+  byStatus: Record<string, number>;
+  byScope: Record<string, number>;
+  averageVoteTime: number;
+  approvalRate: number;
+}> {
+  return { total: 0, byStatus: {}, byScope: {}, averageVoteTime: 0, approvalRate: 0 };
+}
+async function getAllDecisions(_opts?: { limit?: number }): Promise<
+  Array<{ id: string; title: string; status: string; proposedBy: string; resolvedAt?: Date }>
+> {
+  return [];
+}
 import { getAllBudgetStatus, getTotalCost } from './budget';
 import { getMemoryStats } from './memory';
 

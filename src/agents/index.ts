@@ -57,12 +57,6 @@ import {
   cleanupExpiredMessages,
 } from "@/agents/core/message-bus";
 
-// Shared Decision Engine
-import {
-  proposeDecision, castVote, getPendingDecisions, getProposedDecisions,
-  getAllDecisions, getDecision, getDecisionStats, expireOverdueDecisions,
-} from "@/agents/core/decision-engine";
-
 // Business Intelligence
 import {
   generateBIReport, getBusinessHealthSnapshot,
@@ -109,16 +103,6 @@ export type {
   MessageFilter,
   MessageBusStats,
 } from "@/agents/core/message-bus";
-
-// Re-export decision engine types
-export type {
-  DecisionStatus,
-  DecisionScope,
-  VoteChoice,
-  DecisionProposal,
-  DecisionVote,
-  DecisionOutcome,
-} from "@/agents/core/decision-engine";
 
 // Re-export memory types
 export type {
@@ -233,15 +217,6 @@ export {
   getConversationThread,
   getMessageBusStats,
   cleanupExpiredMessages,
-  // Decision Engine
-  proposeDecision,
-  castVote,
-  getPendingDecisions,
-  getProposedDecisions,
-  getAllDecisions,
-  getDecision,
-  getDecisionStats,
-  expireOverdueDecisions,
   // Business Intelligence
   generateBIReport,
   getBusinessHealthSnapshot,
@@ -354,9 +329,6 @@ export async function runAgentHeartbeats(): Promise<{
       results: [],
     };
   }
-
-  // Expire overdue decisions before heartbeat
-  await expireOverdueDecisions();
 
   // Cleanup expired messages
   await cleanupExpiredMessages();
