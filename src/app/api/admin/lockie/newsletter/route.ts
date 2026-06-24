@@ -44,7 +44,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth";
-import { sendTextMessage } from "@/lib/whatsapp-business";
+import { sendTextMessage, sendTemplateMessage } from "@/lib/whatsapp-business";
 import { sendSMS } from "@/lib/sms";
 import { prisma } from "@/lib/prisma";
 import { normalizePhoneNumber } from "@/lib/phone";
@@ -180,12 +180,28 @@ export async function POST(req: NextRequest) {
       ? body.channel
       : "auto";
 
+  // §40 (2026-06-24) — WhatsApp template-send mode. When templateName is
+  // supplied, send via Meta-approved WhatsApp template (Twilio Content API:
+  // ContentSid + ContentVariables). This bypasses the 24h customer-initiated
+  // window restriction that bit us on the first broadcast (error 63016).
+  // Variables array maps to template's {{1}}, {{2}}, ... — values containing
+  // `{name}` are substituted with the recipient's name per-send.
+  const templateName: string | undefined =
+    typeof body.templateName === "string" && body.templateName.trim().length > 0
+      ? body.templateName.trim()
+      : undefined;
+  const rawTemplateVariables = Array.isArray(body.templateVariables)
+    ? body.templateVariables.filter((v: unknown): v is string => typeof v === "string")
+    : [];
+  const isTemplateSend = Boolean(templateName);
+
   // §39 cold-audience guard (2026-06-24): WhatsApp Business rejects free-form
   // text outside the 24h customer-initiated window with error 63016. The
   // audiences below are by definition cold (locksmiths who haven't messaged
-  // us recently), so attempting WhatsApp is pure waste — silently counted
-  // as "sent" by our synchronous code but bounced later by Meta. Until we
-  // have Meta-approved WhatsApp templates, force SMS-only for cold outreach.
+  // us recently), so attempting free-form WhatsApp is pure waste — silently
+  // counted as "sent" by our synchronous code but bounced later by Meta.
+  // When a template is provided (§40), this guard does NOT apply — templates
+  // are explicitly designed for cold outreach.
   const COLD_AUDIENCES = new Set([
     "all_locksmiths",
     "silent_locksmiths",
@@ -194,7 +210,7 @@ export async function POST(req: NextRequest) {
     "all_customers",
   ]);
   const channelMode: "auto" | "whatsapp_only" | "sms_only" =
-    requestedChannel === "auto" && audience && COLD_AUDIENCES.has(audience)
+    !isTemplateSend && requestedChannel === "auto" && audience && COLD_AUDIENCES.has(audience)
       ? "sms_only"
       : requestedChannel;
   const channelOverrideApplied = channelMode !== requestedChannel;
@@ -209,6 +225,9 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   }
+  // Message is the body-of-record (preview / SMS fallback content). Required
+  // for non-template sends. Template sends still want SOMETHING here so SMS
+  // fallback can fire if WhatsApp template send fails.
   if (message.length < MIN_MESSAGE_LEN || message.length > MAX_MESSAGE_LEN) {
     return NextResponse.json(
       {
@@ -254,7 +273,14 @@ export async function POST(req: NextRequest) {
       channelMode,
       channelOverrideApplied,
       channelOverrideReason: channelOverrideApplied
-        ? "§39 cold-audience guard — forced SMS-only because WhatsApp free-form is rejected (63016) outside the 24h window. Submit a Meta-approved template to use WhatsApp here."
+        ? "§39 cold-audience guard — forced SMS-only because WhatsApp free-form is rejected (63016) outside the 24h window. Provide a templateName to use WhatsApp here."
+        : undefined,
+      isTemplateSend,
+      templateName: isTemplateSend ? templateName : undefined,
+      templateVariablesSample: isTemplateSend
+        ? rawTemplateVariables.map((v) =>
+            v.replace(/\{name\}/g, withPhone[0]?.name ?? "Locksmith").replace(/\{phone\}/g, withPhone[0]?.phone ?? ""),
+          )
         : undefined,
       total: withPhone.length,
       skipped,
@@ -278,7 +304,16 @@ export async function POST(req: NextRequest) {
     let sent = false;
     if (channelMode === "auto" || channelMode === "whatsapp_only") {
       try {
-        const wa = await sendTextMessage(phone, message);
+        let wa: { success: boolean; error?: string };
+        if (isTemplateSend && templateName) {
+          // §40 — substitute `{name}` placeholder per recipient
+          const vars = rawTemplateVariables.map((v) =>
+            v.replace(/\{name\}/g, r.name).replace(/\{phone\}/g, r.phone ?? ""),
+          );
+          wa = await sendTemplateMessage(phone, templateName, vars);
+        } else {
+          wa = await sendTextMessage(phone, message);
+        }
         if (wa.success) {
           waOk++;
           sent = true;

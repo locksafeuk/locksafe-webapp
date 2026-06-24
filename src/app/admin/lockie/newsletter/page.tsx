@@ -94,6 +94,12 @@ const TEMPLATES: Array<{ name: string; audience: AudienceKey; message: string }>
 interface DryRunResult {
   dryRun: true;
   audience: AudienceKey;
+  channelMode?: "auto" | "whatsapp_only" | "sms_only";
+  channelOverrideApplied?: boolean;
+  channelOverrideReason?: string;
+  isTemplateSend?: boolean;
+  templateName?: string;
+  templateVariablesSample?: string[];
   total: number;
   skipped: number;
   preview: string;
@@ -103,9 +109,27 @@ interface DryRunResult {
 interface LiveResult {
   dryRun: false;
   audience: AudienceKey;
+  channelMode?: "auto" | "whatsapp_only" | "sms_only";
+  channelOverrideApplied?: boolean;
   total: number;
   skipped: number;
   sent: { whatsapp: number; sms: number; failed: number };
+}
+
+interface TemplateStatusRow {
+  envKey: string;
+  templateName?: string;
+  sid: string | null;
+  status?: string;
+  category?: string;
+  rejectionReason?: string;
+  error?: string;
+}
+
+interface TemplateStatusResponse {
+  success: true;
+  templates: TemplateStatusRow[];
+  totals: { total: number; approved: number; pending: number; rejected: number; error: number };
 }
 
 interface BlockedResult {
@@ -120,10 +144,14 @@ export default function LockieNewsletterPage() {
   const [audience, setAudience] = useState<AudienceKey>("silent_locksmiths");
   const [message, setMessage] = useState<string>(TEMPLATES[0].message);
   const [channel, setChannel] = useState<"auto" | "whatsapp_only" | "sms_only">("auto");
+  const [useTemplate, setUseTemplate] = useState<boolean>(false);
+  const [templateName, setTemplateName] = useState<string>("app_update_nudge_v1");
+  const [templateVars, setTemplateVars] = useState<string>("{name}\n1.0.7");
   const [busy, setBusy] = useState(false);
   const [dryResult, setDryResult] = useState<DryRunResult | null>(null);
   const [liveResult, setLiveResult] = useState<LiveResult | BlockedResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [templateStatus, setTemplateStatus] = useState<TemplateStatusResponse | null>(null);
 
   const charCount = message.trim().length;
   const charsValid = charCount >= 10 && charCount <= 1500;
@@ -133,11 +161,24 @@ export default function LockieNewsletterPage() {
     setError(null);
     if (dryRun) setLiveResult(null);
     try {
+      const parsedVars = templateVars
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
       const r = await fetch("/api/admin/lockie/newsletter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ audience, message, channel, dryRun, force }),
+        body: JSON.stringify({
+          audience,
+          message,
+          channel,
+          dryRun,
+          force,
+          ...(useTemplate
+            ? { templateName, templateVariables: parsedVars }
+            : {}),
+        }),
       });
       const data: ApiResult = await r.json();
       if (!r.ok || (data as { error?: string }).error) {
@@ -149,6 +190,26 @@ export default function LockieNewsletterPage() {
       } else if ("dryRun" in data && !data.dryRun) {
         setLiveResult(data as LiveResult);
         setDryResult(null);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const checkTemplateStatus = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await fetch("/api/admin/lockie/template-status", {
+        credentials: "include",
+      });
+      const data = (await r.json()) as TemplateStatusResponse | { error: string };
+      if (!r.ok || "error" in data) {
+        setError(("error" in data && data.error) || `HTTP ${r.status}`);
+      } else {
+        setTemplateStatus(data);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -231,6 +292,97 @@ export default function LockieNewsletterPage() {
                 <SelectItem value="sms_only">SMS only</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          {/* §40 (2026-06-24) — Meta-approved WhatsApp template send mode */}
+          <div className="border-t pt-4">
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={useTemplate}
+                onChange={(e) => setUseTemplate(e.target.checked)}
+                className="mt-1"
+              />
+              <span className="text-sm">
+                <span className="font-medium text-slate-800">Use Meta-approved WhatsApp template</span>
+                <span className="block text-slate-500 text-xs mt-0.5">
+                  Required for cold audiences. Bypasses the 24h-window restriction. The
+                  message above becomes the SMS-fallback body / preview.
+                </span>
+              </span>
+            </label>
+
+            {useTemplate && (
+              <div className="mt-3 space-y-3 bg-amber-50 border border-amber-200 rounded-md p-3">
+                <div>
+                  <Label htmlFor="templateName">Template name (Twilio Content)</Label>
+                  <input
+                    id="templateName"
+                    type="text"
+                    value={templateName}
+                    onChange={(e) => setTemplateName(e.target.value)}
+                    className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm font-mono"
+                    placeholder="app_update_nudge_v1"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">
+                    Maps to env <code className="bg-slate-100 px-1">TWILIO_CONTENT_SID_{templateName.toUpperCase().replace(/[^A-Z0-9]/g, "_")}</code>
+                  </p>
+                </div>
+                <div>
+                  <Label htmlFor="templateVars">Template variables — one per line (maps to {`{{1}}, {{2}}…`})</Label>
+                  <textarea
+                    id="templateVars"
+                    rows={3}
+                    value={templateVars}
+                    onChange={(e) => setTemplateVars(e.target.value)}
+                    className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm font-mono"
+                    placeholder="{name}&#10;1.0.7"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">
+                    Use <code className="bg-slate-100 px-1">{`{name}`}</code> placeholder
+                    for per-recipient substitution. Other values are sent literally.
+                  </p>
+                </div>
+                <div className="pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={checkTemplateStatus}
+                    disabled={busy}
+                  >
+                    {busy ? <Loader2 className="size-3 animate-spin" /> : null}
+                    <span className="ml-1">Check approval status (all templates)</span>
+                  </Button>
+                </div>
+
+                {templateStatus && (
+                  <div className="mt-3 bg-white border rounded p-2 text-xs">
+                    <div className="font-semibold mb-1">
+                      Template status — {templateStatus.totals.approved} approved · {templateStatus.totals.pending} pending · {templateStatus.totals.rejected} rejected
+                    </div>
+                    <ul className="space-y-1">
+                      {templateStatus.templates.map((t) => (
+                        <li key={t.envKey} className="flex items-center justify-between gap-2">
+                          <span className="font-mono truncate">{t.templateName ?? t.envKey}</span>
+                          <span
+                            className={
+                              t.status === "approved"
+                                ? "px-2 py-0.5 rounded bg-emerald-100 text-emerald-800"
+                                : t.status === "rejected"
+                                ? "px-2 py-0.5 rounded bg-red-100 text-red-800"
+                                : "px-2 py-0.5 rounded bg-amber-100 text-amber-800"
+                            }
+                          >
+                            {t.status ?? t.error ?? "?"}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div>
