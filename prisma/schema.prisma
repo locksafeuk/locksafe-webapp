@@ -3406,6 +3406,38 @@ model AgentDecision {
   @@index([platform, action, createdAt])
 }
 
+// Durable inter-agent message bus (replaces the in-memory messageStore so
+// delegations / status updates survive process restarts and serverless cold
+// starts). Endpoints are agent NAMES ("ceo"/"cmo"/"coo"/"cto"/subagents) to
+// match every call site; fromAgentId is an optional resolved FK (some senders
+// have no Agent row, and resolution is best-effort).
+model AgentMessage {
+  id            String  @id @default(auto()) @map("_id") @db.ObjectId
+  fromAgentName String
+  toAgentName   String
+  fromAgentId   String? @db.ObjectId
+
+  type     String // TASK_DELEGATION | INSIGHT_SHARE | DECISION_REQUEST | DECISION_RESPONSE | STATUS_UPDATE | ALERT | QUERY | QUERY_RESPONSE
+  priority String @default("normal") // critical | high | normal | low
+  status   String @default("pending") // pending | delivered | acknowledged | failed | expired
+
+  subject  String
+  body     String
+  metadata Json?
+
+  correlationId String?
+
+  expiresAt      DateTime?
+  deliveredAt    DateTime?
+  acknowledgedAt DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([toAgentName, status, createdAt(sort: Desc)])
+  @@index([fromAgentName, createdAt(sort: Desc)])
+  @@index([correlationId])
+  @@index([expiresAt])
+}
+
 // ==========================================
 // AGENT REFLECTION / SELF-LEARNING
 // ==========================================

@@ -1,8 +1,10 @@
 /**
- * Inter-Agent Message Bus
- * 
- * Enables agent-to-agent messaging with typed messages,
- * async delivery, acknowledgment, and database persistence.
+ * Inter-Agent Message Bus (durable)
+ *
+ * Agent-to-agent messaging with typed messages and DB persistence via the
+ * AgentMessage model, so delegations / status updates survive process restarts
+ * and serverless cold starts. Reads poll the DB (the authoritative inbox);
+ * in-process subscribers remain as best-effort same-process notification only.
  */
 
 import type { TaskStatus } from './types';
@@ -24,15 +26,15 @@ export type MessageStatus = 'pending' | 'delivered' | 'acknowledged' | 'failed' 
 
 export interface AgentMessage {
   id: string;
-  fromAgentId: string;
-  toAgentId: string;
+  fromAgentId: string; // agent NAME (kept as `fromAgentId` for API/BI contract)
+  toAgentId: string;   // agent NAME
   type: MessageType;
   priority: MessagePriority;
   subject: string;
   body: string;
   metadata?: Record<string, unknown>;
   status: MessageStatus;
-  correlationId?: string;  // Link related messages (request/response)
+  correlationId?: string;
   expiresAt?: Date;
   createdAt: Date;
   deliveredAt?: Date;
@@ -57,16 +59,45 @@ export interface MessageBusStats {
   byAgent: Record<string, { sent: number; received: number }>;
 }
 
-// ─── In-Memory Message Store ─────────────────────────────────────────────────
+// ─── Same-process subscribers (best-effort notification only) ────────────────
 
-const messageStore: AgentMessage[] = [];
-let messageIdCounter = 0;
 const messageSubscribers = new Map<string, Array<(message: AgentMessage) => void>>();
+
+const PRIORITY_ORDER: Record<MessagePriority, number> = { critical: 0, high: 1, normal: 2, low: 3 };
+
+async function getDb() {
+  const { prisma } = await import('@/lib/prisma');
+  return prisma;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function rowToMessage(r: any): AgentMessage {
+  return {
+    id: r.id,
+    fromAgentId: r.fromAgentName,
+    toAgentId: r.toAgentName,
+    type: r.type as MessageType,
+    priority: r.priority as MessagePriority,
+    subject: r.subject,
+    body: r.body,
+    metadata: (r.metadata as Record<string, unknown> | null) ?? undefined,
+    status: r.status as MessageStatus,
+    correlationId: r.correlationId ?? undefined,
+    expiresAt: r.expiresAt ?? undefined,
+    createdAt: r.createdAt,
+    deliveredAt: r.deliveredAt ?? undefined,
+    acknowledgedAt: r.acknowledgedAt ?? undefined,
+  };
+}
+
+function notExpired(m: { expiresAt?: Date }, now: number): boolean {
+  return !m.expiresAt || m.expiresAt.getTime() > now;
+}
 
 // ─── Core Functions ──────────────────────────────────────────────────────────
 
 /**
- * Send a message from one agent to another
+ * Send a message from one agent to another (persisted to AgentMessage).
  */
 export async function sendMessage(
   fromAgentId: string,
@@ -81,30 +112,45 @@ export async function sendMessage(
     expiresInMs?: number;
   } = {}
 ): Promise<AgentMessage> {
-  const message: AgentMessage = {
-    id: `msg_${++messageIdCounter}_${Date.now()}`,
-    fromAgentId,
-    toAgentId,
-    type,
-    priority: options.priority || 'normal',
-    subject,
-    body,
-    metadata: options.metadata,
-    status: 'pending',
-    correlationId: options.correlationId,
-    expiresAt: options.expiresInMs
-      ? new Date(Date.now() + options.expiresInMs)
-      : undefined,
-    createdAt: new Date(),
-  };
+  const priority = options.priority || 'normal';
+  const expiresAt = options.expiresInMs ? new Date(Date.now() + options.expiresInMs) : null;
 
-  messageStore.push(message);
-
-  // Attempt immediate delivery to subscribers
+  // Same-process subscribers (best-effort) — if present, mark delivered.
   const subscribers = messageSubscribers.get(toAgentId);
-  if (subscribers && subscribers.length > 0) {
-    message.status = 'delivered';
-    message.deliveredAt = new Date();
+  const delivered = !!(subscribers && subscribers.length > 0);
+
+  const db = await getDb();
+
+  // Best-effort resolve the sender's Agent row for the optional FK.
+  let fromAgentDbId: string | null = null;
+  try {
+    const a = await db.agent.findUnique({ where: { name: fromAgentId }, select: { id: true } });
+    fromAgentDbId = a?.id ?? null;
+  } catch {
+    // best-effort
+  }
+
+  const row = await db.agentMessage.create({
+    data: {
+      fromAgentName: fromAgentId,
+      toAgentName: toAgentId,
+      fromAgentId: fromAgentDbId,
+      type,
+      priority,
+      status: delivered ? 'delivered' : 'pending',
+      subject,
+      body,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      metadata: (options.metadata as any) ?? undefined,
+      correlationId: options.correlationId ?? null,
+      expiresAt,
+      deliveredAt: delivered ? new Date() : null,
+    },
+  });
+
+  const message = rowToMessage(row);
+
+  if (delivered && subscribers) {
     for (const handler of subscribers) {
       try {
         handler(message);
@@ -114,69 +160,34 @@ export async function sendMessage(
     }
   }
 
-  console.log(
-    `[MessageBus] ${fromAgentId} → ${toAgentId} [${type}] ${subject} (${message.status})`
-  );
-
-  // Persist to DB via AgentExecution for audit trail
-  try {
-    const { prisma } = await import('@/lib/prisma');
-    const fromAgent = await prisma.agent.findUnique({ where: { name: fromAgentId } });
-    if (fromAgent) {
-      await prisma.agentExecution.create({
-        data: {
-          agentId: fromAgent.id,
-          traceId: message.correlationId || message.id,
-          actionType: 'message',
-          actionName: `send_${type.toLowerCase()}`,
-          input: JSON.stringify({
-            to: toAgentId,
-            subject,
-            type,
-            priority: message.priority,
-          }),
-          output: JSON.stringify({ messageId: message.id, status: message.status }),
-          status: 'success',
-        },
-      });
-    }
-  } catch {
-    // DB persistence is best-effort; don't fail message delivery
-  }
-
+  console.log(`[MessageBus] ${fromAgentId} → ${toAgentId} [${type}] ${subject} (${message.status})`);
   return message;
 }
 
 /**
- * Get pending messages for an agent (inbox)
+ * Get pending messages for an agent (inbox). Reads the DB; expiry is filtered
+ * in JS to dodge the Prisma+Mongo null-vs-missing footgun (most rows have no
+ * expiresAt). Sorted by priority then recency.
  */
 export async function getMessages(
   agentId: string,
   filter: Omit<MessageFilter, 'agentId'> = {}
 ): Promise<AgentMessage[]> {
+  const db = await getDb();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const where: Record<string, any> = { toAgentName: agentId };
+  if (filter.type) where.type = filter.type;
+  if (filter.priority) where.priority = filter.priority;
+  if (filter.status) where.status = filter.status;
+  if (filter.since) where.createdAt = { gte: filter.since };
+
+  const rows = await db.agentMessage.findMany({ where, orderBy: { createdAt: 'desc' }, take: 200 });
   const now = Date.now();
-  return messageStore
-    .filter((m) => {
-      if (m.toAgentId !== agentId) return false;
-      if (filter.type && m.type !== filter.type) return false;
-      if (filter.priority && m.priority !== filter.priority) return false;
-      if (filter.status && m.status !== filter.status) return false;
-      if (filter.since && m.createdAt < filter.since) return false;
-      if (m.expiresAt && m.expiresAt.getTime() < now) {
-        m.status = 'expired';
-        return false;
-      }
-      return true;
-    })
+  return rows
+    .map(rowToMessage)
+    .filter((m) => notExpired(m, now))
     .sort((a, b) => {
-      // Sort by priority then recency
-      const priorityOrder: Record<MessagePriority, number> = {
-        critical: 0,
-        high: 1,
-        normal: 2,
-        low: 3,
-      };
-      const pDiff = priorityOrder[a.priority] - priorityOrder[b.priority];
+      const pDiff = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
       if (pDiff !== 0) return pDiff;
       return b.createdAt.getTime() - a.createdAt.getTime();
     })
@@ -184,31 +195,36 @@ export async function getMessages(
 }
 
 /**
- * Get sent messages from an agent (outbox)
+ * Get sent messages from an agent (outbox).
  */
-export async function getSentMessages(
-  agentId: string,
-  limit = 50
-): Promise<AgentMessage[]> {
-  return messageStore
-    .filter((m) => m.fromAgentId === agentId)
-    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-    .slice(0, limit);
+export async function getSentMessages(agentId: string, limit = 50): Promise<AgentMessage[]> {
+  const db = await getDb();
+  const rows = await db.agentMessage.findMany({
+    where: { fromAgentName: agentId },
+    orderBy: { createdAt: 'desc' },
+    take: limit,
+  });
+  return rows.map(rowToMessage);
 }
 
 /**
- * Acknowledge receipt of a message
+ * Acknowledge receipt of a message.
  */
 export async function acknowledgeMessage(messageId: string): Promise<boolean> {
-  const msg = messageStore.find((m) => m.id === messageId);
-  if (!msg) return false;
-  msg.status = 'acknowledged';
-  msg.acknowledgedAt = new Date();
-  return true;
+  const db = await getDb();
+  try {
+    await db.agentMessage.update({
+      where: { id: messageId },
+      data: { status: 'acknowledged', acknowledgedAt: new Date() },
+    });
+    return true;
+  } catch {
+    return false; // not found
+  }
 }
 
 /**
- * Subscribe to messages for a specific agent
+ * Subscribe to messages for a specific agent (best-effort, same-process only).
  */
 export function subscribeToMessages(
   agentId: string,
@@ -218,8 +234,6 @@ export function subscribeToMessages(
     messageSubscribers.set(agentId, []);
   }
   messageSubscribers.get(agentId)!.push(handler);
-
-  // Return unsubscribe function
   return () => {
     const subs = messageSubscribers.get(agentId);
     if (subs) {
@@ -231,9 +245,6 @@ export function subscribeToMessages(
 
 // ─── Convenience Messaging Functions ─────────────────────────────────────────
 
-/**
- * Share an insight with another agent (e.g., CMO shares customer trends with CEO)
- */
 export async function shareInsight(
   fromAgentId: string,
   toAgentId: string,
@@ -247,9 +258,6 @@ export async function shareInsight(
   });
 }
 
-/**
- * Request a decision from another agent
- */
 export async function requestDecision(
   fromAgentId: string,
   toAgentId: string,
@@ -262,13 +270,10 @@ export async function requestDecision(
     priority: 'high',
     correlationId,
     metadata: { options, context },
-    expiresInMs: 24 * 60 * 60 * 1000, // 24 hours
+    expiresInMs: 24 * 60 * 60 * 1000,
   });
 }
 
-/**
- * Respond to a decision request
- */
 export async function respondToDecision(
   fromAgentId: string,
   toAgentId: string,
@@ -283,9 +288,6 @@ export async function respondToDecision(
   });
 }
 
-/**
- * Send a status update to another agent
- */
 export async function sendStatusUpdate(
   fromAgentId: string,
   toAgentId: string,
@@ -299,9 +301,6 @@ export async function sendStatusUpdate(
   });
 }
 
-/**
- * Broadcast a message to all agents
- */
 export async function broadcastMessage(
   fromAgentId: string,
   type: MessageType,
@@ -323,83 +322,86 @@ export async function broadcastMessage(
 // ─── Message History & Stats ─────────────────────────────────────────────────
 
 /**
- * Get full conversation thread by correlation ID
+ * Get full conversation thread by correlation ID.
  */
-export async function getConversationThread(
-  correlationId: string
-): Promise<AgentMessage[]> {
-  return messageStore
-    .filter((m) => m.correlationId === correlationId)
-    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+export async function getConversationThread(correlationId: string): Promise<AgentMessage[]> {
+  const db = await getDb();
+  const rows = await db.agentMessage.findMany({
+    where: { correlationId },
+    orderBy: { createdAt: 'asc' },
+  });
+  return rows.map(rowToMessage);
 }
 
 /**
- * Get all messages (for admin/dashboard view)
+ * Get all messages (for admin/dashboard view).
  */
-export async function getAllMessages(
-  filter: MessageFilter = {}
-): Promise<AgentMessage[]> {
-  const now = Date.now();
-  return messageStore
-    .filter((m) => {
-      if (filter.agentId && m.fromAgentId !== filter.agentId && m.toAgentId !== filter.agentId) return false;
-      if (filter.type && m.type !== filter.type) return false;
-      if (filter.priority && m.priority !== filter.priority) return false;
-      if (filter.status && m.status !== filter.status) return false;
-      if (filter.since && m.createdAt < filter.since) return false;
-      // Mark expired
-      if (m.expiresAt && m.expiresAt.getTime() < now) m.status = 'expired';
-      return true;
-    })
-    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-    .slice(0, filter.limit || 100);
+export async function getAllMessages(filter: MessageFilter = {}): Promise<AgentMessage[]> {
+  const db = await getDb();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const where: Record<string, any> = {};
+  if (filter.agentId) where.OR = [{ fromAgentName: filter.agentId }, { toAgentName: filter.agentId }];
+  if (filter.type) where.type = filter.type;
+  if (filter.priority) where.priority = filter.priority;
+  if (filter.status) where.status = filter.status;
+  if (filter.since) where.createdAt = { gte: filter.since };
+
+  const rows = await db.agentMessage.findMany({ where, orderBy: { createdAt: 'desc' }, take: filter.limit || 100 });
+  return rows.map(rowToMessage);
 }
 
 /**
- * Get message bus statistics
+ * Get message bus statistics (shape consumed by business-intelligence.ts).
  */
 export async function getMessageBusStats(): Promise<MessageBusStats> {
+  const db = await getDb();
+  const types: MessageType[] = [
+    'TASK_DELEGATION', 'INSIGHT_SHARE', 'DECISION_REQUEST',
+    'DECISION_RESPONSE', 'STATUS_UPDATE', 'ALERT', 'QUERY', 'QUERY_RESPONSE',
+  ];
   const stats: MessageBusStats = {
-    totalMessages: messageStore.length,
+    totalMessages: 0,
     pending: 0,
     delivered: 0,
     acknowledged: 0,
     byType: {} as Record<MessageType, number>,
     byAgent: {},
   };
-
-  const types: MessageType[] = [
-    'TASK_DELEGATION', 'INSIGHT_SHARE', 'DECISION_REQUEST',
-    'DECISION_RESPONSE', 'STATUS_UPDATE', 'ALERT', 'QUERY', 'QUERY_RESPONSE',
-  ];
   for (const t of types) stats.byType[t] = 0;
 
-  for (const m of messageStore) {
+  // Message volume is low; aggregate a capped recent window in JS for accuracy
+  // without relying on Mongo groupBy edge cases.
+  const rows = await db.agentMessage.findMany({
+    orderBy: { createdAt: 'desc' },
+    take: 5000,
+    select: { type: true, status: true, fromAgentName: true, toAgentName: true },
+  });
+
+  stats.totalMessages = rows.length;
+  for (const m of rows) {
     if (m.status === 'pending') stats.pending++;
     if (m.status === 'delivered') stats.delivered++;
     if (m.status === 'acknowledged') stats.acknowledged++;
-    stats.byType[m.type] = (stats.byType[m.type] || 0) + 1;
-
-    // Track per-agent
-    if (!stats.byAgent[m.fromAgentId]) stats.byAgent[m.fromAgentId] = { sent: 0, received: 0 };
-    if (!stats.byAgent[m.toAgentId]) stats.byAgent[m.toAgentId] = { sent: 0, received: 0 };
-    stats.byAgent[m.fromAgentId].sent++;
-    stats.byAgent[m.toAgentId].received++;
+    stats.byType[m.type as MessageType] = (stats.byType[m.type as MessageType] || 0) + 1;
+    if (!stats.byAgent[m.fromAgentName]) stats.byAgent[m.fromAgentName] = { sent: 0, received: 0 };
+    if (!stats.byAgent[m.toAgentName]) stats.byAgent[m.toAgentName] = { sent: 0, received: 0 };
+    stats.byAgent[m.fromAgentName].sent++;
+    stats.byAgent[m.toAgentName].received++;
   }
 
   return stats;
 }
 
 /**
- * Cleanup expired messages
+ * Cleanup expired messages (deletes rows whose expiresAt is in the past).
  */
 export async function cleanupExpiredMessages(): Promise<number> {
-  const now = Date.now();
-  const before = messageStore.length;
-  const active = messageStore.filter(
-    (m) => !m.expiresAt || m.expiresAt.getTime() > now
-  );
-  messageStore.length = 0;
-  messageStore.push(...active);
-  return before - active.length;
+  const db = await getDb();
+  // CRITICAL: on Mongo, `{ expiresAt: { lt: now } }` ALSO matches unset/null
+  // fields (null sorts before dates), which would delete every message (most
+  // have no expiry) on every heartbeat. Require a real, non-null value too.
+  const res = await db.agentMessage.deleteMany({
+    where: { AND: [{ expiresAt: { not: null } }, { expiresAt: { lt: new Date() } }] },
+  });
+  return res.count;
 }
