@@ -6,6 +6,10 @@
   "regions": ["lhr1"],
   "crons": [
     {
+      "path": "/api/cron/lockie-template-auto-fire",
+      "schedule": "*/15 * * * *"
+    },
+    {
       "path": "/api/cron/ai-visibility-check",
       "schedule": "0 7 * * 1"
     },
