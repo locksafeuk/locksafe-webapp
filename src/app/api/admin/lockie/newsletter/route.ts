@@ -175,10 +175,29 @@ export async function POST(req: NextRequest) {
   const dryRun: boolean = body.dryRun !== false;
   const audience = body.audience as AudienceKey | undefined;
   const message: string = typeof body.message === "string" ? body.message.trim() : "";
-  const channelMode: "auto" | "whatsapp_only" | "sms_only" =
+  const requestedChannel: "auto" | "whatsapp_only" | "sms_only" =
     body.channel === "whatsapp_only" || body.channel === "sms_only"
       ? body.channel
       : "auto";
+
+  // §39 cold-audience guard (2026-06-24): WhatsApp Business rejects free-form
+  // text outside the 24h customer-initiated window with error 63016. The
+  // audiences below are by definition cold (locksmiths who haven't messaged
+  // us recently), so attempting WhatsApp is pure waste — silently counted
+  // as "sent" by our synchronous code but bounced later by Meta. Until we
+  // have Meta-approved WhatsApp templates, force SMS-only for cold outreach.
+  const COLD_AUDIENCES = new Set([
+    "all_locksmiths",
+    "silent_locksmiths",
+    "online_locksmiths",
+    "app_missing",
+    "all_customers",
+  ]);
+  const channelMode: "auto" | "whatsapp_only" | "sms_only" =
+    requestedChannel === "auto" && audience && COLD_AUDIENCES.has(audience)
+      ? "sms_only"
+      : requestedChannel;
+  const channelOverrideApplied = channelMode !== requestedChannel;
 
   // Input validation
   if (!audience || !AUDIENCE_KEYS.includes(audience)) {
@@ -233,6 +252,10 @@ export async function POST(req: NextRequest) {
       dryRun: true,
       audience,
       channelMode,
+      channelOverrideApplied,
+      channelOverrideReason: channelOverrideApplied
+        ? "§39 cold-audience guard — forced SMS-only because WhatsApp free-form is rejected (63016) outside the 24h window. Submit a Meta-approved template to use WhatsApp here."
+        : undefined,
       total: withPhone.length,
       skipped,
       preview: message,
@@ -287,6 +310,7 @@ export async function POST(req: NextRequest) {
     dryRun: false,
     audience,
     channelMode,
+    channelOverrideApplied,
     total: withPhone.length,
     skipped,
     sent: { whatsapp: waOk, sms: smsOk, failed },
