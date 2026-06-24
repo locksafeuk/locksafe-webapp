@@ -11,7 +11,7 @@
 
 import "@/lib/fonts"; // MUST be first: makes bundled Poppins resolvable before sharp loads
 import sharp from "sharp";
-import { POSTER_FONT } from "@/lib/fonts";
+import { POSTER_FONT, stripEmoji } from "@/lib/fonts";
 
 const BRAND = {
   orange: "#F97316",
@@ -20,7 +20,7 @@ const BRAND = {
 };
 
 function escapeXml(s: string): string {
-  return s.replace(/[<>&'"]/g, (c) =>
+  return stripEmoji(s).replace(/[<>&'"]/g, (c) =>
     ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" }[c] as string)
   );
 }

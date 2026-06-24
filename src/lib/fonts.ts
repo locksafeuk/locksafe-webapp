@@ -17,6 +17,17 @@ import os from "node:os";
 /** The font family every poster/caption SVG must use (matches the bundled TTFs). */
 export const POSTER_FONT = "Poppins, sans-serif";
 
+/** Remove emoji/pictographs before SVG text render — bundled Poppins has no
+ *  emoji glyphs and Pango fatally "bails out" on a colour-emoji request, which
+ *  kills the whole poster render. Decorative icons are separate SVGs. */
+export function stripEmoji(s: string): string {
+  return s
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FE0F}\u{200D}\u{24C2}\u{1F1E6}-\u{1F1FF}]/gu, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+
 (function setupFontconfig() {
   try {
     const fontDir = path.join(process.cwd(), "assets", "fonts");

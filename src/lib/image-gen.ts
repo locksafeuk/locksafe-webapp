@@ -15,7 +15,7 @@ import "@/lib/fonts"; // MUST be first: makes bundled Poppins resolvable before 
 import { put } from "@vercel/blob";
 import sharp from "sharp";
 import { overlayHeadline, overlayBrandedPoster } from "@/lib/poster-overlay";
-import { POSTER_FONT } from "@/lib/fonts";
+import { POSTER_FONT, stripEmoji } from "@/lib/fonts";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -387,7 +387,7 @@ function wrapPosterHeadline(text: string, maxChars: number, maxLines: number): s
 }
 
 function xmlEsc(s: string): string {
-  return s.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c] as string));
+  return stripEmoji(s).replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c] as string));
 }
 
 /**
