@@ -198,7 +198,7 @@ export default function OrganisationsAdminPage() {
                 </div>
               </div>
               <div className="flex items-center gap-6 text-center text-xs text-gray-500">
-                {org.contractedRate && (
+                {org.contractedRate != null && (
                   <div className="flex items-center gap-1 text-green-700 font-medium">
                     <Percent className="w-3 h-3" />
                     £{org.contractedRate.toFixed(2)} rate

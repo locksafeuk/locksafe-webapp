@@ -142,7 +142,7 @@ export default function ReflectionsPage() {
                     }`}
                   >
                     <td className="px-3 py-2 whitespace-nowrap text-gray-500">
-                      {new Date(r.computedAt).toLocaleDateString()}
+                      {new Date(r.computedAt).toLocaleDateString("en-GB")}
                     </td>
                     <td className="px-3 py-2 font-mono text-xs">{r.agentName}</td>
                     <td className="px-3 py-2 text-xs text-gray-700">

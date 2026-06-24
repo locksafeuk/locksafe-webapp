@@ -182,6 +182,7 @@ export default function AdminEmailsPage() {
   const [showPreview, setShowPreview] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [campaignSearch, setCampaignSearch] = useState("");
   const [outreachTrack, setOutreachTrack] = useState<OutreachTrack>("independent");
   const [subjectStyle, setSubjectStyle] = useState<SubjectStyle>("benefit");
   const [subjectVariant, setSubjectVariant] = useState(0);
@@ -596,6 +597,8 @@ export default function AdminEmailsPage() {
             <input
               type="text"
               placeholder="Search campaigns..."
+              value={campaignSearch}
+              onChange={(e) => setCampaignSearch(e.target.value)}
               className="w-full pl-10 pr-4 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
             />
           </div>
@@ -640,7 +643,11 @@ export default function AdminEmailsPage() {
           </div>
         ) : (
           <div className="divide-y">
-            {campaigns.map((campaign) => (
+            {campaigns
+              .filter((campaign) =>
+                campaign.name?.toLowerCase().includes(campaignSearch.toLowerCase()),
+              )
+              .map((campaign) => (
               <div
                 key={campaign.id}
                 className="p-4 hover:bg-slate-50 cursor-pointer transition-colors"
