@@ -98,17 +98,18 @@ async function resolveAudience(audience: AudienceKey): Promise<Recipient[]> {
       }));
     }
     case "silent_locksmiths": {
+      // Prisma+MongoDB `nativeDeviceToken: null` filter doesn't match docs
+      // where the field is MISSING. Fetch all isActive+isAvailable then
+      // filter in JS to get the true "no token" set.
       const rows = await p.locksmith.findMany({
-        where: {
-          isActive: true,
-          isAvailable: true,
-          nativeDeviceToken: null,
-        },
-        select: { id: true, name: true, phone: true },
+        where: { isActive: true, isAvailable: true },
+        select: { id: true, name: true, phone: true, nativeDeviceToken: true },
       });
-      return rows.map((r: { id: string; name: string; phone: string | null }) => ({
-        id: r.id, name: r.name, phone: r.phone, kind: "locksmith" as const,
-      }));
+      return rows
+        .filter((r: { nativeDeviceToken: string | null }) => !r.nativeDeviceToken)
+        .map((r: { id: string; name: string; phone: string | null }) => ({
+          id: r.id, name: r.name, phone: r.phone, kind: "locksmith" as const,
+        }));
     }
     case "online_locksmiths": {
       const rows = await p.locksmith.findMany({
@@ -121,27 +122,27 @@ async function resolveAudience(audience: AudienceKey): Promise<Recipient[]> {
     }
     case "app_installed": {
       const rows = await p.locksmith.findMany({
-        where: {
-          isActive: true,
-          nativeDeviceToken: { not: null },
-        },
-        select: { id: true, name: true, phone: true },
+        where: { isActive: true },
+        select: { id: true, name: true, phone: true, nativeDeviceToken: true },
       });
-      return rows.map((r: { id: string; name: string; phone: string | null }) => ({
-        id: r.id, name: r.name, phone: r.phone, kind: "locksmith" as const,
-      }));
+      return rows
+        .filter((r: { nativeDeviceToken: string | null }) => Boolean(r.nativeDeviceToken))
+        .map((r: { id: string; name: string; phone: string | null }) => ({
+          id: r.id, name: r.name, phone: r.phone, kind: "locksmith" as const,
+        }));
     }
     case "app_missing": {
+      // Same Prisma+MongoDB null-bug workaround as silent_locksmiths.
+      // Fetch isActive, post-filter in JS for missing-or-null token.
       const rows = await p.locksmith.findMany({
-        where: {
-          isActive: true,
-          nativeDeviceToken: null,
-        },
-        select: { id: true, name: true, phone: true },
+        where: { isActive: true },
+        select: { id: true, name: true, phone: true, nativeDeviceToken: true },
       });
-      return rows.map((r: { id: string; name: string; phone: string | null }) => ({
-        id: r.id, name: r.name, phone: r.phone, kind: "locksmith" as const,
-      }));
+      return rows
+        .filter((r: { nativeDeviceToken: string | null }) => !r.nativeDeviceToken)
+        .map((r: { id: string; name: string; phone: string | null }) => ({
+          id: r.id, name: r.name, phone: r.phone, kind: "locksmith" as const,
+        }));
     }
     case "all_customers": {
       const rows = await p.customer.findMany({
