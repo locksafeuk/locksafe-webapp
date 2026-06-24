@@ -7,7 +7,7 @@
  */
 const store: Array<Record<string, unknown>> = [];
 let idc = 0;
-const deleteManyMock = jest.fn(async () => ({ count: 0 }));
+const deleteManyMock = jest.fn(async (_args: { where: Record<string, unknown> }) => ({ count: 0 }));
 
 jest.mock("@/lib/prisma", () => ({
   prisma: {
@@ -86,7 +86,8 @@ it("acknowledge flips status", async () => {
 
 it("cleanup requires a non-null expiresAt (never matches unset rows)", async () => {
   await cleanupExpiredMessages();
-  const where = deleteManyMock.mock.calls[0][0].where;
+  const where = deleteManyMock.mock.calls[0]?.[0]?.where;
+  expect(where).toBeDefined();
   // must AND a not-null guard with the lt comparison
   expect(JSON.stringify(where)).toContain('"not":null');
   expect(JSON.stringify(where)).toContain('"lt"');
