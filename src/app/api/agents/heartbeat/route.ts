@@ -106,6 +106,31 @@ export async function POST(req: NextRequest) {
       // No body or invalid JSON, continue without force
     }
 
+    // ── Fallback-only: let the Mac runner (Ollama) own execution ──────────────
+    // If a primary agent runner is alive (any agent heart-beated recently), skip
+    // this serverless run so agents stay on local Ollama. Only take over when the
+    // primary has gone silent. `force:true` in the body bypasses this.
+    const FALLBACK_STALE_MIN = Number(process.env.AGENT_HEARTBEAT_FALLBACK_STALE_MINUTES ?? "15");
+    if (!forceRun && FALLBACK_STALE_MIN > 0) {
+      try {
+        const { default: prismaHb } = await import("@/lib/db");
+        const newest = await prismaHb.agent.findFirst({
+          where: { lastHeartbeat: { not: null } },
+          orderBy: { lastHeartbeat: "desc" },
+          select: { lastHeartbeat: true },
+        });
+        const ageMin = newest?.lastHeartbeat
+          ? (Date.now() - new Date(newest.lastHeartbeat).getTime()) / 60000
+          : Infinity;
+        if (ageMin < FALLBACK_STALE_MIN) {
+          console.log(`[Heartbeat API] Primary runner alive (${ageMin.toFixed(1)}m ago < ${FALLBACK_STALE_MIN}m) — skipping serverless run; agents stay on local Ollama.`);
+          return NextResponse.json({ success: true, skipped: true, reason: "primary-runner-alive", lastHeartbeatAgeMinutes: Math.round(ageMin), timestamp: new Date().toISOString() }, { status: 200 });
+        }
+      } catch (e) {
+        console.warn("[Heartbeat API] fallback staleness check failed, proceeding:", e);
+      }
+    }
+
     // Initialize system if needed (first run)
     await initializeAgentSystem();
 
