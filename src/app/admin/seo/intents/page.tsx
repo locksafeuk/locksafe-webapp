@@ -13,7 +13,16 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function AdminIntentsListPage() {
-  const landings = await loadAllIntentLandings();
+  const allLandings = await loadAllIntentLandings();
+  // De-dupe by slug — the static seed and the DB can both contain the same slug
+  // (e.g. "lost-car-keys"), which rendered a duplicate row + a React duplicate-key
+  // warning. Keep the first occurrence.
+  const seenSlugs = new Set<string>();
+  const landings = allLandings.filter((l) => {
+    if (seenSlugs.has(l.slug)) return false;
+    seenSlugs.add(l.slug);
+    return true;
+  });
   // The "DB vs static" badge is a nicety — if the DB read fails, still render
   // the (static-seed-backed) list rather than crashing the whole page.
   let dbRows: Array<{ slug: string }> = [];

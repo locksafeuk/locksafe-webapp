@@ -18,12 +18,21 @@ export async function GET(request: NextRequest) {
             tasks: {
               where: { status: { in: ["pending", "in_progress"] } },
             },
-            executions: true,
           },
         },
       },
       orderBy: { name: "asc" },
     });
+
+    // Execution counts via a single groupBy aggregation. A relation `_count`
+    // on executions compiles to a per-agent $lookup over the whole
+    // AgentExecution collection, which exceeds Mongo's 16MB aggregation-stage
+    // limit once executions grow (it was already 500ing this endpoint).
+    const execCounts = await prisma.agentExecution.groupBy({
+      by: ["agentId"],
+      _count: { _all: true },
+    });
+    const execByAgent = new Map(execCounts.map((e) => [e.agentId, e._count._all]));
 
     const formattedAgents = agents.map(agent => ({
       id: agent.id,
@@ -36,7 +45,7 @@ export async function GET(request: NextRequest) {
       budgetUsed: agent.budgetUsedUsd,
       budgetTotal: agent.monthlyBudgetUsd,
       pendingTasks: agent._count.tasks,
-      totalExecutions: agent._count.executions,
+      totalExecutions: execByAgent.get(agent.id) ?? 0,
       successRate: agent.successRate,
     }));
 
