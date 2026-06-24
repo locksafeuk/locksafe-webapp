@@ -139,7 +139,7 @@ export const sendTelegramAlertTool: AgentTool = {
   name: "sendTelegramAlert",
   description: "Send an alert to the admin Telegram chat",
   category: "communication",
-  permissions: ["ceo", "cto", "cmo", "coo", "ops-manager"],
+  permissions: ["ceo", "cto", "cmo", "coo", "ops-manager", "engineer"],
   parameters: [
     {
       name: "message",

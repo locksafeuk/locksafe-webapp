@@ -102,7 +102,7 @@ export const getPlatformStatusTool: AgentTool = {
   description:
     "Read-only snapshot of the whole LockSafe platform across all repos: per-repo git freshness, mobile app version + drift across config/package/status-doc, and social-automation posting health. Use to spot cross-repo issues (mobile version drift, stale repos, a release needed). Does NOT build, submit, or post — flag findings for a human.",
   category: "analytics",
-  permissions: ["cto", "devops", "system", "ceo"],
+  permissions: ["cto", "devops", "system", "ceo", "engineer"],
   parameters: [],
   async execute(): Promise<ToolResult> {
     try {

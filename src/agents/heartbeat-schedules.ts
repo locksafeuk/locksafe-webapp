@@ -10,6 +10,7 @@ export const CEO_HEARTBEAT_CRON = "0 */12 * * *"; // Every 12 hours
 export const COO_HEARTBEAT_CRON = "*/5 * * * *"; // Every 5 minutes (dispatch guardian — runs 24/7)
 export const CMO_HEARTBEAT_CRON = "0 6,18 * * *"; // ~Every 12h, UK daytime only
 export const CTO_HEARTBEAT_CRON = "0 6,12,18 * * *"; // ~Every 6h, UK daytime only
+export const ENGINEER_HEARTBEAT_CRON = "0 7 * * *"; // Daily at 07:00 UTC (code-health triage)
 
 export const COPYWRITER_HEARTBEAT_CRON = "0 5 * * *"; // Daily at 05:00 UTC
 export const ADS_SPECIALIST_HEARTBEAT_CRON = "0 */8 * * *"; // Every 8 hours
@@ -23,6 +24,7 @@ export const HEARTBEAT_INTERVAL_MINUTES: Record<string, number> = {
 	coo: 5,
 	cmo: 12 * 60,
 	cto: 6 * 60,
+	engineer: 24 * 60,
 	copywriter: 24 * 60,
 	"ads-specialist": 8 * 60,
 	"social-media": 24 * 60,

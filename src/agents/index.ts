@@ -16,6 +16,7 @@ import { initializeCEOAgent, runCEOHeartbeat, getCEOStatus, generateWeeklySummar
 import { initializeCOOAgent, runCOOHeartbeat, getCOOStatus, COO_AGENT_CONFIG } from "@/agents/coo/agent";
 import { initializeCMOAgent, runCMOHeartbeat, getCMOStatus, CMO_AGENT_CONFIG } from "@/agents/cmo/agent";
 import { initializeCTOAgent, runCTOHeartbeat, getCTOStatus, CTO_AGENT_CONFIG } from "@/agents/cto/agent";
+import { initializeEngineerAgent, runEngineerHeartbeat, getEngineerStatus, ENGINEER_AGENT_CONFIG } from "@/agents/engineer/agent";
 import { initializeCopywriterAgent, runCopywriterHeartbeat, getCopywriterStatus, COPYWRITER_AGENT_CONFIG } from "@/agents/cmo/subagents/copywriter/agent";
 import { initializeAdsSpecialistAgent, runAdsSpecialistHeartbeat, getAdsSpecialistStatus, ADS_SPECIALIST_AGENT_CONFIG } from "@/agents/cmo/subagents/ads-specialist/agent";
 import { initializeSocialMediaAgent, runSocialMediaHeartbeat, getSocialMediaStatus, SOCIAL_MEDIA_AGENT_CONFIG } from "@/agents/cmo/subagents/social-media/agent";
@@ -128,6 +129,7 @@ export {
   initializeCOOAgent,
   initializeCMOAgent,
   initializeCTOAgent,
+  initializeEngineerAgent,
   initializeCopywriterAgent,
   initializeAdsSpecialistAgent,
   initializeSocialMediaAgent,
@@ -136,6 +138,9 @@ export {
   runCOOHeartbeat,
   runCMOHeartbeat,
   runCTOHeartbeat,
+  runEngineerHeartbeat,
+  getEngineerStatus,
+  ENGINEER_AGENT_CONFIG,
   runCopywriterHeartbeat,
   runAdsSpecialistHeartbeat,
   runSocialMediaHeartbeat,
@@ -254,6 +259,7 @@ export async function initializeAgentSystem(): Promise<void> {
   console.log("\n[Init] Initializing agents...");
   await initializeCEOAgent();
   await initializeCTOAgent();
+  await initializeEngineerAgent();
   await initializeCOOAgent();
   await initializeCMOAgent();
 
@@ -496,6 +502,7 @@ export async function runAgentHeartbeats(): Promise<{
     : [
         ...guardianJobs,
         ...(isActive("ceo") && shouldRun("ceo") ? [{ name: "ceo", fn: runCEOHeartbeat }] : []),
+        ...(isActive("engineer") && shouldRun("engineer") ? [{ name: "engineer", fn: runEngineerHeartbeat }] : []),
       ];
 
   const independentResults = await runLimited(independentJobs, CONCURRENCY_CAP);
