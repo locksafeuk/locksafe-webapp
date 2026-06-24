@@ -20,8 +20,13 @@ import prisma from "@/lib/db";
 import {
   gradeOutcome,
   recordReflection,
+  reflectOnAgentExecutions,
   type ReflectionMetric,
 } from "@/agents/core/reflection";
+
+// Every agent that runs the Hermes tool-loop — all of them now learn from their
+// own tool success/failure history, not just the ads pipeline.
+const EXECUTION_REFLECTION_AGENTS = ["ceo", "cmo", "coo", "cto", "copywriter", "ads-specialist"];
 import { applyReflection as applySeedReflection } from "@/agents/core/seed-bank";
 
 const MAX_NARRATIVES = Number(process.env.REFLECTION_MAX_NARRATIVES ?? 50);
@@ -355,10 +360,23 @@ async function run(request: NextRequest) {
     await reflectOnPublishedDrafts(counters);
     await reflectOnApprovedSuggestions(counters);
 
+    // All-agent execution reflection — deterministic, no business metric needed.
+    let executionLessons = 0;
+    for (const agentName of EXECUTION_REFLECTION_AGENTS) {
+      try {
+        const r = await reflectOnAgentExecutions(agentName);
+        executionLessons += r.lessonsWritten;
+      } catch (err) {
+        console.warn(`[Cron] execution reflection failed for ${agentName}`, err);
+        counters.errors++;
+      }
+    }
+
     return NextResponse.json({
       success: true,
       durationMs: Date.now() - startTime,
       ...counters,
+      executionLessons,
       narrativeCap: MAX_NARRATIVES,
     });
   } catch (err) {

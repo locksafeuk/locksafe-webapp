@@ -272,3 +272,87 @@ export async function applyLessonsToMemory(
     }
   }
 }
+
+/**
+ * Deterministic, all-agent execution reflection.
+ *
+ * The metric-graded reflection above only covers ads decisions, so CEO/COO/CTO
+ * never learned from outcomes. This closes the self-learning loop for EVERY
+ * agent with zero business-metric dependency: it reads an agent's recent
+ * `tool_call` executions and, when a tool is failing persistently (more often
+ * than it succeeds), writes a LESSON memory so the next heartbeat guards or
+ * avoids that tool. Lessons surface via `getRelevantMemories` (the same path
+ * the heartbeat injects), so the loop actually feeds back into reasoning.
+ */
+export async function reflectOnAgentExecutions(
+  agentName: string,
+  opts: { sinceHours?: number; minFailures?: number } = {},
+): Promise<{ lessonsWritten: number; toolsReviewed: number }> {
+  const sinceHours = opts.sinceHours ?? 48;
+  const minFailures = opts.minFailures ?? 2;
+
+  const agent = await prisma.agent.findUnique({
+    where: { name: agentName },
+    select: { id: true },
+  });
+  if (!agent) return { lessonsWritten: 0, toolsReviewed: 0 };
+
+  const since = new Date(Date.now() - sinceHours * 60 * 60 * 1000);
+  const execs = await prisma.agentExecution.findMany({
+    where: { agentId: agent.id, actionType: "tool_call", startedAt: { gte: since } },
+    select: { actionName: true, status: true, output: true },
+    take: 1000,
+  });
+
+  const tally = new Map<string, { ok: number; fail: number; sampleError: string | null }>();
+  for (const e of execs) {
+    const t = tally.get(e.actionName) ?? { ok: 0, fail: 0, sampleError: null };
+    if (e.status === "success") {
+      t.ok++;
+    } else {
+      t.fail++;
+      if (!t.sampleError && e.output) {
+        try {
+          const parsed = JSON.parse(e.output) as { error?: unknown };
+          if (parsed.error) t.sampleError = String(parsed.error).slice(0, 140);
+        } catch {
+          /* non-JSON output — skip sample */
+        }
+      }
+    }
+    tally.set(e.actionName, t);
+  }
+
+  let lessonsWritten = 0;
+  for (const [tool, t] of tally) {
+    // Persistent problem only: at least `minFailures` failures AND failing at
+    // least as often as succeeding — not a one-off blip.
+    if (t.fail < minFailures || t.fail < t.ok) continue;
+
+    // Dedup: don't re-write the same tool's lesson within 3 days.
+    const recent = await prisma.agentMemory.findFirst({
+      where: {
+        agentId: agent.id,
+        content: { contains: `[EXEC-REFLECT] tool "${tool}"` },
+        createdAt: { gte: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000) },
+      },
+      select: { id: true },
+    });
+    if (recent) continue;
+
+    const lesson =
+      `tool "${tool}" failed ${t.fail} of ${t.ok + t.fail} calls in the last ${sinceHours}h` +
+      (t.sampleError ? ` (e.g. "${t.sampleError}")` : "") +
+      `. Verify its inputs/preconditions before relying on it, or use an alternative.`;
+
+    await storeMemory(agentName, `[EXEC-REFLECT] ${lesson}`, "pattern", 0.8, {
+      scope: "private",
+      strategicCategory: "tactical",
+      tags: ["reflection", "execution", tool],
+      expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+    });
+    lessonsWritten++;
+  }
+
+  return { lessonsWritten, toolsReviewed: tally.size };
+}
