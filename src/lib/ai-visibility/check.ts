@@ -131,7 +131,10 @@ export async function runAiVisibilityCheck(opts: {
   // engine call is slow (web-grounded answers take 10–20s each).
   const tasks: Array<{ prompt: (typeof prompts)[number]; engine: VisibilityEngine }> =
     prompts.flatMap((p) => engines.map((e) => ({ prompt: p, engine: e })));
-  const concurrency = Math.max(1, Math.min(opts.concurrency ?? 6, tasks.length || 1));
+  // Keep concurrency modest: grounded engines (esp. Gemini google_search) throttle
+  // hard, and fetchWithRetry handles the occasional 429 — together they keep a
+  // run inside the 300s budget without spurious "err" rows.
+  const concurrency = Math.max(1, Math.min(opts.concurrency ?? 3, tasks.length || 1));
   let cursor = 0;
   async function worker() {
     while (cursor < tasks.length) {

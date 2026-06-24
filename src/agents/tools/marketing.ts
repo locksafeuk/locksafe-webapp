@@ -20,6 +20,24 @@ import { gateApproval } from "@/lib/platform-stage";
 import { isServiceSlug } from "@/lib/services-catalog";
 import { optimiseMetaCampaigns } from "@/lib/meta-optimiser";
 import { isPlatformEnabled } from "@/lib/social-platforms";
+
+// AdCampaign is the Meta-only model (Mongo ObjectId ids). Agents routinely pass
+// Google Ads numeric campaign ids here, which made Prisma throw "Malformed
+// ObjectID" and crash the tool (e.g. CEO analyzeCampaign failed 29/29). Guard
+// the input: a non-ObjectId id is almost always a Google campaign — return an
+// instructive error so the agent uses the Google flow instead of crash-looping.
+const META_OBJECT_ID = /^[a-f0-9]{24}$/i;
+function requireMetaCampaignId(campaignId: string): ToolResult | null {
+  if (META_OBJECT_ID.test(campaignId)) return null;
+  return {
+    success: false,
+    error:
+      `"${campaignId}" is not an internal Meta AdCampaign id (expected a 24-char hex id). ` +
+      `This tool only manages Meta campaigns. For Google Ads campaigns, inspect with ` +
+      `getGoogleAdsCampaigns and manage them via the Google Ads optimisation flow ` +
+      `(optimiseGoogleCampaigns) — they cannot be paused/analysed through this Meta tool.`,
+  };
+}
 import { assertDraftGuardrails } from "@/lib/google-ads-draft-enforcement";
 import { shouldCreateAutonomousDraft } from "@/lib/google-ads-draft-throttle";
 
@@ -460,6 +478,11 @@ export const getCampaignPerformanceTool: AgentTool = {
       completed: AdStatus.COMPLETED,
     };
 
+    if (campaignId) {
+      const guard = requireMetaCampaignId(campaignId);
+      if (guard) return guard;
+    }
+
     const where: Record<string, unknown> = {};
     if (campaignId) where.id = campaignId;
     if (status && statusMap[status]) where.status = statusMap[status];
@@ -505,7 +528,7 @@ export const getCampaignPerformanceTool: AgentTool = {
  */
 export const updateCampaignStatusTool: AgentTool = {
   name: "updateCampaignStatus",
-  description: "Pause or resume an ad campaign",
+  description: "Pause or resume a Meta ad campaign (by internal AdCampaign id). Not for Google Ads campaigns.",
   category: "marketing",
   permissions: ["cmo", "ads-specialist"],
   parameters: [
@@ -533,6 +556,9 @@ export const updateCampaignStatusTool: AgentTool = {
     const campaignId = params.campaignId as string;
     const action = params.action as string;
     const reason = params.reason as string;
+
+    const guard = requireMetaCampaignId(campaignId);
+    if (guard) return guard;
 
     const newStatus = action === "pause" ? AdStatus.PAUSED : AdStatus.ACTIVE;
 
@@ -588,6 +614,9 @@ export const analyzeCampaignTool: AgentTool = {
   ],
   async execute(params, context): Promise<ToolResult> {
     const campaignId = params.campaignId as string;
+
+    const guard = requireMetaCampaignId(campaignId);
+    if (guard) return guard;
 
     let campaign;
     try {

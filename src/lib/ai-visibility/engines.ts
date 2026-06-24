@@ -45,13 +45,51 @@ function dedupeUrls(urls: (string | null | undefined)[]): string[] {
   );
 }
 
+// Retry transient throttling (HTTP 429) and 5xx with exponential backoff +
+// jitter, honouring Retry-After when present. A fresh abort timeout is created
+// per attempt (an AbortSignal can only fire once). Network/abort errors retry
+// too. This is what stops grounded calls (esp. Gemini) showing as "err" when
+// they were really just rate-limited mid-run.
+async function fetchWithRetry(
+  url: string,
+  init: Omit<RequestInit, "signal">,
+  label: string,
+  retries = 3,
+): Promise<Response> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, { ...init, signal: AbortSignal.timeout(TIMEOUT_MS) });
+      if ((res.status === 429 || res.status >= 500) && attempt < retries) {
+        const ra = Number(res.headers.get("retry-after"));
+        const wait = Number.isFinite(ra) && ra > 0
+          ? Math.min(ra * 1000, 8000)
+          : Math.min(700 * 2 ** attempt, 8000) + Math.random() * 400;
+        await new Promise((r) => setTimeout(r, wait));
+        continue;
+      }
+      return res;
+    } catch (err) {
+      lastErr = err;
+      if (attempt < retries) {
+        await new Promise((r) =>
+          setTimeout(r, Math.min(700 * 2 ** attempt, 8000) + Math.random() * 400),
+        );
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr ?? new Error(`${label}: retries exhausted`);
+}
+
 // ── ChatGPT (OpenAI Responses API + web_search) ──────────────────────────────
 async function queryChatGPT(prompt: string): Promise<EngineResult> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new SkippedEngineError("chatgpt", "OPENAI_API_KEY not set");
 
   const model = process.env.AI_VIS_OPENAI_MODEL || "gpt-4o";
-  const res = await fetch("https://api.openai.com/v1/responses", {
+  const res = await fetchWithRetry("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -59,8 +97,7 @@ async function queryChatGPT(prompt: string): Promise<EngineResult> {
       tools: [{ type: "web_search_preview" }],
       input: prompt,
     }),
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-  });
+  }, "OpenAI");
   if (!res.ok) throw new Error(`OpenAI ${res.status}: ${(await res.text()).slice(0, 200)}`);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data: any = await res.json();
@@ -84,7 +121,7 @@ async function queryGemini(prompt: string): Promise<EngineResult> {
   if (!key) throw new SkippedEngineError("gemini", "GEMINI_API_KEY not set");
 
   const model = process.env.AI_VIS_GEMINI_MODEL || "gemini-2.5-flash";
-  const res = await fetch(
+  const res = await fetchWithRetry(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
     {
       method: "POST",
@@ -93,8 +130,8 @@ async function queryGemini(prompt: string): Promise<EngineResult> {
         contents: [{ parts: [{ text: prompt }] }],
         tools: [{ google_search: {} }],
       }),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
     },
+    "Gemini",
   );
   if (!res.ok) throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 200)}`);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
