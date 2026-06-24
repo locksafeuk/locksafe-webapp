@@ -48,6 +48,27 @@ const LITERAL_LOCKSMITH_ROUTES = new Set([
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // TikTok site-ownership verification.
+  // TikTok requests https://<domain>/tiktok<TOKEN>.txt and expects the body
+  // to equal `tiktok-developers-site-verification=<TOKEN>`. It rotates <TOKEN>
+  // frequently, so a single static /public file goes stale before a deploy
+  // finishes (this caused repeated "Invalid Website URL" rejections). Deriving
+  // the body from the requested filename makes ANY token verify instantly with
+  // no redeploy. The strict pattern ensures we only answer genuine probes.
+  const tiktokVerify = pathname.match(/^\/tiktok([A-Za-z0-9]{16,64})\.txt$/);
+  if (tiktokVerify) {
+    return new NextResponse(
+      `tiktok-developers-site-verification=${tiktokVerify[1]}`,
+      {
+        status: 200,
+        headers: {
+          'content-type': 'text/plain; charset=utf-8',
+          'cache-control': 'no-store',
+        },
+      }
+    );
+  }
+
   // Admin API gate. Must run BEFORE the rate-limit block's read-only early
   // return below — otherwise sensitive admin GETs (payments, stats, jobs)
   // would pass unauthenticated. The gate accepts the union of auth mechanisms
