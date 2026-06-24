@@ -4,7 +4,7 @@
  * Chief Operating Officer - manages dispatch and operations.
  */
 
-import prisma from "@/lib/db";
+import prisma, { nullOrUnset } from "@/lib/db";
 import { JobStatus } from "@prisma/client";
 import { executeHeartbeat, delegateTask } from "@/agents/core/orchestrator";
 import { parseSkillsFile } from "@/agents/core/skill-parser";
@@ -124,7 +124,8 @@ export async function runCOOHeartbeat(): Promise<void> {
       const unnotified = await prisma.job.findMany({
         where: {
           status: JobStatus.PENDING,
-          locksmithId: null,
+          // Mongo: `locksmithId: null` misses jobs where the field is unset.
+          ...nullOrUnset("locksmithId"),
           notifiedLocksmithIds: { isEmpty: true },
           latitude: { not: null },
           longitude: { not: null },
@@ -184,7 +185,7 @@ export async function runCOOHeartbeat(): Promise<void> {
         where: {
           status: JobStatus.PENDING,
           createdAt: { lt: new Date(Date.now() - 10 * 60_000) },
-          locksmithId: null,
+          ...nullOrUnset("locksmithId"),
         },
         select: { id: true, problemType: true, createdAt: true },
         take: 20,
@@ -202,7 +203,7 @@ export async function runCOOHeartbeat(): Promise<void> {
           status: JobStatus.PENDING,
           isEmergency: true,
           createdAt: { lt: new Date(Date.now() - 10 * 60_000) },
-          locksmithId: null,
+          ...nullOrUnset("locksmithId"),
         },
       });
       ctx.unassignedEmergencyCount = emergencies;
@@ -272,6 +273,15 @@ export async function runCOOHeartbeat(): Promise<void> {
         where: { name: "coo" },
         data: { lastHeartbeat: new Date() },
       });
+      // Record the run so COO participates in the org memory / BI / self-learning
+      // layer (it's a deterministic workflow agent, so this is its memory trail).
+      await storeDecision(
+        "coo",
+        `Ops sweep: swept ${ctx.sweptCount} unassigned job(s) → ${ctx.sweepNotified} notification(s)`,
+        `stuck:${ctx.stuckJobCount} emergencies:${ctx.unassignedEmergencyCount} ` +
+          `expiringInsurance:${ctx.expiringInsuranceCount} alerts:${ctx.alerts.length}`,
+        "completed",
+      ).catch((err) => console.warn("[COO] memory write failed:", err));
       return ctx;
     });
 
