@@ -12,6 +12,7 @@ import {
   isSitelinkAsset,
   isCalloutAsset,
   detectReviewCountClaim,
+  detectPostcodeLockoutSpam,
 } from "../google-ads-copy-guard";
 
 describe("ad-copy false-claim guard", () => {
@@ -342,6 +343,162 @@ describe("§30 — ad-copy stack rebuild (2026-06-17 GODMODE plan)", () => {
         (h) => h.toLowerCase() === "mla-approved locksmith engineers",
       ).length;
       expect(count).toBe(1);
+    });
+  });
+});
+
+describe("§37 — Local Services classifier triggers (2026-06-20)", () => {
+  // Tonight's TW20 vs Newcastle live-evidence: TW20 ad shipped with
+  // "15-30 min response, 24/7" + "Egham TW20 Lockout Help" → both got per-asset
+  // red borders. Newcastle's "Locked Out in Newcastle?" / "Back Inside in 30
+  // Minutes" / "24/7 Lockout Response" passed cleanly with 589 impressions
+  // banked. §37 codifies the spam-pattern bans while keeping Newcastle's
+  // working copy intact.
+
+  describe("SLA-style 'X-min response' claim — BANNED", () => {
+    it("flags TW20's exact failing headline", () => {
+      expect(findForbiddenClaim("15-30 min response, 24/7")).toMatch(/§37.*X-min response/i);
+    });
+
+    it("flags single-number SLA variant", () => {
+      expect(findForbiddenClaim("5 min response time")).toMatch(/§37.*X-min response/i);
+      expect(findForbiddenClaim("30-min response guaranteed")).toMatch(/§37.*X-min response/i);
+    });
+
+    it("flags 'minute' spelled-out form", () => {
+      expect(findForbiddenClaim("15 minute response")).toMatch(/§37.*X-min response/i);
+      expect(findForbiddenClaim("5-minute response time")).toMatch(/§37.*X-min response/i);
+    });
+
+    it("flags hyphen-range variants", () => {
+      expect(findForbiddenClaim("15-30 min response")).toMatch(/§37.*X-min response/i);
+      expect(findForbiddenClaim("10 to 20 min response")).toMatch(/§37.*X-min response/i);
+    });
+  });
+
+  describe("SLA-style 'X-min response' claim — does NOT trip on Newcastle's clean copy", () => {
+    it("allows outcome-style 'Back Inside in 30 Minutes' (Newcastle live H3)", () => {
+      expect(findForbiddenClaim("Back Inside in 30 Minutes")).toBeNull();
+    });
+
+    it("allows descriptor-style '24/7 Lockout Response' (Newcastle live H4)", () => {
+      expect(findForbiddenClaim("24/7 Lockout Response")).toBeNull();
+    });
+
+    it("allows 'on-site in 30 min' (Newcastle live description)", () => {
+      expect(
+        findForbiddenClaim("Vetted specialist on-site in 30 min. Full price agreed."),
+      ).toBeNull();
+    });
+
+    it("allows '24/7 service' without minute-count + response combo", () => {
+      expect(findForbiddenClaim("24/7 service. Transparent pricing.")).toBeNull();
+    });
+  });
+
+  describe("postcode + 'Lockout' verb combo — BANNED", () => {
+    it("flags TW20's exact failing headline", () => {
+      expect(findForbiddenClaim("Egham TW20 Lockout Help")).toMatch(/§37.*postcode/i);
+    });
+
+    it("flags central London postcode + Lockout", () => {
+      expect(findForbiddenClaim("London EC1 Lockout Service")).toMatch(/§37.*postcode/i);
+      expect(findForbiddenClaim("Lockout Help SW1A")).toMatch(/§37.*postcode/i);
+    });
+
+    it("flags single-letter-area postcodes + Lockout (Manchester, Liverpool, Birmingham)", () => {
+      expect(findForbiddenClaim("M1 Lockout Specialists")).toMatch(/§37.*postcode/i);
+      expect(findForbiddenClaim("Liverpool L1 Lockout")).toMatch(/§37.*postcode/i);
+      expect(findForbiddenClaim("Birmingham B1 Lockout Help")).toMatch(/§37.*postcode/i);
+    });
+  });
+
+  describe("postcode + 'Lockout' combo — does NOT trip on Newcastle's clean copy or our keywords", () => {
+    it("allows 'Locked Out in Newcastle?' (Newcastle live H1, question form, no postcode)", () => {
+      expect(findForbiddenClaim("Locked Out in Newcastle?")).toBeNull();
+    });
+
+    it("allows 'Locked Out? Help is Here' (TW20 live H9 added 2026-06-20)", () => {
+      expect(findForbiddenClaim("Locked Out? Help is Here")).toBeNull();
+    });
+
+    it("allows 'house lockout' keyword (no postcode)", () => {
+      expect(findForbiddenClaim("house lockout")).toBeNull();
+      expect(findForbiddenClaim("emergency lockout")).toBeNull();
+    });
+
+    it("allows 'Local lockout & lock change experts' (Newcastle live description)", () => {
+      expect(findForbiddenClaim("DBS-checked, GPS-tracked & insured. Local lockout & lock change experts.")).toBeNull();
+    });
+
+    it("allows postcode WITHOUT lockout", () => {
+      expect(findForbiddenClaim("TW20 Engineer Help")).toBeNull();
+      expect(findForbiddenClaim("EC1 Door Specialists")).toBeNull();
+    });
+
+    it("allows lockout in sitelink/callout context (no postcode in same string)", () => {
+      expect(findForbiddenClaim("Emergency Lockout Help")).toBeNull();
+      expect(findForbiddenClaim("Lockout Response")).toBeNull();
+    });
+
+    it("does NOT misfire on B2B / acronym / non-postcode digit-letter combos", () => {
+      // These look postcode-shaped but aren't; combined with 'lockout' would
+      // still be rare in real copy, but defence in depth:
+      expect(detectPostcodeLockoutSpam("B2B Lockout Service")).toBe(false); // 1 cap + 1 digit + 1 cap
+      expect(detectPostcodeLockoutSpam("H1N1 Lockout Pandemic")).toBe(false); // letter-digit-letter-digit
+    });
+  });
+
+  describe("assertAdCopyClean catches the §37 patterns at publish time", () => {
+    it("throws on TW20's two original failing headlines", () => {
+      expect(() =>
+        assertAdCopyClean(
+          ["15-30 min response, 24/7", "Egham TW20 Lockout Help"],
+          ["Some clean description."],
+        ),
+      ).toThrow(AdCopyPreflightError);
+    });
+
+    it("does NOT throw on Newcastle's live ad copy stack", () => {
+      expect(() =>
+        assertAdCopyClean(
+          [
+            "Locked Out in Newcastle?",
+            "Non-Destructive Entry First",
+            "Back Inside in 30 Minutes",
+            "24/7 Lockout Response",
+            "Vetted & Insured Specialists",
+          ],
+          [
+            "Vetted specialist on-site in 30 min. Full price agreed before work starts.",
+            "DBS-checked, GPS-tracked & insured. Local lockout & lock change experts.",
+            "24/7 service. Transparent pricing guaranteed. Book in 60 seconds.",
+          ],
+        ),
+      ).not.toThrow();
+    });
+
+    it("does NOT throw on TW20's new question-format headline 'Locked Out? Help is Here'", () => {
+      expect(() =>
+        assertAdCopyClean(
+          ["Locked Out? Help is Here", "MLA-Approved Engineers"],
+          ["See the quote BEFORE any work. MLA-approved engineers serving Egham TW20."],
+        ),
+      ).not.toThrow();
+    });
+  });
+
+  describe("detectPostcodeLockoutSpam — direct unit test", () => {
+    it("requires BOTH postcode and lockout", () => {
+      expect(detectPostcodeLockoutSpam("TW20 Help")).toBe(false);
+      expect(detectPostcodeLockoutSpam("Lockout Help")).toBe(false);
+      expect(detectPostcodeLockoutSpam("TW20 Lockout")).toBe(true);
+    });
+
+    it("handles empty / null-ish input", () => {
+      expect(detectPostcodeLockoutSpam("")).toBe(false);
+      // @ts-expect-error — null input
+      expect(detectPostcodeLockoutSpam(null)).toBe(false);
     });
   });
 });

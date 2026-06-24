@@ -134,7 +134,52 @@ const FORBIDDEN_AD_CLAIMS: Array<{ pattern: RegExp; label: string }> = [
   { pattern: /\bcheapest\b/i,                                     label: "unprovable 'cheapest' superlative" },
   { pattern: /\bguaranteed\s+lowest\b/i,                          label: "unprovable 'guaranteed lowest' superlative" },
   { pattern: /\blowest\s+price(s)?\s+guaranteed\b/i,              label: "unprovable 'lowest price guaranteed' superlative" },
+  // §37 (2026-06-20) — unsubstantiated SLA-style "X-min response" claim.
+  // Trips Google's Local Services vertical classifier when present in a
+  // headline. Verified flagged: TW20 ad "15-30 min response, 24/7". Newcastle's
+  // outcome-framing ("Back Inside in 30 Minutes") and descriptor-framing
+  // ("24/7 Lockout Response", "on-site in 30 min") do NOT match this pattern
+  // — they're proven safe on a live ad. The pattern REQUIRES the word
+  // "response" immediately after the minute unit to avoid catching them.
+  {
+    pattern: /\b\d+(\s*[-–to]+\s*\d+)?\s*[-]?\s*min(?:ute)?s?\s+response\b/i,
+    label:
+      "§37 banned — unsubstantiated 'X-min response' SLA claim (use outcome framing like 'Back Inside in 30 Minutes' or descriptor like '24/7 Lockout Response')",
+  },
 ];
+
+/**
+ * §37 (2026-06-20) — Detect the textbook spam-locksmith pattern that trips
+ * Google's Local Services vertical classifier: a UK postcode + the verb
+ * "Lockout" in the same headline (e.g. "Egham TW20 Lockout Help" — verified
+ * flagged on TW20 2026-06-20).
+ *
+ * Returns true when BOTH a UK-postcode-shaped token AND the word "lockout"
+ * appear in the same string. Case-sensitive on the postcode to avoid catching
+ * normal lowercase prose (real postcodes in ad copy are uppercase); case-
+ * insensitive on "lockout" since headlines may use Title Case.
+ *
+ * Proven-safe strings that do NOT match (Newcastle live ad copy 2026-06-20):
+ *   • "Locked Out in Newcastle?"      — Newcastle is a name, not a postcode
+ *   • "24/7 Lockout Response"          — no postcode token
+ *   • "Local lockout & lock change…"  — no postcode token
+ *   • Keyword "house lockout"          — no postcode token
+ *   • "TW20 Engineer Help"             — has postcode but not "lockout"
+ */
+export function detectPostcodeLockoutSpam(text: string): boolean {
+  if (!text) return false;
+  // UK outward postcode shapes, case-SENSITIVE (real postcodes in ad copy
+  // are uppercase; lowercase prose like "or2g" must not match):
+  //   • 2 letters + 1-2 digits + optional trailing letter — TW20, EC1, SW1A
+  //   • 1 letter + 1-2 digits, NOT followed by a letter   — M1, L1, B1, E1
+  // The "NOT followed by a letter" lookahead excludes acronym patterns like
+  // B2B, G4S, P4G, H1N1 which are letter-digit-letter and would otherwise
+  // false-positive against single-letter postcode areas.
+  const hasPostcode =
+    /(\b[A-Z]{2}\d{1,2}[A-Z]?\b|\b[A-Z]\d{1,2}(?![A-Za-z])\b)/.test(text);
+  const hasLockout = /\blockout\b/i.test(text);
+  return hasPostcode && hasLockout;
+}
 
 /**
  * Numeric review-count claim detector (§30, 2026-06-17). Captures patterns
@@ -185,6 +230,10 @@ export function findForbiddenClaim(
   if (!text) return null;
   for (const { pattern, label } of FORBIDDEN_AD_CLAIMS) {
     if (pattern.test(text)) return label;
+  }
+  // §37 (2026-06-20) — postcode + "lockout" combo (textbook spam pattern).
+  if (detectPostcodeLockoutSpam(text)) {
+    return "§37 banned — UK postcode + 'lockout' verb in same headline (textbook spam-locksmith pattern; rewrite as question 'Locked Out in [City]?' or descriptor '24/7 Lockout Response')";
   }
   // §30 — review-count substantiation gate. We treat the absence of an
   // explicit substantiated count as "0 substantiated" (the safe default).
