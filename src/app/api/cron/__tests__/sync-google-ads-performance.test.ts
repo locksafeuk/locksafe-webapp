@@ -52,7 +52,7 @@ function makeRequest(
 
 // Dynamic import so module is loaded after mock definitions above
 let POST: (req: NextRequest) => Promise<Response>;
-let GET: () => Promise<Response>;
+let GET: (req: NextRequest) => Promise<Response>;
 
 beforeAll(async () => {
   process.env.CRON_SECRET = CRON_SECRET;
@@ -217,7 +217,7 @@ describe("POST /api/cron/sync-google-ads-performance", () => {
 // GET — health check
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("GET /api/cron/sync-google-ads-performance", () => {
+describe("GET /api/cron/sync-google-ads-performance (unauthenticated → health check)", () => {
   beforeEach(() => {
     mockGetGoogleAdsSyncStatus.mockReset();
     process.env.GOOGLE_ADS_DEVELOPER_TOKEN = "sbMXQHwqfdpHpWVGFnh1jg";
@@ -232,7 +232,7 @@ describe("GET /api/cron/sync-google-ads-performance", () => {
       totalConversions: 62,
     });
 
-    const res = await GET();
+    const res = await GET(makeRequest("GET"));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.success).toBe(true);
@@ -251,7 +251,7 @@ describe("GET /api/cron/sync-google-ads-performance", () => {
       totalConversions: 0,
     });
 
-    const res = await GET();
+    const res = await GET(makeRequest("GET"));
     const body = await res.json();
     expect(body.isConfigured).toBe(false);
     expect(body.accountsConnected).toBe(0);
@@ -266,7 +266,7 @@ describe("GET /api/cron/sync-google-ads-performance", () => {
       totalConversions: 0,
     });
 
-    const res = await GET();
+    const res = await GET(makeRequest("GET"));
     const body = await res.json();
     expect(body.endpoints.cronSync).toContain("sync-google-ads-performance");
   });
@@ -274,10 +274,41 @@ describe("GET /api/cron/sync-google-ads-performance", () => {
   it("returns 500 when status check throws", async () => {
     mockGetGoogleAdsSyncStatus.mockRejectedValue(new Error("Prisma error"));
 
-    const res = await GET();
+    const res = await GET(makeRequest("GET"));
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body.success).toBe(false);
     expect(body.error).toContain("Prisma error");
+  });
+});
+
+describe("GET /api/cron/sync-google-ads-performance (authenticated → runs sync)", () => {
+  // Vercel Cron invokes via GET, so an authenticated GET must run the sync
+  // rather than return the health check.
+  beforeEach(() => {
+    mockSyncAllGoogleAdsAccounts.mockReset();
+    mockSyncAllGoogleAdsAccounts.mockResolvedValue({
+      success: true,
+      accountsProcessed: 1,
+      campaignsObserved: 3,
+      snapshotsWritten: 21,
+      errors: [],
+    });
+  });
+
+  it("runs the sync when invoked with x-vercel-cron (scheduled run)", async () => {
+    const res = await GET(makeRequest("GET", { vercelCron: true }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.metrics.snapshotsWritten).toBe(21);
+    expect(mockSyncAllGoogleAdsAccounts).toHaveBeenCalled();
+  });
+
+  it("runs the sync when invoked with a correct CRON_SECRET bearer", async () => {
+    const res = await GET(
+      makeRequest("GET", { authHeader: `Bearer ${CRON_SECRET}` }),
+    );
+    expect(res.status).toBe(200);
+    expect(mockSyncAllGoogleAdsAccounts).toHaveBeenCalled();
   });
 });

@@ -21,14 +21,17 @@ import {
 
 
 export async function POST(request: NextRequest) {
-  const startTime = Date.now();
-
   if (!verifyCronAuth(request)) {
     return NextResponse.json(
       { success: false, error: "Unauthorized" },
       { status: 401 },
     );
   }
+  return runSync(request);
+}
+
+async function runSync(request: NextRequest) {
+  const startTime = Date.now();
 
   let options: { lookbackDays?: number; dateRange?: { since: string; until: string } } = {};
   try {
@@ -74,9 +77,13 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * GET — health check. No auth so it can be polled by the admin dashboard.
+ * GET — Vercel Cron invokes endpoints via GET, so an authenticated cron call
+ * runs the sync. Unauthenticated GETs serve the health check (admin dashboard).
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  if (verifyCronAuth(request)) {
+    return runSync(request);
+  }
   try {
     const status = await getGoogleAdsSyncStatus();
     return NextResponse.json({
