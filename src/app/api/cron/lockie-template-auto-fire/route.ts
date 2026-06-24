@@ -101,40 +101,12 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // ─── 2. Idempotency — has this template already been used? ────────────
-  // Check WhatsAppConversationMessage for any outbound row whose rawPayload
-  // references this contentSid. If found, we've already fired.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const p = prisma as any;
-  const alreadyFired = await p.whatsAppConversationMessage.findFirst({
-    where: {
-      direction: "outbound",
-      messageType: "template",
-      rawPayload: {
-        path: ["contentSid"],
-        equals: contentSid,
-      },
-    },
-    select: { id: true },
-  }).catch(() => null);
 
-  // MongoDB JSON-path filter can be flaky. Belt-and-braces: also check via
-  // raw count of any outbound template messages in the last 14d (a clean
-  // re-fire window — if a previous version of this template was fired, we
-  // assume the rotation is complete).
-  if (alreadyFired) {
-    return NextResponse.json({
-      success: true,
-      skipped: true,
-      reason: "already fired (found outbound message with this contentSid)",
-      template: TEMPLATE_NAME,
-      alreadyFiredMessageId: alreadyFired.id,
-    });
-  }
-
-  // ─── 3. Resolve audience: app_missing locksmiths ──────────────────────
-  // Same JS-filter pattern as Lockie Newsletter to dodge Prisma+MongoDB
-  // null-strict bug.
+  // ─── 2. Resolve audience: app_missing locksmiths ──────────────────────
+  // JS-filter on nativeDeviceToken to dodge the Prisma+MongoDB null-vs-missing
+  // bug (a bare `{ nativeDeviceToken: null }` misses unset-field docs).
   const rows = await p.locksmith.findMany({
     where: { isActive: true },
     select: { id: true, name: true, phone: true, nativeDeviceToken: true },
@@ -153,13 +125,57 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, skipped: true, reason: "zero targets" });
   }
 
-  // ─── 4. Fire the broadcast ────────────────────────────────────────────
+  // ─── 3. Per-recipient idempotency — send only to the unsent remainder ──
+  // TemplateBroadcastDelivery is the source of truth for "who already got it".
+  // The unique (broadcastKey, recipientId) makes each send atomic, so this is
+  // safe under concurrent and retried cron runs: no double-send, and a partial
+  // broadcast resumes (instead of the old findFirst marker that locked out the
+  // rest after the first recipient was recorded).
+  const broadcastKey = contentSid;
+  const sentRows: Array<{ recipientId: string }> = await p.templateBroadcastDelivery.findMany({
+    where: { broadcastKey, status: "sent" },
+    select: { recipientId: true },
+  });
+  const sentIds = new Set(sentRows.map((d) => d.recipientId));
+  const remainder = targets.filter((t) => !sentIds.has(t.id));
+
+  if (remainder.length === 0) {
+    return NextResponse.json({
+      success: true,
+      skipped: true,
+      reason: "already fired to all recipients",
+      template: TEMPLATE_NAME,
+      alreadySent: sentIds.size,
+    });
+  }
+
+  // ─── 4. Fire to the remainder ─────────────────────────────────────────
   let waOk = 0;
   let failed = 0;
+  let skippedClaimed = 0;
   const failedDetails: Array<{ name: string; phone: string; error?: string }> = [];
-  for (const t of targets) {
+  for (const t of remainder) {
+    // Atomic claim. A unique-constraint violation means another concurrent run
+    // (or an earlier success) already owns this recipient — skip it.
+    let claimId: string | null = null;
+    try {
+      const claim = await p.templateBroadcastDelivery.create({
+        data: { broadcastKey, recipientId: t.id, status: "pending" },
+        select: { id: true },
+      });
+      claimId = claim.id as string;
+    } catch (e: unknown) {
+      if ((e as { code?: string })?.code === "P2002") {
+        skippedClaimed++;
+        continue;
+      }
+      throw e;
+    }
+
     const phone = normalizePhoneNumber(t.phone);
     if (!phone) {
+      // Release the claim so a corrected record can be retried later.
+      await p.templateBroadcastDelivery.delete({ where: { id: claimId } }).catch(() => {});
       failed++;
       failedDetails.push({ name: t.name, phone: t.phone, error: "invalid phone" });
       continue;
@@ -167,12 +183,21 @@ export async function POST(request: NextRequest) {
     try {
       const result = await sendTemplateMessage(phone, TEMPLATE_NAME, [t.name, APP_VERSION]);
       if (result.success) {
+        await p.templateBroadcastDelivery
+          .update({
+            where: { id: claimId },
+            data: { status: "sent", providerMessageId: result.messageId ?? null },
+          })
+          .catch(() => {});
         waOk++;
       } else {
+        // Failed send — release the claim so a later run retries this recipient.
+        await p.templateBroadcastDelivery.delete({ where: { id: claimId } }).catch(() => {});
         failed++;
         failedDetails.push({ name: t.name, phone: t.phone, error: result.error });
       }
     } catch (err) {
+      await p.templateBroadcastDelivery.delete({ where: { id: claimId } }).catch(() => {});
       failed++;
       failedDetails.push({
         name: t.name,
@@ -182,25 +207,34 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // ─── 5. Telegram completion alert ─────────────────────────────────────
-  await sendAdminAlert({
-    title: `§40 auto-fire — ${TEMPLATE_NAME} APPROVED & SENT`,
-    severity: "info",
-    message:
-      `Template ${TEMPLATE_NAME} was approved at Meta and the v${APP_VERSION} nudge ` +
-      `has just been broadcast via WhatsApp to ${targets.length} silent locksmiths.\n\n` +
-      `Delivered: ${waOk} · Failed: ${failed}` +
-      (failedDetails.length > 0
-        ? `\n\nFailures:\n${failedDetails.slice(0, 10).map((f) => `• ${f.name} (${f.phone}) — ${f.error || "unknown"}`).join("\n")}`
-        : ""),
-  }).catch(() => {});
+  // ─── 5. Telegram completion alert (only when this run took action) ─────
+  if (waOk > 0 || failed > 0) {
+    await sendAdminAlert({
+      title: `§40 auto-fire — ${TEMPLATE_NAME} APPROVED & SENT`,
+      severity: "info",
+      message:
+        `Template ${TEMPLATE_NAME} approved at Meta. v${APP_VERSION} nudge fired this run.\n\n` +
+        `Sent now: ${waOk} · Failed: ${failed}` +
+        (sentIds.size > 0 ? ` · Previously sent: ${sentIds.size}` : "") +
+        (skippedClaimed > 0 ? ` · Claimed by concurrent run: ${skippedClaimed}` : "") +
+        (failedDetails.length > 0
+          ? `\n\nFailures:\n${failedDetails.slice(0, 10).map((f) => `• ${f.name} (${f.phone}) — ${f.error || "unknown"}`).join("\n")}`
+          : ""),
+    }).catch(() => {});
+  }
 
   return NextResponse.json({
     success: true,
     template: TEMPLATE_NAME,
     contentSid,
     approval: approval.status,
-    fired: { total: targets.length, whatsappOk: waOk, failed },
+    fired: {
+      remainder: remainder.length,
+      whatsappOk: waOk,
+      failed,
+      skippedClaimed,
+      previouslySent: sentIds.size,
+    },
     failedDetails: failedDetails.slice(0, 50),
   });
 }

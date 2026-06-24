@@ -208,6 +208,24 @@ model WhatsAppConversationMessage {
   @@index([providerMessageId])
 }
 
+// Idempotent per-recipient delivery ledger for one-to-many template broadcasts
+// (e.g. the §40 app-update auto-fire). The unique (broadcastKey, recipientId)
+// makes each recipient's send atomic across concurrent/retried cron runs, so a
+// broadcast can resume to only the unsent remainder instead of double-sending
+// or locking out after a partial run.
+model TemplateBroadcastDelivery {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  broadcastKey      String // identifies the broadcast — the template contentSid
+  recipientId       String   @db.ObjectId // Locksmith id (or other recipient id)
+  status            String // "sent" | "pending"
+  providerMessageId String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([broadcastKey, recipientId])
+  @@index([broadcastKey, status])
+}
+
 // Admin user model
 model Admin {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId
