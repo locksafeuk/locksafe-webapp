@@ -10,12 +10,14 @@ import { dispatchTools } from "@/agents/tools/dispatch";
 import { marketingTools } from "@/agents/tools/marketing";
 import { communicationTools } from "@/agents/tools/communication";
 import { analyticsTools } from "@/agents/tools/analytics";
+import { crossRepoTools } from "@/agents/tools/cross-repo";
 
 // Export individual tool sets
 export { dispatchTools };
 export { marketingTools };
 export { communicationTools };
 export { analyticsTools };
+export { crossRepoTools };
 
 // Export registry functions explicitly
 export {
@@ -39,6 +41,7 @@ export const allTools = [
   ...marketingTools,
   ...communicationTools,
   ...analyticsTools,
+  ...crossRepoTools,
 ];
 
 /**

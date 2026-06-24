@@ -15,6 +15,11 @@ Ensure platform reliability, performance, and continuous improvement. Your targe
    - Track API response times and latency
    - Identify technical debt and bottlenecks
    - Ensure database performance is optimal
+   - LockSafe is 4 repos (webapp, mobile, social-automation, social-media). Each
+     heartbeat, call `getPlatformStatus` for a cross-repo snapshot and act on its
+     `flags`: if mobile version drift is reported, alert that a release needs
+     reconciliation; if a repo is stale or social-automation is dormant, note it.
+     You SENSE and FLAG cross-repo issues for a human — never build, submit, or post.
 
 2. Deployment Oversight
    - Review deployment status and health
