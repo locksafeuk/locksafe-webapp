@@ -30,6 +30,7 @@ import {
   evaluateKillSwitch,
   type CampaignSpendRow,
 } from "@/lib/google-ads-cost-per-conv-killswitch";
+import { evaluateDailySpendAlert } from "@/lib/google-ads-daily-spend-alert";
 
 export const runtime  = "nodejs";
 export const dynamic  = "force-dynamic";
@@ -154,6 +155,48 @@ export async function POST(request: NextRequest) {
   });
   const toPause = decisions.filter((d) => d.action === "pause");
 
+  // ── §38 — Daily-spend early-warning alert (2026-06-24) ────────────────
+  // Independent of the per-campaign kill switch above. Query yesterday's
+  // total account spend; if it exceeded the alert threshold (default £80,
+  // override via DAILY_ACCOUNT_SPEND_ALERT_GBP) fire a Telegram heads-up.
+  // This is the EARLY-WARNING tier of the engineered £2,500/month cap:
+  // hard publish-time gate at MAX_DAILY_ACCOUNT_SPEND_GBP=85 prevents NEW
+  // campaigns from being published over the ceiling; this alert catches
+  // EXISTING live campaigns that have crept over (Google's 2× over-deliver,
+  // spend-spike day, etc.) so Piky knows before the kill switch fires.
+  let dailyAlertResult: ReturnType<typeof evaluateDailySpendAlert> | null = null;
+  try {
+    type DailyRow = { metrics?: { costMicros?: string | number } };
+    const dailyRows = (await client.query(`
+      SELECT metrics.cost_micros
+        FROM customer
+       WHERE segments.date DURING YESTERDAY
+    `)) as DailyRow[];
+    const yesterdaySpendGbp = dailyRows.reduce((sum, r) => {
+      const m = Number(r.metrics?.costMicros ?? 0);
+      return sum + (Number.isFinite(m) ? m / 1_000_000 : 0);
+    }, 0);
+    const alertThreshold = Number(
+      process.env["DAILY_ACCOUNT_SPEND_ALERT_GBP"] ?? "80",
+    );
+    dailyAlertResult = evaluateDailySpendAlert({
+      spendGbp: yesterdaySpendGbp,
+      thresholdGbp: Number.isFinite(alertThreshold) ? alertThreshold : 80,
+      dayIso: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    });
+    if (dailyAlertResult.shouldAlert && !dryRun && dailyAlertResult.message) {
+      await sendAdminAlert({
+        title:    `§38 DAILY SPEND ALERT — £${yesterdaySpendGbp.toFixed(2)} yesterday`,
+        severity: "warning",
+        message:  dailyAlertResult.message,
+      }).catch(() => {});
+    }
+  } catch (err) {
+    // Non-fatal — the kill switch above is the safety net.
+    // eslint-disable-next-line no-console
+    console.warn("§38 daily-spend alert query failed:", err);
+  }
+
   // ── Pause via Google Ads + DB ─────────────────────────────────────────
   const actions: Array<{ campaignId: string; campaignName: string; result: string; error?: string }> = [];
   if (!dryRun) {
@@ -210,7 +253,7 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     success:    true,
-    rule:       "§32",
+    rule:       "§32 + §38",
     runAt:      stampISO,
     dryRun,
     threshold,
@@ -219,5 +262,6 @@ export async function POST(request: NextRequest) {
     decisions,
     pauseCount: toPause.length,
     actions,
+    dailySpendAlert: dailyAlertResult,
   });
 }
