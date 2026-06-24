@@ -37,16 +37,15 @@ export default function OrganisationsAdminPage() {
   });
   const [saving, setSaving] = useState(false);
 
-  const adminSecret = typeof window !== "undefined"
-    ? localStorage.getItem("adminSecret") ?? ""
-    : "";
-
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/organisations", {
-        headers: { Authorization: `Bearer ${adminSecret}` },
-      });
+      // Cookie auth — the httpOnly admin cookie is sent automatically.
+      const res = await fetch("/api/admin/organisations", { credentials: "include" });
+      if (!res.ok) {
+        console.error("[organisations] load failed:", res.status);
+        return;
+      }
       const data = await res.json();
       setOrgs(data.organisations ?? []);
     } finally {
@@ -60,18 +59,21 @@ export default function OrganisationsAdminPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      await fetch("/api/admin/organisations", {
+      const res = await fetch("/api/admin/organisations", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${adminSecret}`,
-        },
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
           contractedRate: form.contractedRate ? Number(form.contractedRate) : undefined,
           paymentTerms: Number(form.paymentTerms),
         }),
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(`Failed to create organisation: ${err.error ?? res.status}`);
+        return;
+      }
       setShowForm(false);
       setForm({ name: "", type: "landlord", contactName: "", contactEmail: "", contactPhone: "", contractedRate: "", paymentTerms: "30", vatNumber: "", billingEmail: "" });
       await load();

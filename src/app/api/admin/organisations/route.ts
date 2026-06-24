@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
+import { isAdminAuthenticated } from "@/lib/auth";
 
-const ADMIN_SECRET = process.env.ADMIN_SECRET || "admin-secret";
-
-function verifyAdminAuth(request: NextRequest): boolean {
-  const auth = request.headers.get("authorization");
-  const token = auth?.replace("Bearer ", "");
-  return token === ADMIN_SECRET;
+// Cookie-based admin auth (matches the rest of the admin API + the dashboard's
+// httpOnly cookie). Previously this route only accepted a `Bearer ADMIN_SECRET`
+// header that the dashboard never sent, so the org page silently 401'd.
+async function verifyAdminAuth(): Promise<boolean> {
+  return (await isAdminAuthenticated()) !== null;
 }
 
 /**
@@ -17,8 +17,8 @@ function verifyAdminAuth(request: NextRequest): boolean {
  * Creates a new organisation.
  */
 
-export async function GET(request: NextRequest) {
-  if (!verifyAdminAuth(request)) {
+export async function GET() {
+  if (!(await verifyAdminAuth())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!verifyAdminAuth(request)) {
+  if (!(await verifyAdminAuth())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

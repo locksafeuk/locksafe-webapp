@@ -54,8 +54,8 @@ export default function ReflectionsPage() {
       const r = await fetch(`/api/admin/agents/reflections?${qs}`, { cache: "no-store" });
       if (r.ok) {
         const data = await r.json();
-        setItems(data.reflections);
-        setCounts(data.counts);
+        setItems(data.reflections ?? []);
+        setCounts(data.counts ?? {});
       }
     } finally {
       setLoading(false);
