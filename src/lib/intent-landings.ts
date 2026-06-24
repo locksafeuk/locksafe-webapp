@@ -21,7 +21,7 @@ export const INTENT_LANDINGS: IntentLanding[] = [
   // the high-intent cost / car-key queries where engines currently cite
   // competitors instead of us). Same proven Article + FAQPage schema engine. ===
   {
-    slug: "emergency-locksmith-cost",
+    slug: "emergency-locksmith-cost-uk",
     title: "How Much Does an Emergency Locksmith Cost in the UK?",
     h1: "How Much Does an Emergency Locksmith Cost in the UK? (2026 Price Guide)",
     metaTitle: "Emergency Locksmith Cost UK (2026) — Real Prices & Avoiding Overcharging | LockSafe",
@@ -281,11 +281,11 @@ export const INTENT_LANDINGS: IntentLanding[] = [
       relatedClusters: [
         {
           heading: "Other locksmith help",
-          slugs: ["emergency-locksmith-cost", "locked-out-at-night"],
+          slugs: ["emergency-locksmith-cost-uk", "locked-out-at-night"],
         },
       ],
     },
-    relatedSlugs: ["emergency-locksmith-cost"],
+    relatedSlugs: ["emergency-locksmith-cost-uk"],
     isActive: true,
     position: 3,
     publishedAt: "2026-06-24T00:00:00.000Z",
