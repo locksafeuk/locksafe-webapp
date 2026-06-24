@@ -441,15 +441,22 @@ export async function GET(request: NextRequest) {
           linkedinPostId:  platformResults.linkedin?.postId  || null,
           tiktokPostId:    platformResults.tiktok?.postId    || null,
           tiktokScript:    platformResults.tiktok?.script    || undefined,
-          publishError: !anySuccess
-            ? [
-                platformResults.facebook  ? `Facebook: ${platformResults.facebook.error}`   : null,
-                platformResults.instagram ? `Instagram: ${platformResults.instagram.error}` : null,
-                platformResults.twitter   ? `Twitter: ${platformResults.twitter.error}`     : null,
-                platformResults.linkedin  ? `LinkedIn: ${platformResults.linkedin.error}`   : null,
-                platformResults.tiktok    ? `TikTok: ${platformResults.tiktok.error}`       : null,
-              ].filter(Boolean).join("; ") || "No platforms attempted"
-            : null,
+          // Record per-platform FAILURES even on a partial-success publish.
+          // Previously publishError was set only when every platform failed, so
+          // a post that reached Facebook but silently failed Twitter/TikTok was
+          // marked a clean "PUBLISHED" — hiding that those channels were dead
+          // (Twitter has been 0/22 with an expired token, invisible until now).
+          publishError: (() => {
+            const failed = [
+              platformResults.facebook?.success === false  ? `Facebook: ${platformResults.facebook.error}`   : null,
+              platformResults.instagram?.success === false ? `Instagram: ${platformResults.instagram.error}` : null,
+              platformResults.twitter?.success === false   ? `Twitter: ${platformResults.twitter.error}`     : null,
+              platformResults.linkedin?.success === false  ? `LinkedIn: ${platformResults.linkedin.error}`   : null,
+              platformResults.tiktok?.success === false    ? `TikTok: ${platformResults.tiktok.error}`       : null,
+            ].filter(Boolean).join("; ");
+            if (failed) return anySuccess ? `Partial publish — ${failed}` : failed;
+            return anySuccess ? null : "No platforms attempted";
+          })(),
         },
       });
 
