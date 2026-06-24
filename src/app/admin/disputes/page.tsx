@@ -105,7 +105,9 @@ export default function AdminDisputesPage() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/admin/disputes");
+      const res = await fetch("/api/admin/disputes", { credentials: "include" });
+      if (res.status === 401) { window.location.href = "/admin/login"; return; }
+      if (!res.ok) { console.error("[disputes] load failed:", res.status); return; }
       const data = await res.json();
       setDisputes(data.disputes ?? []);
       setStats(data.stats ?? null);
@@ -114,6 +116,8 @@ export default function AdminDisputesPage() {
         if (d.notes) noteMap[d.id] = d.notes;
       }
       setNotes(noteMap);
+    } catch (e) {
+      console.error("[disputes] load error:", e);
     } finally {
       setIsLoading(false);
     }

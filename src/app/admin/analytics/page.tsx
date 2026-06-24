@@ -881,8 +881,15 @@ export default function AnalyticsDashboard() {
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-lg font-bold text-slate-900">Demand Heatmap</h2>
-                <p className="text-sm text-slate-500">Jobs by hour and day of week</p>
+                <h2 className="text-lg font-bold text-slate-900">
+                  Demand Heatmap
+                  <span className="ml-2 align-middle text-[10px] font-semibold uppercase tracking-wide text-amber-600 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
+                    Sample
+                  </span>
+                </h2>
+                <p className="text-sm text-slate-500">
+                  Illustrative pattern (sample data) — not yet wired to live job data.
+                </p>
               </div>
               <Activity className="w-5 h-5 text-slate-400" />
             </div>

@@ -602,10 +602,11 @@ export default function AdminLeadsPage() {
               ) : (
                 <>
                   <p className="font-medium">No leads found</p>
-                  <p className="text-sm mt-1">Run the scraper script to populate this list.</p>
-                  <code className="mt-3 block text-xs bg-slate-100 rounded px-3 py-2 text-slate-600 max-w-xl mx-auto">
-                    npx ts-node --compiler-options &apos;&#123;&quot;module&quot;:&quot;CommonJS&quot;,&quot;strict&quot;:false&#125;&apos; scripts/find-independent-locksmiths.ts
-                  </code>
+                  <p className="text-sm mt-1">
+                    Lead sourcing runs automatically in-app via the scraper cron (Serper.dev,
+                    gap-fill mode). New leads appear here as they&apos;re discovered — or trigger a
+                    one-off run from the Manual Scraper page.
+                  </p>
                 </>
               )}
             </div>
