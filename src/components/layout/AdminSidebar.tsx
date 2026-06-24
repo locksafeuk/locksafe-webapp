@@ -187,6 +187,7 @@ const navGroups: NavGroup[] = [
       { href: "/admin/agents/reflections", label: "Agent Reflections", icon: Brain },
       { href: "/admin/integrations/google-ads/seed-bank", label: "Keyword Seed Bank", icon: Sprout },
       { href: "/admin/integrations/google-ads/health", label: "Google Ads Health", icon: Gauge },
+      { href: "/admin/google-ads/coverage", label: "Google Ads Coverage", icon: Map },
       { href: "/admin/testing", label: "Testing", icon: Rocket },
     ],
   },
