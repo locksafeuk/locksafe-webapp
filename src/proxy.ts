@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { isAuthorizedAdminRequest } from '@/lib/admin-gate';
 
 // Rate limiting (in-memory, edge-compatible)
 const ipRequestCounts = new Map<string, { count: number; resetTime: number }>();
@@ -44,8 +45,26 @@ const LITERAL_LOCKSMITH_ROUTES = new Set([
   '/locksmith-east-london',
 ]);
 
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Admin API gate. Must run BEFORE the rate-limit block's read-only early
+  // return below — otherwise sensitive admin GETs (payments, stats, jobs)
+  // would pass unauthenticated. The gate accepts the union of auth mechanisms
+  // already in use (admin cookie / admin Bearer JWT / CRON_SECRET / vercel-cron)
+  // and self-allowlists the public tracking-pixel paths; it fails closed.
+  if (pathname.startsWith('/api/admin/')) {
+    const authorized = await isAuthorizedAdminRequest({
+      pathname,
+      cookieToken: request.cookies.get('auth_token')?.value,
+      authHeader: request.headers.get('authorization'),
+      cronSecretHeader: request.headers.get('x-cron-secret'),
+      isVercelCron: request.headers.get('x-vercel-cron') === '1',
+    });
+    if (!authorized) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+  }
 
   // Rate limiting for API routes
   if (pathname.startsWith('/api/')) {

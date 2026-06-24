@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
+import { isAdminAuthenticated } from "@/lib/auth";
 
 export async function GET() {
+  if (!(await isAdminAuthenticated())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   const locksmiths = await prisma.locksmith.findMany({
     where: { isActive: true, onboardingCompleted: true },
     select: {

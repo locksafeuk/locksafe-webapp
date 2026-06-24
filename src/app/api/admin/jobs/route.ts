@@ -3,9 +3,13 @@ import prisma from "@/lib/db";
 import { JobStatus } from "@prisma/client";
 import { extractUkPostcode, isCoordinatePair, normalizeUkPostcode } from "@/lib/location-display";
 import { isPlaceholderCustomerName, resolveCustomerDisplayName } from "@/lib/customer-name";
+import { isAdminAuthenticated } from "@/lib/auth";
 
 // GET /api/admin/jobs - Get all jobs with filtering for admin
 export async function GET(request: NextRequest) {
+  if (!(await isAdminAuthenticated())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");

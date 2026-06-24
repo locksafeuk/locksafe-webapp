@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAssignAuction } from "@/lib/job-auction";
+import { isAdminAuthenticated } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
+  if (!(await isAdminAuthenticated())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { jobId, locksmithId } = await request.json();
 
   if (!jobId || !locksmithId) {

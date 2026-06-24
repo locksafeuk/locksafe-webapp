@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
+import { isAdminAuthenticated } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
+  if (!(await isAdminAuthenticated())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { locksmithId, override } = await request.json();
 
   if (!locksmithId || typeof override !== "boolean") {

@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
+import { isAdminAuthenticated } from "@/lib/auth";
 
 // GET /api/admin/payments - Get all payments with stats
 export async function GET(request: NextRequest) {
+  if (!(await isAdminAuthenticated())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     // Get all payments with job details
     const payments = await prisma.payment.findMany({

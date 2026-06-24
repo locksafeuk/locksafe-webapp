@@ -30,8 +30,12 @@ import {
   sendAdminAlert,
   sendDailySummary,
 } from "@/lib/telegram";
+import { isAdminAuthenticated } from "@/lib/auth";
 
 export async function POST() {
+  if (!(await isAdminAuthenticated())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   const results: Array<{ scenario: string; success: boolean; error?: string }> = [];
 
   // Helper to add delay between messages to avoid rate limiting
@@ -337,6 +341,9 @@ export async function POST() {
 }
 
 export async function GET() {
+  if (!(await isAdminAuthenticated())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   return NextResponse.json({
     message: "POST to this endpoint to send all test notifications",
     scenarios: [

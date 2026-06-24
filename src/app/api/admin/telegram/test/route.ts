@@ -23,9 +23,13 @@ import {
   notifyNewLead,
   sendDailySummary,
 } from "@/lib/telegram";
+import { isAdminAuthenticated } from "@/lib/auth";
 
 // GET - Test Telegram connection or specific scenario
 export async function GET(request: NextRequest) {
+  if (!(await isAdminAuthenticated())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   const { searchParams } = new URL(request.url);
   const scenario = searchParams.get("scenario");
   const all = searchParams.get("all") === "true";
@@ -391,6 +395,9 @@ async function testAllScenarios(): Promise<NextResponse> {
 
 // POST - Send a custom admin alert
 export async function POST(request: NextRequest) {
+  if (!(await isAdminAuthenticated())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const body = await request.json();
     const { title, message, severity } = body;
