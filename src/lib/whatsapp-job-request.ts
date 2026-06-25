@@ -26,6 +26,7 @@ import {
   createJob as createJobInDb,
   sendJobNotifications,
 } from "@/lib/customer-service";
+import { isWhatsAppWindowOpen } from "@/lib/whatsapp-inbox";
 
 // Check if OpenAI is configured
 const OPENAI_ENABLED = !!process.env.OPENAI_API_KEY;
@@ -121,6 +122,19 @@ export function resetJobRequestSession(phone: string): void {
  * Start the job request flow
  */
 export async function startJobRequest(phone: string, customerName?: string): Promise<void> {
+  // 63016 guard: this bot only ever replies to an inbound WhatsApp message that
+  // just arrived (called from handleIncomingMessage → processWebhook), so the
+  // 24h window is normally OPEN and the happy path is untouched. This defensive
+  // check only bails out in the pathological case where the window is somehow
+  // CLOSED (e.g. a future out-of-band caller), so the bot never emits free-form
+  // WhatsApp outside the window. See whatsapp-business.sendWhatsAppFreeformGuarded.
+  if (!(await isWhatsAppWindowOpen(phone))) {
+    console.warn(
+      `[WhatsApp Job] startJobRequest skipped for ${phone}: 24h window closed (would 63016 as free-form).`,
+    );
+    return;
+  }
+
   const session = getJobRequestSession(phone);
 
   // Check if customer already exists
@@ -194,6 +208,18 @@ export async function processJobRequestResponse(
   // Check if we're in an active job request flow
   if (session.step === "idle" || session.step === "completed") {
     return false; // Not in job request flow
+  }
+
+  // 63016 guard: as with startJobRequest, this only ever runs as a reply to a
+  // just-received inbound WhatsApp message, so the 24h window is normally OPEN.
+  // Defensive bail-out only for the pathological closed-window case — keeps the
+  // bot from ever emitting free-form WhatsApp outside the window. We return
+  // `true` (handled) so the caller doesn't fall through to other free-form sends.
+  if (!(await isWhatsAppWindowOpen(phone))) {
+    console.warn(
+      `[WhatsApp Job] processJobRequestResponse skipped for ${phone}: 24h window closed (would 63016 as free-form).`,
+    );
+    return true;
   }
 
   const lowerMessage = message.toLowerCase().trim();

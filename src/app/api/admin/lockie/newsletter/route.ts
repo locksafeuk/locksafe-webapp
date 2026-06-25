@@ -44,7 +44,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth";
-import { sendTextMessage, sendTemplateMessage } from "@/lib/whatsapp-business";
+import { sendTemplateMessage, sendWhatsAppFreeformGuarded } from "@/lib/whatsapp-business";
 import { sendSMS } from "@/lib/sms";
 import { prisma } from "@/lib/prisma";
 import { normalizePhoneNumber } from "@/lib/phone";
@@ -293,6 +293,9 @@ export async function POST(req: NextRequest) {
   let waOk = 0;
   let smsOk = 0;
   let failed = 0;
+  // Free-form WhatsApp recipients whose 24h window was CLOSED — skipped (not a
+  // failure) to avoid Twilio/Meta 63016. Surfaced separately in the response.
+  let windowSkipped = 0;
 
   for (const r of withPhone) {
     const phone = normalizePhoneNumber(r.phone!);
@@ -304,19 +307,36 @@ export async function POST(req: NextRequest) {
     let sent = false;
     if (channelMode === "auto" || channelMode === "whatsapp_only") {
       try {
-        let wa: { success: boolean; error?: string };
         if (isTemplateSend && templateName) {
-          // §40 — substitute `{name}` placeholder per recipient
+          // §40 — substitute `{name}` placeholder per recipient.
+          // Approved TEMPLATES are allowed outside the 24h window, so they go
+          // direct (no window guard).
           const vars = rawTemplateVariables.map((v) =>
             v.replace(/\{name\}/g, r.name).replace(/\{phone\}/g, r.phone ?? ""),
           );
-          wa = await sendTemplateMessage(phone, templateName, vars);
+          const wa = await sendTemplateMessage(phone, templateName, vars);
+          if (wa.success) {
+            waOk++;
+            sent = true;
+          }
         } else {
-          wa = await sendTextMessage(phone, message);
-        }
-        if (wa.success) {
-          waOk++;
-          sent = true;
+          // FREE-FORM newsletter: only send WhatsApp if the recipient's 24h
+          // window is OPEN — otherwise Meta rejects with 63016. Closed-window
+          // recipients are SKIPPED for this marketing/info broadcast (we don't
+          // SMS them) and counted as `skipped`, not failed.
+          const guard = await sendWhatsAppFreeformGuarded(phone, message, {
+            onClosed: "skip",
+            smsFallbackContext: `lockie-newsletter:${audience}:${r.id}`,
+          });
+          if (guard.channel === "whatsapp" && guard.sent) {
+            waOk++;
+            sent = true;
+          } else if (guard.channel === "skipped") {
+            // Closed window → skip (non-failure). Don't fall through to SMS for
+            // a newsletter; just count it and move on.
+            windowSkipped++;
+            continue;
+          }
         }
       } catch {
         // fall through to SMS
@@ -348,6 +368,9 @@ export async function POST(req: NextRequest) {
     channelOverrideApplied,
     total: withPhone.length,
     skipped,
+    // `windowSkipped` = recipients whose 24h WhatsApp window was closed; we
+    // skipped free-form WhatsApp for them (no SMS for a newsletter) to avoid 63016.
+    windowSkipped,
     sent: { whatsapp: waOk, sms: smsOk, failed },
   });
 }

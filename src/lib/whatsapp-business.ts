@@ -543,6 +543,107 @@ export async function sendButtonMessage(
 }
 
 /**
+ * 24h-window-guarded free-form WhatsApp send.
+ *
+ * WhatsApp/Meta only permit FREE-FORM (non-template) messages inside the 24h
+ * customer-care window — i.e. within 24h of the recipient's last inbound
+ * WhatsApp message. Sending free-form outside that window is rejected by
+ * Twilio/Meta with error 63016, which is what was firing ×28/24h.
+ *
+ * This guard checks `isWhatsAppWindowOpen(phone)` BEFORE attempting any
+ * free-form send:
+ *   - window OPEN  → send the free-form WhatsApp (text, or buttons if provided)
+ *   - window CLOSED → do NOT send free-form WhatsApp (avoids the 63016). Instead,
+ *       fall back per `onClosed`:
+ *         "skip" (default) → don't message at all, return channel: "skipped"
+ *         "sms"            → send the same body over SMS (transactional)
+ *
+ * On ANY WhatsApp send failure (network error, or `success: false`) we also
+ * fall back per `onClosed`, so a transient WhatsApp failure on a marketing
+ * broadcast is simply skipped (not retried as free-form).
+ *
+ * NOTE: this is for FREE-FORM sends only. Approved TEMPLATE sends
+ * (`sendTemplateMessage`) are always allowed outside the window and must NOT
+ * be routed through this guard.
+ */
+export async function sendWhatsAppFreeformGuarded(
+  phone: string,
+  message: string,
+  opts?: {
+    buttons?: Array<{ id: string; title: string }>;
+    buttonOptions?: { header?: string; footer?: string };
+    onClosed?: "skip" | "sms";
+    smsFallbackContext?: string;
+  },
+): Promise<{
+  sent: boolean;
+  channel: "whatsapp" | "sms" | "skipped";
+  error?: string;
+}> {
+  const { isWhatsAppWindowOpen } = await import("@/lib/whatsapp-inbox");
+  const onClosed = opts?.onClosed ?? "skip";
+
+  // SMS fallback helper (used both for closed-window and WhatsApp send failures).
+  const fallback = async (
+    reason: string,
+  ): Promise<{ sent: boolean; channel: "sms" | "skipped"; error?: string }> => {
+    if (onClosed !== "sms") {
+      // Broadcasts: closed window is a non-failure — just skip the recipient.
+      return { sent: false, channel: "skipped" };
+    }
+    try {
+      const { sendSMS } = await import("@/lib/sms");
+      const sms = await sendSMS(phone, message, {
+        channel: "transactional",
+        logContext: opts?.smsFallbackContext ?? "whatsapp-freeform-guard-fallback",
+      });
+      if (sms.success) {
+        return { sent: true, channel: "sms" };
+      }
+      return { sent: false, channel: "skipped", error: sms.error || reason };
+    } catch (err) {
+      return {
+        sent: false,
+        channel: "skipped",
+        error: err instanceof Error ? err.message : reason,
+      };
+    }
+  };
+
+  // 1) Window check — the core 63016 guard. Closed window → never free-form.
+  let windowOpen = false;
+  try {
+    windowOpen = await isWhatsAppWindowOpen(phone);
+  } catch (err) {
+    // If the window check itself fails, treat as CLOSED (safe default — we'd
+    // rather skip/SMS than risk a free-form send that 63016s).
+    return fallback(err instanceof Error ? err.message : "window-check-failed");
+  }
+
+  if (!windowOpen) {
+    return fallback("whatsapp-window-closed");
+  }
+
+  // 2) Window is open — send free-form WhatsApp (buttons if provided, else text).
+  try {
+    const result =
+      opts?.buttons && opts.buttons.length > 0
+        ? await sendButtonMessage(phone, message, opts.buttons, opts.buttonOptions)
+        : await sendTextMessage(phone, message);
+
+    if (result.success) {
+      return { sent: true, channel: "whatsapp" };
+    }
+    // WhatsApp send failed (e.g. a late window flip) — fall back per onClosed.
+    // `sendButtonMessage` doesn't carry an `error` field, so read it defensively.
+    const sendError = (result as { error?: string }).error;
+    return fallback(sendError || "whatsapp-send-failed");
+  } catch (err) {
+    return fallback(err instanceof Error ? err.message : "whatsapp-send-threw");
+  }
+}
+
+/**
  * Send a list message
  */
 export async function sendListMessage(

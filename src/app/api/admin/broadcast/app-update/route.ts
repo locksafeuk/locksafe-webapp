@@ -30,8 +30,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth";
-import { sendTextMessage } from "@/lib/whatsapp-business";
-import { sendSMS } from "@/lib/sms";
+import { sendWhatsAppFreeformGuarded } from "@/lib/whatsapp-business";
 import { prisma } from "@/lib/prisma";
 import { normalizePhoneNumber } from "@/lib/phone";
 
@@ -175,10 +174,14 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // Live send — WhatsApp first, SMS fallback, tailored per segment.
+  // Live send — free-form WhatsApp, tailored per segment, but ONLY to
+  // recipients whose 24h WhatsApp window is OPEN. Free-form WhatsApp outside
+  // that window is rejected by Twilio/Meta with 63016 (the bug this fixes).
+  // For an info broadcast we SKIP closed-window recipients (no SMS) and count
+  // them separately — they're not failures.
   let waOk = 0;
-  let smsOk = 0;
   let failed = 0;
+  let windowSkipped = 0;
 
   for (const locksmith of targets) {
     const phone = normalizePhoneNumber(locksmith.phone!);
@@ -186,22 +189,15 @@ export async function POST(req: NextRequest) {
     const message = msgFor(locksmith.segment);
 
     try {
-      const waResult = await sendTextMessage(phone, message);
-      if (waResult.success) {
-        waOk++;
-        continue;
-      }
-    } catch {
-      // fall through to SMS
-    }
-
-    try {
-      const smsResult = await sendSMS(phone, message, {
-        channel: "transactional",
-        logContext: `app-${locksmith.segment}-broadcast:${locksmith.id}`,
+      const guard = await sendWhatsAppFreeformGuarded(phone, message, {
+        onClosed: "skip",
+        smsFallbackContext: `app-${locksmith.segment}-broadcast:${locksmith.id}`,
       });
-      if (smsResult.success) {
-        smsOk++;
+      if (guard.channel === "whatsapp" && guard.sent) {
+        waOk++;
+      } else if (guard.channel === "skipped") {
+        // Closed window (or transient WhatsApp failure) → skip, not a failure.
+        windowSkipped++;
       } else {
         failed++;
       }
@@ -216,7 +212,10 @@ export async function POST(req: NextRequest) {
     audience,
     total: targets.length,
     skipped,
+    // `windowSkipped` = recipients skipped because their 24h WhatsApp window
+    // was closed (would have 63016'd as free-form).
+    windowSkipped,
     segments: counts,
-    sent: { whatsapp: waOk, sms: smsOk, failed },
+    sent: { whatsapp: waOk, failed },
   });
 }
