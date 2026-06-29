@@ -65,7 +65,7 @@ export default function CoveragePage() {
     setLoading(true);
     setError(null);
     try {
-      const r = await fetch("/api/admin/google-ads/coverage", {
+      const r = await fetch("/api/admin/google-ads/coverage-report", {
         credentials: "include",
         cache:       "no-store",
       });
@@ -89,7 +89,7 @@ export default function CoveragePage() {
     setDriftRunning(true);
     setDrift(null);
     try {
-      const r = await fetch("/api/admin/google-ads/coverage", {
+      const r = await fetch("/api/admin/google-ads/coverage-report", {
         method:      "POST",
         credentials: "include",
       });
