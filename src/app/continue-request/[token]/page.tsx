@@ -276,22 +276,22 @@ export default function ContinueRequestPage({ params }: { params: Promise<{ toke
               {/* Property Type */}
               <div className="mb-6">
                 <label className="block text-sm font-medium text-slate-700 mb-3">Property Type</label>
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
                   {propertyTypes.map((property) => (
                     <button
                       key={property.id}
                       type="button"
                       onClick={() => setSelectedProperty(property.id)}
-                      className={`p-4 rounded-xl border-2 transition-all text-center ${
+                      className={`flex flex-col items-center justify-center text-center min-w-0 px-2 py-3 sm:p-4 rounded-xl border-2 transition-all ${
                         selectedProperty === property.id
                           ? "border-orange-500 bg-orange-50"
                           : "border-slate-200 hover:border-slate-300"
                       }`}
                     >
-                      <property.icon className={`h-6 w-6 mx-auto mb-2 ${
+                      <property.icon className={`h-6 w-6 mb-2 shrink-0 ${
                         selectedProperty === property.id ? "text-orange-500" : "text-slate-400"
                       }`} />
-                      <span className="font-medium text-slate-900 text-sm">{property.label}</span>
+                      <span className="font-medium text-slate-900 text-xs sm:text-sm leading-tight break-words">{property.label}</span>
                     </button>
                   ))}
                 </div>

@@ -238,11 +238,17 @@ export function Header() {
             {/* Mobile: Help Now Button + Menu */}
             <div className="flex lg:hidden items-center gap-2">
               {/* Persistent Help Now Button - Always visible on mobile */}
+              {/* NOTE: do NOT add `animate-pulse-subtle` here. That keyframe
+                  scales 0.95→1.6 and fades opacity 0.5→0 — it's built for a
+                  ring OVERLAY child, not a button. Applied to the button itself
+                  it makes the whole CTA balloon and fade to invisible on a loop
+                  (looked pale-pink/broken on customer phones, 29 Jun). Solid
+                  red is the correct, always-legible emergency CTA. */}
               <RequestCTAButton
                 size="sm"
-                className="bg-red-500 hover:bg-red-600 text-white font-semibold px-3 py-2 h-9 text-xs sm:text-sm animate-pulse-subtle"
+                className="bg-red-500 hover:bg-red-600 text-white font-semibold px-3 py-2 h-9 text-xs sm:text-sm whitespace-nowrap"
               >
-                <AlertCircle className="w-4 h-4 mr-1" />
+                <AlertCircle className="w-4 h-4 mr-1 shrink-0" />
                 Help Now
               </RequestCTAButton>
 
