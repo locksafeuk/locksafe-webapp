@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { stripe, verifyWebhookSignature, formatAmountFromStripe, PLATFORM_FEE_PERCENT } from "@/lib/stripe";
 import { withVendorAudit } from "@/lib/vendor-audit";
 import prisma from "@/lib/db";
@@ -21,6 +21,9 @@ import { handlePaymentCompleted } from "@/lib/job-service";
 
 // Disable body parsing - we need the raw body for signature verification
 export const runtime = "nodejs";
+// Give the deferred after() work (ad-conversion uploads + vision check) time to
+// finish after we've already returned 200. Stripe only sees the fast ack.
+export const maxDuration = 60;
 
 // ==========================================
 // SERVER-SIDE CONVERSION TRACKING
@@ -150,6 +153,17 @@ async function stripeWebhookHandler(request: NextRequest) {
 
     console.log(`[Webhook] Received event: ${event.type}`);
 
+    // ==========================================
+    // ACKNOWLEDGE FAST, PROCESS AFTER RESPONDING
+    // ==========================================
+    // Stripe disables endpoints that exceed its webhook timeout. The ad-
+    // conversion uploads (Google/Microsoft/Meta) and the ~20s+ profile-photo
+    // vision check are far too slow to run before the response. Defer ALL
+    // event processing into after(), then return 200 within milliseconds.
+    // Errors inside after() never affect the already-sent 200 — Stripe sees
+    // a successful delivery; failures are logged for our own diagnostics.
+    after(async () => {
+      try {
     // Handle different event types
     switch (event.type) {
       // ===========================================
@@ -999,7 +1013,14 @@ async function stripeWebhookHandler(request: NextRequest) {
       default:
         console.log(`[Webhook] Unhandled event type: ${event.type}`);
     }
+      } catch (error) {
+        // Processing failed AFTER we already returned 200. Stripe is unaffected
+        // — log for our own diagnostics and never rethrow.
+        console.error("[Webhook] Error processing webhook (deferred):", error);
+      }
+    });
 
+    // Acknowledge immediately — the switch above runs in after(), post-response.
     return NextResponse.json({ received: true });
   } catch (error) {
     console.error("[Webhook] Error processing webhook:", error);
