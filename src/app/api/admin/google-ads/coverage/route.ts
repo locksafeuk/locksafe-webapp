@@ -9,7 +9,13 @@
  * Auth: admin JWT cookie.
  */
 
-import { NextRequest, NextResponse } from "next/server";
+// NOTE: handlers are typed with the plain `Request` (not `NextRequest`) on
+// purpose. This exact route previously shipped as OPTIONS:204 / GET:404 because
+// the Vercel bundler failed to register handlers whose signature used the
+// `NextRequest` type (see commit 7554750). Every sibling route under
+// /api/admin/google-ads that works (coverage-map, coverage-near) uses plain
+// `Request`. Do NOT reintroduce `NextRequest` here or the route 404s in prod.
+import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import prisma from "@/lib/db";
 import { verifyToken } from "@/lib/auth";
@@ -27,7 +33,7 @@ async function verifyAdmin() {
   return p?.type === "admin" ? p : null;
 }
 
-export async function GET(_request: NextRequest) {
+export async function GET(_request: Request) {
   const admin = await verifyAdmin();
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -96,7 +102,7 @@ export async function GET(_request: NextRequest) {
   });
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   const admin = await verifyAdmin();
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

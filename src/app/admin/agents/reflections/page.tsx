@@ -11,6 +11,24 @@
 import { useCallback, useEffect, useState } from "react";
 
 type Outcome = "WIN" | "LOSS" | "INCONCLUSIVE" | "NEUTRAL";
+type VerdictTone = "green" | "amber" | "red" | "blue" | "grey";
+
+interface Verdict {
+  code: string;
+  label: string;
+  rationale: string;
+  tone: VerdictTone;
+}
+
+interface LiveState {
+  campaignId: string | null;
+  label: string | null; // SERVING | DORMANT | PAUSED | REMOVED | UNKNOWN
+  campaignStatus: string | null;
+  spend: number | null;
+  conversions: number | null;
+  clicks: number | null;
+  lastVerifiedAt: string | null;
+}
 
 interface Reflection {
   id: string;
@@ -27,18 +45,41 @@ interface Reflection {
   narrative: string | null;
   lessons: string[];
   computedAt: string;
+  verdict?: Verdict;
+  live?: LiveState;
 }
 
+// Vivid, clearly-distinguishable badges (was washed-out *-100 tints).
 const OUTCOME_COLORS: Record<Outcome, string> = {
-  WIN: "bg-green-100 text-green-900",
-  LOSS: "bg-red-100 text-red-900",
-  INCONCLUSIVE: "bg-gray-100 text-gray-700",
-  NEUTRAL: "bg-blue-100 text-blue-900",
+  WIN: "bg-green-600 text-white",
+  LOSS: "bg-red-600 text-white",
+  INCONCLUSIVE: "bg-gray-400 text-white",
+  NEUTRAL: "bg-blue-600 text-white",
+};
+
+// Verdict pill colours by tone.
+const VERDICT_COLORS: Record<VerdictTone, string> = {
+  green: "bg-green-600 text-white",
+  amber: "bg-amber-500 text-black",
+  red: "bg-red-600 text-white",
+  blue: "bg-blue-600 text-white",
+  grey: "bg-gray-400 text-white",
+};
+
+// Live serving-state colours.
+const LIVE_COLORS: Record<string, string> = {
+  SERVING: "bg-green-600 text-white",
+  DORMANT: "bg-yellow-400 text-black",
+  PAUSED: "bg-orange-500 text-white",
+  REMOVED: "bg-red-600 text-white",
+  UNKNOWN: "bg-gray-300 text-gray-800",
 };
 
 export default function ReflectionsPage() {
   const [items, setItems] = useState<Reflection[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const [verdictCounts, setVerdictCounts] = useState<Record<string, number>>({});
+  const [liveError, setLiveError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [agent, setAgent] = useState<string>("");
   const [outcome, setOutcome] = useState<string>("");
@@ -56,6 +97,8 @@ export default function ReflectionsPage() {
         const data = await r.json();
         setItems(data.reflections ?? []);
         setCounts(data.counts ?? {});
+        setVerdictCounts(data.verdictCounts ?? {});
+        setLiveError(data.liveError ?? null);
       }
     } finally {
       setLoading(false);
@@ -83,6 +126,28 @@ export default function ReflectionsPage() {
           ))}
         </div>
       </div>
+
+      {/* Action summary — what the verdicts are telling us to do. */}
+      <div className="flex flex-wrap gap-2 text-sm mb-4">
+        {([
+          ["CONTINUE", "Continue", "bg-green-600 text-white"],
+          ["OPTIMISE", "Optimise", "bg-amber-500 text-black"],
+          ["CHANGE_STRATEGY", "Change strategy", "bg-red-600 text-white"],
+          ["KEEP_WATCHING", "Keep watching", "bg-blue-600 text-white"],
+          ["ARCHIVE", "Archive", "bg-gray-400 text-white"],
+        ] as const).map(([code, label, cls]) => (
+          <span key={code} className={`px-2.5 py-1 rounded font-medium ${cls}`}>
+            {label}: {verdictCounts[code] ?? 0}
+          </span>
+        ))}
+      </div>
+
+      {liveError && (
+        <div className="mb-4 px-3 py-2 rounded bg-orange-50 border border-orange-300 text-xs text-orange-800">
+          Live Google Ads state unavailable ({liveError}). Verdicts below are
+          computed from the last synced grade data.
+        </div>
+      )}
 
       <div className="flex gap-3 mb-4">
         <input
@@ -127,9 +192,9 @@ export default function ReflectionsPage() {
                   <th className="px-3 py-2">When</th>
                   <th className="px-3 py-2">Agent</th>
                   <th className="px-3 py-2">Subject</th>
-                  <th className="px-3 py-2">Metric</th>
+                  <th className="px-3 py-2">Live</th>
                   <th className="px-3 py-2">Outcome</th>
-                  <th className="px-3 py-2">Δ</th>
+                  <th className="px-3 py-2">Verdict</th>
                 </tr>
               </thead>
               <tbody>
@@ -148,14 +213,28 @@ export default function ReflectionsPage() {
                     <td className="px-3 py-2 text-xs text-gray-700">
                       {r.subjectType}:{r.subjectId.slice(-6)}
                     </td>
-                    <td className="px-3 py-2 text-xs">{r.metric}</td>
                     <td className="px-3 py-2">
-                      <span className={`px-2 py-0.5 rounded text-xs ${OUTCOME_COLORS[r.outcome]}`}>
+                      {r.live?.label ? (
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${LIVE_COLORS[r.live.label] ?? LIVE_COLORS.UNKNOWN}`}>
+                          {r.live.label}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-gray-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${OUTCOME_COLORS[r.outcome]}`}>
                         {r.outcome}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-xs">
-                      {r.delta != null ? r.delta.toFixed(2) : "—"}
+                    <td className="px-3 py-2">
+                      {r.verdict ? (
+                        <span className={`px-2 py-0.5 rounded text-xs font-semibold ${VERDICT_COLORS[r.verdict.tone]}`}>
+                          {r.verdict.label}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -171,6 +250,48 @@ export default function ReflectionsPage() {
               <p className="text-xs text-gray-500 mb-2">
                 {selected.subjectType} · {selected.metric} · window {selected.windowDays}d
               </p>
+
+              {/* Recommendation — the deterministic "what should we do" verdict. */}
+              {selected.verdict && (
+                <div className="mb-3 rounded-lg border p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={`px-2 py-0.5 rounded text-xs font-semibold ${VERDICT_COLORS[selected.verdict.tone]}`}>
+                      {selected.verdict.label}
+                    </span>
+                    <span className="text-[10px] uppercase tracking-wide text-gray-400">
+                      Recommendation
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-800">{selected.verdict.rationale}</p>
+                </div>
+              )}
+
+              {/* Live Google Ads state — is the grade still backed by reality? */}
+              {selected.live && (
+                <div className="mb-3 text-xs">
+                  <h4 className="font-semibold uppercase text-gray-600 mb-1">Live Google Ads</h4>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {selected.live.label ? (
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${LIVE_COLORS[selected.live.label] ?? LIVE_COLORS.UNKNOWN}`}>
+                        {selected.live.label}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">no linked campaign</span>
+                    )}
+                    {selected.live.spend != null && (
+                      <span className="text-gray-700">
+                        £{selected.live.spend.toFixed(2)} spend · {selected.live.conversions ?? 0} conv · {selected.live.clicks ?? 0} clicks
+                      </span>
+                    )}
+                  </div>
+                  {selected.live.lastVerifiedAt && (
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      Synced {new Date(selected.live.lastVerifiedAt).toLocaleString("en-GB")}
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div className="text-xs space-y-1 mb-3">
                 <div>
                   Expected:{" "}
