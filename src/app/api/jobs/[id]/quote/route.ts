@@ -28,6 +28,7 @@ export async function POST(
       vat,
       total,
       quoteGps,
+      gps, // mobile app sends `gps`; web sends `quoteGps`
     } = body;
 
     // Normalize parts to the QuotePart composite shape (name, quantity,
@@ -43,10 +44,40 @@ export async function POST(
       },
     );
 
-    // Validate required fields
-    if (!lockType || !total) {
+    // ── Totals: compute server-side when the client doesn't send them. ──────
+    // The mobile app calculates totals locally but only POSTs lockType/defect/
+    // difficulty/parts/labourCost/labourTime/gps — NOT partsTotal/subtotal/vat/
+    // total. The old code did `if (!total) → 400`, so every mobile quote failed
+    // with "Lock type and total are required" (HTTP 400) and jobs could never be
+    // completed. We now derive any missing money field from labour + parts so
+    // the already-deployed app works without an App Store / Play release.
+    const labour = Number(labourCost) || 0;
+    const computedPartsTotal = normalizedParts.reduce((s, p) => s + p.total, 0);
+    const partsTotalFinal = Number(partsTotal ?? computedPartsTotal) || computedPartsTotal;
+    const subtotalProvided = subtotal != null ? Number(subtotal) : null;
+    const subtotalFinal =
+      subtotalProvided != null && !Number.isNaN(subtotalProvided)
+        ? subtotalProvided
+        : labour + partsTotalFinal;
+    const vatFinal = vat != null && !Number.isNaN(Number(vat)) ? Number(vat) : subtotalFinal * 0.2;
+    const totalProvided = total != null ? Number(total) : null;
+    const totalFinal =
+      totalProvided != null && !Number.isNaN(totalProvided) && totalProvided > 0
+        ? totalProvided
+        : subtotalFinal + vatFinal;
+
+    // Validate: lockType required, and the quote must have a positive value
+    // (either labour or parts). This replaces the old `!total` check that
+    // rejected every mobile submission.
+    if (!lockType) {
       return NextResponse.json(
-        { success: false, error: "Lock type and total are required" },
+        { success: false, error: "Lock type is required" },
+        { status: 400 }
+      );
+    }
+    if (!(totalFinal > 0)) {
+      return NextResponse.json(
+        { success: false, error: "Add a labour cost or at least one part — the quote total is £0." },
         { status: 400 }
       );
     }
@@ -91,12 +122,12 @@ export async function POST(
         defect: defect || "",
         difficulty: difficulty || "medium",
         parts: normalizedParts,
-        labourCost: labourCost || 0,
+        labourCost: labour,
         labourTime: labourTime || 0,
-        partsTotal: partsTotal || 0,
-        subtotal: subtotal || total,
-        vat: vat || 0,
-        total,
+        partsTotal: partsTotalFinal,
+        subtotal: subtotalFinal,
+        vat: vatFinal,
+        total: totalFinal,
         accepted: false,
         acceptedAt: null,
         declinedAt: null,
@@ -108,12 +139,12 @@ export async function POST(
         defect: defect || "",
         difficulty: difficulty || "medium",
         parts: normalizedParts,
-        labourCost: labourCost || 0,
+        labourCost: labour,
         labourTime: labourTime || 0,
-        partsTotal: partsTotal || 0,
-        subtotal: subtotal || total,
-        vat: vat || 0,
-        total,
+        partsTotal: partsTotalFinal,
+        subtotal: subtotalFinal,
+        vat: vatFinal,
+        total: totalFinal,
       },
     });
 
@@ -123,7 +154,7 @@ export async function POST(
       data: {
         status: "QUOTED",
         diagnosedAt: new Date(),
-        quoteGps: quoteGps || null,
+        quoteGps: quoteGps || gps || null,
       },
     });
 
@@ -134,7 +165,7 @@ export async function POST(
         jobId: job.id,
         jobNumber: job.jobNumber,
         locksmithName: job.locksmith.name,
-        quoteTotal: total,
+        quoteTotal: totalFinal,
         estimatedTime: labourTime || 30,
         diagnosis: defect || lockType,
       }).catch((err) => console.error("[Email] Failed to send quote received email:", err));
@@ -147,9 +178,9 @@ export async function POST(
         jobId: job.id,
         locksmithName: job.locksmith.name,
         customerName: job.customer.name,
-        labourCost: labourCost || 0,
-        partsCost: partsTotal || 0,
-        total,
+        labourCost: labour,
+        partsCost: partsTotalFinal,
+        total: totalFinal,
         description: defect || lockType,
       }).catch((err) => console.error("[Telegram] Failed to send quote notification:", err));
     }
@@ -163,7 +194,7 @@ export async function POST(
         customerPhone: job.customer.phone,
         locksmithName: job.locksmith.name,
         locksmithPhone: job.locksmith.phone || undefined,
-        quotedAmount: total,
+        quotedAmount: totalFinal,
       };
       sendJobNotification("full_quote", smsContext).catch((err) =>
         console.error("[SMS] Failed to send quote notification:", err)
