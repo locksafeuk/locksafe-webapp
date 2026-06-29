@@ -58,11 +58,11 @@ interface HealthResponse {
 }
 
 const LABEL_STYLES: Record<HealthRow["label"], string> = {
-  GREEN:  "bg-green-100 text-green-900 border-green-300",
-  YELLOW: "bg-yellow-100 text-yellow-900 border-yellow-300",
-  ORANGE: "bg-orange-100 text-orange-900 border-orange-300",
-  RED:    "bg-red-100 text-red-900 border-red-300",
-  GREY:   "bg-gray-100 text-gray-700 border-gray-300",
+  GREEN:  "bg-green-600 text-white border-green-700",
+  YELLOW: "bg-yellow-400 text-black border-yellow-500",
+  ORANGE: "bg-orange-500 text-white border-orange-600",
+  RED:    "bg-red-600 text-white border-red-700",
+  GREY:   "bg-gray-400 text-white border-gray-500",
 };
 
 const LIVE_STYLES: Record<HealthRow["live"], string> = {
