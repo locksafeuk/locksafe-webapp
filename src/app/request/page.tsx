@@ -39,15 +39,18 @@ const problemTypes = [
   { id: "other", label: "Other Issue", icon: "❓", description: "Something else" },
 ];
 
-// Contact channels. WhatsApp number is config-driven (NEXT_PUBLIC_WHATSAPP_NUMBER,
-// digits only) so the button only renders when a confirmed number is set — never
-// a dead link. Inbound WhatsApp routes to customer Lockie (CUSTOMER_WHATSAPP_AGENTIC).
+// Contact channels. WhatsApp reuses the SAME number + flag as the existing
+// job-page "continue on WhatsApp" CTA (src/app/customer/job/[id]/page.tsx), so
+// one switch — NEXT_PUBLIC_CUSTOMER_WHATSAPP_CTA — controls WhatsApp sitewide and
+// the number is never guessed. Inbound routes to customer Lockie when
+// CUSTOMER_WHATSAPP_AGENTIC is on.
 const SITE_PHONE_TEL = "+442045771989";
 const SITE_PHONE_LABEL = "0204 577 1989";
-const WHATSAPP_NUMBER = (process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "").replace(/[^0-9]/g, "");
-const WHATSAPP_HREF = WHATSAPP_NUMBER
-  ? `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent("Hi LockSafe, I'm locked out and need a locksmith.")}`
-  : "";
+const WHATSAPP_NUMBER = "447446588587";
+const SHOW_WHATSAPP = process.env.NEXT_PUBLIC_CUSTOMER_WHATSAPP_CTA === "true";
+const WHATSAPP_HREF = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
+  "Hi LockSafe, I'm locked out and need a locksmith.",
+)}`;
 
 const propertyTypes = [
   { id: "house", label: "House", icon: Home },
@@ -397,7 +400,7 @@ function RequestPageContent() {
                 </span>
               </a>
 
-              {WHATSAPP_HREF && (
+              {SHOW_WHATSAPP && (
                 <a
                   href={WHATSAPP_HREF}
                   target="_blank"
