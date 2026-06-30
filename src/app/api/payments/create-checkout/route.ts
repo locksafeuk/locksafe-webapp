@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
       }),
       prisma.locksmithApplication.findUnique({
         where: { id: applicationId },
-        select: { id: true, status: true },
+        select: { id: true, status: true, assessmentFee: true },
       }),
     ]);
 
@@ -101,11 +101,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Pin the charge to the locksmith's quoted fee for assessment/call-out
+    // payments — never trust the client-supplied amount. Without this a tampered
+    // client could pay less while the job is still marked assessmentPaid with the
+    // full fee. The separate work_quote flow carries its own amount (the on-site
+    // quote), so it keeps the supplied value.
+    const chargeAmount =
+      paymentType === "work_quote" ? amount : (application.assessmentFee ?? amount);
+    if (
+      paymentType !== "work_quote" &&
+      application.assessmentFee != null &&
+      Math.abs(amount - application.assessmentFee) > 0.01
+    ) {
+      console.warn(
+        `[create-checkout] client amount £${amount} != application fee £${application.assessmentFee} for app ${application.id}; charging the locksmith's fee`,
+      );
+    }
+
     // ── Apply discount chain ─────────────────────────────────────────
     // 1. LockSafe Cover discount (50% off or free callout)
-    const subscriberResult = await applySubscriberDiscount(customerId, amount);
+    const subscriberResult = await applySubscriberDiscount(customerId, chargeAmount);
     const afterSubscriber = subscriberResult.fee;
-    const subscriberDiscount = amount - afterSubscriber;
+    const subscriberDiscount = chargeAmount - afterSubscriber;
 
     // 2. Referral credit
     const creditResult = await applyReferralCredit(customerId, afterSubscriber);
@@ -124,7 +141,7 @@ export async function POST(request: NextRequest) {
             customerId: customer.id,
             type: "callout",
             amount: finalAmount,
-            originalAmount: amount,
+            originalAmount: chargeAmount,
             subscriberDiscount,
             referralCreditApplied: creditResult.creditApplied,
             platformSubsidy: subscriberDiscount,
