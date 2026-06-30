@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense, useCallback } from "react";
+import { useState, useEffect, useRef, Suspense, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -126,6 +126,18 @@ function RequestPageContent() {
 
   // Animation state for selections
   const [recentlySelected, setRecentlySelected] = useState<string | null>(null);
+
+  // Funnel: fire a step event into the AnalyticsEvent pipeline the admin funnel
+  // reads, every time the visitor reaches a new form step. This is what makes
+  // "exactly where they stop" measurable — landing (page_view) → step 1 problem
+  // → step 2 location → step 3 contact → submit → job. Deduped per step so a
+  // back-and-forth or a StrictMode double-mount can't inflate the counts.
+  const lastStepTracked = useRef<number | null>(null);
+  useEffect(() => {
+    if (lastStepTracked.current === step) return;
+    lastStepTracked.current = step;
+    trackEvent("request_step", { step, requestType });
+  }, [step, requestType]);
 
   // Pre-fill form based on request type and user data
   useEffect(() => {

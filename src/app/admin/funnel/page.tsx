@@ -15,6 +15,7 @@ interface FunnelData {
   totalEvents: number;
   uniqueVisitors: number;
   funnel: FunnelStage[];
+  formFunnel: { stage: string; count: number; pctOfPrev: number | null }[];
   channelTaps: { call: number; whatsapp: number; bookSubmit: number };
   topLandingPages: { path: string; views: number }[];
   conversionEvents: Record<string, number>;
@@ -118,6 +119,42 @@ export default function AdminFunnelPage() {
               <p className="text-xs text-slate-400 mt-4">
                 A big drop between &quot;Reached booking page&quot; and &quot;Submitted&quot; = the form leaks. Between
                 &quot;Page views&quot; and &quot;Reached booking&quot; = the landing CTA leaks.
+              </p>
+            </div>
+
+            {/* In-form drop-off — exactly where they stop on /request */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-6">
+              <h2 className="text-lg font-bold text-slate-900 mb-1">Where they stop on the booking form</h2>
+              <p className="text-xs text-slate-400 mb-4">Furthest /request step each visitor reached</p>
+              <div className="space-y-3">
+                {(data.formFunnel ?? []).map((s, i) => {
+                  const max = Math.max(1, ...(data.formFunnel ?? []).map((x) => x.count));
+                  const biggestDrop = s.pctOfPrev != null && s.pctOfPrev < 50;
+                  return (
+                    <div key={s.stage}>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-slate-700">{s.stage}</span>
+                        <span className="text-slate-900 font-semibold">
+                          {s.count.toLocaleString()}
+                          {i > 0 && s.pctOfPrev != null && (
+                            <span className={`ml-2 text-xs ${biggestDrop ? "text-red-600" : "text-slate-400"}`}>
+                              {s.pctOfPrev}% of prev
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      <div className="h-5 bg-slate-100 rounded overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-sky-400 to-sky-500"
+                          style={{ width: `${Math.max(1.5, (s.count / max) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-slate-400 mt-4">
+                The step with the biggest red drop is where the form is losing people — fix that step first.
               </p>
             </div>
 

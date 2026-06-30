@@ -47,6 +47,28 @@ export async function GET(request: NextRequest) {
     bookSubmit: submits,
   };
 
+  // In-form step funnel: the furthest /request step each session reached, so
+  // "exactly where they stop" is visible (step 1 problem → 2 location → 3 contact).
+  const stepBySession: Record<string, number> = {};
+  for (const e of events) {
+    if (e.type !== "request_step" || !e.sessionId) continue;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const st = Number((e.data as any)?.step) || 0;
+    if (st > (stepBySession[e.sessionId] || 0)) stepBySession[e.sessionId] = st;
+  }
+  const reachedStep = (n: number) => Object.values(stepBySession).filter((s) => s >= n).length;
+  const formStagesRaw = [
+    { stage: "Step 1 · Problem", count: reachedStep(1) },
+    { stage: "Step 2 · Location", count: reachedStep(2) },
+    { stage: "Step 3 · Contact", count: reachedStep(3) },
+    { stage: "Submitted", count: submits },
+    { stage: "Job created", count: jobCreatedEvents },
+  ];
+  const formFunnel = formStagesRaw.map((s, i) => {
+    const prev = i === 0 ? s.count : formStagesRaw[i - 1].count;
+    return { ...s, pctOfPrev: prev > 0 ? Math.round((s.count / prev) * 1000) / 10 : null };
+  });
+
   const jobsInWindow = await prisma.job.count({ where: { createdAt: { gte: since } } });
 
   const topLandingPages = Object.entries(byPath)
@@ -77,6 +99,7 @@ export async function GET(request: NextRequest) {
     totalEvents: events.length,
     uniqueVisitors,
     funnel,
+    formFunnel,
     channelTaps,
     topLandingPages,
     conversionEvents,
