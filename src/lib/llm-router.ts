@@ -766,6 +766,11 @@ async function callOllama(
     model,
     messages,
     stream: false,
+    // Keep the model resident for 30min after each call. Big models (qwen3:32b,
+    // ~20GB) take >15s to cold-load, which blows the short per-call timeouts
+    // (e.g. customer-lockie's 15s) on the first request after an idle period.
+    // Pinning warm — together with the always-on agent runner — avoids that.
+    keep_alive: process.env.OLLAMA_KEEP_ALIVE || "30m",
     options: {
       temperature: options.temperature ?? 0.7,
       num_predict: options.maxTokens ?? 2048,
