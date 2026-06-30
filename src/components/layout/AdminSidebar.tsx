@@ -162,6 +162,7 @@ const navGroups: NavGroup[] = [
       { href: "/admin/ads", label: "AI Ad Manager", icon: Sparkles },
       { href: "/admin/ads/launch", label: "Launch Engine", icon: Rocket },
       { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
+      { href: "/admin/funnel", label: "Conversion Funnel", icon: TrendingUp },
       { href: "/admin/attribution", label: "Attribution & ROAS", icon: TrendingUp },
       { href: "/admin/attribution/touch-report", label: "Touch Report", icon: TrendingUp },
       { href: "/admin/marketing", label: "Marketing", icon: Megaphone },
