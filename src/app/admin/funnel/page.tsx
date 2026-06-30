@@ -15,6 +15,7 @@ interface FunnelData {
   totalEvents: number;
   uniqueVisitors: number;
   funnel: FunnelStage[];
+  channelTaps: { call: number; whatsapp: number; bookSubmit: number };
   topLandingPages: { path: string; views: number }[];
   conversionEvents: Record<string, number>;
   jobsInWindow: number;
@@ -120,6 +121,17 @@ export default function AdminFunnelPage() {
               </p>
             </div>
 
+            {/* Channel taps — how people choose to reach you */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-6">
+              <h2 className="text-lg font-bold text-slate-900 mb-1">How people reach out</h2>
+              <p className="text-xs text-slate-400 mb-4">Taps on each channel from the booking page</p>
+              <div className="grid grid-cols-3 gap-3">
+                <ChannelStat label="Call" value={data.channelTaps?.call ?? 0} color="text-orange-600" />
+                <ChannelStat label="WhatsApp" value={data.channelTaps?.whatsapp ?? 0} color="text-green-600" />
+                <ChannelStat label="Book online" value={data.channelTaps?.bookSubmit ?? 0} color="text-slate-900" />
+              </div>
+            </div>
+
             <div className="grid sm:grid-cols-2 gap-6">
               {/* Top landing pages */}
               <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
@@ -159,6 +171,15 @@ export default function AdminFunnelPage() {
         )}
       </div>
     </AdminSidebar>
+  );
+}
+
+function ChannelStat({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div className="bg-slate-50 rounded-xl p-4 text-center">
+      <div className={`text-2xl font-bold ${color}`}>{value.toLocaleString()}</div>
+      <div className="text-xs text-slate-500 mt-1">{label}</div>
+    </div>
   );
 }
 

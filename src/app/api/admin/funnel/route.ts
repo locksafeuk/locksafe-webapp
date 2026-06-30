@@ -41,6 +41,12 @@ export async function GET(request: NextRequest) {
     if (e.type.startsWith("conversion_")) conversionEvents[e.type] = (conversionEvents[e.type] || 0) + 1;
   }
 
+  const channelTaps = {
+    call: events.filter((e) => e.type === "call_click").length,
+    whatsapp: events.filter((e) => e.type === "whatsapp_click").length,
+    bookSubmit: submits,
+  };
+
   const jobsInWindow = await prisma.job.count({ where: { createdAt: { gte: since } } });
 
   const topLandingPages = Object.entries(byPath)
@@ -71,6 +77,7 @@ export async function GET(request: NextRequest) {
     totalEvents: events.length,
     uniqueVisitors,
     funnel,
+    channelTaps,
     topLandingPages,
     conversionEvents,
     jobsInWindow,
