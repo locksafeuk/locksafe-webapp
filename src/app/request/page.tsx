@@ -28,6 +28,7 @@ import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import { captureGPS } from "@/hooks/useGPS";
 import { useTrackingEvents } from "@/hooks/useTrackingEvents";
 import { getClientAttribution } from "@/lib/marketing/client-attribution";
+import { trackEvent } from "@/lib/analytics/track-event";
 
 const problemTypes = [
   { id: "lockout", label: "Locked Out", icon: "🔒", description: "Can't get into your property" },
@@ -91,6 +92,7 @@ function RequestPageContent() {
   const { track, trackFormStarted, trackLead } = useTrackingEvents();
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [formStartTracked, setFormStartTracked] = useState(false);
   const [formData, setFormData] = useState({
     problemType: "",
@@ -250,12 +252,19 @@ function RequestPageContent() {
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
+    setSubmitError(null);
+    trackEvent("booking_submit", { step });
 
     // Track lead conversion
     trackLead(formData.postcode, 50); // £50 estimated lead value
 
-    // Capture customer's GPS location for anti-fraud protection
-    const requestGps = await captureGPS();
+    // GPS is an anti-fraud nice-to-have, NOT a gate. Cap the wait so the
+    // browser geolocation permission prompt can never block/kill the submit —
+    // the postcode is geocoded server-side regardless.
+    const requestGps = await Promise.race([
+      captureGPS(),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500)),
+    ]);
 
     // Capture marketing attribution — visitor ID + any UTM/gclid present
     // on this page's URL. The server combines this with the visitor's
@@ -263,67 +272,54 @@ function RequestPageContent() {
     // the Conversions API can credit it when the job completes.
     const attribution = getClientAttribution();
 
-    // If user is logged in as customer, create the job directly
-    if (isAuthenticated && user && user.type === "customer") {
-      try {
-        const response = await fetch("/api/jobs", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            customerId: user.id,
-            problemType: formData.problemType,
-            propertyType: formData.propertyType,
-            postcode: formData.postcode,
-            address: formData.address,
-            description: formData.description,
-            photos: formData.photos, // Include uploaded photos
-            requestGps: requestGps, // Customer's GPS at request time
-            ...attribution,         // visitorId + utm_* + gclid + fbclid
-          }),
+    // Create the job. Logged-in customers pass customerId; GUESTS pass
+    // name+phone and /api/jobs creates the customer for them. Guests used to be
+    // redirected to a full password-registration wall here — which killed
+    // ~100% of cold ad traffic before a Job row was ever written. The backend
+    // already supports anonymous booking, so we just use it.
+    const isCustomer = isAuthenticated && user && user.type === "customer";
+    try {
+      const response = await fetch("/api/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...(isCustomer
+            ? { customerId: user.id }
+            : { name: formData.name, phone: formData.phone }),
+          problemType: formData.problemType,
+          propertyType: formData.propertyType,
+          postcode: formData.postcode,
+          address: formData.address || formData.postcode, // postcode is enough for dispatch geocoding
+          description: formData.description,
+          photos: formData.photos,
+          requestGps, // Customer's GPS at request time (best-effort)
+          ...attribution, // visitorId + utm_* + gclid + fbclid
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.id) {
+        track("lead", {
+          jobId: data.id,
+          postcode: formData.postcode,
+          value: 50,
+          serviceType: formData.problemType,
         });
-
-        const data = await response.json();
-
-        if (response.ok && data.id) {
-          // Track successful job creation
-          track("lead", {
-            jobId: data.id,
-            postcode: formData.postcode,
-            value: 50,
-            serviceType: formData.problemType,
-          });
-
-          // Redirect to job page
-          router.push(`/customer/job/${data.id}`);
-          return;
-        }
-      } catch (error) {
-        console.error("Failed to create job:", error);
+        trackEvent("booking_job_created", { jobId: data.id, guest: !isCustomer });
+        router.push(`/customer/job/${data.id}`);
+        return;
       }
-      setIsSubmitting(false);
-      return;
+
+      // Show a real error instead of silently un-spinning the button.
+      setSubmitError(
+        data.error || "We couldn't submit your request. Please check your details and try again.",
+      );
+    } catch (error) {
+      console.error("Failed to create job:", error);
+      setSubmitError("Network error — please check your connection and try again.");
     }
-
-    // If not authenticated, store request in session and redirect to login.
-    // Includes the same attribution payload so the post-registration Job
-    // creation in /api/auth/register can stamp UTM + gclid the same way.
-    const pendingRequest = {
-      problemType: formData.problemType,
-      propertyType: formData.propertyType,
-      postcode: formData.postcode,
-      address: formData.address,
-      description: formData.description,
-      name: formData.name,
-      phone: formData.phone,
-      photos: formData.photos, // Include uploaded photos
-      requestGps: requestGps, // Customer's GPS at request time
-      ...attribution,         // visitorId + utm_* + gclid + fbclid
-    };
-
-    sessionStorage.setItem("pending_request", JSON.stringify(pendingRequest));
-
-    // Redirect to login page with register tab active
-    router.push("/login?tab=register");
+    setIsSubmitting(false);
   };
 
   return (
@@ -725,19 +721,21 @@ function RequestPageContent() {
                 {isSubmitting ? (
                   <>
                     <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin mr-2" />
-                    <span className="truncate">
-                      {isAuthenticated ? "Submitting Request..." : "Continue to Login..."}
-                    </span>
+                    <span className="truncate">Submitting Request...</span>
                   </>
                 ) : (
                   <>
-                    <span className="truncate">
-                      {isAuthenticated ? "Find Locksmiths Near Me" : "Continue & Create Account"}
-                    </span>
+                    <span className="truncate">Find My Locksmith</span>
                     <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-2 flex-shrink-0" />
                   </>
                 )}
               </Button>
+
+              {submitError && (
+                <p className="text-sm text-center text-red-600 mt-3" role="alert">
+                  {submitError}
+                </p>
+              )}
 
               {!isAuthenticated && !authLoading && (
                 <p className="text-xs sm:text-sm text-center text-slate-600">

@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import dynamic from "next/dynamic";
 import { AuthProvider } from "@/components/auth/AuthContext";
 import { UserTracker, TelLinkAttribution } from "@/components/marketing";
+import { PageViewTracker } from "@/components/analytics/PageViewTracker";
 import { CallNowFAB } from "@/components/CallNowFAB";
 
 // Defer non-critical overlays so they don't block LCP / hydration on
@@ -66,6 +67,7 @@ export default function ClientBody({
           anchor on the site without per-component edits.
         */}
         <TelLinkAttribution />
+        <PageViewTracker />
         <div className="antialiased">{children}</div>
         <ModalSystem />
       </UserTracker>
