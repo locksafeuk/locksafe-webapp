@@ -440,10 +440,19 @@ export default function JobWorkPage({ params }: { params: Promise<{ id: string }
     setUpdating(true);
 
     try {
-      // Get GPS for key status changes (anti-fraud protection)
+      // Get GPS for key status changes (anti-fraud protection) — BEST EFFORT.
+      // Previously this awaited getCurrentLocation() directly, so if the browser
+      // blocked/stalled geolocation (very common in email in-app webviews, or
+      // when the permission was denied) the await never resolved and the button
+      // "did nothing" — the locksmith could never Start Work / Mark Arrived /
+      // Complete. We now race GPS against a 4s cap and ALWAYS proceed: a missing
+      // GPS fix must never block the job from moving forward.
       let gpsData = null;
       if (newStatus === "ARRIVED" || newStatus === "IN_PROGRESS" || newStatus === "COMPLETED" || newStatus === "PENDING_CUSTOMER_CONFIRMATION") {
-        gpsData = await getCurrentLocation();
+        gpsData = await Promise.race([
+          getCurrentLocation().catch(() => null),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
+        ]);
       }
 
       const response = await fetch(`/api/jobs/${id}/status`, {
